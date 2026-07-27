@@ -123,9 +123,12 @@ export async function filterAllowedOrgs(
   });
 }
 
-// Helper function to get default config for a property
-// Values are cached based on ConfigInfo path after first retrieval
-// This is to prevent manipulation of the config file after server start
+// Helper function to get default config for a property.
+// The default target-org/dev-hub is re-resolved on every call so that it follows the
+// ambient default config for the current working directory (CLI parity). This is
+// intentional: the DEFAULT_TARGET_* allowlist tokens track whatever the current default
+// resolves to, rather than pinning a fixed org at server startup. Operators who need a
+// hard org lock should pass explicit usernames/aliases to --orgs instead.
 async function getDefaultConfig(
   property: OrgConfigProperties.TARGET_ORG | OrgConfigProperties.TARGET_DEV_HUB
 ): Promise<OrgConfigInfo | undefined> {

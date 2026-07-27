@@ -156,6 +156,9 @@ These are the available values for the `--orgs` flag:
 | `DEFAULT_TARGET_ORG`     | Allow access to your default org. If you've set a local default org in your DX project, the MCP server uses it. If not, the server uses a globally-set default org.                         |
 | `<username or alias>`    | Allow access to a specific org by specifying its username or alias.                                                                                                                         |
 
+> [!NOTE]
+> The `DEFAULT_TARGET_ORG` and `DEFAULT_TARGET_DEV_HUB` tokens are resolved dynamically on every tool call, not pinned when the server starts. They track whatever the default org resolves to for the working directory a tool operates in, so switching your default org (or working in a directory with a different local default) changes which org these tokens allow. This mirrors how the `sf` CLI resolves the default target-org when you don't pass `--target-org`. If you want to lock the server to a fixed set of orgs regardless of the current default, pass explicit usernames or aliases to `--orgs` instead of the `DEFAULT_TARGET_*` tokens.
+
 ## Configure Toolsets
 
 The Salesforce DX MCP Server supports **toolsets**—a way to selectively enable different groups of MCP tools based on your needs. This allows you to run the MCP server with only the tools you require, which in turn reduces the LLM context.
