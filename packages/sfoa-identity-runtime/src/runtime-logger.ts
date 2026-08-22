@@ -2,6 +2,7 @@ export type RuntimeLogResult = 'PASS' | 'ERROR' | 'BLOCKED';
 
 export type RuntimeLogEvent = Readonly<{
   correlationId: string;
+  clientId?: string;
   platformUserId?: string;
   salesforceUsername?: string;
   toolName?: string;
@@ -16,7 +17,7 @@ export interface RuntimeLogger {
 
 export class JsonLineRuntimeLogger implements RuntimeLogger {
   public log(event: RuntimeLogEvent): void {
-    process.stderr.write(`${JSON.stringify({ event: 'sfoa_request', ...event })}\n`);
+    process.stderr.write(`${JSON.stringify({ timestamp: new Date().toISOString(), event: 'sfoa_request', ...event })}\n`);
   }
 }
 

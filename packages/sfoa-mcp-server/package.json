@@ -1,8 +1,8 @@
 {
-  "name": "@sfoa/identity-runtime",
-  "version": "0.1.0-p1",
+  "name": "@sfoa/mcp-server",
+  "version": "0.1.0-p2",
   "private": true,
-  "description": "P1 request-scoped Salesforce identity routing and Streamable HTTP validation runtime",
+  "description": "P2 stateless remote MCP host with request authentication and Tool governance",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,16 +14,18 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "clean-all": "yarn clean",
     "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "package": "node -e \"console.log('Private P1 identity runtime: package skipped')\"",
-    "start:p1": "yarn build && node dist/main.js",
+    "package": "node -e \"console.log('Private P2 remote MCP server: package skipped')\"",
+    "start": "yarn build && node dist/main.js",
     "test": "yarn build && node --test dist/test/*.test.js",
-    "validate:p1": "yarn build && node dist/validation/main.js"
+    "validate:p2": "yarn build && node dist/validation/main.js",
+    "validate:inspector": "yarn build && node dist/validation/inspector-gate.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.18.2",
     "@salesforce/core": "8.29.0",
     "@salesforce/mcp-provider-api": "0.6.0",
     "@salesforce/mcp-provider-dx-core": "0.10.0",
+    "@sfoa/identity-runtime": "0.1.0-p1",
     "zod": "3.25.76"
   },
   "devDependencies": {
