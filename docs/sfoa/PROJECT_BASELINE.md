@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P1-BL-1.1**
+Baseline ID: **P1-BL-1.2**
 
 Baseline date: 2026-08-22
 
@@ -90,15 +90,17 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P1 — Request-Scoped Identity Routing (COMPLETE / AWAITING MAINTAINER REVIEW)`
+`P1 — Request-Scoped Identity Routing (PASS / COMPLETE / MAINTAINER ACCEPTED)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P2 = NOT STARTED`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = AUTHORIZED / NOT STARTED`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
 The maintainer had supplied `SECOND_TEST_USER`, but the P0-Closure configuration loader did not read it. Therefore the historical P0 matrix statement "`SECOND_TEST_USER` not supplied" was inaccurate as an input statement while remaining accurate that the second user was not exercised by P0. Historical reports are not rewritten to imply a test that did not occur. The P1 configuration now explicitly consumes `SECOND_TEST_USER`, constructs the second route, and the mandatory real two-user Gate passed.
+
+The maintainer accepted P1 as `PASS / COMPLETE` on 2026-08-22 and authorized P2 Remote MCP Runtime & Tool Governance. The required P1 build, 22/22 tests, strict lint, and live two-user validation were rerun successfully on the accepted P1 branch before merge to `main`.
 
 ## P0 acceptance decisions
 
@@ -153,7 +155,7 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 - Repository-wide lint still stops on 47 unchanged official code-analyzer errors: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`. `SFOA_CHANGED_CODE_LINT = PASS`.
 - Salesforce CLI runtime dependency: none. Database/Redis/cache/pool dependency: none. Official Salesforce TypeScript files modified by P1: 0. Root `package.json`, `yarn.lock`, and `.env.example` were unchanged by P1.
 
-P1 completion does not authorize P2. The maintainer must review this Gate and `P1_FINAL_REPORT.md` before P2 begins.
+P1 has received maintainer review and is accepted. P2 is authorized only on a new branch created from the updated `main`; no P2 implementation belongs on the P1 branch.
 
 ### P1 entry criteria — satisfied (historical)
 
@@ -161,7 +163,7 @@ P1 completion does not authorize P2. The maintainer must review this Gate and `P
 - Original stdio, Streamable HTTP, and SFoA changed-code lint regressions remain PASS.
 - The maintainer reviews `P0_CLOSURE_REPORT.md` and explicitly authorizes P1.
 
-All three criteria are satisfied. P2 remains prohibited until the completed P1 Gate receives maintainer review.
+All three criteria are satisfied. The completed P1 Gate subsequently received maintainer review and P2 authorization.
 
 ## Known risks
 
@@ -196,3 +198,4 @@ All three criteria are satisfied. P2 remains prohibited until the completed P1 G
 | P0-BL-1.4 | 2026-08-22 | Completed live SFoA JWT, identity, Direct/official SOQL, CustomObject metadata, CWD boundary, and CLI v2 cross-check Gates; upgraded P0 to PASS while keeping P1 unstarted and recording remaining Upstream/concurrency risks. |
 | P1-BL-1.0 | 2026-08-22 | Recorded maintainer acceptance of P0, corrected the historical `SECOND_TEST_USER` input omission without rewriting P0 results, entered P1 on an isolated feature branch, retained a database-free in-memory repository, and reserved the non-implemented P4 `DIAGNOSTIC` connection role. |
 | P1-BL-1.1 | 2026-08-22 | Closed P1 as PASS after real A/B JWT/identity and official Tool execution, bidirectional forgery denial, 20-request zero-leak concurrency, metadata/CWD/workspace isolation, request cleanup, stdio/HTTP/P0 regressions, zero official TypeScript patches, and SFoA changed-code lint; P2 remains unstarted pending maintainer review. |
+| P1-BL-1.2 | 2026-08-22 | Recorded maintainer acceptance of P1 and authorization for P2 after rerunning the accepted P1 build, 22/22 tests, strict lint, and live two-user validation; P2 remains unstarted until its branch is created from updated `main`. |
