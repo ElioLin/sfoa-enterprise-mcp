@@ -1,0 +1,32 @@
+{
+  "name": "@sfoa/runtime-validation",
+  "version": "0.0.0-p0-closure",
+  "private": true,
+  "description": "P0-Closure live SFoA JWT, official Provider, SOQL, and metadata validation harness",
+  "type": "module",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P0-Closure harness: package skipped')\"",
+    "regress:stdio": "yarn build && node dist/stdio-regression.js",
+    "test": "yarn build && node --test dist/test/*.test.js",
+    "validate": "yarn build && node dist/main.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.18.2",
+    "@salesforce/core": "8.29.0",
+    "@salesforce/mcp-provider-api": "0.6.0",
+    "@salesforce/mcp-provider-dx-core": "0.10.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}

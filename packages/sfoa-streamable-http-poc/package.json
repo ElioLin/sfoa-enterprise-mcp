@@ -10,10 +10,10 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "clean-all": "yarn clean",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
     "package": "node -e \"console.log('Private P0 POC: package skipped')\"",
     "start": "node dist/main.js",
     "test": "yarn build && node --test dist/test/http-poc.test.js"

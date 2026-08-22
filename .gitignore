@@ -53,6 +53,7 @@ node_modules
 
 .cursor
 tmp
+.temp/
 
 # local agent/web research cache
 .firecrawl/
