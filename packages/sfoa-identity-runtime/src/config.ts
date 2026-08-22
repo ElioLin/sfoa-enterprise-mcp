@@ -114,10 +114,8 @@ export async function loadIdentityRuntimeConfig(
   const privateKeyPath = path.isAbsolute(parsed.data.JWT_PRIVATE_KEY_PATH)
     ? path.normalize(parsed.data.JWT_PRIVATE_KEY_PATH)
     : path.resolve(resolvedProjectRoot, parsed.data.JWT_PRIVATE_KEY_PATH);
-  const keyStats = await stat(privateKeyPath).catch((error: unknown) => {
-    throw new RuntimeConfigurationError(
-      `JWT_PRIVATE_KEY_PATH is not a readable file: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  const keyStats = await stat(privateKeyPath).catch(() => {
+    throw new RuntimeConfigurationError('JWT_PRIVATE_KEY_PATH is not a readable file.');
   });
   if (!keyStats.isFile()) throw new RuntimeConfigurationError('JWT_PRIVATE_KEY_PATH must identify a file.');
 

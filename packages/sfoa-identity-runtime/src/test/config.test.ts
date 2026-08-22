@@ -37,6 +37,17 @@ test('P1 config consumes SECOND_TEST_USER and builds two non-secret identity rou
 
     const withoutSecond: IdentityRuntimeConfig = { ...config, secondaryUsername: undefined };
     assert.deepEqual(missingLiveVariables(withoutSecond), ['SECOND_TEST_USER']);
+
+    const sensitiveMissingPath = path.join(testRoot, 'sensitive-private-key-name.pem');
+    await assert.rejects(
+      loadIdentityRuntimeConfig(testRoot, { JWT_PRIVATE_KEY_PATH: sensitiveMissingPath }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.equal(error.message, 'JWT_PRIVATE_KEY_PATH is not a readable file.');
+        assert.equal(error.message.includes(sensitiveMissingPath), false);
+        return true;
+      },
+    );
   } finally {
     const resolved = path.resolve(testRoot);
     assert.equal(path.dirname(resolved), path.resolve(tmpdir()));
