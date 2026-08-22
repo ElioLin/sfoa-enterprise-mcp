@@ -87,6 +87,10 @@ P2 uses only public contracts: `McpTool.getConfig()`, `McpServer.registerTool()`
 
 P2 Closure HOTFIX01 remains entirely in SFoA-owned package/tests/docs. It uses public `DxCoreMcpProvider.getName()`, `getVersion()`, `provideTools()`, and public Tool `getName()`/`getReleaseState()`/`getConfig()` to detect inventory and contract drift. Remote schemas are now projected from explicit Agent-field allowlists after exact audited surface validation. The hotfix modifies zero official Salesforce TypeScript files, copies no Tool, and does not change root `package.json` or `yarn.lock`; no modification-matrix row is required.
 
+P3 also modifies **zero official Salesforce TypeScript files**. The new `packages/mcp-provider-sfoa-dml` workspace and the P3 additions to `packages/sfoa-mcp-server`, `.env.example`, and `docs/sfoa` are SFoA-owned paths. The existing root `packages/*` workspace glob discovers the new package, so root `package.json` and `yarn.lock` remain unchanged and no new Upstream modification-matrix row is required.
+
+P3-00 inspected the actual pinned dx-core Provider/public API/history before choosing the extension. No current generic CREATE/UPDATE Provider is reusable; removed historical source was not copied. Salesforce Hosted `platform/sobject-mutations` uses a separate hosted endpoint and OAuth/External Client App model, does not accept the existing in-process request Connection, and has no proven SFoA availability. The minimal fallback uses only the pinned public `@salesforce/core`/JSforce single-record `Connection.sobject().create()` and `update()` methods. Production calls no raw REST, CLI, Auth Cache, DELETE/destroy, UPSERT, or Bulk API. Merge risk remains LOW.
+
 ## Changes that require a new matrix entry
 
 - Root/package workspace configuration.

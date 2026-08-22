@@ -11,12 +11,14 @@ From the repository root:
 ```powershell
 yarn workspace @sfoa/mcp-server build
 yarn workspace @sfoa/mcp-server test
+yarn workspace @sfoa/mcp-server test:p3
 yarn workspace @sfoa/mcp-server lint
 yarn workspace @sfoa/mcp-server validate:upstream
 yarn workspace @sfoa/mcp-server validate:p2
+yarn workspace @sfoa/mcp-server validate:p3
 yarn workspace @sfoa/mcp-server start
 ```
 
-Copy `.env.example` to the ignored `.env.local`, set a strong `MCP_CLIENT_TOKEN`, and retain all real Salesforce/JWT values only in that ignored file or the current shell. See `docs/sfoa/P2_USER_TEST.md` and `docs/sfoa/MCP_CLIENT_CONTRACT.md` for the operator and client contracts.
+Copy `.env.example` to the ignored `.env.local`, set a strong `MCP_CLIENT_TOKEN`, and retain all real Salesforce/JWT values only in that ignored file or the current shell. See `docs/sfoa/P2_USER_TEST.md`, `docs/sfoa/MCP_CLIENT_CONTRACT.md`, and `docs/sfoa/P3_FINAL_REPORT.md` for the operator, client, mutation, and validation contracts.
 
 Run `validate:upstream` after every Salesforce upstream sync. Any difference returns `UPSTREAM_REVIEW_REQUIRED`; changes affecting an enabled remote Tool also fail production startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`. New Tools and fields are never automatically classified or exposed.

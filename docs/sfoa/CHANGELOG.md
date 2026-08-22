@@ -2,6 +2,37 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-22 — P3 minimal generic DML completed
+
+### Added
+
+- New private `@sfoa/mcp-provider-sfoa-dml` workspace with exactly `create_record` and `update_record`, strict input/output schemas, complete annotations, stable safe errors, and single-record SDK execution through request `OrgService`.
+- Strict `MCP_DML_ALLOWLIST_JSON` Object-by-Operation parser/policy. Missing, blank, and `[]` deny all; malformed JSON, unknown fields/operations, DELETE, duplicate objects, and duplicate operations fail closed.
+- Separate `DmlToolGovernancePolicy` and DML facade in the formal Host. Exact P3 Tool names require a matching operation rule; the accepted official P2 `MUTATION` classification remains forbidden.
+- Twelve Provider tests, eight independent P3 Host/config/HTTP/identity tests, and a live P3 Salesforce validator with ID-bounded SDK cleanup outside production Tool registration.
+- `P3_FINAL_REPORT.md`; architecture, Upstream boundary, baseline, matrix, environment example, and package documentation updates.
+
+### Official reuse decision
+
+- The actual pinned dx-core 0.10.0 Provider has no reusable generic CREATE/UPDATE Provider or Tool. Removed historical create-only source was not copied.
+- Salesforce Hosted `platform/sobject-mutations` is not an embeddable Provider for the accepted request-scoped Connection path; it requires a separate hosted endpoint/OAuth model and SFoA availability remains not proven.
+- ADR-0008 selects only pinned public single-record `Connection.sobject().create()` and `update()`. No raw REST, CLI, Auth Cache, custom OAuth, query-after-write, DELETE, UPSERT, or Bulk API is used.
+
+### Verification
+
+- Provider tests: PASS, 12/12. P3 Host/config/HTTP tests: PASS, 8/8. P2 historical regression: PASS, 18/18. Strict P3 Provider/Host lint: PASS.
+- Live SFoA `tools/list`: exactly `create_record`, `update_record`. User A real CREATE and UPDATE: PASS. User B used B's Connection and preserved native `FIELD_CUSTOM_VALIDATION_EXCEPTION`; User B UPDATE against the validator-owned A record preserved `INSUFFICIENT_ACCESS_OR_READONLY`.
+- Native invalid CREATE preserved `REQUIRED_FIELD_MISSING` under `MCP_SALESFORCE_DML_FAILED`. Forged platform/username fields could not change the authenticated route. Connection reuse: 0.
+- Validator cleanup: PASS, exactly 2 attempted / 2 deleted / 0 failures; cleanup used only recorded IDs and no production DELETE Tool.
+- `validate:upstream`: PASS with nine GA official Tools and zero drift. P2 live A/B plus 50-request load, P1 22/22 plus live A/B, P0 9/9 plus live SOQL/metadata, P0 HTTP 1/1, project-local Inspector, and original stdio all passed.
+- Git Bash root build: PASS, 82.49 s. Root full tests: PASS, 356.86 s. Root lint reproduced exactly 47 unchanged official code-analyzer errors / 0 warnings as `KNOWN UPSTREAM DEBT`; all SFoA strict lint passed.
+- The frozen Yarn Classic install reproduced the existing Windows nested `brace-expansion` link failure and removed generated `.bin` shims before aborting. The lockfile stayed unchanged; missing shims were mechanically regenerated from installed package manifests, after which stdio, root build, and root tests passed.
+- Official Salesforce TypeScript modifications: 0. Official Tool copied/reimplemented: NO. Root `package.json`: unchanged. `yarn.lock`: unchanged. New database/Redis dependency: none.
+
+### Result
+
+`P3 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`. Baseline advanced to `P3-BL-1.1`. P4 has not started.
+
 ## 2026-08-22 — P3 minimal generic DML authorized
 
 ### Phase transition

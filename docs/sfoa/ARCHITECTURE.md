@@ -368,11 +368,49 @@ P2 does not authorize from `X-Forwarded-For` or `X-Forwarded-Proto`. Those value
 
 The Salesforce SDK path does not expose a reliable end-to-end abort of an operation already accepted server-side. P2 stops waiting and cleans local resources; it does not claim remote Salesforce cancellation.
 
-## P2 to P3 Extension Seam
+## P3 Generic DML Boundary
 
-P3 must not broaden P2's official Tool policy implicitly. It may add a separate SFoA mutation Provider for CREATE/UPDATE only, behind explicit object and operation allowlists where missing configuration means DENY. The mutation Provider consumes the same authenticated `RequestScope` and lets Salesforce enforce CRUD/FLS/sharing/validation/Flow/Trigger.
+P3 implements the accepted extension seam without broadening P2's official Tool classification policy:
 
-P3 must not add DELETE, reuse a read Tool facade as a mutation escape, or turn annotations into authorization. Tool governance remains registration-time; mutation visibility requires both phase-specific classification and allowlist configuration.
+```text
+Agent
+  -> authenticated Streamable HTTP request
+  -> X-Platform-User-Id / P1 IdentityResolver
+  -> fresh request-scoped Salesforce Connection
+  -> exact P3 Tool-name governance
+  -> strict Object x CREATE/UPDATE policy
+  -> @salesforce/core Connection.sobject()
+  -> single-record create() or update()
+  -> Salesforce native CRUD/FLS/sharing/validation/Flow/Trigger
+```
+
+`@sfoa/mcp-provider-sfoa-dml` is a new SFoA-owned Provider composed through the public Provider API. It exposes exactly `create_record` and `update_record`. The two classes call only the pinned public single-record `sobject().create(fields)` and `sobject().update({ Id, ...fields })` methods on the already-authenticated request Connection. They do not construct a Connection, read CLI Auth Cache, implement OAuth, invoke raw REST, query after mutation, or copy an official Tool.
+
+The Agent schemas contain only:
+
+| Tool | Agent input | Output |
+| --- | --- | --- |
+| `create_record` | `objectApiName`, non-empty scalar `fields` | `success`, `recordId` |
+| `update_record` | `objectApiName`, separate `recordId`, non-empty scalar `fields` | `success`, `recordId` |
+
+Identity, username/alias, instance URL, token, directory, operation, REST path, and API-version controls are absent. `fields.Id`, nested objects/arrays, and relationship paths are rejected. There is no post-mutation SOQL. Unknown Tool arguments cannot alter request authority; the MCP SDK removes non-schema arguments before the strict Tool parser, while the request-scoped `OrgService` still exposes exactly one route.
+
+`MCP_DML_ALLOWLIST_JSON` is parsed once at startup into an immutable `DmlAllowlistPolicy`. Its array form preserves duplicate detection:
+
+```json
+[
+  { "objectApiName": "Lead", "operations": ["CREATE", "UPDATE"] },
+  { "objectApiName": "Account", "operations": ["UPDATE"] }
+]
+```
+
+Missing, blank, or `[]` means deny all. Invalid JSON, unknown fields/operations, DELETE, duplicate objects, and duplicate operations fail startup. Unknown objects and unconfigured Object-by-Operation pairs fail before Connection retrieval or DML execution.
+
+Tool visibility is a separate dual gate: the exact `create_record`/`update_record` name must appear in `MCP_ENABLED_TOOLS`, and the policy must contain at least one object for its operation. P2's general `MUTATION` classification remains forbidden, so `deploy_metadata`, `assign_permission_set`, and every other official mutation/admin Tool stay unavailable.
+
+P3 adds stable outer errors while retaining bounded safe Salesforce error code/message/field details. It does not reinterpret Salesforce validation or build a field permission engine. DELETE, UNDELETE, UPSERT, MERGE, Bulk DML, arbitrary REST, metadata mutation, and Apex mutation substitutes are absent from production code and Tool schemas.
+
+The independent live validator may call SDK `destroy(recordId)` only for IDs returned by that validator run. That cleanup method is not imported by the Provider, registered as a Tool, or used for query-based deletion.
 
 ## Future Admin UI location
 
@@ -384,7 +422,7 @@ Planned UI areas: dashboard, Salesforce account routing, object CREATE/UPDATE al
 
 ## Data, cache, and security baseline
 
-- P0, P0-Closure, P1, and P2 use no database.
+- P0, P0-Closure, P1, P2, and P3 use no database.
 - P1 proves request-scoped identity routing with an in-memory repository. Persistence is introduced only when durable routing or Admin configuration actually needs it.
 - No Redis, token cache, or Connection pool without measured multi-node/session/cache requirements and maintainer approval. P2 measurements retain fresh JWT/Connection per request.
 - Secrets remain outside Git; logs must redact tokens and private-key material.

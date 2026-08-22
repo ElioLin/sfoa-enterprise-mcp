@@ -225,6 +225,65 @@ Both real users, all required official Tool paths, bidirectional forgery denial,
 | P3 CREATE/UPDATE runtime | NOT TESTED | No P3 production implementation existed at phase entry |
 | P3 live Salesforce mutation | NOT TESTED | No P3 live mutation was attempted at phase entry |
 
+## P3 Completion Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Official DX MCP generic CREATE/UPDATE reuse | PASS | Actual dx-core 0.10.0 exports, 13 provided Tools, public Provider API, and history inspected; no current generic mutation Provider/Tool; removed create-only source was not copied |
+| Hosted SObject Mutation decision | PASS | ADR-0008: separate hosted endpoint/ECA/OAuth model cannot consume the accepted request Connection; SFoA availability is NOT PROVEN, so P1/P2 were not refactored |
+| Official SDK fallback | PASS | Production calls only pinned single-record `connection.sobject(name).create(fields)` and `update({Id,...fields})` |
+| No DML configuration | PASS | `undefined`, blank, and whitespace parse to deny-all policy; unit and startup tests deny mutation |
+| Empty DML configuration | PASS | `[]` produces deny-all policy and enabled mutation Tool startup fails closed |
+| Unknown object | PASS | `MCP_DML_OBJECT_NOT_ALLOWED` before Connection retrieval or SDK mutation |
+| CREATE-only object UPDATE | PASS | `MCP_DML_OPERATION_NOT_ALLOWED`; zero Connection/mutation calls |
+| UPDATE-only object CREATE | PASS | `MCP_DML_OPERATION_NOT_ALLOWED`; zero Connection/mutation calls |
+| Explicitly allowed CREATE | PASS | Unit/HTTP fixtures reached SDK once; live User A CREATE succeeded in SFoA |
+| Explicitly allowed UPDATE | PASS | Unit/HTTP fixtures reached SDK once with separate `recordId`; live User A UPDATE succeeded in SFoA |
+| DELETE in configuration | PASS | Strict Zod parser returns `MCP_DML_CONFIGURATION_INVALID`; it is never ignored |
+| Unknown operation in configuration | PASS | UPSERT/MASS_UPDATE and every non-CREATE/UPDATE value fail configuration |
+| Duplicate/unknown configuration | PASS | Duplicate object (case-insensitive), duplicate operation, empty operations, and unknown keys fail closed |
+| Tool registration dual gate | PASS | Exact Tool name plus at least one matching configured operation required at startup |
+| `tools/list` explicit surface | PASS | P3 live list was exactly `create_record`, `update_record`; default P2 list remains read-only |
+| DELETE Tool | PASS | Absent from Provider inventory, Host registration, schemas, live list, and production SDK calls |
+| UPSERT/UNDELETE/MERGE/Bulk Tools | PASS | Absent from inventory/list/source; static Provider test rejects forbidden method implementations |
+| Arbitrary REST Tool/path | PASS | Absent from list/schema/source; production never calls `Connection.request()` |
+| Official deploy/admin Tools | PASS | `deploy_metadata` and `assign_permission_set` still fail startup governance even with P3 Tools enabled |
+| CREATE contract | PASS | Only explicit `objectApiName` plus 1..200 scalar `fields`; identity/org/token/directory/operation/version/path inputs absent |
+| UPDATE contract | PASS | Separate 15/18-character `recordId`; empty fields, `fields.Id` (case-insensitive), nested/relationship/upsert inputs rejected |
+| Deterministic output | PASS | Success text/structured content contain only `success: true`, `recordId`; no automatic SOQL/readback |
+| User A CREATE identity | PASS | HTTP isolation fixture and live Gate used A route/Connection; live operation succeeded |
+| User B CREATE identity | PASS | HTTP fixture used B route/Connection; live call reached Salesforce as B and preserved native `FIELD_CUSTOM_VALIDATION_EXCEPTION` |
+| User A UPDATE identity | PASS | HTTP isolation fixture and live Gate used A route/Connection; live operation succeeded |
+| User B UPDATE identity | PASS | HTTP fixture used B route/Connection; live call used B and preserved native `INSUFFICIENT_ACCESS_OR_READONLY` |
+| Forged `platformUserId` | PASS | Body value could not change Header-authoritative A route; live forged CREATE remained A |
+| Forged username/alias | PASS | Body username fields could not change B route; live forged UPDATE remained B |
+| Cross-user Connection reuse | PASS | HTTP integration and live validator reported zero reused request Connections |
+| Salesforce native validation | PASS | Live invalid Lead CREATE preserved `REQUIRED_FIELD_MISSING` under `MCP_SALESFORCE_DML_FAILED` |
+| Salesforce native authorization | PASS | Live B UPDATE against the validator-owned A record preserved `INSUFFICIENT_ACCESS_OR_READONLY`; SFoA did not bypass Salesforce sharing/authorization |
+| Salesforce error preservation/redaction | PASS | Stable outer code plus bounded safe Salesforce code/message/fields; Bearer/access-token fixture values redacted |
+| Validator cleanup | PASS | Exactly 2 recorded IDs attempted, 2 deleted, 0 failures; SDK cleanup exists only in validation harness and performs no query-based delete |
+| P3 Provider build/tests/lint | PASS | Strict build/lint; 12/12 tests, 0 failed |
+| P3 Host build/tests/lint | PASS | Strict build/lint; independent P3 config/HTTP/security suite 8/8, 0 failed |
+| P2 targeted regression | PASS | Historical P2 suite remains exactly 18/18, 0 failed |
+| P2 A/B live regression | PASS | Official reads plus 50 requests: mismatch/leak/workspace leak/cleanup failure/Connection reuse/error all 0 |
+| P1 regression | PASS | 22/22 plus live two-user JWT/identity/SOQL, 20 requests, metadata/CWD/workspace cleanup |
+| P0 runtime regression | PASS | 9/9 plus live JWT/identity/direct+official SOQL/CustomObject metadata/CWD restoration |
+| P0 Streamable HTTP | PASS | 1/1 initialize/list/call and transport/security assertions |
+| Original Salesforce stdio | PASS | initialize, five-Tool list, and official `get_username` call; response content withheld |
+| Project-local MCP Inspector | PASS | Inspector 0.15.0 initialize/list/call for A and B; no global install |
+| P3 Streamable HTTP initialize/list/call | PASS | Official SDK Client initialized; live list returned two DML Tools; real calls reached Salesforce |
+| Upstream compatibility | PASS | Provider API 0.6.0, dx-core 0.10.0, nine GA Tools, `drift: []` |
+| Root build | PASS | Git Bash root build completed all workspaces in 82.49 s |
+| Root tests | PASS | Full workspace test command completed in 356.86 s; all official and SFoA workspace tests exited 0 |
+| SFoA changed-code lint | PASS | P3 Provider, P3 Host, P1 identity, P0 runtime, and P0 HTTP strict TypeScript lint exited 0 |
+| Repository lint | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings, all in unchanged official code-analyzer source/test/generated declarations; no SFoA path |
+| Frozen dependency install | KNOWN UPSTREAM DEBT | Yarn Classic Windows nested `brace-expansion` link failure reproduced; root/lockfile unchanged; generated local bin shims restored mechanically before successful stdio/build/tests |
+| Official Salesforce TypeScript modified | PASS | Zero existing official TypeScript paths in the P3 diff |
+| Official Tool copied/reimplemented | PASS | None; SFoA owns two minimal Provider Tools over public SDK methods |
+| Root manifest / lockfile | PASS | Root `package.json` unchanged; `yarn.lock` unchanged |
+| Database / Redis / cache / pool | PASS | No new database, ORM, Redis, token-cache, or Connection-pool dependency/runtime |
+| P4 scope boundary | PASS | No P4 diagnosis implementation or later-phase feature added |
+
 ## P2 overall result
 
 `P2 = PASS / COMPLETE — MAINTAINER ACCEPTED`
@@ -233,6 +292,6 @@ All mandatory P2 runtime, authentication, identity, governance, schema, request-
 
 ## P3 overall result
 
-`P3 = IN PROGRESS`
+`P3 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
 
-Only the entry Git/Baseline Gates are complete. Implementation, protocol, identity, live Salesforce, cleanup, and regression results remain `NOT TESTED` until actually run.
+P3 is a thin enterprise mutation gate over the accepted request-scoped Salesforce SDK path. CREATE/UPDATE, strict Object-by-Operation governance, Tool-level safe errors, identity isolation, native Salesforce validation/authorization, bounded validator cleanup, protocol surfaces, and all required regressions passed. DELETE and every prohibited substitute remain absent. P4 has not started.

@@ -349,13 +349,17 @@ export async function runP3LiveValidation(
       fields: inputs.validationFailureFields,
     });
     const validationOutput = readOutput(validationResult);
-    const salesforceValidationFailure = gate(
+    const validationFailurePreserved =
       validationResult.isError === true &&
         validationOutput?.success === false &&
         validationOutput.errorCode === 'MCP_SALESFORCE_DML_FAILED' &&
-        Boolean(validationOutput.salesforceErrors?.some((error) => error.errorCode !== 'UNKNOWN_SALESFORCE_ERROR' && error.message.length > 0)),
-      `Expected a native Salesforce validation/required-field failure; received ${describeOutput(validationOutput)}.`,
-    );
+        Boolean(validationOutput.salesforceErrors?.some((error) => error.errorCode !== 'UNKNOWN_SALESFORCE_ERROR' && error.message.length > 0));
+    const salesforceValidationFailure: P3LiveGate = validationFailurePreserved
+      ? Object.freeze({
+          status: 'PASS',
+          detail: `The Tool preserved the native Salesforce validation failure ${describeOutput(validationOutput)}.`,
+        })
+      : failGate(`Expected a native Salesforce validation/required-field failure; received ${describeOutput(validationOutput)}.`);
 
     let salesforcePermissionDenial: P3LiveGate;
     if (hasNativeAuthorizationDenial(updateBOutput)) {
