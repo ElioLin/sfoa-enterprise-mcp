@@ -1,4 +1,4 @@
-# P0 / P1 Gate Matrix
+# P0 / P1 / P2 / P3 Gate Matrix
 
 Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
@@ -211,8 +211,28 @@ All mandatory P0 live and local Gates are complete. The second Salesforce user w
 
 Both real users, all required official Tool paths, bidirectional forgery denial, unknown/missing denial, 20-request zero-leak isolation, concurrent metadata/CWD/workspace isolation, request cleanup, production no-CLI/no-database constraints, and required regressions passed. P1 is maintainer accepted.
 
+## P3 Entry Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| P2 branch clean | PASS | Pre-merge `git status --short --branch` showed no worktree changes |
+| P2 latest commit pushed | PASS | Local and remote P2 both resolved to `f532c8a95ce511f8f30af7dc87c56b883c360542` after `git fetch origin --prune` |
+| P2 upstream compatibility | PASS | Fresh `validate:upstream`: dx-core 0.10.0, Provider API 0.6.0, nine GA Tools, `drift: []` |
+| P2 targeted regression | PASS | Fresh P2 test run: 18/18 passed, 0 failed |
+| P2 to main integration | PASS | `main` fast-forwarded from `3d35ef6` to `f532c8a` without squash and was pushed to `origin/main` |
+| P3 branch isolation | PASS | `feature/p3-generic-dml-allowlist` created from updated `main` at `f532c8a` |
+| P3-00 official capability audit | NOT TESTED | Audit begins after this entry baseline; result will be recorded in ADR-0008 |
+| P3 CREATE/UPDATE runtime | NOT TESTED | No P3 production implementation existed at phase entry |
+| P3 live Salesforce mutation | NOT TESTED | No P3 live mutation was attempted at phase entry |
+
 ## P2 overall result
 
-`P2 = PASS / COMPLETE — AWAITING FINAL MAINTAINER ACCEPTANCE`
+`P2 = PASS / COMPLETE — MAINTAINER ACCEPTED`
 
-All mandatory P2 runtime, authentication, identity, governance, schema, request-bound, timeout/cleanup, graceful-shutdown, real A/B, 50-request, Inspector, official Tool, no-CLI/no-database/no-cache, zero-official-code-change, build/test/lint, P0/P1 regression, and HOTFIX01 upstream drift Gates passed. P3 is not started.
+All mandatory P2 runtime, authentication, identity, governance, schema, request-bound, timeout/cleanup, graceful-shutdown, real A/B, 50-request, Inspector, official Tool, no-CLI/no-database/no-cache, zero-official-code-change, build/test/lint, P0/P1 regression, and HOTFIX01 upstream drift Gates passed. Maintainer review accepted P2 and authorized P3.
+
+## P3 overall result
+
+`P3 = IN PROGRESS`
+
+Only the entry Git/Baseline Gates are complete. Implementation, protocol, identity, live Salesforce, cleanup, and regression results remain `NOT TESTED` until actually run.

@@ -2,6 +2,22 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-22 — P3 minimal generic DML authorized
+
+### Phase transition
+
+- Maintainer review accepted `P2 = PASS / COMPLETE` and `P2-CLOSURE HOTFIX01 = PASS`, then authorized P3.
+- The clean P2 branch at `f532c8a` matched its pushed remote. `validate:upstream` returned PASS with zero drift and the targeted P2 suite passed 18/18 immediately before merge.
+- P2 was fast-forwarded without squashing to `main`, `main` was pushed, and P3 began on `feature/p3-generic-dml-allowlist` from that updated commit.
+
+### Baseline decisions
+
+- Baseline advanced to `P3-BL-1.0`; `P2 = PASS / COMPLETE — MAINTAINER ACCEPTED` and `P3 = IN PROGRESS`.
+- P3 is limited to separate generic CREATE and UPDATE Tools behind strict Object-by-Operation allowlisting. Missing or empty configuration denies all; invalid, duplicate, DELETE, and unknown operations fail closed.
+- P3 reuses the P1/P2 authenticated request scope and fresh `@salesforce/core` Connection. Salesforce remains the CRUD/FLS/sharing/validation/Flow/Trigger authority.
+- DELETE, UPSERT, bulk DML, arbitrary REST, metadata mutation, Apex mutation substitutes, field-policy replication, database, Redis, caches, pools, and Admin UI remain out of scope.
+- P3-00 must finish the official Provider/Hosted MCP/SDK audit and record the decision in an ADR before a new DML Provider is implemented.
+
 ## 2026-08-22 — P2 Closure HOTFIX01 upstream drift guard completed
 
 ### Added
