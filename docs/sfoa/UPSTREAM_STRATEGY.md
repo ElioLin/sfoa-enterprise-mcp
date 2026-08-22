@@ -81,6 +81,10 @@ An “upstream-owned file” is any path tracked at the audited commit. New SFoA
 
 No Salesforce TypeScript implementation file was modified in P0, P0-Closure, or P1. All SFoA packages consume public Provider contracts only. P1 creates fresh `DxCoreMcpProvider` Tools from request-scoped Services and enforces identity/workspace/CWD policy at the host boundary. P1 changed no pre-existing official package path and did not change root `package.json`, `yarn.lock`, or `.env.example`; therefore it adds no Upstream modification-matrix row. The existing `.gitignore` row remains the only tracked Upstream-file divergence.
 
+P2 also modifies **zero official Salesforce TypeScript files**. `packages/sfoa-mcp-server` is a new SFoA-owned composition package; the P2 edits to `packages/sfoa-identity-runtime`, `.env.example`, and `docs/sfoa` are all in SFoA-owned paths that did not exist at the audited Upstream commit. Root `package.json` and `yarn.lock` remain unchanged. Therefore P2 adds no Upstream modification-matrix row, and `.gitignore` remains the only tracked Upstream-owned divergence.
+
+P2 uses only public contracts: `McpTool.getConfig()`, `McpServer.registerTool()`, public Provider construction, `@salesforce/core` Connection/JWT, and official `Tool.exec()`. Remote schema adaptation omits host-owned Zod fields and injects request authority at the composition boundary; it copies no official Tool implementation. Merge risk remains LOW.
+
 ## Changes that require a new matrix entry
 
 - Root/package workspace configuration.

@@ -2,6 +2,29 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-22 — P2 remote runtime and Tool governance completed
+
+### Added
+
+- New `@sfoa/mcp-server` package with configurable stateless Streamable HTTP, internal Bearer authentication, authenticated platform-user Header routing, Host/Origin bounds, health/readiness, bounded request bodies, request/Tool timeouts, response-lifecycle cleanup, JSON-line logging, and graceful SIGINT/SIGTERM drain.
+- Registration-time `ToolGovernancePolicy`, explicit official Tool inventory/classification, and low-intrusion `RemoteToolFacade` adapters that hide/inject `usernameOrAlias` and `directory` while retaining unchanged official `Tool.exec()`.
+- Ten P2 unit/integration tests, real two-user/load/performance validation, and a project-local MCP Inspector proxy Gate.
+- Official Provider inventory, client/reverse-proxy contracts, Chinese user test guide, Dify/WorkBuddy connection guide, ADR-0005, ADR-0006, and P2 final report.
+
+### Verification
+
+- Bearer/auth-order, A/B identity, official get_username/SOQL, invisible disabled Tools, startup fail-closed policy, remote schemas, 413, request/Tool timeouts, cleanup, and signal drain passed.
+- Fifty interleaved real read-only requests passed with zero identity mismatch, cross-user leak, workspace leak, cleanup failure, Connection reuse, or error.
+- Latest measured p50/p95: 50-request calls 1048.34/1147.25 ms; initialize 1354.90/1673.39 ms; tools/list 626.00/853.42 ms; get_username 1042.83/1147.25 ms; SOQL 952.72/1075.28 ms; JWT/Connection 872.98/1083.08 ms. No cache was added.
+- Project-local MCP Inspector 0.15.0 passed initialize, enabled-only tools/list, and get_username tools/call for A and B.
+- P2 10/10 tests and strict lint, P1 22/22 and live A/B, P0 9/9 and live Closure, P0 HTTP POC, original stdio, root build, and 394.13-second full root tests passed.
+- Root lint reproduced exactly 47 unchanged official code-analyzer errors and no SFoA error: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`; `SFOA_CHANGED_CODE_LINT = PASS`.
+- Salesforce CLI runtime, database, Redis, token cache, Connection pool, and DML dependencies remain absent. Official Salesforce TypeScript modifications: 0. Root manifest/lockfile changes: 0.
+
+### Result
+
+`P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`. Baseline advanced to `P2-BL-1.1`. P3 has not started.
+
 ## 2026-08-22 — P2 remote runtime and Tool governance authorized
 
 ### Phase transition

@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P2-BL-1.0**
+Baseline ID: **P2-BL-1.1**
 
 Baseline date: 2026-08-22
 
@@ -90,11 +90,11 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P2 — Remote MCP Runtime & Tool Governance (IN PROGRESS)`
+`P2 — Remote MCP Runtime & Tool Governance (COMPLETE / AWAITING MAINTAINER REVIEW)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = IN PROGRESS`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P3 = NOT STARTED`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -103,6 +103,8 @@ The maintainer had supplied `SECOND_TEST_USER`, but the P0-Closure configuration
 The maintainer accepted P1 as `PASS / COMPLETE` on 2026-08-22 and authorized P2 Remote MCP Runtime & Tool Governance. The required P1 build, 22/22 tests, strict lint, and live two-user validation were rerun successfully on the accepted P1 branch before merge to `main`.
 
 P1 was fast-forwarded without squashing to `main` at commit `3d35ef6` and pushed before `feature/p2-remote-runtime-governance` was created from that updated `main`. P2 preserves P1 identity routing and adds a separate production HTTP host, minimal internal Bearer client authentication, registration-time Tool governance, remote schema adaptation where the public Provider API permits it, request bounds/timeouts, graceful shutdown, and remote-client contracts. P2 remains read-only and database-free.
+
+P2 completed on its dedicated feature branch. The production Host, authentication/order boundary, default-deny Tool governance, remote schema facade, health/readiness, request bounds/timeouts, graceful shutdown, A/B identity isolation, 50-request load, official SDK Client, project-local Inspector, official Tool, and P0/P1/root regressions all passed. P2 modifies zero official Salesforce TypeScript files and adds no CLI/database/cache/DML dependency. P3 remains prohibited until maintainer review accepts this Gate.
 
 ## P0 acceptance decisions
 
@@ -157,7 +159,24 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 - Repository-wide lint still stops on 47 unchanged official code-analyzer errors: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`. `SFOA_CHANGED_CODE_LINT = PASS`.
 - Salesforce CLI runtime dependency: none. Database/Redis/cache/pool dependency: none. Official Salesforce TypeScript files modified by P1: 0. Root `package.json`, `yarn.lock`, and `.env.example` were unchanged by P1.
 
-P1 has received maintainer review and is accepted. P2 is authorized only on a new branch created from the updated `main`; no P2 implementation belongs on the P1 branch.
+P1 has received maintainer review and is accepted. P2 was implemented only on the dedicated branch created from updated `main`.
+
+## P2 result
+
+`P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
+
+- `@sfoa/mcp-server` provides configurable stateless Streamable HTTP with safe loopback defaults and explicit LAN enablement.
+- Internal Bearer authentication uses timing-safe digest comparison. Missing/wrong Bearer, missing/unknown platform identity, and Host/Origin/body rejection occur before unintended Salesforce JWT creation.
+- `tools/list` defaults to exactly `get_username` and `run_soql_query`. Unknown, mutation, admin, local-development, and incompatible Tool configuration fails startup. `retrieve_metadata` remains available but disabled by default.
+- `RemoteToolFacade` hides/injects authoritative `usernameOrAlias` and request `directory`; unchanged official `Tool.exec()` remains the implementation.
+- Real User A/B initialize, official get_username/SOQL, and bidirectional body-argument forgery resistance passed.
+- Fifty interleaved real requests completed with identity mismatch, cross-user leak, workspace leak, cleanup failure, Connection reuse, and error count all equal to zero.
+- Latest p50/p95: load 1048.34/1147.25 ms; initialize 1354.90/1673.39 ms; tools/list 626.00/853.42 ms; get_username 1042.83/1147.25 ms; SOQL 952.72/1075.28 ms; JWT/Connection 872.98/1083.08 ms. No token/Connection cache was justified or added.
+- Request body 413, request timeout 504, Tool-level timeout, response cleanup, graceful drain, and SIGTERM hook passed automated tests. Timeout does not claim Salesforce server-side cancellation.
+- Project-local MCP Inspector 0.15.0 passed initialize, enabled-only tools/list, and tools/call for both users.
+- P2 tests 10/10, strict lint, root build, root full tests (394.13 s), P1 22/22/live, P0 9/9/live, P0 HTTP POC, and original stdio passed.
+- Root lint reproduced exactly 47 unchanged official code-analyzer errors and no SFoA error: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`; `SFOA_CHANGED_CODE_LINT = PASS`.
+- Salesforce CLI runtime dependency: none. Database/Redis/token-cache/Connection-pool dependency: none. Official Salesforce TypeScript modifications: 0. Root manifest/lockfile modifications: 0.
 
 ### P1 entry criteria — satisfied (historical)
 
@@ -171,7 +190,7 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 
 | Risk | Impact | Current response |
 | --- | --- | --- |
-| Official host authorization is process-scoped | Cross-user leakage if reused naively over HTTP | P1 uses a new SFoA host and fresh request-scoped Services/Connection/Tools; P2 must authenticate the upstream claim |
+| Official host authorization is process-scoped | Cross-user leakage if reused naively over HTTP | P2 uses a separate Host, authenticated request Header, and fresh request-scoped Services/Connection/Tools; 50-request leakage metrics are zero |
 | Official Tools call `process.chdir()` | Concurrent requests can race on global CWD | P1 shared/exclusive guard restores CWD and serializes metadata; evaluate isolated workers only from measured pressure |
 | Provider registry is a static internal array | `@salesforce/mcp` is not a public embeddable host library | Consume public provider packages and build a thin host |
 | Metadata retrieve requires an `SfProject` and writes files | Remote runtime needs workspace lifecycle | P1 uses one bounded disposable DX workspace per POST; avoid shared workspaces until proven necessary |
@@ -181,13 +200,16 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | SFoA credentials are local-only | Credentials must remain out of Git and reports | `.env.local` is ignored; live Gates passed without persisting values or tokens |
 | Upstream root lint fails in code-analyzer | Repository-wide lint Gate is red despite SFoA changed-code lint passing | Record `KNOWN UPSTREAM DEBT`; do not patch 47 unrelated official findings in P0 |
 | Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch reinstall is not currently reproducible in this worktree and can remove generated `.bin` shims before failing | Preserve the unchanged lockfile; restore only local generated shims when needed; root build/full tests and targeted Gates passed; investigate separately from P1 identity correctness |
+| Internal Bearer identifies a controlled MCP client, not an individual human | An untrusted client could lie in `X-Platform-User-Id` | Keep P2 internal/controlled; Dify/WorkBuddy dynamic per-user Header mapping requires client verification; a future trusted SSO gateway must overwrite the Header from authenticated claims |
+| Fresh JWT/Connection adds about 0.87 s p50 / 1.08 s p95 in the latest run | Remote Agent latency and Salesforce auth traffic | Keep fresh-per-request isolation in P2; do not add a cache without sustained production evidence and a maintainer-approved identity-keyed/expiry-aware design |
+| SDK timeout cannot guarantee Salesforce server-side cancellation | An already accepted remote operation may continue after the Host stops waiting | P2 is read-only, returns a precise limitation, closes local resources, and logs the timeout; revisit abort support only with official SDK capability |
 
-## Open questions
+## Open questions after P2
 
-- What authenticated gateway claim/token will replace P1's trusted internal `X-Platform-User-Id` Header in P2?
-- Is per-request JWT/Connection cost acceptable under P2 load, or is a strictly identity-keyed, expiry-aware cache justified by measurements?
-- Is serialized metadata plus a per-request temporary workspace sufficient under measured load, or is process isolation justified?
-- What P2 Tool allow/deny policy is required while keeping DML and mutation allowlists deferred to P3?
+- Which trusted platform claim will a future SSO/reverse-proxy layer map to `platformUserId` when the runtime is opened beyond controlled clients?
+- What exact P3 CREATE/UPDATE object/operation allowlist format is simplest while preserving absent-config DENY and Salesforce authorization?
+- Which official SDK/API surface should P3 reuse for generic CREATE/UPDATE without exposing DELETE or duplicating Salesforce permissions?
+- Do sustained post-P2 production measurements—not this validation sample—ever justify an identity-keyed, expiry-aware Connection cache?
 
 ## Baseline change history
 
@@ -202,3 +224,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P1-BL-1.1 | 2026-08-22 | Closed P1 as PASS after real A/B JWT/identity and official Tool execution, bidirectional forgery denial, 20-request zero-leak concurrency, metadata/CWD/workspace isolation, request cleanup, stdio/HTTP/P0 regressions, zero official TypeScript patches, and SFoA changed-code lint; P2 remains unstarted pending maintainer review. |
 | P1-BL-1.2 | 2026-08-22 | Recorded maintainer acceptance of P1 and authorization for P2 after rerunning the accepted P1 build, 22/22 tests, strict lint, and live two-user validation; P2 remains unstarted until its branch is created from updated `main`. |
 | P2-BL-1.0 | 2026-08-22 | Fast-forwarded accepted P1 to `main`, created the dedicated P2 branch, and entered a read-only, stateless remote-runtime phase with internal Bearer authentication, default-deny Tool governance, bounded requests, no database/cache, and no official Salesforce TypeScript patch. |
+| P2-BL-1.1 | 2026-08-22 | Closed P2 as PASS after authenticated stateless HTTP, default-deny/read-only Tool governance, remote schemas, bounds/timeouts/drain, real A/B and 50-request zero-leak validation, Inspector/official Tool/root regressions, measured fresh-JWT latency without cache, no CLI/database/DML dependency, and zero official Salesforce TypeScript changes; P3 remains unstarted pending maintainer review. |

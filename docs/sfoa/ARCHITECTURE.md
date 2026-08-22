@@ -266,7 +266,98 @@ P1 is implemented behind an `IdentityRepository` interface with `InMemoryIdentit
 
 P0-Closure regression evidence: `@sfoa/streamable-http-poc` used MCP SDK 1.18.2 and local dx-core Provider 0.10.0, registered the five GA core/data/metadata Tools, and passed initialize/list/call, 405, Origin rejection, and cleanup assertions. The original packaged stdio host independently passed initialize/list/call against its declared dx-core 0.9.8 package. Exact resolved sets are authoritative in `PROVIDER_COMPATIBILITY.md`; production must not depend on accidental Yarn workspace resolution.
 
-P1 evidence: `@sfoa/identity-runtime` explicitly pins MCP SDK 1.18.2, Provider API 0.6.0, dx-core 0.10.0, `@salesforce/core` 8.29.0, and Zod 3.25.76. It exposes stateless `POST /mcp` on loopback, rejects invalid method/content type/origin/host through the host/SDK boundary, and creates a new isolated scope for every POST. P2 must replace the trusted test Header with an authenticated gateway claim while preserving this exact downstream identity boundary.
+P1 evidence: `@sfoa/identity-runtime` explicitly pins MCP SDK 1.18.2, Provider API 0.6.0, dx-core 0.10.0, `@salesforce/core` 8.29.0, and Zod 3.25.76. It exposes stateless `POST /mcp` on loopback, rejects invalid method/content type/origin/host through the host/SDK boundary, and creates a new isolated scope for every POST. P2 preserves this downstream identity boundary in a separate production-oriented Host.
+
+## P2 Remote Request Lifecycle
+
+```text
+Dify / WorkBuddy / Generic MCP Client
+  -> exact Host/Origin check
+  -> Internal Bearer client authentication
+  -> configured platform-user Header parsing
+  -> IdentityResolver (no fallback)
+  -> bounded JSON body
+  -> fresh JWT + request-scoped Connection
+  -> disposable RequestWorkspace
+  -> fresh official Provider Tools
+  -> registration-time ToolGovernancePolicy
+  -> RemoteToolFacade injects username/directory
+  -> unchanged official Tool.exec()
+  -> JSON response finish/close
+  -> transport + McpServer + workspace cleanup
+```
+
+The formal P2 package is `packages/sfoa-mcp-server`. `packages/sfoa-identity-runtime` remains the identity/request-scope foundation; its P1 loopback validation Host is not the production Host.
+
+The P2 Host waits for the HTTP response `finish`/`close` event, not merely `StreamableHTTPServerTransport.handleRequest()` resolution, before cleanup. SDK 1.18.2 can return from `handleRequest()` while an asynchronous Tool handler is still producing its response; response-lifecycle tracking prevents premature resource disposal under concurrent calls.
+
+## Client Authentication Boundary
+
+P2 uses a minimal controlled-client boundary:
+
+```text
+Authorization Bearer
+  -> timing-safe digest comparison
+  -> authenticated client identifier
+  -> X-Platform-User-Id accepted
+  -> P1 IdentityResolver
+```
+
+Missing/invalid Bearer requests fail with stable 401 codes. Missing/unknown platform identities fail before Salesforce JWT creation. `MCP_AUTH_MODE=disabled` is accepted only when the configured bind host is `127.0.0.1`, `localhost`, or `::1`; non-loopback disabled-auth configuration fails startup.
+
+The shared internal Bearer authenticates a controlled MCP client, not a human. Until a trusted SSO/gateway claim mapper exists, that client is responsible for setting the correct platform Header. The Host never accepts identity from Tool arguments, query parameters, or JSON body fields.
+
+## Tool Governance Boundary
+
+Official Provider availability and SFoA Agent visibility are distinct:
+
+```text
+official Provider Tool inventory
+  -> explicit READ / METADATA_READ / MUTATION / ADMIN / LOCAL_DEV / UNKNOWN record
+  -> P2 classification allow rule
+  -> provider compatibility/presence check
+  -> MCP_ENABLED_TOOLS intersection
+  -> register permitted Tools only
+  -> tools/list
+```
+
+Default enabled Tools are `get_username` and `run_soql_query`. `retrieve_metadata` is composition-compatible but disabled by default because it requires developer manifest/source context and filesystem/CWD handling. P2 rejects mutation, admin, local-development, incompatible, and unknown configuration during startup; disabled Tools are not visible.
+
+The inventory lives in `OFFICIAL_PROVIDER_INVENTORY.md`; executable decisions live in `official-tool-catalog.ts` and `ToolGovernancePolicy`. Classification is explicit and never inferred from a Tool name at runtime.
+
+## Remote Tool Schema Boundary
+
+`RemoteToolFacade` derives the public portion of each official `McpTool.getConfig()` Zod shape and omits only explicit host-owned fields. It injects authoritative technical arguments before delegating to the P1 adapter:
+
+| Tool | Agent input | Host injection |
+| --- | --- | --- |
+| `get_username` | optional official non-directory switches | request workspace `directory` |
+| `run_soql_query` | `query`, `useToolingApi` | route `usernameOrAlias`, workspace `directory` |
+| `retrieve_metadata` | manifest/source options | route `usernameOrAlias`, workspace `directory` |
+
+The core remains unchanged official `Tool.exec()`. No SOQL, metadata execution, official error parsing, or Salesforce API behavior is reimplemented. The facade decision is recorded in ADR-0006.
+
+## Reverse Proxy Boundary
+
+P2 accepts direct HTTP but defines a future TLS proxy contract in `P2_REVERSE_PROXY.md`. The proxy preserves `Authorization`, the configured platform Header, correlation ID, and intended Host; it overwrites proxy-owned forwarding headers. Node exact-matches Host/Origin before Salesforce auth.
+
+P2 does not authorize from `X-Forwarded-For` or `X-Forwarded-Proto`. Those values become trustworthy only when a known proxy overwrites them and direct Node-port access is blocked. A future public-client gateway must derive and overwrite platform identity from authenticated claims rather than forwarding an arbitrary inbound value.
+
+## Request Bounds, Timeout, and Cleanup
+
+- `MCP_MAX_BODY_BYTES` bounds streamed request bytes and returns HTTP 413 before JWT.
+- `MCP_REQUEST_TIMEOUT_MS` bounds the complete POST wait and returns HTTP 504 `MCP_REQUEST_TIMEOUT`.
+- `MCP_TOOL_TIMEOUT_MS` bounds the Tool wait and returns Tool-level `isError: true` / `MCP_TOOL_TIMEOUT`.
+- Response finish/close, timeout, client disconnect, and graceful shutdown converge on idempotent transport/server/workspace cleanup.
+- SIGINT/SIGTERM stop new acceptance, drain active requests to the configured bound, close idle/all connections as needed, and set an exit code without immediate `process.exit()`.
+
+The Salesforce SDK path does not expose a reliable end-to-end abort of an operation already accepted server-side. P2 stops waiting and cleans local resources; it does not claim remote Salesforce cancellation.
+
+## P2 to P3 Extension Seam
+
+P3 must not broaden P2's official Tool policy implicitly. It may add a separate SFoA mutation Provider for CREATE/UPDATE only, behind explicit object and operation allowlists where missing configuration means DENY. The mutation Provider consumes the same authenticated `RequestScope` and lets Salesforce enforce CRUD/FLS/sharing/validation/Flow/Trigger.
+
+P3 must not add DELETE, reuse a read Tool facade as a mutation escape, or turn annotations into authorization. Tool governance remains registration-time; mutation visibility requires both phase-specific classification and allowlist configuration.
 
 ## Future Admin UI location
 
@@ -278,9 +369,9 @@ Planned UI areas: dashboard, Salesforce account routing, object CREATE/UPDATE al
 
 ## Data, cache, and security baseline
 
-- P0, P0-Closure, and P1 use no database.
+- P0, P0-Closure, P1, and P2 use no database.
 - P1 proves request-scoped identity routing with an in-memory repository. Persistence is introduced only when durable routing or Admin configuration actually needs it.
-- No Redis without measured multi-node/session/cache requirements.
+- No Redis, token cache, or Connection pool without measured multi-node/session/cache requirements and maintainer approval. P2 measurements retain fresh JWT/Connection per request.
 - Secrets remain outside Git; logs must redact tokens and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.
 - DELETE is absent from the initial mutation design.

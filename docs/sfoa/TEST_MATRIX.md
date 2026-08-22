@@ -103,6 +103,62 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
 P1 dependency versions remain the verified set: MCP SDK 1.18.2, Provider API 0.6.0, dx-core 0.10.0, `@salesforce/core` 8.29.0, Node 24.13.0, and Yarn 1.22.22. No dependency upgrade was performed.
 
+## P2 Remote Runtime and Tool Governance Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Formal Remote Host | PASS | New `@sfoa/mcp-server`; stateless SDK Streamable HTTP `POST /mcp`, separate from P1 test Host |
+| Network Binding | PASS | Defaults 127.0.0.1:8080 `/mcp`; config parser supports explicit host/port/path and requires exact allowed Host away from loopback |
+| Health / Readiness | PASS | `/health` and `/ready` return `{"status":"UP"}` without JWT/Salesforce; provider/policy startup initialized before ready |
+| Client Bearer Auth | PASS | SHA-256 digest + timing-safe comparison; missing/wrong token return stable 401 codes without secret echo |
+| Disabled Auth Boundary | PASS | `MCP_AUTH_MODE=disabled` accepted only for 127.0.0.1/localhost/::1; non-loopback startup fails |
+| Host / Origin Boundary | PASS | Exact rejection occurs before Connection; non-browser absent Origin remains valid |
+| Platform User Contract | PASS | Only authenticated configured Header enters P1 resolver; body/query/Tool identity fields are non-authoritative |
+| Auth Negative Matrix | PASS | no Bearer BLOCKED; wrong Bearer BLOCKED; no platform user BLOCKED; unknown route BLOCKED; all before unintended JWT |
+| Tool Default Deny | PASS | Default `tools/list` exactly `get_username`, `run_soql_query`; disabled `retrieve_metadata`/`deploy_metadata` invisible |
+| Startup Governance | PASS | unknown Tool -> `MCP_TOOL_NOT_AVAILABLE`; mutation/admin such as `deploy_metadata` -> `MCP_TOOL_DISABLED` |
+| Tool Classification | PASS | Explicit READ/METADATA_READ/MUTATION/ADMIN/LOCAL_DEV/UNKNOWN catalog; no runtime name inference |
+| `retrieve_metadata` Decision | PASS | Official reuse retained as available facade; disabled by default due DX project/manifest/source/filesystem/CWD contract |
+| Mutation/Admin Boundary | PASS | P2 runtime/dependency/static tests expose no DML/deploy/admin Tool; forbidden classifications fail startup |
+| Remote Schema Facade | PASS | `usernameOrAlias`, `directory`, `platformUserId` absent from SOQL remote schema; host injects route/workspace |
+| Official Tool Delegation | PASS | Real official `get_username` and `run_soql_query` passed for A/B via unchanged `Tool.exec()` |
+| A -> B / B -> A Body Forgery | BLOCKED | Extra platform/username/directory arguments were stripped; Connection records remained on Header route |
+| Request Body Limit | PASS | Content-Length/streamed size > limit returns HTTP 413 / `MCP_REQUEST_TOO_LARGE` before Connection |
+| Request Timeout | PASS | HTTP 504 / `MCP_REQUEST_TIMEOUT`, workspace cleanup, zero cleanup failures |
+| Tool Timeout | PASS | Tool-level `isError: true` / `MCP_TOOL_TIMEOUT`, workspace cleanup; no false remote-cancellation claim |
+| Response Lifecycle Cleanup | PASS | Host waits for response finish/close; concurrent test no premature empty response and created=cleaned |
+| Graceful Shutdown | PASS | Direct drain test waits for in-flight Tool; SIGTERM test stops listening and logs STARTED -> DRAINED without `process.exit()` |
+| User A | PASS | Real JWT/identity, initialize, official get_username and SOQL |
+| User B | PASS | Real JWT/identity, initialize, official get_username and SOQL |
+| 50-request A/B Load | PASS | 50 requests in five interleaved batches; identity mismatch 0, cross-user leak 0, workspace leak 0, cleanup failure 0, Connection reuse 0, errors 0 |
+| 50-request Latency | PASS | n=50, p50 1048.34 ms, p95 1147.25 ms |
+| Initialize Latency | PASS | n=4, p50 1354.90 ms, p95 1673.39 ms |
+| tools/list Latency | PASS | n=4, p50 626.00 ms, p95 853.42 ms |
+| get_username Latency | PASS | n=52, p50 1042.83 ms, p95 1147.25 ms |
+| SOQL Latency | PASS | n=4, p50 952.72 ms, p95 1075.28 ms |
+| JWT/Connection Latency | PASS | n=72, p50 872.98 ms, p95 1083.08 ms; no cache implemented |
+| Official SDK Client | PASS | initialize/list/call A/B and 50 calls through SDK 1.18.2 |
+| MCP Inspector | PASS | Project-local Inspector 0.15.0 proxy initialize, enabled-only list, get_username call for A and B |
+| P2 Build | PASS | strict TypeScript build exited 0 |
+| P2 Tests | PASS | 10/10 unit/integration tests |
+| P2 Strict Lint | PASS | `@sfoa/mcp-server` `tsc --noEmit` exited 0 after final source changes |
+| P1 Regression | PASS | 22/22, strict lint, live A/B identity/SOQL, 20 requests, metadata/CWD/workspace cleanup |
+| P0 Runtime Regression | PASS | 9/9 and live Closure JWT/identity/direct+official SOQL/CustomObject metadata/CWD PASS |
+| P0 HTTP POC Regression | PASS | 1/1 initialize/list/call PASS |
+| Original stdio Regression | PASS | initialize, five-Tool list, official get_username call; response content withheld |
+| Root Build | PASS | Git Bash `yarn build`, 90.08 s; all workspaces including P2 |
+| Root Tests | PASS | `yarn test`, 394.13 s; all official and SFoA workspaces exited 0 |
+| Upstream Lint Baseline | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings, all under unchanged official code-analyzer; no SFoA path |
+| SFoA Changed-Code Lint | PASS | P2, P1, P0 runtime and HTTP POC strict gates exited 0 |
+| Dependency Install | KNOWN WINDOWS/YARN DEBT | Frozen Yarn Classic link failed at existing nested `brace-expansion`; lockfile unchanged; generated `.bin` shims were mechanically restored from installed package manifests before successful root/stdin regressions |
+| Salesforce CLI Runtime | PASS (`NONE`) | Static dependencies/source and live reports; production uses direct `@salesforce/core` JWT |
+| Database / Redis | PASS (`NONE`) | P1 in-memory repository only; no database/ORM/Redis package/runtime |
+| Token Cache / Connection Pool | PASS (`NONE`) | 72 measured fresh creations; zero Connection reuse |
+| Official Salesforce TypeScript Modified | PASS (`0`) | Diff from P1-accepted `main` contains no non-SFoA TypeScript path |
+| Root Manifest / Lockfile Modified | PASS (`0`) | `package.json` and `yarn.lock` unchanged; exact accepted versions retained |
+
+P2 version set: MCP SDK 1.18.2, Provider API 0.6.0, dx-core 0.10.0, `@salesforce/core` 8.29.0, Zod 3.25.76, Node 24.13.0, Yarn 1.22.22. No dependency upgrade was performed.
+
 ## Result interpretation
 
 - Credential/environment failures are not evidence that SFoA APIs are incompatible.
@@ -121,4 +177,10 @@ All mandatory P0 live and local Gates are complete. The second Salesforce user w
 
 `P1 = PASS`
 
-Both real users, all required official Tool paths, bidirectional forgery denial, unknown/missing denial, 20-request zero-leak isolation, concurrent metadata/CWD/workspace isolation, request cleanup, production no-CLI/no-database constraints, and required regressions passed. P2 is not started and requires maintainer review of the P1 Gate.
+Both real users, all required official Tool paths, bidirectional forgery denial, unknown/missing denial, 20-request zero-leak isolation, concurrent metadata/CWD/workspace isolation, request cleanup, production no-CLI/no-database constraints, and required regressions passed. P1 is maintainer accepted.
+
+## P2 overall result
+
+`P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
+
+All mandatory P2 runtime, authentication, identity, governance, schema, request-bound, timeout/cleanup, graceful-shutdown, real A/B, 50-request, Inspector, official Tool, no-CLI/no-database/no-cache, zero-official-code-change, build/test/lint, and P0/P1 regression Gates passed. P3 is not started.
