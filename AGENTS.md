@@ -37,6 +37,7 @@ Treat files present at upstream commit `670234dbdca4d3fcdebd9d58b231e311fd34aeec
 - Do not submit pseudocode or placeholder production implementations.
 - Do not refactor official code merely for style or “clean code”. Upstream compatibility outranks aesthetic consistency.
 - Before handoff, run the relevant install/build/test/lint/integration gates and record actual results. Never claim a gate passed without evidence.
+- Keep `SFOA_CHANGED_CODE_LINT` green. Reproduced unchanged Salesforce lint findings may be recorded as `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`, but never use that label to waive a new error.
 - Preserve both stdio (local clients) and Streamable HTTP (remote clients).
 - Do not start a later phase until the current phase Gate is reviewed.
 
@@ -62,6 +63,7 @@ The target route is `platformUserId -> Salesforce username -> JWT/OAuth -> reque
 - Do not build a second Salesforce permission engine.
 - Do not trust a client-supplied Salesforce username without resolving it through the authenticated platform identity.
 - Do not use the upstream process-scoped `--orgs` cache as the final remote multi-user authorization boundary.
+- Production Salesforce access must use direct JWT/OAuth through `@salesforce/core`; Salesforce CLI and its Auth Cache are development diagnostics only, not runtime dependencies.
 - Be aware that current official Tools call `process.chdir(directory)`. Any concurrent HTTP host must isolate or serialize that global side effect until it is removed upstream or safely adapted.
 
 ## Mutations and secrets

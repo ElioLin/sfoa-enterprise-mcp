@@ -134,6 +134,20 @@ Annotations are client hints. Server-side authentication, routing, allowlists, a
 
 Use the project-local Inspector or SDK client. A global Inspector installation is not a prerequisite.
 
+### Lint Gate policy
+
+- `UPSTREAM_LINT_BASELINE` records reproducible errors in unchanged Salesforce-owned code and may be `KNOWN UPSTREAM DEBT`.
+- `SFOA_CHANGED_CODE_LINT` covers every SFoA-added or SFoA-modified TypeScript workspace and must be `PASS` before handoff.
+- An Upstream debt entry is not a waiver for a new error. If the count, rule, or affected file changes because of an SFoA change, the changed-code Gate fails.
+- Do not rewrite unrelated official code merely to make the repository-wide aggregate command green.
+
+### Credential-validation output
+
+- The P0-Closure Harness may print the complete access token only when `SFOA_DEBUG_EXPOSE_TOKEN=true` is explicitly set.
+- Complete tokens are console-only and must never be redirected or written to evidence, JSON, Markdown, logs, snapshots, or Git.
+- The default is `false`; token output must be masked and all error paths must redact access tokens, private-key content, and private-key paths.
+- Live Gate reports store only status, duration, counts, component type, and non-sensitive token metadata.
+
 ## Evaluation rules
 
 When P6 creates agent evaluations:

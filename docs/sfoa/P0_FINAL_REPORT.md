@@ -1,6 +1,6 @@
 # P0 Final Report — Official Salesforce DX MCP Architecture & SFoA Compatibility Gate
 
-Status: **FINAL — P0 = PARTIAL PASS**
+Status: **P0-CLOSURE UPDATE — P0 = PARTIAL PASS**
 
 Audit date: 2026-08-22
 
@@ -328,6 +328,12 @@ Evidence supporting the result:
 - Fresh JWT login, live metadata component retrieval, and the two-user live Gate remain untested because their required inputs were not supplied.
 
 This status does not authorize P1. P0 awaits maintainer review.
+
+### P0-Closure update — 2026-08-22
+
+The Closure Harness, exact Provider compatibility baseline, temporary metadata workspace, original stdio regression, Streamable HTTP regression, and changed-code lint Gate now pass. Persistent user PATH prefers CLI v2.148.3 and the stale plugin entry is removed; Salesforce CLI is explicitly not a production dependency. Root code-analyzer lint is reclassified as `KNOWN UPSTREAM DEBT`, not hidden.
+
+P0 remains `PARTIAL PASS` because `.env.local` is absent and the mandatory live Fresh JWT, identity, Direct/official SOQL, official Metadata, and CWD observations remain `NOT TESTED`. See `P0_CLOSURE_REPORT.md` and `TEST_MATRIX.md` for current authoritative evidence. A second user is now a P1 isolation Gate, not a P0 blocker.
 
 ## P1 detailed plan — planned only, do not start
 

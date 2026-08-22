@@ -21,8 +21,8 @@ Workspace: `D:\GitProject\sfoa-enterprise-mcp`
 | Node.js | v24.13.0 | `D:\software\node.exe` | PASS | Meets `@salesforce/mcp` `>=20.0.0` and Upstream CI/development policy `lts/*` / current LTS. |
 | npm | 11.6.2 | `D:\software\npm.cmd` | PASS | Used only where an official globally installed CLI requires npm; project dependencies remain Yarn-managed. |
 | Yarn | 1.22.22 | `D:\software\yarn.CMD` | PASS | Activated through existing Corepack 0.34.5. Upstream has a Yarn v1 lockfile and explicitly requires Yarn v1. |
-| Salesforce CLI (`sf` on PATH) | `@salesforce/cli/1.86.7-legacy.0`, embedded Node 18.15.0 | `D:\sfdx\bin\sf.cmd` | PARTIAL | Starts, but reports a stale missing `@salesforce/sfdx-scanner` user-plugin entry. |
-| Salesforce CLI (usable v2 installation) | `@salesforce/cli/2.148.3`, embedded Node 24.18.0 | `C:\Users\61979\AppData\Local\sf\client\2.148.3-ddda74a\bin\sf.cmd` | PARTIAL | Direct invocation works. It reads the same stale plugin manifest and is not the first `sf` on PATH. |
+| Salesforce CLI (current Codex process snapshot) | `@salesforce/cli/1.86.7-legacy.0`, embedded Node 18.15.0 | `D:\sfdx\bin\sf.cmd` | PARTIAL | This already-open process inherited the old PATH before Closure remediation. |
+| Salesforce CLI (persistent user PATH / new terminals) | `@salesforce/cli/2.148.3`, embedded Node 24.18.0 | `C:\Users\61979\AppData\Local\sf\client\bin\sf.cmd` | PASS | Stable v2 shim is the first persistent user-PATH entry; direct version and plugin checks pass. Open a new terminal to inherit it. |
 
 Additional executable locations observed:
 
@@ -30,6 +30,7 @@ Additional executable locations observed:
 - npm: `D:\software\npm` and `D:\software\npm.cmd`.
 - Yarn: `D:\software\yarn` and `D:\software\yarn.CMD`.
 - Salesforce CLI legacy: `D:\sfdx\bin\sf` and `D:\sfdx\bin\sf.cmd`.
+- Salesforce CLI stable v2 shim: `C:\Users\61979\AppData\Local\sf\client\bin\sf.cmd`.
 - Corepack: `D:\software\corepack.cmd`.
 - winget: `C:\Users\61979\AppData\Local\Microsoft\WindowsApps\winget.exe`, version 1.29.280.
 
@@ -62,7 +63,9 @@ corepack install --global yarn@1.22.22
 
 No global TypeScript, React, Vite, Ant Design, TanStack Query, or React Router installation was performed.
 
-The project-local `yarn install` completed successfully in 1499.30 seconds and left `yarn.lock` unchanged. The installed MCP SDK resolved to 1.18.2 for both the packaged server and POC.
+The original P0 project-local `yarn install` completed successfully in 1499.30 seconds and left `yarn.lock` unchanged. The installed MCP SDK resolved to 1.18.2 for both the packaged server and POC.
+
+During P0-Closure, repeated `yarn install --frozen-lockfile --network-timeout 600000` attempts failed in Yarn Classic's Windows linking stage at `packages/mcp-provider-api/node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion` with `ENOENT lstat`. Moving only that generated dependency directory aside and retrying reproduced the same error; `yarn.lock` remained unchanged. Closure therefore uses targeted workspace build/test/lint plus stdio/HTTP integration evidence and records the frozen reinstall as a separate environment debt, not as a Salesforce compatibility result.
 
 ## Runtime verification
 
@@ -76,7 +79,8 @@ yarn --version                  -> 1.22.22
 ```text
 NODE_RUNTIME = PASS
 YARN_RUNTIME = PASS
-SALESFORCE_CLI = PARTIAL
+SALESFORCE_CLI_V2 = PASS
+ACTIVE_PROCESS_PATH_REFRESH = PARTIAL
 ```
 
 ## Salesforce CLI remediation record
@@ -86,7 +90,9 @@ SALESFORCE_CLI = PARTIAL
 - A user-level official npm installation of `@salesforce/cli@2.148.3` was attempted because npm `latest` resolved to 2.148.3 and the global prefix was user-owned.
 - The attempt failed with `ECONNRESET`; npm also reported non-fatal cleanup `EPERM` warnings. It did not replace the PATH-selected CLI. A later audit found an unversioned, shimless partial package directory created by this attempt; `npm uninstall --global @salesforce/cli` removed that exact residue and both pre-existing CLI installations were reverified.
 - winget was not used: the search result contained an old `Salesforce.sfdx-cli` package and a non-Salesforce wrapper, not the current official `sf` v2 distribution.
-- P0 commands that require current CLI semantics use the already present direct v2 command path. Permanent PATH cleanup is deferred for user review; no administrator bypass was attempted.
+- P0-Closure used the CLI's own `plugins uninstall @salesforce/sfdx-scanner` command to remove the stale missing-plugin manifest entry. The v2 `sf plugins` command now reports no installed plugins and no stale warning.
+- The persistent user PATH was safely updated without administrator rights so `C:\Users\61979\AppData\Local\sf\client\bin` precedes the legacy directory. The current Codex process cannot inherit that change retroactively; a newly opened terminal resolves v2.148.3 first.
+- Salesforce CLI remains a development diagnostic/authentication cross-check only. Production uses direct `@salesforce/core` JWT/OAuth and does not spawn `sf`.
 
 ## Local configuration policy
 
@@ -105,4 +111,4 @@ This proves that local CLI configuration can resolve an SFoA endpoint, but it is
 
 `P0-00 Environment Bootstrap = PARTIAL PASS`
 
-The TypeScript development runtime is ready. The only environment qualification is Salesforce CLI path/plugin hygiene; a direct current v2 installation is usable, while the default PATH still selects a legacy installation.
+The TypeScript development runtime is ready. CLI v2 and plugin hygiene are resolved for new terminals; only the already-open process retains the former PATH snapshot. The additional Closure frozen-install linking failure remains reproducible, while all directly changed workspaces and both protocol transports pass their targeted Gates.

@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P0-BL-1.2**
+Baseline ID: **P0-BL-1.3**
 
 Baseline date: 2026-08-22
 
@@ -48,7 +48,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Future Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Database | Undecided; no database is introduced in P0 |
+| Database | P0/P0-Closure: none. Persistence is introduced only when request-scoped identity mapping or Admin configuration proves it is needed. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
 
@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, project install/build/test, Inspector, original stdio protocol, and Streamable HTTP pass. Salesforce CLI is partial; Upstream root lint fails on existing code-analyzer errors.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, the original stdio protocol, and Streamable HTTP pass. The persistent user PATH now prefers Salesforce CLI v2.148.3 and its stale plugin entry is removed; this already-open terminal still inherits the former legacy PATH. Upstream lint debt is isolated from the SFoA changed-code lint Gate.
 
 ## Upstream strategy
 
@@ -71,7 +71,7 @@ Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, project install/b
 
 | Phase | Scope | Exit Gate |
 | --- | --- | --- |
-| P0 | Official DX MCP architecture and SFoA compatibility | Environment, pristine Upstream build/test/lint, architecture/auth audit, protocol schemas, SFoA JWT/SOQL/metadata evidence when credentials exist, HTTP POC, decisions and risks documented |
+| P0 | Official DX MCP architecture and SFoA compatibility | Environment, Upstream build/test and recorded lint baseline, architecture/auth audit, protocol schemas, live SFoA JWT/direct/official SOQL and one official CustomObject metadata retrieval, HTTP/stdio regressions, decisions and risks documented |
 | P1 | Request-scoped identity routing | Authenticated `platformUserId` resolves to one Salesforce identity; concurrent-request isolation tests pass; no client-selected username escape |
 | P2 | Remote MCP runtime and Tool governance | Streamable HTTP production host, stdio retained, Tool allow/deny governance, protocol/security/load tests |
 | P3 | Minimal generic DML and object allowlist | Generic CREATE/UPDATE provider, absent config DENY, CRUD/FLS remains Salesforce-enforced, DELETE unavailable |
@@ -84,19 +84,19 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 ## Phase Gates
 
 - A later phase must not begin until the current phase result is reviewed.
-- Required results are `PASS`, `PARTIAL`, `FAIL`, or `NOT TESTED` only.
+- Required results are `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, or `KNOWN UPSTREAM DEBT`. The last value is valid only for a reproduced, unchanged Upstream baseline and never for SFoA-owned changed code.
 - A missing external credential can yield `P0 = PARTIAL PASS` only when all independent engineering work is complete and the blocked Gates are explicit.
 - Build, test, lint, and integration results must be rerun after material implementation changes.
 
 ## Current phase
 
-`P0 — Official DX MCP Architecture & SFoA Compatibility Gate`
+`P0-Closure — SFoA live authentication, official Tool, and metadata closure`
 
 ## Current status
 
-`P0 = PARTIAL PASS — AWAITING MAINTAINER REVIEW`
+`P0 = PARTIAL PASS — LIVE SFOA INPUTS REQUIRED`
 
-All locally independent P0 engineering and architecture work is complete. SFoA live Gates require fresh JWT inputs; the only discovered local authorization has an expired refresh token. Root Upstream lint remains FAIL on 47 existing code-analyzer errors. P1 has not started and is not authorized by this status.
+The repeatable Closure Harness, direct `@salesforce/core` path, official Provider invocation path, temporary metadata workspace, provider-version baseline, changed-code lint, original stdio regression, and Streamable HTTP regression are complete. `.env.local` is absent, so Fresh JWT, identity, Direct SOQL, official `run_soql_query`, and official `retrieve_metadata` remain `NOT TESTED`. P1 has not started and is not authorized by this status.
 
 ## P0 acceptance decisions
 
@@ -110,27 +110,37 @@ The authoritative evidence and answers are maintained in `P0_FINAL_REPORT.md`. A
 - Retain the full-history repository and use **FULL FORK + EXTENSION**, with zero official TypeScript patches in P0.
 - Add Streamable HTTP through public Provider composition; the P0 initialize/list/call Gate passed.
 - Classify Salesforce DX MCP as a **PARTIAL** long-term Runtime Base: reuse Providers/Tools, not the unchanged process-scoped host for shared remote users.
+- Use `Node.js -> JWT/OAuth -> @salesforce/core -> AuthInfo/Connection -> official Provider` in production. Salesforce CLI is a development diagnostic/cross-check only and is not a production dependency.
+- Require no database in P0/P0-Closure. P1 starts behind an `IdentityRepository` interface and may use an in-memory/local test mapping for the routing POC; persistence must not block request-scoped identity isolation.
+- Pin and independently regress the verified Provider version sets in `PROVIDER_COMPATIBILITY.md`; never depend on accidental Yarn resolution.
+- Normalize lint as `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT` plus `SFOA_CHANGED_CODE_LINT = PASS`.
 
 ## P0 result
 
 `PARTIAL PASS`
 
-- PASS: environment runtime (except CLI hygiene), full-history clone, install, build, full tests, original stdio initialize/list/call, Inspector, auth/provider architecture audit, and Streamable HTTP POC.
-- FAIL: repository-wide Upstream lint (47 existing code-analyzer errors); CLI and official MCP SOQL against the expired local authorization.
-- NOT TESTED: fresh SFoA JWT, successful live SOQL, controlled live metadata retrieval, and second-user isolation.
+- PASS: environment runtimes, full-history clone, original P0 install/build/test baseline, original stdio initialize/list/call regression, Streamable HTTP regression, auth/provider architecture audit, Provider compatibility baseline, temporary-workspace unit coverage, Closure Harness tests (9/9), and SFoA changed-code lint.
+- KNOWN UPSTREAM DEBT: repository-wide lint reproduces 47 existing code-analyzer errors; no SFoA change is among them.
+- NOT TESTED: fresh SFoA JWT, token/identity verification, Direct SOQL, official `run_soql_query`, official live `retrieve_metadata`, and live CWD restoration because the required local values are absent.
 - Official Salesforce TypeScript files modified: 0. Upstream-tracked integration files modified: `.gitignore` only.
 
 ## P1 scope (planned; do not start during P0)
 
 1. Define authenticated request context (`platformUserId`, correlation ID, immutable workspace reference).
-2. Implement an identity resolver from platform user to configured Salesforce username and JWT material reference.
+2. Define an `IdentityRepository` interface and implement an identity resolver from platform user to configured Salesforce username and JWT material reference. An in-memory/local test mapping is sufficient for the P1 runtime POC.
 3. Implement a request-scoped `OrgService`/connection factory; never accept an arbitrary username from Tool arguments.
 4. Build provider Tool instances per stateless HTTP request or equivalent isolated execution scope.
 5. Wrap Tool execution with a working-directory isolation strategy; the P1 minimum is a global mutex plus restore, with child-process isolation evaluated for metadata/concurrency.
 6. Add positive, negative, cross-user, concurrent, token-expiry, and no-route tests.
 7. Record the final routing choice in a superseding/accepted ADR before implementation is declared complete.
 
-P1 explicitly excludes the production DML provider, production Admin UI, complex policy engine, database redesign, and Redis.
+P1 explicitly excludes the production DML provider, production Admin UI, complex policy engine, database-first redesign, and Redis. A persistent database is added only when routing management or Admin configuration actually requires it; it must not block the request-scoped runtime POC. P1 production/runtime tests must not depend on the local Salesforce CLI Auth Cache.
+
+### P1 entry criteria
+
+- P0-Closure live Fresh JWT, Direct Connection, Identity Match, Direct SOQL, official SOQL, and at least one official CustomObject metadata retrieval are PASS.
+- Original stdio, Streamable HTTP, and SFoA changed-code lint regressions remain PASS.
+- The maintainer reviews `P0_CLOSURE_REPORT.md` and explicitly authorizes P1.
 
 ## Known risks
 
@@ -142,15 +152,16 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 | Metadata retrieve requires an `SfProject` and writes files | Remote runtime needs workspace lifecycle | Design temporary/shared workspace adapter; do not implement in P0 |
 | Upstream package versions can temporarily drift from local workspaces | A local provider change may not be the provider version bundled by `@salesforce/mcp` | Pin and record resolved versions; validate packaged server separately |
 | Yarn v1 `nohoist` is expensive on Windows | Slow clean installs and CI | Preserve Upstream policy; use cache and measure, do not migrate package manager in P0 |
-| Local Salesforce CLI path/plugin state is inconsistent | CLI-based Gate noise | Use direct v2 for P0 evidence and obtain user review for permanent cleanup |
+| This already-open process still has the legacy Salesforce CLI PATH snapshot | CLI command may resolve 1.86.7 until terminal restart | Persistent user PATH now prefers the stable v2 shim; open a new terminal and verify v2.148.3. Production does not use CLI. |
 | SFoA JWT inputs are absent | Live compatibility conclusion is incomplete | One consolidated credential request; mark blocked Gates accurately |
-| Upstream root lint fails in code-analyzer | Repository-wide lint Gate is red despite official server/dx-core/POC lint passing | Do not patch 47 unrelated official findings in P0; track as Upstream baseline debt |
+| Upstream root lint fails in code-analyzer | Repository-wide lint Gate is red despite SFoA changed-code lint passing | Record `KNOWN UPSTREAM DEBT`; do not patch 47 unrelated official findings in P0 |
+| Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch Closure reinstall is not currently reproducible in this worktree | Preserve the unchanged lockfile; rely on targeted workspace build/test/lint evidence and investigate separately from live compatibility |
 
 ## Open questions
 
 - Which SFoA connected app and private-key path should be used for the JWT Gate?
 - Which object and metadata components are safe, stable P0 test targets?
-- Is a second Salesforce user available for the multi-user Gate?
+- Is a second Salesforce user available for the P1 request-scoped isolation Gate?
 - Does the production WorkBuddy/Dify deployment pass a trustworthy platform-user claim directly, or require a gateway-issued token?
 - For metadata operations, is per-request temporary workspace cost acceptable, or is a controlled per-user shared workspace required?
 
@@ -161,3 +172,4 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 | P0-BL-1.0 | 2026-08-22 | Established project vision, non-goals, Upstream policy, technology baseline, phases, Gates, P1 draft scope, risks, and open questions. |
 | P0-BL-1.1 | 2026-08-22 | Closed locally runnable P0 work as PARTIAL PASS; recorded build/test/protocol/HTTP passes, Upstream lint failure, expired SFoA authorization, final fork/extension decision, and P1 review boundary. |
 | P0-BL-1.2 | 2026-08-22 | Associated the local `origin` remote with the supplied company GitHub repository and made `origin/main` the project branch tracking target. |
+| P0-BL-1.3 | 2026-08-22 | Added P0-Closure Harness and user test flow; normalized lint debt, established exact Provider baselines, removed CLI/database from production/P0 assumptions, moved the second-user Gate to P1, and retained PARTIAL PASS pending live SFoA inputs. |

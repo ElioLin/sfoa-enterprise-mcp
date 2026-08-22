@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0 architecture audit
+Status: P0-Closure architecture baseline; live SFoA Gates pending local inputs
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -92,7 +92,19 @@ Examples:
 - `retrieve_metadata`: `SfProject`, `Org`, `SourceTracking`, `ComponentSetBuilder`, and SDR retrieve APIs.
 - `code-analysis`: Code Analyzer libraries/engines, not an `sf` subprocess.
 
-Salesforce CLI remains operationally relevant because `@salesforce/core` reads the same local authorization/config state, and Upstream E2E setup uses CLI commands. That is shared state/dependency, not Tool-time CLI spawning.
+Salesforce CLI is retained only as a development diagnostic and independent authentication/connectivity cross-check. It is **not** a production Runtime dependency, and the P0-Closure Harness deliberately creates fresh JWT `AuthInfo` directly instead of reading the CLI Auth Cache.
+
+The production chain is fixed as:
+
+```text
+Node.js
+  -> JWT/OAuth TokenProvider
+  -> @salesforce/core
+  -> AuthInfo / Connection
+  -> official Salesforce Provider Tool
+```
+
+Production must not use `Node.js -> spawn sf command`.
 
 ## `--orgs` resolution semantics
 
@@ -131,7 +143,9 @@ Consequences:
 - For orgs without source tracking, callers must specify source paths or a manifest.
 - Remote production design must provide a temporary or controlled shared DX workspace.
 
-P0 recommendation: design a **Temporary Workspace Adapter** first (minimal `sfdx-project.json`, package directory, generated manifest, bounded cleanup). Evaluate a per-user shared workspace only if retrieve performance proves unacceptable. Do not implement either in P0.
+P0-Closure implements only a disposable validation workspace (minimal `sfdx-project.json`, package directory, generated manifest, bounded cleanup) so the official Tool can be tested. It is not a production Workspace Manager, worker pool, distributed lock, or shared workspace. Evaluate those only if P4 runtime metadata requirements and measured concurrency justify them.
+
+At the audited commit, official `run_soql_query` and `retrieve_metadata` call `process.chdir(directory)` and do not restore the previous CWD. The Closure Harness observes the immediate post-Tool CWD, restores the original directory in `finally`, and reports both values. A live Metadata call is still required before this Gate can pass; a successful harness restore does not erase the official side-effect risk.
 
 ## Concurrency and global state
 
@@ -150,7 +164,7 @@ This is suitable for one local stdio client. It is unsafe to expose one unchange
 - Telemetry is injected through the Provider API `TelemetryService`; disabling it produces a no-op service. The official wrapper emits server-start/stop, Tool-called, and rate-limited events with Tool name, runtime, error flag, response character count, client/version, platform, and session/CLI identifiers. Telemetry calls are guarded so instrumentation cannot fail a Tool. P0 Inspector runs used `--no-telemetry`.
 - The optional official rate limiter is one in-process token bucket around all registered Tool calls (default 60/minute, burst 10 when enabled). It is not identity-scoped and is therefore not a sufficient remote per-user quota or authorization mechanism.
 - Provider packages use strict TypeScript plus Mocha/NYC or Vitest coverage. Live E2E suites are separate from root unit tests. `@salesforce/mcp-test-client` provides a typed stdio client; P0 adds an SDK Client Streamable HTTP integration test.
-- P0 root build and full unit/integration tests pass. Root lint fails in the existing code-analyzer workspace, while the official server, dx-core, and SFoA POC lint individually pass. This is an Upstream baseline issue, not an SFoA Tool patch.
+- P0 root build and full unit/integration tests pass. P0-Closure reproduces 47 existing code-analyzer lint errors as `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`; `SFOA_CHANGED_CODE_LINT` passes for both SFoA workspaces. Unrelated official lint debt is not a Release blocker unless an SFoA change adds to it.
 
 ## Request-scoped routing options
 
@@ -179,6 +193,8 @@ HTTP MCP request
   -> official Provider Tool
 ```
 
+P1 begins behind an `IdentityRepository` interface. A memory/local test mapping may prove `platformUserId -> username` without a database; persistence is introduced only when durable identity management or Admin configuration requires it. Neither P1 runtime nor production may rely on local Salesforce CLI authentication state.
+
 ## Transport architecture
 
 - Keep the official stdio entry unchanged for Codex, Cursor, and local development.
@@ -187,7 +203,7 @@ HTTP MCP request
 - Bind the P0 POC to loopback and validate method/content type/origin/host as supported by the SDK.
 - Add OAuth/client authentication and platform request identity in P2, after P1 identity routing is proven.
 
-P0 runtime evidence: `@sfoa/streamable-http-poc` used MCP SDK 1.18.2 and local dx-core Provider 0.10.0, registered the five GA core/data/metadata Tools, and passed its SDK Client integration test. The original packaged stdio host independently passed Inspector initialize/list/call and resolved its declared dx-core 0.9.8 package. This dual check makes release-version drift visible rather than assuming source workspace linkage.
+P0-Closure regression evidence: `@sfoa/streamable-http-poc` used MCP SDK 1.18.2 and local dx-core Provider 0.10.0, registered the five GA core/data/metadata Tools, and passed initialize/list/call, 405, Origin rejection, and cleanup assertions. The original packaged stdio host independently passed initialize/list/call against its declared dx-core 0.9.8 package. Exact resolved sets are authoritative in `PROVIDER_COMPATIBILITY.md`; production must not depend on accidental Yarn workspace resolution.
 
 ## Future Admin UI location
 
@@ -199,7 +215,8 @@ Planned UI areas: dashboard, Salesforce account routing, object CREATE/UPDATE al
 
 ## Data, cache, and security baseline
 
-- No database decision in P0.
+- P0 and P0-Closure require no database.
+- Persistence is introduced only when request-scoped identity mapping or Admin configuration actually needs it; a P1 memory/local test repository may validate routing first.
 - No Redis without measured multi-node/session/cache requirements.
 - Secrets remain outside Git; logs must redact tokens and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.

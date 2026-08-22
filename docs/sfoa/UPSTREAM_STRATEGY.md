@@ -76,9 +76,9 @@ An “upstream-owned file” is any path tracked at the audited commit. New SFoA
 
 | File | Reason | Change | Alternative considered | Merge risk |
 | --- | --- | --- | --- | --- |
-| `.gitignore` | Track the authoritative `docs/sfoa` baseline and prevent local secrets/research cache from entering Git | Replaced broad `docs` ignore with a `docs/sfoa` exception; added `.env.*.local`, key/PEM, secrets, and `.firecrawl` ignores | Force-add docs on every clone and rely on personal excludes; rejected because it is not durable for AI agents | LOW |
+| `.gitignore` | Track the authoritative `docs/sfoa` baseline and prevent local secrets/research cache from entering Git | Replaced broad `docs` ignore with a `docs/sfoa` exception; added `.env.*.local`, key/PEM, secrets, `.firecrawl`, and Closure `.temp/` ignores | Force-add docs on every clone and rely on personal excludes; rejected because it is not durable for AI agents | LOW |
 
-No Salesforce TypeScript implementation file was modified in P0. The new POC consumes public Provider contracts only. `yarn.lock` remained byte-for-byte unchanged after the clean install.
+No Salesforce TypeScript implementation file was modified in P0 or P0-Closure. Both SFoA packages consume public Provider contracts only. The Closure Harness injects a request-like `Services` implementation and calls the official `DxCoreMcpProvider` Tools over an in-memory MCP transport. `yarn.lock` remains byte-for-byte unchanged.
 
 ## Changes that require a new matrix entry
 
