@@ -2,6 +2,36 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-23 — P3-Closure HOTFIX01 ambiguous mutation outcome safety completed
+
+### Changed
+
+- Added stable `MCP_DML_OUTCOME_UNKNOWN` Tool-level semantics for DML Tool timeout and mutation execution exceptions without reliable structured Salesforce rejection evidence.
+- Restricted `MCP_SALESFORCE_DML_FAILED` to explicit unsuccessful Salesforce `SaveResult` values or trustworthy structured Salesforce `errorCode`/`message`/`fields` evidence, including the pinned JSforce error `data` body.
+- Preserved the existing compact structured error shape. No client-visible correlation field or idempotency key was added; correlation, Tool, platform user, and Salesforce user remain in safe runtime logs.
+- Updated `create_record` and `update_record` descriptions to state that mutations are non-idempotent, unknown outcomes must not be automatically retried, an independent read should verify state first, and the user must be told when state cannot be confirmed. `idempotentHint` remains `false`.
+
+### Safety tests
+
+- Explicit `REQUIRED_FIELD_MISSING` and `FIELD_CUSTOM_VALIDATION_EXCEPTION` remain `MCP_SALESFORCE_DML_FAILED`.
+- Transport/ECONNRESET and unstructured SDK rejection fixtures return `MCP_DML_OUTCOME_UNKNOWN`; Provider CREATE/UPDATE invocation count remains one.
+- CREATE and UPDATE Host timeout fixtures return structured UNKNOWN results with no-retry guidance. A late CREATE resolution completes after the timeout without any second invocation.
+- `REQUIRED_FIELD_MISSING`, `FIELD_CUSTOM_VALIDATION_EXCEPTION`, and `INSUFFICIENT_ACCESS_OR_READONLY` continue to preserve bounded safe Salesforce code/message/fields.
+- Timeout log assertions preserve correlation ID, Tool name, platform user ID, and Salesforce username under the new error code.
+
+### Verification
+
+- P3 Provider tests: PASS, 16/16. P3 Host tests: PASS, 10/10. All SFoA strict TypeScript lint: PASS.
+- P3 live Salesforce: PASS for successful CREATE/UPDATE, required/validation/authorization failures, identity isolation, zero Connection reuse, and exact cleanup 2/2.
+- P2 18/18 and live A/B/50-request load, P1 22/22/live, P0 9/9/live, P0 HTTP 1/1, upstream compatibility, original stdio, and project-local Inspector: PASS.
+- Git Bash root build: PASS, 70.86 s. Root full tests: PASS, 284.67 s.
+- Root lint reproduced exactly 47 unchanged official code-analyzer errors / 0 warnings: `KNOWN UPSTREAM DEBT`. No SFoA path is affected.
+- Official Salesforce TypeScript modifications: 0. Root `package.json` and `yarn.lock` modifications: 0. Database/Redis/idempotency/retry/UPSERT/DELETE additions: 0.
+
+### Result
+
+`P3-CLOSURE HOTFIX01 = PASS`. Baseline advanced to `P3-BL-1.2`; P3 awaits final maintainer acceptance, and P4 has not started.
+
 ## 2026-08-22 — P3 minimal generic DML completed
 
 ### Added

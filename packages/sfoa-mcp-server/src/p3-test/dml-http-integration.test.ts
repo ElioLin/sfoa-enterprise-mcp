@@ -45,6 +45,12 @@ test('P3 tools/list exposes only explicitly enabled CREATE/UPDATE and keeps all 
     const update = listed.tools.find((tool) => tool.name === 'update_record');
     assert(create);
     assert(update);
+    for (const tool of [create, update]) {
+      assert.match(tool.description ?? '', /not idempotent/iu);
+      assert.match(tool.description ?? '', /Do not automatically retry/iu);
+      assert.match(tool.description ?? '', /read-only Tool/iu);
+      assert.equal(tool.annotations?.idempotentHint, false);
+    }
     assert.deepEqual(Object.keys(readProperties(create.inputSchema)).sort(), ['fields', 'objectApiName']);
     assert.deepEqual(Object.keys(readProperties(update.inputSchema)).sort(), ['fields', 'objectApiName', 'recordId']);
     assert.equal('operation' in readProperties(create.inputSchema), false);

@@ -39,6 +39,11 @@ test('P3 provider Tool surface is exactly CREATE and UPDATE with complete mutati
     const config = tool.getConfig();
     assert(config.inputSchema);
     assert(config.outputSchema);
+    assert(config.description);
+    assert.match(config.description, /not idempotent/iu);
+    assert.match(config.description, /Do not automatically retry/iu);
+    assert.match(config.description, /read-only Tool/iu);
+    assert.match(config.description, /inform the user/iu);
     assert.deepEqual(config.annotations, {
       readOnlyHint: false,
       destructiveHint: true,

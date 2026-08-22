@@ -5,14 +5,21 @@ import type {
   ServerRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { McpTool, McpToolConfig } from '@salesforce/mcp-provider-api';
-import { dmlExecutionErrorToolResult } from '@sfoa/mcp-provider-sfoa-dml';
+import {
+  SFOA_DML_TOOL_OPERATIONS,
+  dmlErrorToolResult,
+  dmlExecutionErrorToolResult,
+  dmlOutcomeUnknownError,
+  isSfoaDmlToolName,
+  type DmlOperation,
+} from '@sfoa/mcp-provider-sfoa-dml';
 import type {
   RequestContext,
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
-import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
+import { RemoteRuntimeError } from './errors.js';
 import { withTimeout } from './timeouts.js';
 
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -25,11 +32,21 @@ export type DmlToolFacadeOptions = Readonly<{
   toolTimeoutMs: number;
   logger: RuntimeLogger;
   clientId: string;
-  redactionSecrets?: readonly string[];
 }>;
 
 export class DmlToolFacade {
-  public constructor(private readonly options: DmlToolFacadeOptions) {}
+  private readonly operation: DmlOperation;
+
+  public constructor(private readonly options: DmlToolFacadeOptions) {
+    const toolName = options.tool.getName();
+    if (!isSfoaDmlToolName(toolName)) {
+      throw new RemoteRuntimeError(
+        'MCP_TOOL_NOT_AVAILABLE',
+        `DML facade cannot execute non-P3 Tool ${toolName}.`,
+      );
+    }
+    this.operation = SFOA_DML_TOOL_OPERATIONS[toolName];
+  }
 
   public getName(): string {
     return this.options.tool.getName();
@@ -53,14 +70,11 @@ export class DmlToolFacade {
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
-        this.log('ERROR', elapsed(started), error.code);
-        return remoteRuntimeErrorToolResult(
-          error,
-          this.options.redactionSecrets,
-          this.options.context.correlationId,
-        );
+        const result = dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error));
+        this.log('ERROR', elapsed(started), resultErrorCode(result));
+        return result;
       }
-      const result = dmlExecutionErrorToolResult(error);
+      const result = dmlExecutionErrorToolResult(error, this.operation);
       this.log('ERROR', elapsed(started), resultErrorCode(result));
       return result;
     }

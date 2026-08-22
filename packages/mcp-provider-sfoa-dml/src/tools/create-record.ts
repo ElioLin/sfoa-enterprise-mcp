@@ -37,7 +37,7 @@ export class CreateRecordMcpTool extends McpTool<InputShape, OutputShape> {
     return {
       title: 'Create Salesforce Record',
       description:
-        'Creates exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. Provide objectApiName and non-empty scalar fields. This Tool does not accept identity, org, URL, API-version, operation, relationship, bulk, upsert, or delete inputs. Returns only success and the new record ID.',
+        'Creates exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If the outcome is unknown or the Tool times out, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide objectApiName and non-empty scalar fields. This Tool does not accept identity, org, URL, API-version, operation, relationship, bulk, upsert, or delete inputs. Returns only success and the new record ID.',
       inputSchema: createRecordInputSchema.shape,
       outputSchema: dmlOutputSchema.shape,
       annotations: {
@@ -54,7 +54,7 @@ export class CreateRecordMcpTool extends McpTool<InputShape, OutputShape> {
       const parsed = createRecordInputSchema.parse(input);
       return dmlSuccessToolResult(await this.executor.create(parsed));
     } catch (error) {
-      return dmlExecutionErrorToolResult(error);
+      return dmlExecutionErrorToolResult(error, 'CREATE');
     }
   }
 }

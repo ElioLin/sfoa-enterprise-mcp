@@ -146,7 +146,6 @@ export async function createGovernedMcpServer(
           toolTimeoutMs: options.toolTimeoutMs,
           logger: options.logger,
           clientId: options.clientId,
-          redactionSecrets: options.redactionSecrets,
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
         registered.push(name);

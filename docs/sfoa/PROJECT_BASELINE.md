@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P3-BL-1.1**
+Baseline ID: **P3-BL-1.2**
 
-Baseline date: 2026-08-22
+Baseline date: 2026-08-23
 
 Authority: This file is the single authoritative delivery-plan baseline for SFoA Enterprise MCP.
 
@@ -90,11 +90,11 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P3 — Minimal Generic DML & Object Allowlist (COMPLETE — AWAITING MAINTAINER REVIEW)`
+`P3 — Minimal Generic DML & Object Allowlist (CLOSURE HOTFIX01 COMPLETE — AWAITING MAINTAINER FINAL ACCEPTANCE)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3 = PASS / COMPLETE — AWAITING MAINTAINER FINAL ACCEPTANCE`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -111,6 +111,8 @@ P2 Closure HOTFIX01 removes open-ended upstream schema inheritance before mainta
 The maintainer accepted P2 and P2 Closure HOTFIX01 and authorized P3 on 2026-08-22. The accepted P2 branch was clean, its latest commit `f532c8a` matched `origin/feature/p2-remote-runtime-governance`, `validate:upstream` passed with zero drift, and the P2 targeted suite passed 18/18 immediately before entry. P2 was then fast-forwarded without squashing to `main`, pushed, and `feature/p3-generic-dml-allowlist` was created from the updated `main`.
 
 P3 is complete on its dedicated branch and awaits maintainer review. The SFoA-owned Provider exposes only `create_record` and `update_record`, consumes the existing request-scoped `OrgService`/Connection, and checks a strict startup-loaded Object-by-Operation JSON policy before the pinned SDK calls Salesforce. Missing/empty policy denies all; invalid/duplicate/DELETE/unknown configuration fails closed. Live SFoA validation proved successful User A CREATE/UPDATE, User B request routing with native validation and record-authorization denial preserved, forged body identity resistance, native required-field failure, zero Connection reuse, and validator cleanup of exactly 2/2 recorded IDs. No DELETE/UPSERT/bulk/arbitrary REST Tool, field policy engine, database, Redis, cache, pool, CLI runtime, official Tool copy, or official Salesforce TypeScript patch was added.
+
+Maintainer review accepted the P3 architecture and required only P3-Closure HOTFIX01 before final acceptance. The Closure distinguishes explicit structured Salesforce rejection from an ambiguous post-dispatch outcome. A returned Salesforce failure remains `MCP_SALESFORCE_DML_FAILED`; a DML Tool timeout, transport interruption, or SDK rejection without reliable structured Salesforce rejection evidence returns `MCP_DML_OUTCOME_UNKNOWN` with an explicit no-automatic-retry/read-before-retry instruction. Deterministic late-completion tests prove one invocation and zero automatic retry for CREATE and UPDATE. No idempotency store, retry queue, External ID, UPSERT, DELETE, database, Redis, token cache, or Connection cache was added.
 
 ## P0 acceptance decisions
 
@@ -213,6 +215,17 @@ P3 remains database-, Redis-, token-cache-, Connection-pool-, Salesforce-CLI-run
 - Root lint reproduced exactly 47 unchanged official code-analyzer errors and zero warnings: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`; every SFoA strict TypeScript lint passed.
 - Official Salesforce TypeScript modified: 0. Official Tool copied/reimplemented: 0. Root `package.json` changed: 0. `yarn.lock` changed: 0. Database/Redis dependencies added: 0.
 
+## P3 Closure HOTFIX01 result
+
+`P3-CLOSURE HOTFIX01 = PASS`
+
+- `MCP_SALESFORCE_DML_FAILED` now requires deterministic `SaveResult.success === false` or reliable structured Salesforce rejection evidence; safe Salesforce code/message/fields remain bounded and redacted.
+- `MCP_DML_OUTCOME_UNKNOWN` covers DML Tool timeout and mutation execution exceptions without reliable rejection evidence. Its Tool result says the commit state is unknown, prohibits automatic retry, and directs the Agent to verify through an independent read.
+- `create_record` and `update_record` descriptions explicitly state non-idempotence, no automatic retry after unknown outcome, read-before-retry, and user disclosure when state cannot be confirmed. `idempotentHint` remains `false`.
+- Provider tests passed 16/16 and P3 Host tests passed 10/10, including transport failure, CREATE/UPDATE timeout, late CREATE completion, one invocation, zero retry, structured output, and correlation/identity log fields.
+- P3 live, P2 18/18 and live A/B/50-load, P1 22/22/live, P0 9/9/live, P0 HTTP, original stdio, Inspector, upstream compatibility, root build/tests, and all SFoA changed-code lint passed. Root lint reproduced exactly 47 unchanged official code-analyzer errors as `KNOWN UPSTREAM DEBT`.
+- Official Salesforce TypeScript modified: 0. Root manifest/lockfile modified: 0. Database/Redis/idempotency/retry/UPSERT/DELETE additions: 0. P4 remains unstarted.
+
 ### P1 entry criteria — satisfied (historical)
 
 - P0-Closure live Fresh JWT, Direct Connection, Identity Match, Direct SOQL, official SOQL, and at least one official CustomObject metadata retrieval are PASS.
@@ -238,14 +251,14 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch reinstall is not currently reproducible in this worktree and can remove generated `.bin` shims before failing | Preserve the unchanged lockfile; restore only local generated shims when needed; root build/full tests and targeted Gates passed; investigate separately from P1 identity correctness |
 | Internal Bearer identifies a controlled MCP client, not an individual human | An untrusted client could lie in `X-Platform-User-Id` | Keep P2 internal/controlled; Dify/WorkBuddy dynamic per-user Header mapping requires client verification; a future trusted SSO gateway must overwrite the Header from authenticated claims |
 | Fresh JWT/Connection adds about 0.87 s p50 / 1.08 s p95 in the latest run | Remote Agent latency and Salesforce auth traffic | Keep fresh-per-request isolation in P2; do not add a cache without sustained production evidence and a maintainer-approved identity-keyed/expiry-aware design |
-| SDK timeout cannot guarantee Salesforce server-side cancellation | A P3 CREATE/UPDATE may commit after the Host returns a timeout, and blind retry can duplicate non-idempotent work | Mutation annotations are non-idempotent; the Host states that remote cancellation is not guaranteed, logs correlation, and must not imply rollback. Add retry/idempotency machinery only with a proven official capability and reviewed contract. |
+| SDK timeout cannot guarantee Salesforce server-side cancellation | A P3 CREATE/UPDATE may commit after the Host returns a timeout, and blind retry can duplicate non-idempotent work | P3-Closure HOTFIX01 returns `MCP_DML_OUTCOME_UNKNOWN`, says not to retry automatically, directs an independent read, and retains correlation/identity log context. It deliberately adds no retry/idempotency machinery. |
 
 ## Open questions after P3
 
 - Which trusted platform claim will a future SSO/reverse-proxy layer map to `platformUserId` when the runtime is opened beyond controlled clients?
 - Will Salesforce publish an embeddable generic mutation Provider, or prove Hosted MCP availability and request-identity compatibility for Salesforce on Alibaba Cloud, such that ADR-0008 should be revisited?
 - Do sustained post-P2 production measurements—not this validation sample—ever justify an identity-keyed, expiry-aware Connection cache?
-- Which deterministic diagnosis capability, if any, is actually missing after composing official SOQL/metadata/Apex/code-analysis Tools? P4 remains prohibited pending P3 maintainer review.
+- Which deterministic diagnosis capability, if any, is actually missing after composing official SOQL/metadata/Apex/code-analysis Tools? P4 remains prohibited pending maintainer final acceptance of P3 and explicit authorization.
 
 ## Baseline change history
 
@@ -264,3 +277,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P2-BL-1.2 | 2026-08-22 | Closed P2 Closure HOTFIX01 with an actual public-Provider inventory Gate, one executable audited dx-core contract catalog, enabled-contract startup fail-closed behavior, Agent-field whitelist projection, ADR-0007, 18/18 P2 tests, full live/protocol/root regressions, zero official Salesforce TypeScript changes, and no P3 scope. |
 | P3-BL-1.0 | 2026-08-22 | Recorded maintainer acceptance of P2 and HOTFIX01, reran zero-drift upstream validation and 18/18 P2 tests, fast-forwarded and pushed `main`, created the dedicated P3 branch, and entered minimal generic CREATE/UPDATE with strict Object-by-Operation default-deny governance and no DELETE. |
 | P3-BL-1.1 | 2026-08-22 | Closed P3 as PASS after the official capability audit, thin two-Tool SDK Provider, strict default-deny Object-by-Operation policy, separate mutation Tool governance, stable safe error mapping, 12/12 Provider and 8/8 Host tests, real SFoA CREATE/UPDATE/validation/authorization/forgery/cleanup evidence, complete P0/P1/P2/root regressions, zero official TypeScript patches, and no DELETE/database/Redis/cache/pool; P4 remains unstarted pending maintainer review. |
+| P3-BL-1.2 | 2026-08-23 | Closed P3-Closure HOTFIX01 with conservative ambiguous-outcome semantics, structured `MCP_DML_OUTCOME_UNKNOWN`, no-automatic-retry/read-before-retry Tool guidance, 16/16 Provider and 10/10 Host tests, full live/protocol/root regressions, zero official TypeScript changes, and no idempotency/retry/database/Redis/UPSERT/DELETE/P4 scope. |

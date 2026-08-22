@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P2 implemented and validated; P2 Closure HOTFIX01 adds upstream inventory/contract drift guards while maintainer acceptance remains pending
+Status: P3 implemented and validated; P3-Closure HOTFIX01 closes ambiguous mutation-outcome semantics while final maintainer acceptance remains pending
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -362,7 +362,7 @@ P2 does not authorize from `X-Forwarded-For` or `X-Forwarded-Proto`. Those value
 
 - `MCP_MAX_BODY_BYTES` bounds streamed request bytes and returns HTTP 413 before JWT.
 - `MCP_REQUEST_TIMEOUT_MS` bounds the complete POST wait and returns HTTP 504 `MCP_REQUEST_TIMEOUT`.
-- `MCP_TOOL_TIMEOUT_MS` bounds the Tool wait and returns Tool-level `isError: true` / `MCP_TOOL_TIMEOUT`.
+- `MCP_TOOL_TIMEOUT_MS` bounds the Tool wait. Official read Tool facades retain Tool-level `MCP_TOOL_TIMEOUT`; the P3 DML facade converts its timeout to structured `MCP_DML_OUTCOME_UNKNOWN` because server-side mutation cancellation is not guaranteed.
 - Response finish/close, timeout, client disconnect, and graceful shutdown converge on idempotent transport/server/workspace cleanup.
 - SIGINT/SIGTERM stop new acceptance, drain active requests to the configured bound, close idle/all connections as needed, and set an exit code without immediate `process.exit()`.
 
@@ -409,6 +409,28 @@ Missing, blank, or `[]` means deny all. Invalid JSON, unknown fields/operations,
 Tool visibility is a separate dual gate: the exact `create_record`/`update_record` name must appear in `MCP_ENABLED_TOOLS`, and the policy must contain at least one object for its operation. P2's general `MUTATION` classification remains forbidden, so `deploy_metadata`, `assign_permission_set`, and every other official mutation/admin Tool stay unavailable.
 
 P3 adds stable outer errors while retaining bounded safe Salesforce error code/message/field details. It does not reinterpret Salesforce validation or build a field permission engine. DELETE, UNDELETE, UPSERT, MERGE, Bulk DML, arbitrary REST, metadata mutation, and Apex mutation substitutes are absent from production code and Tool schemas.
+
+### P3-Closure HOTFIX01 mutation outcome semantics
+
+The pinned `@salesforce/core@8.29.0` resolves `@jsforce/jsforce-node@3.10.13`. For single-record REST DML, JSforce returns a `SaveResult` on success and wraps an HTTP error response in an error whose `data` retains the Salesforce REST error body. SFoA therefore classifies only structural evidence; it never guesses from an exception class, HTTP-status absence, error name, or message substring.
+
+```text
+SaveResult.success === false
+or reliable errorCode + message + fields evidence
+  -> MCP_SALESFORCE_DML_FAILED
+  -> Salesforce explicitly rejected the mutation
+
+DML Tool timeout
+or mutation Promise rejection without reliable rejection evidence
+  -> MCP_DML_OUTCOME_UNKNOWN
+  -> commit state cannot be determined
+  -> do not automatically retry
+  -> verify with an independent read when possible
+```
+
+The timeout races only the Host wait; it does not cancel or replay the underlying SDK Promise. Deterministic tests let CREATE/UPDATE resolve after the timeout and prove exactly one invocation. The client-visible result keeps the existing compact shape (`success`, `errorCode`, `message`); correlation ID remains a log-correlation value rather than an idempotency key or Salesforce commit-status token.
+
+The request log continues to record `correlationId`, `toolName`, `platformUserId`, and `salesforceUsername` with `MCP_DML_OUTCOME_UNKNOWN`. Causes, stacks, JWTs, tokens, private keys, client secrets, and Connection objects are not returned.
 
 The independent live validator may call SDK `destroy(recordId)` only for IDs returned by that validator run. That cleanup method is not imported by the Provider, registered as a Tool, or used for query-based deletion.
 

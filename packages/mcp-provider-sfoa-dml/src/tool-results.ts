@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { ZodError } from 'zod';
-import { DmlRuntimeError, dmlErrorToolResult } from './errors.js';
+import type { DmlOperation } from './allowlist.js';
+import { DmlRuntimeError, dmlErrorToolResult, dmlOutcomeUnknownError } from './errors.js';
 import type { DmlOutput } from './schemas.js';
 
 export function dmlSuccessToolResult(recordId: string): CallToolResult {
@@ -11,7 +12,7 @@ export function dmlSuccessToolResult(recordId: string): CallToolResult {
   };
 }
 
-export function dmlExecutionErrorToolResult(error: unknown): CallToolResult {
+export function dmlExecutionErrorToolResult(error: unknown, operation: DmlOperation): CallToolResult {
   if (error instanceof DmlRuntimeError) return dmlErrorToolResult(error);
   if (error instanceof ZodError) {
     const details = error.issues
@@ -22,12 +23,5 @@ export function dmlExecutionErrorToolResult(error: unknown): CallToolResult {
       new DmlRuntimeError('MCP_DML_INPUT_INVALID', `Invalid DML Tool input: ${details}`),
     );
   }
-  return dmlErrorToolResult(
-    new DmlRuntimeError(
-      'MCP_SALESFORCE_DML_FAILED',
-      'The Salesforce DML operation failed without a safe structured error. Check the correlation log.',
-      [],
-      { cause: error },
-    ),
-  );
+  return dmlErrorToolResult(dmlOutcomeUnknownError(operation, error));
 }

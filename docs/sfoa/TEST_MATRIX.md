@@ -284,6 +284,46 @@ Both real users, all required official Tool paths, bidirectional forgery denial,
 | Database / Redis / cache / pool | PASS | No new database, ORM, Redis, token-cache, or Connection-pool dependency/runtime |
 | P4 scope boundary | PASS | No P4 diagnosis implementation or later-phase feature added |
 
+## P3-Closure HOTFIX01 Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Pinned SDK error-shape audit | PASS | Local `@salesforce/core@8.29.0` resolves `@jsforce/jsforce-node@3.10.13`; single-record request and `HttpApiError.data` paths inspected before classification changes |
+| Explicit required-field rejection | PASS | Structured `REQUIRED_FIELD_MISSING` returns `MCP_SALESFORCE_DML_FAILED`, never UNKNOWN |
+| Explicit validation rejection | PASS | Structured `FIELD_CUSTOM_VALIDATION_EXCEPTION` returns `MCP_SALESFORCE_DML_FAILED`, never UNKNOWN |
+| Transport/network exception | PASS | ECONNRESET-style Promise rejection without structured Salesforce evidence returns `MCP_DML_OUTCOME_UNKNOWN` |
+| Unstructured SDK rejection | PASS | SDK rejection without reliable Salesforce error body returns UNKNOWN; no Error-name/message guessing |
+| CREATE Tool timeout | PASS | MCP Tool result is `success:false`, `MCP_DML_OUTCOME_UNKNOWN`, with explicit no-retry/read guidance |
+| UPDATE Tool timeout | PASS | MCP Tool result is `success:false`, `MCP_DML_OUTCOME_UNKNOWN`, with explicit no-retry/read guidance |
+| Late CREATE completion | PASS | Host returned UNKNOWN before the mock later resolved successfully; CREATE invocation count remained exactly one |
+| Automatic CREATE retry | PASS | None in Provider, facade, or Host; timeout/network fixtures record one invocation |
+| Automatic UPDATE retry | PASS | None in Provider, facade, or Host; timeout/network fixtures record one invocation |
+| Existing rejection detail regression | PASS | Required, validation, and authorization fixtures preserve bounded safe Salesforce code/message/fields |
+| UNKNOWN result secrecy | PASS | Static client message only; cause, stack, token, JWT, private key, client secret, and Connection are absent |
+| Timeout log context | PASS | `correlationId`, `toolName`, `platformUserId`, and `salesforceUsername` asserted with `MCP_DML_OUTCOME_UNKNOWN` |
+| Mutation Tool descriptions | PASS | Actual `tools/list` says non-idempotent, do not automatically retry, use a read-only Tool, and inform the user if unresolved |
+| Mutation annotations | PASS | CREATE and UPDATE retain `idempotentHint:false`, `readOnlyHint:false`, `destructiveHint:true`, `openWorldHint:true` |
+| P3 Provider tests | PASS | 16/16, 0 failed |
+| P3 Host tests | PASS | 10/10, 0 failed, including real MCP client timeout/late-completion fixtures |
+| P3 live Salesforce | PASS | Successful CREATE/UPDATE; required/validation/authorization failures; forgery isolation; Connection reuse 0; cleanup 2/2 |
+| P2 regression | PASS | 18/18; live A/B and 50-request load had mismatch/leak/workspace leak/cleanup failure/reuse/error all 0 |
+| P1 regression | PASS | 22/22 plus live A/B, 20 requests, metadata/CWD/workspace cleanup |
+| P0 regression | PASS | 9/9 plus live JWT/identity/direct+official SOQL/CustomObject metadata/CWD restoration |
+| P0 Streamable HTTP | PASS | 1/1 initialize/list/call |
+| Upstream compatibility | PASS | Provider API 0.6.0, dx-core 0.10.0, nine GA Tools, `drift: []` |
+| Original Salesforce stdio | PASS | initialize, five-Tool list, official `get_username` call |
+| MCP Inspector | PASS | Project-local Inspector 0.15.0 initialize/list/call for A and B |
+| Root build | PASS | Git Bash all-workspace build completed in 70.86 s |
+| Root tests | PASS | Full all-workspace test command completed in 284.67 s |
+| SFoA changed-code lint | PASS | DML Provider, Host, Identity, P0 runtime, and HTTP POC strict TypeScript lint exited 0 |
+| Repository lint | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings, all under unchanged official code-analyzer; no SFoA path |
+| Database / Redis | PASS | No dependency or runtime added |
+| Idempotency framework / retry queue | PASS | None added; no ledger, replay, distributed transaction, or automatic retry |
+| UPSERT / DELETE | PASS | No Tool, parameter, SDK production call, or hidden entry added |
+| Official Salesforce TypeScript modified | PASS | Zero official TypeScript paths in the Closure diff |
+| Root manifest / lockfile modified | PASS | Root `package.json` and `yarn.lock` unchanged |
+| P4 scope boundary | PASS | No Describe preflight, layout/UI API, context/diagnosis, or other P4 capability added |
+
 ## P2 overall result
 
 `P2 = PASS / COMPLETE — MAINTAINER ACCEPTED`
@@ -292,6 +332,12 @@ All mandatory P2 runtime, authentication, identity, governance, schema, request-
 
 ## P3 overall result
 
-`P3 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
+`P3 = PASS / COMPLETE — AWAITING MAINTAINER FINAL ACCEPTANCE`
 
 P3 is a thin enterprise mutation gate over the accepted request-scoped Salesforce SDK path. CREATE/UPDATE, strict Object-by-Operation governance, Tool-level safe errors, identity isolation, native Salesforce validation/authorization, bounded validator cleanup, protocol surfaces, and all required regressions passed. DELETE and every prohibited substitute remain absent. P4 has not started.
+
+## P3 Closure HOTFIX01 overall result
+
+`P3-CLOSURE HOTFIX01 = PASS`
+
+The Closure changes only outcome semantics and Agent retry safety. It adds no idempotency machinery, retry, database, Redis, UPSERT, DELETE, metadata/layout/context engine, or P4 capability. P3 may be recommended for final maintainer acceptance; merge and P4 authorization remain maintainer decisions.

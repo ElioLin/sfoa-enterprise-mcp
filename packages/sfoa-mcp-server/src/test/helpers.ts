@@ -7,6 +7,7 @@ import {
   RequestWorkspaceFactory,
   type IdentityRuntime,
   type IdentityRuntimeConfig,
+  type RuntimeLogger,
   type SalesforceConnectionFactory,
   type SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
@@ -110,13 +111,14 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
 export function createTestIdentityRuntime(
   baseRoot: string,
   connectionFactory: SalesforceConnectionFactory = new RecordingConnectionFactory(),
+  logger: RuntimeLogger = new NoopRuntimeLogger(),
 ): IdentityRuntime {
   const workspaceFactory = new RequestWorkspaceFactory({ baseRoot });
   return createIdentityRuntime(TEST_IDENTITY_CONFIG, {
     connectionFactory,
     workspaceFactory,
     cwdGuard: new CwdExecutionGuard(),
-    logger: new NoopRuntimeLogger(),
+    logger,
   });
 }
 

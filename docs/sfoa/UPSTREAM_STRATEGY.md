@@ -91,6 +91,8 @@ P3 also modifies **zero official Salesforce TypeScript files**. The new `package
 
 P3-00 inspected the actual pinned dx-core Provider/public API/history before choosing the extension. No current generic CREATE/UPDATE Provider is reusable; removed historical source was not copied. Salesforce Hosted `platform/sobject-mutations` uses a separate hosted endpoint and OAuth/External Client App model, does not accept the existing in-process request Connection, and has no proven SFoA availability. The minimal fallback uses only the pinned public `@salesforce/core`/JSforce single-record `Connection.sobject().create()` and `update()` methods. Production calls no raw REST, CLI, Auth Cache, DELETE/destroy, UPSERT, or Bulk API. Merge risk remains LOW.
 
+P3-Closure HOTFIX01 also remains entirely in SFoA-owned Provider/Host/tests/docs. It classifies the public SDK's returned `SaveResult` and structured JSforce error body without patching or copying JSforce, `@salesforce/core`, the Provider API, or an official Salesforce Tool. The Closure changes zero official Salesforce TypeScript files, root manifest entries, and lockfile entries; it adds no dependency or Upstream modification-matrix row. Merge risk remains LOW.
+
 ## Changes that require a new matrix entry
 
 - Root/package workspace configuration.

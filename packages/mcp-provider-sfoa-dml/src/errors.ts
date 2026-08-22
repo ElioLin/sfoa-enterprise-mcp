@@ -1,4 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { DmlOperation } from './allowlist.js';
 import type { DmlOutput, SafeSalesforceError } from './schemas.js';
 
 export const DML_ERROR_CODES = [
@@ -8,6 +9,7 @@ export const DML_ERROR_CODES = [
   'MCP_DML_INPUT_INVALID',
   'MCP_DML_IDENTITY_CONTEXT_INVALID',
   'MCP_SALESFORCE_DML_FAILED',
+  'MCP_DML_OUTCOME_UNKNOWN',
 ] as const;
 
 export type DmlErrorCode = (typeof DML_ERROR_CODES)[number];
@@ -50,11 +52,23 @@ export function dmlErrorToolResult(error: DmlRuntimeError): CallToolResult {
 
 export function toSalesforceDmlError(error: unknown, operation: 'CREATE' | 'UPDATE'): DmlRuntimeError {
   const salesforceErrors = extractSafeSalesforceErrors(error);
+  if (!hasStructuredSalesforceRejectionEvidence(error)) {
+    return dmlOutcomeUnknownError(operation, error);
+  }
   return new DmlRuntimeError(
     'MCP_SALESFORCE_DML_FAILED',
     `Salesforce rejected the ${operation} operation. Check Salesforce permissions, field access, required values, validation rules, and automation.`,
     salesforceErrors,
     { cause: error },
+  );
+}
+
+export function dmlOutcomeUnknownError(operation: DmlOperation, cause?: unknown): DmlRuntimeError {
+  return new DmlRuntimeError(
+    'MCP_DML_OUTCOME_UNKNOWN',
+    `Outcome is unknown. The runtime cannot determine whether Salesforce committed the ${operation} mutation. Do not automatically retry. Salesforce server-side cancellation is not guaranteed. Use a read-only Tool to verify Salesforce state before attempting another mutation; if verification is not possible, inform the user that the outcome remains unknown.`,
+    [],
+    { cause },
   );
 }
 
@@ -66,11 +80,10 @@ export function extractSafeSalesforceErrors(value: unknown): readonly SafeSalesf
     if (!record) continue;
     const message = typeof record.message === 'string' ? sanitizeText(record.message, 2_000) : undefined;
     if (!message) continue;
-    const rawCode = typeof record.errorCode === 'string'
+    const rawCode = typeof record.errorCode === 'string' && record.errorCode.trim().length > 0
       ? record.errorCode
-      : typeof record.name === 'string'
-        ? record.name
-        : 'UNKNOWN_SALESFORCE_ERROR';
+      : undefined;
+    if (!rawCode) continue;
     const errorCode = sanitizeCode(rawCode);
     const fields = Array.isArray(record.fields)
       ? record.fields
@@ -91,7 +104,27 @@ function collectCandidates(value: unknown): readonly unknown[] {
   if (!record) return [value];
   if (Array.isArray(record.errors)) return record.errors;
   if (Array.isArray(record.data)) return record.data;
+  const data = toRecord(record.data);
+  if (data) return [data];
   return [value];
+}
+
+function hasStructuredSalesforceRejectionEvidence(value: unknown): boolean {
+  // JSforce 3.10.13 retains the Salesforce REST error body in HttpApiError.data.
+  // Do not infer rejection from Error.name, HTTP status, or message text: transport
+  // exceptions can carry those values after Salesforce has already committed.
+  return collectCandidates(value).some((candidate) => {
+    const record = toRecord(candidate);
+    return Boolean(
+      record &&
+      typeof record.errorCode === 'string' &&
+      record.errorCode.trim().length > 0 &&
+      typeof record.message === 'string' &&
+      record.message.trim().length > 0 &&
+      Array.isArray(record.fields) &&
+      record.fields.every((field) => typeof field === 'string'),
+    );
+  });
 }
 
 function sanitizeText(value: string, maxLength: number): string {
