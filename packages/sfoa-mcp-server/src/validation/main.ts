@@ -69,6 +69,7 @@ function printReport(report: P2ValidationReport): void {
   printLine('Cleanup Failures', String(report.load.cleanupFailures));
   printLine('Connection Reuse', String(report.load.connectionReuse));
   printLine('Error Count', String(report.load.errors));
+  printLatency('50-request load', report.load.latency);
   printLatency('Initialize', report.initializeLatency);
   printLatency('tools/list', report.toolsListLatency);
   printLatency('get_username', report.getUsernameLatency);

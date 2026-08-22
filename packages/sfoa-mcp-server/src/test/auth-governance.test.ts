@@ -69,6 +69,9 @@ test('official Tool classification inventory is explicit and has no duplicate na
   assert.equal(OFFICIAL_TOOL_CATALOG.find((record) => record.name === 'deploy_metadata')?.classification, 'MUTATION');
   assert.equal(OFFICIAL_TOOL_CATALOG.find((record) => record.name === 'assign_permission_set')?.classification, 'ADMIN');
   assert.equal(OFFICIAL_TOOL_CATALOG.find((record) => record.name === 'run_code_analyzer')?.classification, 'LOCAL_DEV');
+  assert.equal(OFFICIAL_TOOL_CATALOG.find((record) => record.name === 'create_custom_rule')?.provider, 'CodeAnalyzerMcpProvider');
+  assert.equal(OFFICIAL_TOOL_CATALOG.find((record) => record.name === 'get_ast_nodes_to_generate_xpath')?.provider, 'CodeAnalyzerMcpProvider');
+  assert.equal(OFFICIAL_TOOL_CATALOG.find((record) => record.name === 'lwc-doc-error'), undefined);
 });
 
 test('P2 config uses safe defaults and refuses disabled auth away from loopback', async () => {
