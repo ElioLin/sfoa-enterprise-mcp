@@ -8,22 +8,22 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 | Node Runtime | PASS | `node -v` and direct runtime expression both returned v24.13.0; Upstream requires current LTS / `>=20` |
 | npm Runtime | PASS | `npm -v` returned 11.6.2 |
 | Yarn Runtime | PASS | Corepack-activated Yarn 1.22.22; `yarn --version` passed; lockfile is Yarn v1 |
-| Salesforce CLI | PARTIAL | Persistent user PATH now prefers the stable v2.148.3 shim and its stale plugin entry is removed; this already-open process still inherits the legacy 1.86.7 PATH snapshot |
+| Salesforce CLI | PASS | Stable v2.148.3 invocation, plugin cleanup, JWT login, org display, and read-only query pass; this already-open process still inherits the legacy 1.86.7 PATH snapshot until terminal restart |
 | Upstream Clone | PASS | Full clone; `upstream` points to official URL; `origin` points to the supplied GitHub repository; HEAD `670234db...` |
 | yarn install | PARTIAL | Original P0 clean install exited 0 in 1499.30 s; Closure frozen reinstall now reproducibly fails during Yarn Classic Windows linking at nested `brace-expansion`; lockfile unchanged and targeted Closure workspaces remain testable |
 | yarn build | PASS | Git Bash `yarn build` exited 0 for every official workspace and the POC in 44.24 s; default PowerShell/cmd first failed because an official script requires POSIX `cp` |
 | yarn test | PASS | Final worktree run exited 0 in 263.41 s; all official tests and the hardened POC integration test passed |
 | yarn lint / Upstream baseline | KNOWN UPSTREAM DEBT | Direct reproduction reports 47 existing code-analyzer errors and 0 warnings; no SFoA-owned file is affected |
-| SFoA JWT Auth | NOT TESTED | Required JWT inputs absent; discovered refresh-token authorization is expired |
-| SF CLI Query | FAIL | Direct v2 CLI reached the configured SFoA alias but `SELECT Id, Name FROM Account LIMIT 5` failed before query execution because the stored access/refresh token is expired; fresh JWT authorization is required |
+| SFoA JWT Auth | PASS | Closure Harness direct `AuthInfo.create({ oauth2Options })` completed fresh JWT Bearer authentication; token output was masked |
+| SF CLI Query | PASS | Stable v2 CLI JWT login, org display, and `SELECT Id FROM Lead LIMIT 5` returned 5 rows |
 | DX MCP initialize | PASS | Project-local Inspector connected to the original stdio server and completed protocol initialization |
 | DX MCP tools/list | PASS | Original server returned 5 `core,data,metadata` Tool schemas; full result is `evidence/dx-mcp-tools-list.json` |
-| run_soql_query | FAIL | Original Tool executed through Inspector and returned `isError=true` because the stored refresh authorization is expired; no SOQL reached Salesforce |
-| retrieve_metadata | NOT TESTED | Fresh JWT authorization and a controlled DX workspace/test component are required |
+| run_soql_query | PASS | Closure Harness called the official `DxCoreMcpProvider` Tool with the fresh direct Connection and returned 5 rows |
+| retrieve_metadata | PASS | Official Tool retrieved the configured `CustomObject` component in a disposable DX Workspace and produced 135 files |
 | Multiple Users | NOT TESTED | `SECOND_TEST_USER` not supplied |
 | Auth Architecture Audit | PASS | Source path documented in `ARCHITECTURE.md`: startup Cache -> AuthInfo list/filter -> AuthInfo -> Connection -> Tool |
 | Streamable HTTP | PASS | Final Closure regression: official SDK Client passed initialize, `tools/list`, `tools/call get_username`, HTTP 405, untrusted-Origin 403, and cleanup assertions (1/1 test) |
-| MCP Inspector | PASS | Project-local Inspector (no global install) listed schemas and called `get_username` (`isError=false`) and `run_soql_query` (expected credential error) |
+| MCP Inspector | PASS | Project-local Inspector (no global install) listed schemas and called `get_username` (`isError=false`); live official SOQL was validated by the Closure Harness |
 
 ## Supplemental architecture checks
 
@@ -39,15 +39,15 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Fresh SFoA JWT | NOT TESTED | `.env.local` and all eight required live inputs are absent; Harness lists them together and exits with Runtime Result `NOT TESTED` |
-| Direct Connection | NOT TESTED | Requires a Fresh JWT; no CLI/cache result is substituted |
-| Identity Match | NOT TESTED | Requires live `Connection.identity()` response |
-| Token Acquisition | NOT TESTED | Debug-capable console path is implemented and unit-tested; no live token was requested or recorded |
-| Direct SOQL | NOT TESTED | Requires Fresh JWT and `TEST_OBJECT`; intended query is `SELECT Id FROM <TEST_OBJECT> LIMIT 5` |
-| Official `run_soql_query` | NOT TESTED | Official `DxCoreMcpProvider` registration passes offline; live SFoA call requires local inputs |
+| Fresh SFoA JWT | PASS | Closure Harness completed direct JWT Bearer authentication through `@salesforce/core`; token output was masked |
+| Direct Connection | PASS | `Connection.create` and `Connection.identity()` completed successfully |
+| Identity Match | PASS | Returned Salesforce username matched configured `SALESFORCE_USERNAME`; identifiers are not persisted |
+| Token Acquisition | PASS | Non-empty opaque token was usable for identity and both SOQL paths; expiration was not provided by Salesforce |
+| Direct SOQL | PASS | `SELECT Id FROM Lead LIMIT 5` returned 5 rows |
+| Official `run_soql_query` | PASS | Official `DxCoreMcpProvider` Tool returned 5 rows using the same authenticated Connection |
 | Temporary Metadata Workspace | PASS | Unit test creates minimal `sfdx-project.json`, manifest, source tree, counts files, and performs bounded cleanup |
-| Official `retrieve_metadata` | NOT TESTED | Official Tool registration passes; live SFoA component/type inputs are absent |
-| CWD Restore | NOT TESTED | Harness `finally` restoration is implemented; the required before/official-call/after live observation cannot occur without Metadata credentials |
+| Official `retrieve_metadata` | PASS | Official Tool retrieved the configured `CustomObject` component in the temporary DX Workspace and produced 135 files |
+| CWD Restore | PASS | Official Tool did not restore CWD; Harness observed the side effect and restored the original directory in `finally` |
 | stdio Regression | PASS | Original `packages/mcp/bin/run.js` completed initialize, listed 5 Tools, and called official `get_username`; response content withheld |
 | Streamable HTTP Regression | PASS | Existing POC passed initialize/list/call, 405, Origin rejection, and resource cleanup (1/1) |
 | Upstream Lint Baseline | KNOWN UPSTREAM DEBT | Unchanged code-analyzer baseline reproduced at 47 errors, 0 warnings |
@@ -65,6 +65,6 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
 ## P0 overall result
 
-`P0 = PARTIAL PASS`
+`P0 = PASS`
 
-All locally independent Closure work is complete. The result remains partial solely because Fresh JWT, token/identity, Direct SOQL, official SOQL, official live Metadata, and live CWD evidence cannot run without `.env.local`. The second Salesforce user is a P1 isolation Gate, and the reproduced Upstream lint debt is not an SFoA Release blocker.
+All mandatory P0 live and local Gates are complete. The second Salesforce user is a P1 isolation Gate, and the reproduced Upstream lint debt plus Windows Yarn frozen-reinstall issue remain documented non-SFoA maintenance debt rather than live compatibility failures.

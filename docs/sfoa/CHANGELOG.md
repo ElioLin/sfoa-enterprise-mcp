@@ -2,7 +2,23 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
-## 2026-08-22 — P0-Closure runtime validation preparation
+## 2026-08-22 — P0-Closure live Gates completed
+
+### Verification
+
+- Fresh SFoA JWT through direct `@salesforce/core` Bearer authentication: PASS.
+- Salesforce identity matched the configured username; direct Connection: PASS.
+- Direct SOQL against the configured `Lead` object: 5 rows, PASS.
+- Official `run_soql_query`: 5 rows, PASS.
+- Official `retrieve_metadata` for the configured `CustomObject`: 135 retrieved files, PASS.
+- Temporary Workspace lifecycle and Harness CWD restoration: PASS; official Tool CWD side effect remains documented.
+- Stable Salesforce CLI v2 JWT login, org display, and read-only query: PASS.
+
+### Result
+
+`P0 = PASS`. No User Id, Org Id, token, or Salesforce record content was committed. The second-user isolation Gate remains P1, and P1 has not started.
+
+## 2026-08-22 — P0-Closure Harness implementation
 
 ### Added
 

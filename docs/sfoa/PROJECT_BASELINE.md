@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P0-BL-1.3**
+Baseline ID: **P0-BL-1.4**
 
 Baseline date: 2026-08-22
 
@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, the original stdio protocol, and Streamable HTTP pass. The persistent user PATH now prefers Salesforce CLI v2.148.3 and its stale plugin entry is removed; this already-open terminal still inherits the former legacy PATH. Upstream lint debt is isolated from the SFoA changed-code lint Gate.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, fresh SFoA JWT, direct/official SOQL, official CustomObject metadata retrieval, original stdio, Streamable HTTP, and SFoA changed-code lint pass. The persistent user PATH prefers Salesforce CLI v2.148.3 and its stale plugin entry is removed; this already-open terminal still inherits the former legacy PATH. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
 
 ## Upstream strategy
 
@@ -90,13 +90,13 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P0-Closure — SFoA live authentication, official Tool, and metadata closure`
+`P0-Closure — COMPLETE; P1 not started`
 
 ## Current status
 
-`P0 = PARTIAL PASS — LIVE SFOA INPUTS REQUIRED`
+`P0 = PASS — AWAITING MAINTAINER REVIEW`
 
-The repeatable Closure Harness, direct `@salesforce/core` path, official Provider invocation path, temporary metadata workspace, provider-version baseline, changed-code lint, original stdio regression, and Streamable HTTP regression are complete. `.env.local` is absent, so Fresh JWT, identity, Direct SOQL, official `run_soql_query`, and official `retrieve_metadata` remain `NOT TESTED`. P1 has not started and is not authorized by this status.
+The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. P1 has not started; this baseline records eligibility for maintainer review, not authorization to begin P1.
 
 ## P0 acceptance decisions
 
@@ -114,17 +114,18 @@ The authoritative evidence and answers are maintained in `P0_FINAL_REPORT.md`. A
 - Require no database in P0/P0-Closure. P1 starts behind an `IdentityRepository` interface and may use an in-memory/local test mapping for the routing POC; persistence must not block request-scoped identity isolation.
 - Pin and independently regress the verified Provider version sets in `PROVIDER_COMPATIBILITY.md`; never depend on accidental Yarn resolution.
 - Normalize lint as `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT` plus `SFOA_CHANGED_CODE_LINT = PASS`.
+- Close P0 live compatibility as PASS: Fresh JWT, Identity Match, Direct SOQL, official SOQL, official CustomObject Metadata, and CWD boundary restoration all passed. The official Tool's CWD side effect remains a P1/P4 concurrency risk because the Harness, not the official Tool, restored it.
 
 ## P0 result
 
-`PARTIAL PASS`
+`PASS`
 
-- PASS: environment runtimes, full-history clone, original P0 install/build/test baseline, original stdio initialize/list/call regression, Streamable HTTP regression, auth/provider architecture audit, Provider compatibility baseline, temporary-workspace unit coverage, Closure Harness tests (9/9), and SFoA changed-code lint.
+- PASS: environment runtimes, full-history clone, original P0 install/build/test baseline, fresh SFoA JWT, direct Connection/Identity, Direct SOQL (5 rows), official `run_soql_query` (5 rows), official `retrieve_metadata` for a real CustomObject (135 files), temporary-workspace lifecycle, CWD boundary restoration, CLI v2 JWT/query cross-check, original stdio initialize/list/call regression, Streamable HTTP regression, auth/provider architecture audit, Provider compatibility baseline, Closure Harness tests (9/9), and SFoA changed-code lint.
 - KNOWN UPSTREAM DEBT: repository-wide lint reproduces 47 existing code-analyzer errors; no SFoA change is among them.
-- NOT TESTED: fresh SFoA JWT, token/identity verification, Direct SOQL, official `run_soql_query`, official live `retrieve_metadata`, and live CWD restoration because the required local values are absent.
+- NOT TESTED: second-user request isolation and optional additional Metadata types (ValidationRule, Flow, ApexClass/ApexTrigger, Layout, FlexiPage); these are not P0 closure requirements.
 - Official Salesforce TypeScript files modified: 0. Upstream-tracked integration files modified: `.gitignore` only.
 
-## P1 scope (planned; do not start during P0)
+## P1 scope (planned; not started)
 
 1. Define authenticated request context (`platformUserId`, correlation ID, immutable workspace reference).
 2. Define an `IdentityRepository` interface and implement an identity resolver from platform user to configured Salesforce username and JWT material reference. An in-memory/local test mapping is sufficient for the P1 runtime POC.
@@ -153,14 +154,12 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 | Upstream package versions can temporarily drift from local workspaces | A local provider change may not be the provider version bundled by `@salesforce/mcp` | Pin and record resolved versions; validate packaged server separately |
 | Yarn v1 `nohoist` is expensive on Windows | Slow clean installs and CI | Preserve Upstream policy; use cache and measure, do not migrate package manager in P0 |
 | This already-open process still has the legacy Salesforce CLI PATH snapshot | CLI command may resolve 1.86.7 until terminal restart | Persistent user PATH now prefers the stable v2 shim; open a new terminal and verify v2.148.3. Production does not use CLI. |
-| SFoA JWT inputs are absent | Live compatibility conclusion is incomplete | One consolidated credential request; mark blocked Gates accurately |
+| SFoA credentials are local-only | Credentials must remain out of Git and reports | `.env.local` is ignored; live Gates passed without persisting values or tokens |
 | Upstream root lint fails in code-analyzer | Repository-wide lint Gate is red despite SFoA changed-code lint passing | Record `KNOWN UPSTREAM DEBT`; do not patch 47 unrelated official findings in P0 |
 | Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch Closure reinstall is not currently reproducible in this worktree | Preserve the unchanged lockfile; rely on targeted workspace build/test/lint evidence and investigate separately from live compatibility |
 
 ## Open questions
 
-- Which SFoA connected app and private-key path should be used for the JWT Gate?
-- Which object and metadata components are safe, stable P0 test targets?
 - Is a second Salesforce user available for the P1 request-scoped isolation Gate?
 - Does the production WorkBuddy/Dify deployment pass a trustworthy platform-user claim directly, or require a gateway-issued token?
 - For metadata operations, is per-request temporary workspace cost acceptable, or is a controlled per-user shared workspace required?
@@ -173,3 +172,4 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 | P0-BL-1.1 | 2026-08-22 | Closed locally runnable P0 work as PARTIAL PASS; recorded build/test/protocol/HTTP passes, Upstream lint failure, expired SFoA authorization, final fork/extension decision, and P1 review boundary. |
 | P0-BL-1.2 | 2026-08-22 | Associated the local `origin` remote with the supplied company GitHub repository and made `origin/main` the project branch tracking target. |
 | P0-BL-1.3 | 2026-08-22 | Added P0-Closure Harness and user test flow; normalized lint debt, established exact Provider baselines, removed CLI/database from production/P0 assumptions, moved the second-user Gate to P1, and retained PARTIAL PASS pending live SFoA inputs. |
+| P0-BL-1.4 | 2026-08-22 | Completed live SFoA JWT, identity, Direct/official SOQL, CustomObject metadata, CWD boundary, and CLI v2 cross-check Gates; upgraded P0 to PASS while keeping P1 unstarted and recording remaining Upstream/concurrency risks. |

@@ -1,10 +1,12 @@
 # P0 Final Report — Official Salesforce DX MCP Architecture & SFoA Compatibility Gate
 
-Status: **P0-CLOSURE UPDATE — P0 = PARTIAL PASS**
+Status: **P0-CLOSURE UPDATE — P0 = PASS**
 
 Audit date: 2026-08-22
 
 Audited Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
+
+> The detailed sections below contain the initial pre-Closure architecture snapshot. Any credential-blocked results in that snapshot are superseded by the P0-Closure update at the end of this file and by `P0_CLOSURE_REPORT.md` / `TEST_MATRIX.md`.
 
 ## Executive summary
 
@@ -316,7 +318,7 @@ Authenticated HTTP middleware resolves `platformUserId` to an immutable identity
 
 **LOW**, provided production behavior remains in new packages and root/lockfile changes remain deliberate and tested.
 
-## P0 result
+## Initial P0 result before P0-Closure
 
 `P0 = PARTIAL PASS`
 
@@ -331,9 +333,9 @@ This status does not authorize P1. P0 awaits maintainer review.
 
 ### P0-Closure update — 2026-08-22
 
-The Closure Harness, exact Provider compatibility baseline, temporary metadata workspace, original stdio regression, Streamable HTTP regression, and changed-code lint Gate now pass. Persistent user PATH prefers CLI v2.148.3 and the stale plugin entry is removed; Salesforce CLI is explicitly not a production dependency. Root code-analyzer lint is reclassified as `KNOWN UPSTREAM DEBT`, not hidden.
+The Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL (5 rows), official `run_soql_query` (5 rows), official `retrieve_metadata` for a real `CustomObject` (135 files), and CWD boundary restoration. Stable v2 Salesforce CLI JWT login, org display, and read-only query also passed. Persistent user PATH prefers CLI v2.148.3 and the stale plugin entry is removed; Salesforce CLI is explicitly not a production dependency. Root code-analyzer lint is reclassified as `KNOWN UPSTREAM DEBT`, not hidden.
 
-P0 remains `PARTIAL PASS` because `.env.local` is absent and the mandatory live Fresh JWT, identity, Direct/official SOQL, official Metadata, and CWD observations remain `NOT TESTED`. See `P0_CLOSURE_REPORT.md` and `TEST_MATRIX.md` for current authoritative evidence. A second user is now a P1 isolation Gate, not a P0 blocker.
+P0 is now `PASS`. The live username matched the configured Salesforce username; actual User Id, Org Id, tokens, and record contents are intentionally not persisted. The official Tool did not restore CWD itself, but the Harness restored it in `finally`; this remains a P1/P4 concurrency risk. See `P0_CLOSURE_REPORT.md` and `TEST_MATRIX.md` for current authoritative evidence. A second user is a P1 isolation Gate, not a P0 blocker.
 
 ## P1 detailed plan — planned only, do not start
 

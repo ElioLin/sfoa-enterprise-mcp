@@ -92,6 +92,7 @@ ACTIVE_PROCESS_PATH_REFRESH = PARTIAL
 - winget was not used: the search result contained an old `Salesforce.sfdx-cli` package and a non-Salesforce wrapper, not the current official `sf` v2 distribution.
 - P0-Closure used the CLI's own `plugins uninstall @salesforce/sfdx-scanner` command to remove the stale missing-plugin manifest entry. The v2 `sf plugins` command now reports no installed plugins and no stale warning.
 - The persistent user PATH was safely updated without administrator rights so `C:\Users\61979\AppData\Local\sf\client\bin` precedes the legacy directory. The current Codex process cannot inherit that change retroactively; a newly opened terminal resolves v2.148.3 first.
+- The stable v2 CLI completed JWT login, `sf org display`, and a read-only `SELECT Id FROM Lead LIMIT 5` cross-check successfully. CLI output redacted the access token.
 - Salesforce CLI remains a development diagnostic/authentication cross-check only. Production uses direct `@salesforce/core` JWT/OAuth and does not spawn `sf`.
 
 ## Local configuration policy
@@ -111,4 +112,8 @@ This proves that local CLI configuration can resolve an SFoA endpoint, but it is
 
 `P0-00 Environment Bootstrap = PARTIAL PASS`
 
-The TypeScript development runtime is ready. CLI v2 and plugin hygiene are resolved for new terminals; only the already-open process retains the former PATH snapshot. The additional Closure frozen-install linking failure remains reproducible, while all directly changed workspaces and both protocol transports pass their targeted Gates.
+The TypeScript development runtime and live SFoA compatibility path are ready. CLI v2 and plugin hygiene are resolved for new terminals; only the already-open process retains the former PATH snapshot. The additional Closure frozen-install linking failure remains reproducible, while all directly changed workspaces and both protocol transports pass their targeted Gates. `P0-00 Environment Bootstrap` remains `PARTIAL PASS` only for this non-runtime PATH snapshot/Yarn installation debt; the P0 live compatibility result is `PASS`.
+
+## P0-Closure live runtime evidence
+
+The direct Harness completed Fresh JWT, identity match, Direct SOQL, official `run_soql_query`, and official `retrieve_metadata` for one real CustomObject using the local `.env.local`. It returned 5 rows for the configured test object and retrieved 135 metadata files. No token, identity identifier, or record contents were persisted. The official metadata Tool did not restore CWD; the Harness restored it and reported the side effect.
