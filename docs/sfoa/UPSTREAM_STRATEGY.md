@@ -1,0 +1,106 @@
+# Upstream Strategy
+
+## Repository identity
+
+| Item | Value |
+| --- | --- |
+| Official repository | `https://github.com/salesforcecli/mcp.git` |
+| Official remote name | `upstream` |
+| Company remote | `origin = https://github.com/ElioLin/sfoa-enterprise-mcp.git` |
+| Branch | `main` tracking `origin/main` |
+| P0 audited commit | `670234dbdca4d3fcdebd9d58b231e311fd34aeec` |
+| Commit timestamp | 2026-07-27T14:54:21-05:00 |
+| Commit subject | `chore: default org clarification (#477)` |
+
+The repository was cloned with full Git history. It was not downloaded as a ZIP and was not reinitialized.
+
+## Integration policy
+
+1. Keep `upstream` pointed only at the Salesforce repository.
+2. Keep the company repository as `origin`; its current URL is the supplied GitHub repository.
+3. Keep Salesforce-owned implementation files as close to Upstream as possible.
+4. Put SFoA behavior in new packages, adapters, middleware, tests, docs, and applications.
+5. Consume public official Provider packages and the Provider API rather than importing private host internals into production code.
+6. If an Upstream change is unavoidable, keep it surgical and add it to the modification matrix below in the same change.
+7. Never clean up or reformat unrelated Upstream code.
+
+## Recommended source layout
+
+P0 may add only a POC package. Planned later-phase layout (not created during P0):
+
+```text
+packages/
+  sfoa-runtime/              # Streamable HTTP host and request context
+  sfoa-auth/                 # Identity resolver and request-scoped OrgService
+  mcp-provider-sfoa-dml/     # P3 generic CREATE/UPDATE tools
+  mcp-provider-sfoa-context/ # Proven missing context tools only
+apps/
+  admin-web/                 # P5 React application
+```
+
+Provider folders follow Upstream's `mcp-provider-*` rule. Non-provider SFoA packages are clearly prefixed and must not masquerade as official `@salesforce/*` packages.
+
+## Sync procedure
+
+When an upstream sync is requested:
+
+```powershell
+git fetch upstream --prune
+git log --oneline --decorate --graph --left-right main...upstream/main
+```
+
+Then merge or rebase only according to the company branch policy that exists at that time. Before accepting the sync:
+
+1. Review changes to Provider API, registry, Services, auth, Tool schemas, transports, SDK versions, and Node/Yarn policy.
+2. Rerun install/build/test/lint.
+3. Rerun stdio initialize/list/call and Streamable HTTP tests.
+4. Rerun SFoA JWT/SOQL/metadata and A/B identity tests when credentials are available.
+5. Update `PROJECT_BASELINE.md`, `TEST_MATRIX.md`, `CHANGELOG.md`, and ADRs when conclusions change.
+
+Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
+
+## Package-release drift
+
+The monorepo source and the versions bundled by `packages/mcp/package.json` can differ temporarily during release choreography. At the audited commit, the source workspace `@salesforce/mcp-provider-dx-core` is 0.10.0 while the server manifest declares 0.9.8. Because the exact dependency does not satisfy the workspace version, Yarn can resolve the published package instead of the local workspace.
+
+Implications:
+
+- Source audit and packaged-server behavior must both be checked.
+- Patches to a provider workspace are not proof that the main server uses that patched workspace.
+- SFoA packages must pin and record tested official package versions.
+- Upstream sync review must compare package manifests and lockfile resolution, not just source directories.
+
+## Upstream modification matrix
+
+An “upstream-owned file” is any path tracked at the audited commit. New SFoA files are not upstream modifications.
+
+| File | Reason | Change | Alternative considered | Merge risk |
+| --- | --- | --- | --- | --- |
+| `.gitignore` | Track the authoritative `docs/sfoa` baseline and prevent local secrets/research cache from entering Git | Replaced broad `docs` ignore with a `docs/sfoa` exception; added `.env.*.local`, key/PEM, secrets, and `.firecrawl` ignores | Force-add docs on every clone and rely on personal excludes; rejected because it is not durable for AI agents | LOW |
+
+No Salesforce TypeScript implementation file was modified in P0. The new POC consumes public Provider contracts only. `yarn.lock` remained byte-for-byte unchanged after the clean install.
+
+## Changes that require a new matrix entry
+
+- Root/package workspace configuration.
+- Any file under an existing Upstream package.
+- Existing CI workflows.
+- Existing lockfiles.
+- Official server CLI flags, registry, Services, authentication, Tool implementations, telemetry, or transport.
+
+Generated build output and local dependencies are ignored and are not modification entries.
+
+## Merge-risk target
+
+Target: **LOW**
+
+The target is achieved only if SFoA production behavior remains in new composition packages and official server behavior stays testable unchanged.
+
+P0 observed Upstream maintenance issues that are recorded but intentionally not patched:
+
+- a default Windows PowerShell/cmd build cannot find the POSIX `cp` invoked by the code-analyzer build script; the same root build passes under existing Git Bash;
+- `clean-all` rejects a literal `*.tgz` path through Windows rimraf;
+- broad `eslint **/*.ts` scripts inspect generated declarations after build;
+- code-analyzer has 47 existing source/test/generated lint errors in the audited checkout.
+
+These findings keep the repository-wide lint Gate red but do not justify a broad official-code cleanup inside the SFoA P0 compatibility change.

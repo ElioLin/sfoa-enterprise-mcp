@@ -1,0 +1,31 @@
+{
+  "name": "@sfoa/streamable-http-poc",
+  "version": "0.0.0-p0",
+  "private": true,
+  "description": "P0-only Streamable HTTP proof of concept over official Salesforce DX MCP providers",
+  "type": "module",
+  "main": "dist/main.js",
+  "types": "dist/server.d.ts",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P0 POC: package skipped')\"",
+    "start": "node dist/main.js",
+    "test": "yarn build && node --test dist/test/http-poc.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "@salesforce/core": "^8.29.0",
+    "@salesforce/mcp-provider-api": "0.6.0",
+    "@salesforce/mcp-provider-dx-core": "0.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "typescript": "^5.8.3"
+  }
+}

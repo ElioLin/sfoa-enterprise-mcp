@@ -23,8 +23,10 @@ dist
 .nyc_output
 coverage
 
-# generated docs
-docs
+# generated docs, except the SFoA project baseline
+docs/*
+!docs/sfoa/
+!docs/sfoa/**
 
 
 npm-shrinkwrap.json
@@ -51,3 +53,13 @@ node_modules
 
 .cursor
 tmp
+
+# local agent/web research cache
+.firecrawl/
+
+# local environment and credentials
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/

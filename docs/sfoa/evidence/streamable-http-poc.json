@@ -1,0 +1,40 @@
+{
+  "workspace": "@sfoa/streamable-http-poc@0.0.0-p0",
+  "transport": "Streamable HTTP",
+  "mode": "stateless JSON response",
+  "binding": "127.0.0.1 ephemeral port",
+  "mcpSdk": "1.18.2",
+  "officialProvider": "@salesforce/mcp-provider-dx-core@0.10.0",
+  "toolsets": ["core", "data", "metadata"],
+  "registeredTools": [
+    "deploy_metadata",
+    "get_username",
+    "run_soql_query",
+    "resume_tool_operation",
+    "retrieve_metadata"
+  ],
+  "checks": {
+    "initialize": "PASS",
+    "tools/list": "PASS",
+    "tools/call:get_username": "PASS",
+    "GET /mcp returns 405": "PASS",
+    "untrusted Origin returns 403": "PASS",
+    "strict TypeScript build": "PASS",
+    "workspace lint": "PASS",
+    "node test": "PASS"
+  },
+  "testSummary": {
+    "tests": 1,
+    "passed": 1,
+    "failed": 0,
+    "isError": false
+  },
+  "productionFeaturesIntentionallyAbsent": [
+    "request identity authentication",
+    "JWT/OAuth account routing",
+    "session store",
+    "production authorization policy",
+    "Admin UI",
+    "DML provider"
+  ]
+}

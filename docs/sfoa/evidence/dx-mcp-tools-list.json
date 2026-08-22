@@ -1,0 +1,192 @@
+{
+  "transport": "stdio",
+  "server": "@salesforce/mcp@0.30.15",
+  "upstreamCommit": "670234dbdca4d3fcdebd9d58b231e311fd34aeec",
+  "toolsets": ["core", "data", "metadata"],
+  "tools": [
+    {
+      "name": "get_username",
+      "title": "Get Username",
+      "description": "Intelligently determines the appropriate username or alias for Salesforce operations.\n\nWHEN TO USE THIS TOOL:\n- When uncertain which org username a user wants for Salesforce operations.\n\nTo resolve the default org username, set the defaultTargetOrg param to true and defaultDevHub to false.\nTo resole the default devhub org username, set the defaultTargetOrg param to false and defaultDevHub to true.\nIf it's not clear which type of org to resolve, set both defaultTargetOrg and defaultDevHub to false to an allow-listed org username available.\n",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "defaultTargetOrg": {
+            "type": "boolean",
+            "default": false,
+            "description": "Resolve the default target org username"
+          },
+          "defaultDevHub": {
+            "type": "boolean",
+            "default": false,
+            "description": "Resolve the default target devhub org username"
+          },
+          "directory": {
+            "type": "string",
+            "description": "The directory to run this tool from.\nAGENT INSTRUCTIONS:\nWe need to know where the user wants to run this tool from.\nLook at your current Workspace Context to determine this filepath.\nALWAYS USE A FULL PATH TO THE DIRECTORY.\nUnless the user explicitly asks for a different directory, or a new directory is created from the action of a tool, use this same directory for future tool calls.\n"
+          }
+        },
+        "required": ["directory"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "resume_tool_operation",
+      "title": "Resume",
+      "description": "Resume a long running operation that was not completed by another tool.\n\nAGENT INSTRUCTIONS:\nUse this tool to resume a long running operation.\n\nEXAMPLE USAGE:\nResume the metadata deploy job 0Af1234567890\nResume the deployment and wait for 10 minutes\nResume the deployment to my org\nResume scratch org creation\nResume job 2SR1234567890\nResume agent tests\nResume org snapshot with ID 0OoKa000000XZAbKAO\nReport on my org snapshot",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The job id of the long running operation to resume (required)"
+          },
+          "wait": {
+            "type": "number",
+            "default": 30,
+            "description": "The amount of time to wait for the operation to complete in minutes (optional)"
+          },
+          "usernameOrAlias": {
+            "type": "string",
+            "description": "The username or alias for the Salesforce org to run this tool against.\n\nA username follows the <name@domain.com> format.\nIf the user refers to an org with a string not following that format, it can be a valid alias.\n\nIMPORTANT:\n- If it is not clear what the username or alias is, run the #get_username tool to resolve it.\n- NEVER guess or make-up a username or alias.\n"
+          },
+          "directory": {
+            "type": "string",
+            "description": "The directory to run this tool from.\nAGENT INSTRUCTIONS:\nWe need to know where the user wants to run this tool from.\nLook at your current Workspace Context to determine this filepath.\nALWAYS USE A FULL PATH TO THE DIRECTORY.\nUnless the user explicitly asks for a different directory, or a new directory is created from the action of a tool, use this same directory for future tool calls.\n"
+          }
+        },
+        "required": ["jobId", "usernameOrAlias", "directory"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "run_soql_query",
+      "title": "Query Org",
+      "description": "Run a SOQL query against a Salesforce org.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SOQL query to run"
+          },
+          "usernameOrAlias": {
+            "type": "string",
+            "description": "The username or alias for the Salesforce org to run this tool against.\n\nA username follows the <name@domain.com> format.\nIf the user refers to an org with a string not following that format, it can be a valid alias.\n\nIMPORTANT:\n- If it is not clear what the username or alias is, run the #get_username tool to resolve it.\n- NEVER guess or make-up a username or alias.\n"
+          },
+          "directory": {
+            "type": "string",
+            "description": "The directory to run this tool from.\nAGENT INSTRUCTIONS:\nWe need to know where the user wants to run this tool from.\nLook at your current Workspace Context to determine this filepath.\nALWAYS USE A FULL PATH TO THE DIRECTORY.\nUnless the user explicitly asks for a different directory, or a new directory is created from the action of a tool, use this same directory for future tool calls.\n"
+          },
+          "useToolingApi": {
+            "type": "boolean",
+            "description": "Use Tooling API for the operation"
+          }
+        },
+        "required": ["query", "usernameOrAlias", "directory"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "deploy_metadata",
+      "title": "Deploy Metadata",
+      "description": "Deploy metadata to an org from your local project.\n\nAGENT INSTRUCTIONS:\nIf the user doesn't specify what to deploy exactly (\"deploy my changes\"), leave the \"sourceDir\", \"ignoreConflicts\" and \"manifest\" params empty so the tool calculates which files to deploy.\n\nEXAMPLE USAGE:\nDeploy changes to my org\nDeploy this file to my org\nDeploy the manifest\nDeploy X metadata to my org\nDeploy X local files to my org and ignore any conflicts between the local project and org\nDeploy X to my org and run A,B and C apex tests.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ignoreConflicts": {
+            "type": "boolean",
+            "description": " Ignore conflicts and deploy local files, even if they overwrite changes in the org."
+          },
+          "sourceDir": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Path to the local source files to deploy. Leave this unset if the user is vague about what to deploy."
+          },
+          "manifest": {
+            "type": "string",
+            "description": "Full file path for manifest (XML file) of components to deploy."
+          },
+          "apexTestLevel": {
+            "type": "string",
+            "enum": ["NoTestRun", "RunLocalTests", "RunAllTestsInOrg"],
+            "description": "Apex test level to use during deployment.\n\nAGENT INSTRUCTIONS\nSet this only if the user specifically ask to run apex tests in some of these ways:\n\nNoTestRun=\"No tests are run\"\nRunLocalTests=\"Run all tests in the org, except the ones that originate from installed managed and unlocked packages.\"\nRunAllTestsInOrg=\"Run all tests in the org, including tests of managed packages\"\n\nDon't set this param if \"apexTests\" is also set.\n"
+          },
+          "apexTests": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Apex tests classes to run.\n\nSet this param if the user ask an Apex test to be run during deployment.\n"
+          },
+          "usernameOrAlias": {
+            "type": "string",
+            "description": "The username or alias for the Salesforce org to run this tool against.\n\nA username follows the <name@domain.com> format.\nIf the user refers to an org with a string not following that format, it can be a valid alias.\n\nIMPORTANT:\n- If it is not clear what the username or alias is, run the #get_username tool to resolve it.\n- NEVER guess or make-up a username or alias.\n"
+          },
+          "directory": {
+            "type": "string",
+            "description": "The directory to run this tool from.\nAGENT INSTRUCTIONS:\nWe need to know where the user wants to run this tool from.\nLook at your current Workspace Context to determine this filepath.\nALWAYS USE A FULL PATH TO THE DIRECTORY.\nUnless the user explicitly asks for a different directory, or a new directory is created from the action of a tool, use this same directory for future tool calls.\n"
+          }
+        },
+        "required": ["usernameOrAlias", "directory"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "destructiveHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "retrieve_metadata",
+      "title": "Retrieve Metadata",
+      "description": "Retrieve metadata from an org to your local project.\n\nAGENT INSTRUCTIONS:\nIf the user doesn't specify what to retrieve exactly (\"retrieve my changes\"), leave the \"sourceDir\", \"ignoreConflicts\", and \"manifest\" params empty so the tool calculates which files to retrieve.\n\nEXAMPLE USAGE:\nRetrieve changes\nRetrieve changes from my org\nRetrieve this file from my org\nRetrieve the metadata in the manifest\nRetrieve X metadata from my org\nRetrieve X metadata from my org and ignore any conflicts between the local project and org",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ignoreConflicts": {
+            "type": "boolean",
+            "description": "Ignore conflicts and retrieve and save files to your local filesystem, even if they overwrite your local changes.",
+            "default": false
+          },
+          "sourceDir": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Path to the local source files to retrieve. Leave this unset if the user is vague about what to retrieve."
+          },
+          "manifest": {
+            "type": "string",
+            "description": "Full file path for manifest (XML file) of components to retrieve."
+          },
+          "usernameOrAlias": {
+            "type": "string",
+            "description": "The username or alias for the Salesforce org to run this tool against.\n\nA username follows the <name@domain.com> format.\nIf the user refers to an org with a string not following that format, it can be a valid alias.\n\nIMPORTANT:\n- If it is not clear what the username or alias is, run the #get_username tool to resolve it.\n- NEVER guess or make-up a username or alias.\n"
+          },
+          "directory": {
+            "type": "string",
+            "description": "The directory to run this tool from.\nAGENT INSTRUCTIONS:\nWe need to know where the user wants to run this tool from.\nLook at your current Workspace Context to determine this filepath.\nALWAYS USE A FULL PATH TO THE DIRECTORY.\nUnless the user explicitly asks for a different directory, or a new directory is created from the action of a tool, use this same directory for future tool calls.\n"
+          }
+        },
+        "required": ["usernameOrAlias", "directory"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "destructiveHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}
