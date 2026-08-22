@@ -25,3 +25,5 @@ yarn workspace @sfoa/identity-runtime start:p1
 ```
 
 Configure local values in the ignored repository-root `.env.local`. Real usernames, tokens, JWT assertions, private keys, and Salesforce record contents are never written by the validator.
+
+See `docs/sfoa/P1_USER_TEST.md` for the Chinese environment, Inspector/Postman, forgery, metadata, and PASS/FAIL procedure. The authoritative result is `docs/sfoa/P1_FINAL_REPORT.md`.

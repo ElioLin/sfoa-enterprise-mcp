@@ -1,6 +1,6 @@
 # ADR-0003: Request-Scoped Salesforce Identity Routing
 
-- Status: Accepted for P1 implementation
+- Status: Accepted and validated (`P1 = PASS`)
 - Date: 2026-08-22
 
 ## Context
@@ -59,8 +59,13 @@ authenticated HTTP request
 
 ## P1 validation
 
-- User A and B resolve different Connections under concurrent load.
-- A request cannot override its resolved username through Tool input.
-- Missing mapping is DENY.
-- Expired/revoked JWT yields an actionable redacted Tool error.
-- CWD is restored after success, Tool error, timeout, and cancellation.
+- Both configured platform routes completed fresh JWT and `Connection.identity()` against two real Salesforce users.
+- Official `get_username` and `run_soql_query` passed for both routes.
+- A→B and B→A forged `usernameOrAlias` calls returned `MCP_IDENTITY_CONTEXT_MISMATCH` before a Connection for the forged target was created.
+- Unknown and missing platform identities were blocked before JWT, Salesforce API, or official Tool execution.
+- Twenty interleaved A/B requests completed with zero identity mismatches, zero cross-user leaks, and zero Connection reuse.
+- Two concurrent official metadata requests serialized through the exclusive guard, used distinct workspaces, restored CWD, and cleaned both roots.
+- Invalid-auth and configuration-path tests returned actionable stable errors without exposing private-key paths, tokens, JWT assertions, or client secrets.
+- P1 production source has no Salesforce CLI/Auth Cache, database, Redis, token-cache, connection-pool, or child-process dependency.
+
+The accepted implementation remains a P1 proof/runtime boundary, not the P2 production security perimeter. P2 must authenticate the upstream platform claim and add Tool governance without moving Salesforce identity authority back into Tool arguments.

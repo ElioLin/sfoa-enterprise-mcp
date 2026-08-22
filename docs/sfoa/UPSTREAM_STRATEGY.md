@@ -26,12 +26,13 @@ The repository was cloned with full Git history. It was not downloaded as a ZIP 
 
 ## Recommended source layout
 
-P0 may add only a POC package. Planned later-phase layout (not created during P0):
+P1 consolidates request identity, JWT/Connection construction, Services composition, HTTP hosting, and validation in one cohesive private workspace. Later providers/apps remain phase-gated:
 
 ```text
 packages/
-  sfoa-runtime/              # Streamable HTTP host and request context
-  sfoa-auth/                 # Identity resolver and request-scoped OrgService
+  sfoa-identity-runtime/     # P1 implemented request identity/JWT/Services/HTTP boundary
+  sfoa-runtime-validation/   # P0 Closure Harness only
+  sfoa-streamable-http-poc/  # P0 transport POC only
   mcp-provider-sfoa-dml/     # P3 generic CREATE/UPDATE tools
   mcp-provider-sfoa-context/ # Proven missing context tools only
 apps/
@@ -78,7 +79,7 @@ An “upstream-owned file” is any path tracked at the audited commit. New SFoA
 | --- | --- | --- | --- | --- |
 | `.gitignore` | Track the authoritative `docs/sfoa` baseline and prevent local secrets/research cache from entering Git | Replaced broad `docs` ignore with a `docs/sfoa` exception; added `.env.*.local`, key/PEM, secrets, `.firecrawl`, and Closure `.temp/` ignores | Force-add docs on every clone and rely on personal excludes; rejected because it is not durable for AI agents | LOW |
 
-No Salesforce TypeScript implementation file was modified in P0 or P0-Closure. Both SFoA packages consume public Provider contracts only. The Closure Harness injects a request-like `Services` implementation and calls the official `DxCoreMcpProvider` Tools over an in-memory MCP transport. `yarn.lock` remains byte-for-byte unchanged.
+No Salesforce TypeScript implementation file was modified in P0, P0-Closure, or P1. All SFoA packages consume public Provider contracts only. P1 creates fresh `DxCoreMcpProvider` Tools from request-scoped Services and enforces identity/workspace/CWD policy at the host boundary. P1 changed no pre-existing official package path and did not change root `package.json`, `yarn.lock`, or `.env.example`; therefore it adds no Upstream modification-matrix row. The existing `.gitignore` row remains the only tracked Upstream-file divergence.
 
 ## Changes that require a new matrix entry
 
@@ -102,5 +103,6 @@ P0 observed Upstream maintenance issues that are recorded but intentionally not 
 - `clean-all` rejects a literal `*.tgz` path through Windows rimraf;
 - broad `eslint **/*.ts` scripts inspect generated declarations after build;
 - code-analyzer has 47 existing source/test/generated lint errors in the audited checkout.
+- a failed Windows Yarn link attempt can remove workspace `.bin` shims before aborting; P1 final verification restored only ignored generated shims, then the root build and full workspace test command passed without source or lockfile changes.
 
 These findings keep the repository-wide lint Gate red but do not justify a broad official-code cleanup inside the SFoA P0 compatibility change.

@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P1-BL-1.0**
+Baseline ID: **P1-BL-1.1**
 
 Baseline date: 2026-08-22
 
@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, fresh SFoA JWT, direct/official SOQL, official CustomObject metadata retrieval, original stdio, Streamable HTTP, and SFoA changed-code lint pass. The persistent user PATH prefers Salesforce CLI v2.148.3 and its stale plugin entry is removed; this already-open terminal still inherits the former legacy PATH. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, P0 fresh SFoA JWT/direct/official SOQL/metadata, and P1 real two-user request isolation all pass. Original stdio and both Streamable HTTP regressions pass. The P1 production path uses direct `@salesforce/core` JWT and no Salesforce CLI or database. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
 
 ## Upstream strategy
 
@@ -90,15 +90,15 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P1 — Request-Scoped Identity Routing (AUTHORIZED / IN PROGRESS)`
+`P1 — Request-Scoped Identity Routing (COMPLETE / AWAITING MAINTAINER REVIEW)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = IN PROGRESS`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P2 = NOT STARTED`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
-The maintainer had supplied `SECOND_TEST_USER`, but the P0-Closure configuration loader did not read it. Therefore the historical P0 matrix statement "`SECOND_TEST_USER` not supplied" is inaccurate as an input statement while remaining accurate that the second user was not exercised by P0. Historical reports are not rewritten to imply a test that did not occur. Real second-user execution is a mandatory P1 Gate.
+The maintainer had supplied `SECOND_TEST_USER`, but the P0-Closure configuration loader did not read it. Therefore the historical P0 matrix statement "`SECOND_TEST_USER` not supplied" was inaccurate as an input statement while remaining accurate that the second user was not exercised by P0. Historical reports are not rewritten to imply a test that did not occur. The P1 configuration now explicitly consumes `SECOND_TEST_USER`, constructs the second route, and the mandatory real two-user Gate passed.
 
 ## P0 acceptance decisions
 
@@ -127,7 +127,7 @@ The authoritative evidence and answers are maintained in `P0_FINAL_REPORT.md`. A
 - NOT TESTED: second-user request isolation and optional additional Metadata types (ValidationRule, Flow, ApexClass/ApexTrigger, Layout, FlexiPage); these are not P0 closure requirements.
 - Official Salesforce TypeScript files modified: 0. Upstream-tracked integration files modified: `.gitignore` only.
 
-## P1 scope (authorized; in progress)
+## P1 scope (complete)
 
 1. Define authenticated request context (`platformUserId`, correlation ID, immutable workspace reference).
 2. Define an `IdentityRepository` interface and implement an identity resolver from platform user to configured Salesforce username and JWT material reference. An in-memory/local test mapping is sufficient for the P1 runtime POC.
@@ -135,12 +135,27 @@ The authoritative evidence and answers are maintained in `P0_FINAL_REPORT.md`. A
 4. Build provider Tool instances per stateless HTTP request or equivalent isolated execution scope.
 5. Wrap Tool execution with a working-directory isolation strategy; the P1 minimum is a global mutex plus restore, with child-process isolation evaluated for metadata/concurrency.
 6. Add positive, negative, cross-user, concurrent, token-expiry, and no-route tests.
-7. Record the final routing choice in a superseding/accepted ADR before implementation is declared complete.
+7. Record the final routing choice and evidence in accepted ADR-0003 before implementation is declared complete.
 8. Reserve `ConnectionRole = USER | DIAGNOSTIC` in request/connection contracts. P1 implements only `USER`. A fixed Diagnostic Integration User is deferred to P4 and must never execute business SOQL, record query, CREATE, or UPDATE.
 
 P1 explicitly excludes the production DML provider, production Admin UI, complex policy engine, database-first redesign, and Redis. A persistent database is added only when routing management or Admin configuration actually requires it; it must not block the request-scoped runtime POC. P1 production/runtime tests must not depend on the local Salesforce CLI Auth Cache.
 
-### P1 entry criteria — satisfied
+## P1 result
+
+`P1 = PASS`
+
+- Two real routes were created from `SALESFORCE_USERNAME` and the now-consumed `SECOND_TEST_USER`; both completed fresh JWT and `Connection.identity()` with exact route matches.
+- The stateless P1 HTTP host exposed exactly the unchanged official `get_username`, `run_soql_query`, and `retrieve_metadata` Tools. Official identity and read-only SOQL calls passed for A and B.
+- A→B and B→A forged usernames were blocked with `MCP_IDENTITY_CONTEXT_MISMATCH` before JWT/Connection creation for the forged target. Unknown and missing platform users were denied without fallback.
+- Twenty interleaved requests completed with `Identity Mismatch = 0`, `Cross User Leak = 0`, and `Connection Reuse = 0`.
+- Two concurrent official metadata calls serialized through the exclusive CWD guard, used distinct temporary DX workspaces, restored process CWD, and cleaned all request roots.
+- `@sfoa/identity-runtime` build, 22/22 tests, and strict TypeScript lint passed. Root build and full workspace tests passed; original stdio, P0 Streamable HTTP, and P0 live runtime regressions also passed.
+- Repository-wide lint still stops on 47 unchanged official code-analyzer errors: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`. `SFOA_CHANGED_CODE_LINT = PASS`.
+- Salesforce CLI runtime dependency: none. Database/Redis/cache/pool dependency: none. Official Salesforce TypeScript files modified by P1: 0. Root `package.json`, `yarn.lock`, and `.env.example` were unchanged by P1.
+
+P1 completion does not authorize P2. The maintainer must review this Gate and `P1_FINAL_REPORT.md` before P2 begins.
+
+### P1 entry criteria — satisfied (historical)
 
 - P0-Closure live Fresh JWT, Direct Connection, Identity Match, Direct SOQL, official SOQL, and at least one official CustomObject metadata retrieval are PASS.
 - Original stdio, Streamable HTTP, and SFoA changed-code lint regressions remain PASS.
@@ -152,22 +167,23 @@ All three criteria are satisfied. P2 remains prohibited until the completed P1 G
 
 | Risk | Impact | Current response |
 | --- | --- | --- |
-| Official host authorization is process-scoped | Cross-user leakage if reused naively over HTTP | New SFoA host and request-scoped Services |
-| Official Tools call `process.chdir()` | Concurrent requests can race on global CWD | Serialize/restore initially; evaluate isolated worker processes |
+| Official host authorization is process-scoped | Cross-user leakage if reused naively over HTTP | P1 uses a new SFoA host and fresh request-scoped Services/Connection/Tools; P2 must authenticate the upstream claim |
+| Official Tools call `process.chdir()` | Concurrent requests can race on global CWD | P1 shared/exclusive guard restores CWD and serializes metadata; evaluate isolated workers only from measured pressure |
 | Provider registry is a static internal array | `@salesforce/mcp` is not a public embeddable host library | Consume public provider packages and build a thin host |
-| Metadata retrieve requires an `SfProject` and writes files | Remote runtime needs workspace lifecycle | Design temporary/shared workspace adapter; do not implement in P0 |
+| Metadata retrieve requires an `SfProject` and writes files | Remote runtime needs workspace lifecycle | P1 uses one bounded disposable DX workspace per POST; avoid shared workspaces until proven necessary |
 | Upstream package versions can temporarily drift from local workspaces | A local provider change may not be the provider version bundled by `@salesforce/mcp` | Pin and record resolved versions; validate packaged server separately |
 | Yarn v1 `nohoist` is expensive on Windows | Slow clean installs and CI | Preserve Upstream policy; use cache and measure, do not migrate package manager in P0 |
 | This already-open process still has the legacy Salesforce CLI PATH snapshot | CLI command may resolve 1.86.7 until terminal restart | Persistent user PATH now prefers the stable v2 shim; open a new terminal and verify v2.148.3. Production does not use CLI. |
 | SFoA credentials are local-only | Credentials must remain out of Git and reports | `.env.local` is ignored; live Gates passed without persisting values or tokens |
 | Upstream root lint fails in code-analyzer | Repository-wide lint Gate is red despite SFoA changed-code lint passing | Record `KNOWN UPSTREAM DEBT`; do not patch 47 unrelated official findings in P0 |
-| Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch Closure reinstall is not currently reproducible in this worktree | Preserve the unchanged lockfile; rely on targeted workspace build/test/lint evidence and investigate separately from live compatibility |
+| Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch reinstall is not currently reproducible in this worktree and can remove generated `.bin` shims before failing | Preserve the unchanged lockfile; restore only local generated shims when needed; root build/full tests and targeted Gates passed; investigate separately from P1 identity correctness |
 
 ## Open questions
 
-- `SECOND_TEST_USER` is locally supplied and must be consumed by the P1 live Gate; no real username may be committed.
-- Does the production WorkBuddy/Dify deployment pass a trustworthy platform-user claim directly, or require a gateway-issued token?
-- For metadata operations, is per-request temporary workspace cost acceptable, or is a controlled per-user shared workspace required?
+- What authenticated gateway claim/token will replace P1's trusted internal `X-Platform-User-Id` Header in P2?
+- Is per-request JWT/Connection cost acceptable under P2 load, or is a strictly identity-keyed, expiry-aware cache justified by measurements?
+- Is serialized metadata plus a per-request temporary workspace sufficient under measured load, or is process isolation justified?
+- What P2 Tool allow/deny policy is required while keeping DML and mutation allowlists deferred to P3?
 
 ## Baseline change history
 
@@ -179,3 +195,4 @@ All three criteria are satisfied. P2 remains prohibited until the completed P1 G
 | P0-BL-1.3 | 2026-08-22 | Added P0-Closure Harness and user test flow; normalized lint debt, established exact Provider baselines, removed CLI/database from production/P0 assumptions, moved the second-user Gate to P1, and retained PARTIAL PASS pending live SFoA inputs. |
 | P0-BL-1.4 | 2026-08-22 | Completed live SFoA JWT, identity, Direct/official SOQL, CustomObject metadata, CWD boundary, and CLI v2 cross-check Gates; upgraded P0 to PASS while keeping P1 unstarted and recording remaining Upstream/concurrency risks. |
 | P1-BL-1.0 | 2026-08-22 | Recorded maintainer acceptance of P0, corrected the historical `SECOND_TEST_USER` input omission without rewriting P0 results, entered P1 on an isolated feature branch, retained a database-free in-memory repository, and reserved the non-implemented P4 `DIAGNOSTIC` connection role. |
+| P1-BL-1.1 | 2026-08-22 | Closed P1 as PASS after real A/B JWT/identity and official Tool execution, bidirectional forgery denial, 20-request zero-leak concurrency, metadata/CWD/workspace isolation, request cleanup, stdio/HTTP/P0 regressions, zero official TypeScript patches, and SFoA changed-code lint; P2 remains unstarted pending maintainer review. |

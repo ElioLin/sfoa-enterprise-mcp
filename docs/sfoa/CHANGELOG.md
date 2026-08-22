@@ -2,6 +2,29 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-22 — P1 request-scoped identity routing completed
+
+### Added
+
+- Private SFoA-owned `@sfoa/identity-runtime` workspace with immutable request context, `IdentityRepository`/in-memory implementation, resolver, fresh-JWT Connection factory, request-scoped OrgService/Services, official dx-core Provider composition, bounded request workspaces, CWD execution guard, stateless Streamable HTTP host, structured redacted logs, and stable error codes.
+- Twenty-two unit/integration tests and one repeatable `validate:p1` live harness.
+- Chinese `P1_USER_TEST.md` and `P1_FINAL_REPORT.md`.
+
+### Verification
+
+- `SECOND_TEST_USER` is now explicitly consumed and mapped to the B route; both real users passed fresh JWT and `Connection.identity()`.
+- Official `get_username` and `run_soql_query` passed for A and B.
+- A→B and B→A forged usernames, unknown routes, and missing platform identity were blocked before unintended Salesforce access.
+- Twenty interleaved requests completed with zero identity mismatch, cross-user leak, or Connection reuse.
+- Two concurrent official metadata requests serialized through the CWD guard, used distinct cleaned workspaces, and restored CWD.
+- P1 build, 22/22 tests, strict lint, root build/full tests, original stdio, P0 HTTP, and P0 live runtime regressions passed.
+- Salesforce CLI used by P1 runtime: NO. Database/Redis/cache/pool used: NO. Official Salesforce TypeScript changes: 0.
+- Root lint continues to reproduce 47 unchanged official code-analyzer errors as `KNOWN UPSTREAM DEBT`; no new SFoA lint error exists.
+
+### Result
+
+`P1 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`. Baseline advanced to `P1-BL-1.1`. P2 was not started.
+
 ## 2026-08-22 — P1 request-scoped identity routing authorized
 
 ### Phase transition

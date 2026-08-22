@@ -1,4 +1,4 @@
-# P0 Gate Matrix
+# P0 / P1 Gate Matrix
 
 Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
@@ -20,7 +20,7 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 | DX MCP tools/list | PASS | Original server returned 5 `core,data,metadata` Tool schemas; full result is `evidence/dx-mcp-tools-list.json` |
 | run_soql_query | PASS | Closure Harness called the official `DxCoreMcpProvider` Tool with the fresh direct Connection and returned 5 rows |
 | retrieve_metadata | PASS | Official Tool retrieved the configured `CustomObject` component in a disposable DX Workspace and produced 135 files |
-| Multiple Users | NOT TESTED | `SECOND_TEST_USER` not supplied |
+| Multiple Users | NOT TESTED | Maintainer supplied `SECOND_TEST_USER`, but the historical P0-Closure loader did not consume it; no second-user operation occurred in P0. The mandatory execution was completed in P1. |
 | Auth Architecture Audit | PASS | Source path documented in `ARCHITECTURE.md`: startup Cache -> AuthInfo list/filter -> AuthInfo -> Connection -> Tool |
 | Streamable HTTP | PASS | Final Closure regression: official SDK Client passed initialize, `tools/list`, `tools/call get_username`, HTTP 405, untrusted-Origin 403, and cleanup assertions (1/1 test) |
 | MCP Inspector | PASS | Project-local Inspector (no global install) listed schemas and called `get_username` (`isError=false`); live official SOQL was validated by the Closure Harness |
@@ -55,6 +55,54 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 | Provider Compatibility | PASS | Exact stdio 0.9.8 and extension 0.10.0 dx-core baselines are recorded; Provider registration/unit and both transport regressions pass |
 | User Validation Harness | PASS | Build succeeds, 9/9 tests pass, missing-config output names all required values, errors are redacted, and live results are never persisted |
 
+## P1 Request-Scoped Identity Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| User A Route | PASS | `p1-user-a` resolved only to the configured `SALESFORCE_USERNAME` route |
+| User B Route | PASS | `p1-user-b` resolved only to the now-consumed `SECOND_TEST_USER` route |
+| JWT A | PASS | Fresh direct `@salesforce/core` JWT/AuthInfo/Connection creation succeeded |
+| JWT B | PASS | Fresh direct `@salesforce/core` JWT/AuthInfo/Connection creation succeeded |
+| Identity A | PASS | `Connection.identity()` matched route A |
+| Identity B | PASS | `Connection.identity()` matched route B |
+| HTTP initialize | PASS | Official SDK Client initialized against stateless `POST /mcp` with request Header context |
+| HTTP tools/list | PASS | Exactly `get_username`, `run_soql_query`, and `retrieve_metadata` were registered from a fresh official dx-core Provider |
+| Official `get_username` A | PASS | Official Tool returned the route-A Salesforce username; response value was not persisted |
+| Official `get_username` B | PASS | Official Tool returned the route-B Salesforce username; response value was not persisted |
+| Official `run_soql_query` A | PASS | Safe `SELECT Id FROM <TEST_OBJECT> LIMIT 5` completed through route A |
+| Official `run_soql_query` B | PASS | Safe `SELECT Id FROM <TEST_OBJECT> LIMIT 5` completed through route B |
+| A → B Forgery | BLOCKED | `MCP_IDENTITY_CONTEXT_MISMATCH`; no B JWT/Connection was created for the forged call |
+| B → A Forgery | BLOCKED | `MCP_IDENTITY_CONTEXT_MISMATCH`; no A JWT/Connection was created for the forged call |
+| Arbitrary/alias mismatch | BLOCKED | Unit/integration adapter tests reject values outside the one resolved route |
+| Unknown Route | BLOCKED | HTTP 403 / `MCP_IDENTITY_ROUTE_NOT_FOUND`; no JWT, Salesforce API, or Tool execution |
+| Missing Platform User | BLOCKED | HTTP 401 / `MCP_PLATFORM_USER_REQUIRED`; blank/whitespace inputs also deny without fallback |
+| Invalid Identity/Error Redaction | PASS | Authentication failure abstraction and config-path regression return stable errors without key path, token, assertion, or client secret |
+| Concurrent A/B | PASS | 20 interleaved real requests; every request used a fresh request scope and Connection |
+| Identity Mismatch | PASS (`0`) | Connection identity audit reported zero mismatches |
+| Cross User Leak | PASS (`0`) | Official Tool results reported zero cross-route identities |
+| Unknown Connection Reuse | PASS (`0`) | All 20 concurrent Connection objects were distinct |
+| Metadata CWD Guard | PASS | Two concurrent official metadata calls used exclusive execution (`maxConcurrentExclusive = 1`) and restored CWD |
+| Workspace Isolation | PASS | Two distinct request DX workspaces/manifests; both cleaned, no cross-workspace path allowed |
+| Request Cleanup | PASS | Created workspace count equaled cleaned count; active count returned to zero after HTTP responses |
+| CLI Runtime Dependency | PASS (`NONE`) | Static production-source test and live report: no `sf`, child process, CLI Auth Cache, or `sf org login` dependency |
+| Database Dependency | PASS (`NONE`) | In-memory repository only; no SQL/ORM/Redis dependency or runtime use |
+| Token/Connection Cache | PASS (`NONE`) | Fresh Connection per scope; live `Connection Reuse = 0` |
+| `ConnectionRole` Boundary | PASS | `USER | DIAGNOSTIC` is reserved; P1 rejects DIAGNOSTIC before authentication and implements only USER |
+| P1 Build | PASS | `yarn workspace @sfoa/identity-runtime build` exited 0 under strict TypeScript |
+| P1 Tests | PASS | 22/22 unit and integration tests passed |
+| SFoA Changed Code Lint | PASS | `@sfoa/identity-runtime`, P0 runtime validation, and P0 HTTP POC strict lint commands exited 0 |
+| Root Build | PASS | All workspaces built using repository-local dependencies and Git Bash for the official POSIX `cp` script |
+| Root Tests | PASS | `yarn test` completed all workspaces in 306.46 s after restoring Yarn-generated local shims removed by the known failed Windows reinstall; no source/lockfile change |
+| Upstream Lint Baseline | KNOWN UPSTREAM DEBT | Root lint stops at the same 47 official code-analyzer errors; no SFoA file is included |
+| Original stdio Regression | PASS | initialize, five-Tool list, and official `get_username` call passed; response content withheld |
+| P0 Streamable HTTP Regression | PASS | 1/1 initialize/list/call, method/origin, and cleanup test passed |
+| P0 Runtime Regression | PASS | 9/9 local tests and live JWT/identity/SOQL/official metadata Closure validation passed |
+| Official Salesforce TypeScript Modified | PASS (`0`) | P1 diff contains no existing official package TypeScript path |
+| Salesforce CLI Used by P1 | PASS (`NO`) | Live P1 report and static checks agree |
+| Database Used by P1 | PASS (`NO`) | Live P1 report and dependency/source checks agree |
+
+P1 dependency versions remain the verified set: MCP SDK 1.18.2, Provider API 0.6.0, dx-core 0.10.0, `@salesforce/core` 8.29.0, Node 24.13.0, and Yarn 1.22.22. No dependency upgrade was performed.
+
 ## Result interpretation
 
 - Credential/environment failures are not evidence that SFoA APIs are incompatible.
@@ -67,4 +115,10 @@ Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
 `P0 = PASS`
 
-All mandatory P0 live and local Gates are complete. The second Salesforce user is a P1 isolation Gate, and the reproduced Upstream lint debt plus Windows Yarn frozen-reinstall issue remain documented non-SFoA maintenance debt rather than live compatibility failures.
+All mandatory P0 live and local Gates are complete. The second Salesforce user was intentionally assigned to P1 and has now been exercised there; the reproduced Upstream lint debt plus Windows Yarn frozen-reinstall issue remain documented non-SFoA maintenance debt rather than live compatibility failures.
+
+## P1 overall result
+
+`P1 = PASS`
+
+Both real users, all required official Tool paths, bidirectional forgery denial, unknown/missing denial, 20-request zero-leak isolation, concurrent metadata/CWD/workspace isolation, request cleanup, production no-CLI/no-database constraints, and required regressions passed. P2 is not started and requires maintainer review of the P1 Gate.
