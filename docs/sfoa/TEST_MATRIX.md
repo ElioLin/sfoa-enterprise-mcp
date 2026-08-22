@@ -221,7 +221,7 @@ Both real users, all required official Tool paths, bidirectional forgery denial,
 | P2 targeted regression | PASS | Fresh P2 test run: 18/18 passed, 0 failed |
 | P2 to main integration | PASS | `main` fast-forwarded from `3d35ef6` to `f532c8a` without squash and was pushed to `origin/main` |
 | P3 branch isolation | PASS | `feature/p3-generic-dml-allowlist` created from updated `main` at `f532c8a` |
-| P3-00 official capability audit | NOT TESTED | Audit begins after this entry baseline; result will be recorded in ADR-0008 |
+| P3-00 official capability audit | PASS | ADR-0008: actual pinned Provider/public exports/history, Hosted MCP endpoint/auth/SFoA boundary, and pinned Connection/SObject public types reviewed before implementation |
 | P3 CREATE/UPDATE runtime | NOT TESTED | No P3 production implementation existed at phase entry |
 | P3 live Salesforce mutation | NOT TESTED | No P3 live mutation was attempted at phase entry |
 

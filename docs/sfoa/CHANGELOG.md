@@ -18,6 +18,13 @@ This changelog records SFoA baseline and architecture changes. Salesforce Upstre
 - DELETE, UPSERT, bulk DML, arbitrary REST, metadata mutation, Apex mutation substitutes, field-policy replication, database, Redis, caches, pools, and Admin UI remain out of scope.
 - P3-00 must finish the official Provider/Hosted MCP/SDK audit and record the decision in an ADR before a new DML Provider is implemented.
 
+### P3-00 official capability audit
+
+- Actual dx-core 0.10.0 public exports, `provideTools()` implementation, Provider API surface, and repository history were inspected. No current generic CREATE/UPDATE or mutation Provider exists; the old `sf-create-record` implementation was removed upstream and will not be copied.
+- Salesforce Hosted `platform/sobject-mutations` provides CREATE/UPDATE without DELETE, but is a fixed remote MCP service using a separate External Client App and OAuth/PKCE model. It cannot consume the current request-scoped Connection, includes relationship mutation, and SFoA/Alibaba Cloud support is not proven.
+- ADR-0008 selects pinned `@salesforce/core@8.29.0` / JSforce single-record `sobject().create()` and `update()` through the existing P1/P2 request scope.
+- ADR-0008 also selects a strict JSON-array environment/local allowlist because duplicate objects/operations can be detected without defining a custom configuration grammar.
+
 ## 2026-08-22 — P2 Closure HOTFIX01 upstream drift guard completed
 
 ### Added
