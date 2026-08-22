@@ -26,7 +26,11 @@ import {
   waitFor,
 } from './helpers.js';
 
-const controlledInput = z.object({ directory: z.string() });
+const controlledInput = z.object({
+  defaultTargetOrg: z.boolean().optional().default(false),
+  defaultDevHub: z.boolean().optional().default(false),
+  directory: z.string(),
+});
 type ControlledInputShape = typeof controlledInput.shape;
 
 class ControlledToolSource implements RequestToolSource {
@@ -110,15 +114,16 @@ test('MCP_TOOL_TIMEOUT returns a stable Tool-level failure and cleans request re
     identityRuntime,
     toolSource,
   });
-  const client = await connectClient(server);
+  let client: Client | undefined;
   try {
+    client = await connectClient(server);
     const result = await client.callTool({ name: 'get_username', arguments: {} });
     assert.equal(result.isError, true);
     assert.match(toolResultText(result), /MCP_TOOL_TIMEOUT/u);
     await waitFor(() => identityRuntime.workspaceFactory.getMetrics().active === 0);
     assert.equal(server.getMetrics().cleanupFailures, 0);
   } finally {
-    await client.close().catch(() => undefined);
+    await client?.close().catch(() => undefined);
     await server.close();
     await new Promise((resolve) => setTimeout(resolve, 170));
     await rm(baseRoot, { recursive: true, force: true });
@@ -127,19 +132,20 @@ test('MCP_TOOL_TIMEOUT returns a stable Tool-level failure and cleans request re
 
 test('MCP_REQUEST_TIMEOUT stops waiting, returns 504, and closes the request workspace', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-request-timeout-'));
-  const toolSource = new ControlledToolSource(180);
+  const toolSource = new ControlledToolSource(1_000);
   const identityRuntime = createTestIdentityRuntime(baseRoot);
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({
       enabledTools: Object.freeze(['get_username']),
-      requestTimeoutMs: 40,
-      toolTimeoutMs: 500,
+      requestTimeoutMs: 500,
+      toolTimeoutMs: 2_000,
     }),
     identityRuntime,
     toolSource,
   });
-  const client = await connectClient(server);
+  let client: Client | undefined;
   try {
+    client = await connectClient(server);
     await assert.rejects(
       client.callTool({ name: 'get_username', arguments: {} }),
       (error: unknown) => String(error).includes('504') && String(error).includes('MCP_REQUEST_TIMEOUT'),
@@ -148,9 +154,9 @@ test('MCP_REQUEST_TIMEOUT stops waiting, returns 504, and closes the request wor
     assert.equal(identityRuntime.workspaceFactory.getMetrics().created, identityRuntime.workspaceFactory.getMetrics().cleaned);
     assert.equal(server.getMetrics().cleanupFailures, 0);
   } finally {
-    await client.close().catch(() => undefined);
+    await client?.close().catch(() => undefined);
     await server.close();
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 1_050));
     await rm(baseRoot, { recursive: true, force: true });
   }
 });
@@ -168,8 +174,9 @@ test('graceful shutdown stops listening and drains an in-flight request before c
     identityRuntime,
     toolSource,
   });
-  const client = await connectClient(server);
+  let client: Client | undefined;
   try {
+    client = await connectClient(server);
     const call = client.callTool({ name: 'get_username', arguments: {} });
     await toolSource.started;
     let shutdownResolved = false;
@@ -187,7 +194,7 @@ test('graceful shutdown stops listening and drains an in-flight request before c
     assert.equal(identityRuntime.workspaceFactory.getMetrics().active, 0);
   } finally {
     toolSource.release();
-    await client.close().catch(() => undefined);
+    await client?.close().catch(() => undefined);
     await server.close();
     await rm(baseRoot, { recursive: true, force: true });
   }

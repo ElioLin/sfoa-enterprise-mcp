@@ -2,11 +2,13 @@
 
 Date: 2026-08-22
 
-Final status: **P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW**
+Final status: **P2 = PASS / COMPLETE — AWAITING FINAL MAINTAINER ACCEPTANCE**
 
-Baseline: **P2-BL-1.1**
+Baseline: **P2-BL-1.2**
 
 P3 status: **NOT STARTED**
+
+Closure amendment: **P2-CLOSURE HOTFIX01 = PASS**. The executable dx-core inventory and three remote Tool contracts are now guarded against upstream name, ReleaseState, schema, requiredness, and version drift. ADR-0007 supersedes ADR-0006's open-ended schema projection. See `P2_CLOSURE_HOTFIX01_REPORT.md` for the implementation and final evidence.
 
 ## Executive Summary
 
@@ -25,6 +27,8 @@ controlled MCP client
 ```
 
 The new `@sfoa/mcp-server` passed configurable network binding, client authentication, Header-authoritative identity, default-deny/read-only Tool visibility, remote schema adaptation, body/request/Tool bounds, cleanup, graceful shutdown, two real Salesforce users, 50 interleaved requests, project-local MCP Inspector, official Tool execution, and all required P0/P1/root regressions.
+
+HOTFIX01 additionally passed the real pinned Provider inventory Gate and 18/18 P2 tests. Unknown Tools remain invisible and uncallable; unknown official input fields cannot enter an Agent schema; enabled-contract drift fails startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`.
 
 P2 introduces no DML, mutation/admin exposure, OAuth Server, Admin UI, database, Redis, token cache, Connection pool, or Salesforce CLI runtime dependency. It changes zero official Salesforce TypeScript files and leaves root `package.json`/`yarn.lock` unchanged.
 
@@ -58,7 +62,7 @@ The formal Host uses public APIs only:
 
 Every POST owns a fresh Salesforce Connection, workspace, Provider Tool graph, MCP server, and transport. Response lifecycle—not just `handleRequest()` resolution—controls cleanup. This closes a concurrency race discovered by the P2 integration test: SDK 1.18.2 may return from `handleRequest()` before an asynchronous Tool response is finished.
 
-Accepted decisions are ADR-0005 and ADR-0006. ADR-0004 already existed from P0, so P2 preserved numbering history rather than overwriting it.
+Current decisions are ADR-0005 and ADR-0007; ADR-0007 supersedes ADR-0006's open-ended schema projection. ADR-0004 already existed from P0, so P2 preserved numbering history rather than overwriting it.
 
 ## Remote Runtime
 
@@ -336,7 +340,8 @@ P2 changes only new/existing SFoA-owned package/docs/config paths. `UPSTREAM_STR
 | Gate | Result |
 | --- | --- |
 | P2 build | PASS |
-| P2 tests | PASS, 10/10 |
+| P2 tests | PASS, 18/18 |
+| P2 upstream compatibility | PASS, zero drift |
 | P2 strict lint | PASS |
 | P1 tests | PASS, 22/22 |
 | P1 strict lint | PASS |
@@ -345,8 +350,8 @@ P2 changes only new/existing SFoA-owned package/docs/config paths. `UPSTREAM_STR
 | P0 live Closure | PASS |
 | P0 Streamable HTTP POC | PASS, 1/1 |
 | Original Salesforce stdio | PASS |
-| Root build | PASS, 90.08 s |
-| Root full tests | PASS, 394.13 s |
+| Root build | PASS, 94.94 s |
+| Root full tests | PASS, 325.05 s |
 | SFoA changed-code lint | PASS |
 | Repository-wide lint | KNOWN UPSTREAM DEBT: exactly 47 errors / 0 warnings, all unchanged official code-analyzer |
 
@@ -385,6 +390,8 @@ configurable network binding                PASS
 client bearer auth                          PASS
 platformUser identity                       PASS
 Tool Governance                             PASS
+upstream inventory exact match              PASS
+remote contract drift fail-closed           PASS
 disabled Tool invisible                     PASS
 Mutation/Admin Tool forbidden               PASS
 request bounds                              PASS
@@ -401,7 +408,7 @@ P2 build/test/strict lint                    PASS
 P0/P1/root regressions                       PASS
 ```
 
-Final determination: **P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW**.
+Final determination: **P2 = PASS / COMPLETE — AWAITING FINAL MAINTAINER ACCEPTANCE**. **P2-CLOSURE HOTFIX01 = PASS**.
 
 ## P3 Recommendation
 

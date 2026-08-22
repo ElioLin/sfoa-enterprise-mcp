@@ -10,3 +10,4 @@ export * from './runtime.js';
 export * from './shutdown.js';
 export * from './timeouts.js';
 export * from './tool-governance.js';
+export * from './upstream-drift.js';

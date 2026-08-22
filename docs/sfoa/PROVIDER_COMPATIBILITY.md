@@ -46,3 +46,9 @@ The current packaged stdio comparison set is:
 ```
 
 Any version change requires install/build/test/lint, stdio initialize/list/call, Streamable HTTP initialize/list/call, and live SFoA read/metadata regression before this baseline is updated.
+
+## P2 Closure upstream drift Gate
+
+Run `yarn workspace @sfoa/mcp-server validate:upstream` after every Salesforce upstream sync. The Gate constructs the actual public dx-core Provider and resolves the installed package, then compares Provider/API/package versions, all Tool names and ReleaseState values, input field names/requiredness, and output-schema capability with the executable audited catalog.
+
+`UPSTREAM_REVIEW_REQUIRED` blocks compatibility acceptance. An unrelated added Tool stays production-invisible because registration is explicit and default-deny; a difference affecting an enabled remote Tool fails production startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`. No Tool name, annotation, description, or new field receives automatic authorization.

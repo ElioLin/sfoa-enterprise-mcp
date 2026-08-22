@@ -8,6 +8,27 @@ export const TOOL_CLASSIFICATIONS = [
 ] as const;
 
 export type ToolClassification = (typeof TOOL_CLASSIFICATIONS)[number];
+export type AuditedReleaseState = 'ga' | 'non-ga';
+
+export const DX_CORE_PROVIDER_BASELINE = Object.freeze({
+  providerName: 'DxCoreMcpProvider',
+  providerApiVersion: '0.6.0',
+  packageName: '@salesforce/mcp-provider-dx-core',
+  packageVersion: '0.10.0',
+});
+
+export type AuditedOfficialToolContract = Readonly<{
+  releaseState: AuditedReleaseState;
+  inputFields: readonly string[];
+  requiredInputFields: readonly string[];
+  hasOutputSchema: boolean;
+  outputFields: readonly string[];
+}>;
+
+export type RemoteToolContract = Readonly<{
+  hostOwnedArguments: readonly string[];
+  allowedAgentArguments: readonly string[];
+}>;
 
 export type OfficialToolPolicyRecord = Readonly<{
   name: string;
@@ -17,81 +38,275 @@ export type OfficialToolPolicyRecord = Readonly<{
   needsFilesystem: boolean;
   needsLocalProject: boolean;
   needsAdditionalService: boolean;
+  upstreamContract?: AuditedOfficialToolContract;
+  remoteContract?: RemoteToolContract;
 }>;
 
 type RecordDefaults = Omit<OfficialToolPolicyRecord, 'name'>;
+type DxCoreRecord = Omit<OfficialToolPolicyRecord, 'provider' | 'upstreamContract'> &
+  Readonly<{ upstreamContract: AuditedOfficialToolContract }>;
 
 function records(defaults: RecordDefaults, names: readonly string[]): OfficialToolPolicyRecord[] {
   return names.map((name) => Object.freeze({ name, ...defaults }));
 }
 
-const dxCoreRead = records(
-  {
-    provider: 'DxCoreMcpProvider',
+function dxCoreRecord(record: DxCoreRecord): OfficialToolPolicyRecord {
+  return Object.freeze({
+    ...record,
+    provider: DX_CORE_PROVIDER_BASELINE.providerName,
+    upstreamContract: freezeUpstreamContract(record.upstreamContract),
+    ...(record.remoteContract ? { remoteContract: freezeRemoteContract(record.remoteContract) } : {}),
+  });
+}
+
+function freezeUpstreamContract(contract: AuditedOfficialToolContract): AuditedOfficialToolContract {
+  return Object.freeze({
+    ...contract,
+    inputFields: Object.freeze([...contract.inputFields]),
+    requiredInputFields: Object.freeze([...contract.requiredInputFields]),
+    outputFields: Object.freeze([...contract.outputFields]),
+  });
+}
+
+function freezeRemoteContract(contract: RemoteToolContract): RemoteToolContract {
+  return Object.freeze({
+    hostOwnedArguments: Object.freeze([...contract.hostOwnedArguments]),
+    allowedAgentArguments: Object.freeze([...contract.allowedAgentArguments]),
+  });
+}
+
+const noOutputSchema = Object.freeze({ hasOutputSchema: false, outputFields: Object.freeze([]) });
+
+export const DX_CORE_TOOL_CATALOG: readonly OfficialToolPolicyRecord[] = Object.freeze([
+  dxCoreRecord({
+    name: 'get_username',
     classification: 'READ',
     p2RemoteCompatible: true,
     needsFilesystem: false,
     needsLocalProject: false,
     needsAdditionalService: false,
-  },
-  ['get_username', 'run_soql_query'],
-);
-
-const dxCoreMetadataRead = records(
-  {
-    provider: 'DxCoreMcpProvider',
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['defaultTargetOrg', 'defaultDevHub', 'directory'],
+      requiredInputFields: ['directory'],
+      ...noOutputSchema,
+    },
+    remoteContract: {
+      hostOwnedArguments: ['directory'],
+      allowedAgentArguments: ['defaultTargetOrg', 'defaultDevHub'],
+    },
+  }),
+  dxCoreRecord({
+    name: 'run_soql_query',
+    classification: 'READ',
+    p2RemoteCompatible: true,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['query', 'usernameOrAlias', 'directory', 'useToolingApi'],
+      requiredInputFields: ['query', 'usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+    remoteContract: {
+      hostOwnedArguments: ['usernameOrAlias', 'directory'],
+      allowedAgentArguments: ['query', 'useToolingApi'],
+    },
+  }),
+  dxCoreRecord({
+    name: 'retrieve_metadata',
     classification: 'METADATA_READ',
     p2RemoteCompatible: true,
     needsFilesystem: true,
     needsLocalProject: true,
     needsAdditionalService: false,
-  },
-  ['retrieve_metadata'],
-);
-
-const dxCoreMutations = records(
-  {
-    provider: 'DxCoreMcpProvider',
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['ignoreConflicts', 'sourceDir', 'manifest', 'usernameOrAlias', 'directory'],
+      requiredInputFields: ['usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+    remoteContract: {
+      hostOwnedArguments: ['usernameOrAlias', 'directory'],
+      allowedAgentArguments: ['ignoreConflicts', 'sourceDir', 'manifest'],
+    },
+  }),
+  dxCoreRecord({
+    name: 'deploy_metadata',
     classification: 'MUTATION',
     p2RemoteCompatible: false,
     needsFilesystem: true,
     needsLocalProject: true,
     needsAdditionalService: false,
-  },
-  ['deploy_metadata'],
-);
-
-const dxCoreAdmin = records(
-  {
-    provider: 'DxCoreMcpProvider',
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: [
+        'ignoreConflicts',
+        'sourceDir',
+        'manifest',
+        'apexTestLevel',
+        'apexTests',
+        'usernameOrAlias',
+        'directory',
+      ],
+      requiredInputFields: ['usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'assign_permission_set',
     classification: 'ADMIN',
     p2RemoteCompatible: false,
     needsFilesystem: false,
     needsLocalProject: false,
     needsAdditionalService: false,
-  },
-  [
-    'assign_permission_set',
-    'create_org_snapshot',
-    'create_scratch_org',
-    'delete_org',
-    'resume_tool_operation',
-    'run_agent_test',
-    'run_apex_test',
-  ],
-);
-
-const dxCoreLocal = records(
-  {
-    provider: 'DxCoreMcpProvider',
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['permissionSetName', 'usernameOrAlias', 'onBehalfOf', 'directory'],
+      requiredInputFields: ['permissionSetName', 'usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'create_org_snapshot',
+    classification: 'ADMIN',
+    p2RemoteCompatible: false,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'non-ga',
+      inputFields: ['directory', 'devHub', 'sourceOrg', 'description', 'name'],
+      requiredInputFields: ['directory', 'devHub', 'sourceOrg'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'create_scratch_org',
+    classification: 'ADMIN',
+    p2RemoteCompatible: false,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'non-ga',
+      inputFields: [
+        'directory',
+        'devHub',
+        'duration',
+        'edition',
+        'definitionFile',
+        'alias',
+        'async',
+        'setDefault',
+        'snapshot',
+        'sourceOrg',
+        'username',
+        'description',
+        'orgName',
+        'adminEmail',
+      ],
+      requiredInputFields: ['directory', 'devHub'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'delete_org',
+    classification: 'ADMIN',
+    p2RemoteCompatible: false,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'non-ga',
+      inputFields: ['directory', 'usernameOrAlias'],
+      requiredInputFields: ['directory', 'usernameOrAlias'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'resume_tool_operation',
+    classification: 'ADMIN',
+    p2RemoteCompatible: false,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['jobId', 'wait', 'usernameOrAlias', 'directory'],
+      requiredInputFields: ['jobId', 'usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'run_agent_test',
+    classification: 'ADMIN',
+    p2RemoteCompatible: false,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['agentApiName', 'usernameOrAlias', 'directory', 'async'],
+      requiredInputFields: ['agentApiName', 'usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'run_apex_test',
+    classification: 'ADMIN',
+    p2RemoteCompatible: false,
+    needsFilesystem: false,
+    needsLocalProject: false,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: [
+        'testLevel',
+        'classNames',
+        'methodNames',
+        'async',
+        'suiteName',
+        'testRunId',
+        'verbose',
+        'codeCoverage',
+        'usernameOrAlias',
+        'directory',
+      ],
+      requiredInputFields: ['testLevel', 'usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'list_all_orgs',
     classification: 'LOCAL_DEV',
     p2RemoteCompatible: false,
     needsFilesystem: true,
     needsLocalProject: true,
     needsAdditionalService: false,
-  },
-  ['list_all_orgs', 'open_org'],
-);
+    upstreamContract: {
+      releaseState: 'ga',
+      inputFields: ['directory'],
+      requiredInputFields: ['directory'],
+      ...noOutputSchema,
+    },
+  }),
+  dxCoreRecord({
+    name: 'open_org',
+    classification: 'LOCAL_DEV',
+    p2RemoteCompatible: false,
+    needsFilesystem: true,
+    needsLocalProject: true,
+    needsAdditionalService: false,
+    upstreamContract: {
+      releaseState: 'non-ga',
+      inputFields: ['filePath', 'usernameOrAlias', 'directory'],
+      requiredInputFields: ['usernameOrAlias', 'directory'],
+      ...noOutputSchema,
+    },
+  }),
+]);
 
 const codeAnalyzerLocal = records(
   {
@@ -266,11 +481,7 @@ const otherLocal = [
 ];
 
 export const OFFICIAL_TOOL_CATALOG: readonly OfficialToolPolicyRecord[] = Object.freeze([
-  ...dxCoreRead,
-  ...dxCoreMetadataRead,
-  ...dxCoreMutations,
-  ...dxCoreAdmin,
-  ...dxCoreLocal,
+  ...DX_CORE_TOOL_CATALOG,
   ...codeAnalyzerLocal,
   ...devOpsRead,
   ...devOpsMutation,

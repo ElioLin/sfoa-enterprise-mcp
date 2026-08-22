@@ -97,11 +97,18 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
     const listed = await withStage('tools/list', clientA.listTools());
     assert.deepEqual(listed.tools.map((tool) => tool.name), ['get_username', 'run_soql_query']);
     assert.equal(listed.tools.some((tool) => tool.name === 'retrieve_metadata'), false);
+    const usernameTool = listed.tools.find((tool) => tool.name === 'get_username');
+    assert(usernameTool);
+    const usernameProperties = isRecord(usernameTool.inputSchema.properties)
+      ? usernameTool.inputSchema.properties
+      : {};
+    assert.deepEqual(Object.keys(usernameProperties).sort(), ['defaultDevHub', 'defaultTargetOrg']);
     const queryTool = listed.tools.find((tool) => tool.name === 'run_soql_query');
     assert(queryTool);
     const queryProperties = isRecord(queryTool.inputSchema.properties)
       ? queryTool.inputSchema.properties
       : {};
+    assert.deepEqual(Object.keys(queryProperties).sort(), ['query', 'useToolingApi']);
     assert.equal('usernameOrAlias' in queryProperties, false);
     assert.equal('directory' in queryProperties, false);
     assert.equal('platformUserId' in queryProperties, false);
@@ -126,6 +133,22 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
     assert.doesNotMatch(toolResultText(queryA), /p2-user-b/u);
     assert.match(toolResultText(queryB), /p2-user-b/u);
     assert.doesNotMatch(toolResultText(queryB), /p2-user-a/u);
+
+    const forgedIdentity = await withStage(
+      'run_soql_query forged Tool identity arguments',
+      clientA.callTool({
+        name: 'run_soql_query',
+        arguments: {
+          query: 'SELECT Id FROM Lead LIMIT 1',
+          usernameOrAlias: TEST_USERNAME_B,
+          directory: 'C:\\forged-workspace',
+          platformUserId: TEST_PLATFORM_USER_B,
+          salesforceUsername: TEST_USERNAME_B,
+        },
+      }),
+    );
+    assert.match(toolResultText(forgedIdentity), /p2-user-a/u);
+    assert.doesNotMatch(toolResultText(forgedIdentity), /p2-user-b/u);
 
     const interleaved = await withStage('50 interleaved tools/call', Promise.all(
       Array.from({ length: 50 }, async (_value, index) => {

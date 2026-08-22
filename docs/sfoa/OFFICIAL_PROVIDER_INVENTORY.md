@@ -2,15 +2,18 @@
 
 Date: 2026-08-22
 
-Scope: official Providers registered by `packages/mcp/src/registry.ts` at audited Upstream commit `670234dbdca4d3fcdebd9d58b231e311fd34aeec`, plus the P2-pinned dx-core 0.10.0 composition. This is an inventory, not a P2 enablement list. The executable policy is `packages/sfoa-mcp-server/src/official-tool-catalog.ts`.
+Scope: official Providers registered by `packages/mcp/src/registry.ts` at audited Upstream commit `670234dbdca4d3fcdebd9d58b231e311fd34aeec`, plus the P2-pinned dx-core 0.10.0 composition.
+
+**Authority:** this document is an informational snapshot, not a security or enablement source. `packages/sfoa-mcp-server/src/official-tool-catalog.ts` is the sole executable safety source. The repeatable `yarn workspace @sfoa/mcp-server validate:upstream` Gate initializes the real public dx-core Provider and verifies that executable baseline. A Tool or field appearing only in this Markdown receives no classification and no runtime access.
 
 ## Decision summary
 
 - P2 composes only `DxCoreMcpProvider` 0.10.0.
 - Default enabled: `get_username`, `run_soql_query`.
 - Available but disabled by default: `retrieve_metadata`; it is a developer-oriented metadata read that needs a DX project, manifest/source context, filesystem writes, and global-CWD isolation.
-- P2 rejects every `MUTATION`, `ADMIN`, `LOCAL_DEV`, and `UNKNOWN` classification at startup.
+- P2 rejects configuration of every `MUTATION`, `ADMIN`, `LOCAL_DEV`, and `UNKNOWN` classification at startup.
 - Other official Providers remain inventoried extension seams. Adding one requires an explicit compatibility review and catalog record; the Host architecture does not change.
+- An unreviewed official Tool is never automatically classified or registered. An unrelated added Tool makes the compatibility Gate return `UPSTREAM_REVIEW_REQUIRED`; production may continue only because registration remains default-deny. Drift affecting an enabled remote Tool fails startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`.
 
 ## Provider matrix
 
@@ -39,6 +42,16 @@ Scope: official Providers registered by `packages/mcp/src/registry.ts` at audite
 
 `retrieve_metadata` is not deleted: P1 proved unchanged official execution, bounded workspace use, and CWD serialization. It is not a general remote-Agent default because the client must supply meaningful manifest/source context and the operation writes a DX project workspace.
 
+The three P2 remote contracts are also explicit executable data:
+
+| Tool | Host-owned fields | Allowed Agent fields | Default |
+| --- | --- | --- | --- |
+| `get_username` | `directory` | `defaultTargetOrg`, `defaultDevHub` | Enabled |
+| `run_soql_query` | `usernameOrAlias`, `directory` | `query`, `useToolingApi` | Enabled |
+| `retrieve_metadata` | `usernameOrAlias`, `directory` | `ignoreConflicts`, `sourceDir`, `manifest` | Disabled |
+
+The facade first requires an exact audited official field/requiredness/ReleaseState/output-schema match, then projects only the allowed Agent fields. An upstream field addition is not inherited.
+
 ### Code Analyzer 0.8.1
 
 `create_custom_rule`, `describe_code_analyzer_rule`, `get_ast_nodes_to_generate_xpath`, `list_code_analyzer_rules`, `query_code_analyzer_results`, `run_code_analyzer`.
@@ -66,4 +79,6 @@ Even the read group is marked not P2-compatible because P2 does not initialize t
 
 ## Inventory maintenance rule
 
-Provider presence is not permission. A future official Tool is `UNKNOWN` until an explicit catalog entry records Provider, classification, remote compatibility, filesystem/project/service dependencies, and phase decision. Unknown or incompatible entries make startup fail; they are never silently exposed.
+Provider presence is not permission. A future official Tool remains unclassified until a maintainer explicitly updates the executable catalog with Provider, classification, remote compatibility, filesystem/project/service dependencies, upstream contract, and phase decision. Names, descriptions, and annotations cannot authorize it.
+
+Run `yarn workspace @sfoa/mcp-server validate:upstream` during every upstream sync. `PASS` means actual Provider/package/API identity, Tool names, ReleaseState, input field names/requiredness, and output-schema capability exactly match the executable baseline. `UPSTREAM_REVIEW_REQUIRED` blocks compatibility acceptance until the executable policy is reviewed. Update this informational snapshot after that review; documentation differences alone never change runtime behavior.

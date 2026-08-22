@@ -72,6 +72,7 @@ export type StartRemoteMcpServerOptions = Readonly<{
   config: RemoteRuntimeConfig;
   identityRuntime: IdentityRuntime;
   toolSource?: RequestToolSource;
+  inventoryToolSource?: RequestToolSource;
   authenticator?: ClientAuthenticator;
 }>;
 
@@ -83,7 +84,11 @@ type RequestObservation = {
 };
 
 export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions): Promise<RemoteMcpServer> {
-  const initializedProvider = await initializeProviderRuntime(options.config.enabledTools, options.toolSource);
+  const initializedProvider = await initializeProviderRuntime(
+    options.config.enabledTools,
+    options.toolSource,
+    options.inventoryToolSource,
+  );
   const authenticator = options.authenticator ?? createAuthenticator(options.config);
   const activeRequests = new Set<Promise<void>>();
   let totalRequests = 0;

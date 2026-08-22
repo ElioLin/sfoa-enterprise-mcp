@@ -51,7 +51,12 @@ export class ToolGovernancePolicy {
           `Configured Tool ${name} is classified ${record.classification} and is forbidden by the read-only P2 policy.`,
         );
       }
-      if (!record.p2RemoteCompatible || !available.has(name)) {
+      if (
+        !record.p2RemoteCompatible ||
+        !record.upstreamContract ||
+        !record.remoteContract ||
+        !available.has(name)
+      ) {
         throw new RemoteRuntimeError(
           'MCP_TOOL_NOT_AVAILABLE',
           `Configured Tool ${name} is not available through the validated P2 remote Provider composition.`,

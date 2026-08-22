@@ -140,14 +140,14 @@ P1 dependency versions remain the verified set: MCP SDK 1.18.2, Provider API 0.6
 | Official SDK Client | PASS | initialize/list/call A/B and 50 calls through SDK 1.18.2 |
 | MCP Inspector | PASS | Project-local Inspector 0.15.0 proxy initialize, enabled-only list, get_username call for A and B |
 | P2 Build | PASS | strict TypeScript build exited 0 |
-| P2 Tests | PASS | 10/10 unit/integration tests |
+| P2 Tests | PASS | 18/18 unit/integration tests, including HOTFIX01 inventory and contract drift cases |
 | P2 Strict Lint | PASS | `@sfoa/mcp-server` `tsc --noEmit` exited 0 after final source changes |
 | P1 Regression | PASS | 22/22, strict lint, live A/B identity/SOQL, 20 requests, metadata/CWD/workspace cleanup |
 | P0 Runtime Regression | PASS | 9/9 and live Closure JWT/identity/direct+official SOQL/CustomObject metadata/CWD PASS |
 | P0 HTTP POC Regression | PASS | 1/1 initialize/list/call PASS |
 | Original stdio Regression | PASS | initialize, five-Tool list, official get_username call; response content withheld |
-| Root Build | PASS | Git Bash `yarn build`, 90.08 s; all workspaces including P2 |
-| Root Tests | PASS | `yarn test`, 394.13 s; all official and SFoA workspaces exited 0 |
+| Root Build | PASS | Git Bash `yarn build`, 94.94 s; all workspaces including P2 |
+| Root Tests | PASS | `yarn test`, 325.05 s; all official and SFoA workspaces exited 0 |
 | Upstream Lint Baseline | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings, all under unchanged official code-analyzer; no SFoA path |
 | SFoA Changed-Code Lint | PASS | P2, P1, P0 runtime and HTTP POC strict gates exited 0 |
 | Dependency Install | KNOWN WINDOWS/YARN DEBT | Frozen Yarn Classic link failed at existing nested `brace-expansion`; lockfile unchanged; generated `.bin` shims were mechanically restored from installed package manifests before successful root/stdin regressions |
@@ -158,6 +158,38 @@ P1 dependency versions remain the verified set: MCP SDK 1.18.2, Provider API 0.6
 | Root Manifest / Lockfile Modified | PASS (`0`) | `package.json` and `yarn.lock` unchanged; exact accepted versions retained |
 
 P2 version set: MCP SDK 1.18.2, Provider API 0.6.0, dx-core 0.10.0, `@salesforce/core` 8.29.0, Zod 3.25.76, Node 24.13.0, Yarn 1.22.22. No dependency upgrade was performed.
+
+## P2 Closure HOTFIX01 Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Actual official inventory exact match | PASS | Real public `DxCoreMcpProvider`; Provider API 0.6.0; dx-core 0.10.0; nine GA names; zero drift |
+| Unknown official Tool | PASS | Simulated `future_unknown_tool` produces `UPSTREAM_REVIEW_REQUIRED`; it receives no classification and is absent from list/call |
+| Enabled Tool added field | PASS | Simulated `run_soql_query.targetOrg` fails startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT` before schema registration |
+| Host-owned field removed/renamed | PASS | Missing `usernameOrAlias` is rejected by the exact remote contract |
+| Agent field removed/renamed | PASS | Missing `query` is rejected by the exact remote contract |
+| Required/optional contract changed | PASS | `useToolingApi` changing from optional to required is rejected |
+| ReleaseState changed | PASS | Audited GA Tool changing to NON_GA is rejected |
+| Classification remains explicit | PASS | Unknown Tool annotations, description, and name cannot produce READ classification |
+| Existing remote schemas | PASS | `get_username` excludes `directory`; SOQL exposes only `query`/`useToolingApi`; `retrieve_metadata` remains disabled by default |
+| Identity forgery regression | PASS | Agent `usernameOrAlias`, `directory`, `platformUserId`, and Salesforce username inputs do not change the Header-authoritative route |
+| Existing P2 security regression | PASS | Bearer, Host, Origin, body limit, request/Tool timeout, cleanup, and graceful shutdown tests passed |
+| P2 package tests | PASS | 18/18, 33.18 s Node test duration; command exited 0 |
+| P2 strict lint | PASS | Final `tsc --noEmit` exited 0 |
+| Upstream compatibility command | PASS | `validate:upstream` returned `PASS` with `drift: []` |
+| P1 regression | PASS | 22/22 plus real A/B validation, identity isolation, metadata/CWD/workspace cleanup |
+| P0 runtime regression | PASS | 9/9 plus live JWT, identity, direct/official SOQL, metadata, and CWD restoration |
+| P0 HTTP regression | PASS | 1/1 initialize/list/call and transport/security checks |
+| P2 live validation | PASS | Real A/B official calls and 50 interleaved requests; zero mismatch, leak, reuse, cleanup failure, or error |
+| Original Salesforce stdio | PASS | initialize, five-Tool list, and official `get_username` call |
+| Streamable HTTP SDK/Inspector | PASS | initialize/list/call for A/B with project-local SDK client and Inspector 0.15.0 |
+| Root build | PASS | All workspaces built in 94.94 s |
+| Root tests | PASS | All workspaces passed in 325.05 s |
+| SFoA changed-code lint | PASS | P2, P1, P0 runtime, and P0 HTTP strict checks exited 0 |
+| Root lint | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings in unchanged official code-analyzer; no SFoA error |
+| Official Salesforce TypeScript diff | PASS | Zero modified official TypeScript files |
+| Root manifest / lockfile diff | PASS | Root `package.json` and `yarn.lock` unchanged |
+| P3 scope boundary | PASS | No DML, database, Redis, cache, pool, OAuth Server, Admin UI, or P3 capability was added |
 
 ## Result interpretation
 
@@ -181,6 +213,6 @@ Both real users, all required official Tool paths, bidirectional forgery denial,
 
 ## P2 overall result
 
-`P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
+`P2 = PASS / COMPLETE — AWAITING FINAL MAINTAINER ACCEPTANCE`
 
-All mandatory P2 runtime, authentication, identity, governance, schema, request-bound, timeout/cleanup, graceful-shutdown, real A/B, 50-request, Inspector, official Tool, no-CLI/no-database/no-cache, zero-official-code-change, build/test/lint, and P0/P1 regression Gates passed. P3 is not started.
+All mandatory P2 runtime, authentication, identity, governance, schema, request-bound, timeout/cleanup, graceful-shutdown, real A/B, 50-request, Inspector, official Tool, no-CLI/no-database/no-cache, zero-official-code-change, build/test/lint, P0/P1 regression, and HOTFIX01 upstream drift Gates passed. P3 is not started.

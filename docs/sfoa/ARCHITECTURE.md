@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P1 implemented and validated; `P1 = PASS`, awaiting maintainer review before P2
+Status: P2 implemented and validated; P2 Closure HOTFIX01 adds upstream inventory/contract drift guards while maintainer acceptance remains pending
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -312,7 +312,9 @@ The shared internal Bearer authenticates a controlled MCP client, not a human. U
 Official Provider availability and SFoA Agent visibility are distinct:
 
 ```text
-official Provider Tool inventory
+real public DxCoreMcpProvider
+  -> actual Provider/package/API + Tool contracts
+  -> executable inventory drift comparison
   -> explicit READ / METADATA_READ / MUTATION / ADMIN / LOCAL_DEV / UNKNOWN record
   -> P2 classification allow rule
   -> provider compatibility/presence check
@@ -323,19 +325,32 @@ official Provider Tool inventory
 
 Default enabled Tools are `get_username` and `run_soql_query`. `retrieve_metadata` is composition-compatible but disabled by default because it requires developer manifest/source context and filesystem/CWD handling. P2 rejects mutation, admin, local-development, incompatible, and unknown configuration during startup; disabled Tools are not visible.
 
-The inventory lives in `OFFICIAL_PROVIDER_INVENTORY.md`; executable decisions live in `official-tool-catalog.ts` and `ToolGovernancePolicy`. Classification is explicit and never inferred from a Tool name at runtime.
+`official-tool-catalog.ts` is the sole executable safety source. `OFFICIAL_PROVIDER_INVENTORY.md` is informational only. Classification is explicit and is never inferred from a Tool name, description, annotation, or Provider presence.
+
+The P2 Closure inspector constructs the real public dx-core Provider and compares Provider/package/API versions, Tool names, ReleaseState, input field names/requiredness, and output-schema capability with the audited catalog. Any drift makes `validate:upstream` return `UPSTREAM_REVIEW_REQUIRED`. An unrelated added Tool remains invisible under registration-time default deny and need not stop production; drift affecting an enabled remote Tool fails startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`.
 
 ## Remote Tool Schema Boundary
 
-`RemoteToolFacade` derives the public portion of each official `McpTool.getConfig()` Zod shape and omits only explicit host-owned fields. It injects authoritative technical arguments before delegating to the P1 adapter:
+`RemoteToolFacade` first requires the official `McpTool.getConfig()` surface and ReleaseState to exactly match the audited executable contract. It then constructs the remote Zod shape from an explicit Agent-field whitelist and injects authoritative technical arguments before delegating to the P1 adapter:
 
 | Tool | Agent input | Host injection |
 | --- | --- | --- |
-| `get_username` | optional official non-directory switches | request workspace `directory` |
+| `get_username` | `defaultTargetOrg`, `defaultDevHub` | request workspace `directory` |
 | `run_soql_query` | `query`, `useToolingApi` | route `usernameOrAlias`, workspace `directory` |
-| `retrieve_metadata` | manifest/source options | route `usernameOrAlias`, workspace `directory` |
+| `retrieve_metadata` | `ignoreConflicts`, `sourceDir`, `manifest` | route `usernameOrAlias`, workspace `directory` |
 
-The core remains unchanged official `Tool.exec()`. No SOQL, metadata execution, official error parsing, or Salesforce API behavior is reimplemented. The facade decision is recorded in ADR-0006.
+An upstream Tool field is therefore denied until maintainer review; it is never exposed merely because it is not host-owned. Missing/renamed host or Agent fields and ReleaseState changes also fail closed. The core remains unchanged official `Tool.exec()`. No SOQL, metadata execution, official error parsing, or Salesforce API behavior is reimplemented. ADR-0007 supersedes the open-ended projection decision in ADR-0006.
+
+Final P2 Closure path:
+
+```text
+Official Provider
+  -> Actual Tool Contract
+  -> Drift Guard
+  -> Explicit SFoA Governance
+  -> RemoteToolFacade
+  -> unchanged Tool.exec()
+```
 
 ## Reverse Proxy Boundary
 

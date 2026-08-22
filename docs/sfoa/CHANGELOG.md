@@ -2,6 +2,35 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-22 — P2 Closure HOTFIX01 upstream drift guard completed
+
+### Added
+
+- Actual public `DxCoreMcpProvider` inventory inspector and repeatable `validate:upstream` Gate for Provider/API/package version, Tool name, ReleaseState, input field/requiredness, and output-schema drift.
+- Stable `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT` startup/registration failure for enabled remote contract changes.
+- Executable dx-core 0.10.0 contracts for all 13 Tools and explicit host/Agent argument ownership for `get_username`, `run_soql_query`, and `retrieve_metadata`.
+- Seven inventory/contract test scenarios plus an optionality regression, exact remote-schema assertions, and four-field identity-forgery coverage. ADR-0007 supersedes ADR-0006's open-ended schema projection.
+
+### Changed
+
+- `RemoteToolFacade` now validates the complete audited surface and projects only `allowedAgentArguments`; official fields are no longer inherited merely because they are not host-owned.
+- `OFFICIAL_PROVIDER_INVENTORY.md` is explicitly informational. `official-tool-catalog.ts` is the sole executable safety source.
+- Hardened the request-timeout test so MCP initialize has a distinct timing margin and connection failure always closes server resources; this removed a root-suite load race without changing production timeout behavior.
+
+### Verification
+
+- Upstream compatibility: PASS; `DxCoreMcpProvider`, Provider API 0.6.0, dx-core 0.10.0, nine GA Tool names, and zero drift.
+- P2 tests 18/18 and strict lint PASS; unknown Tool remains unclassified/invisible/uncallable; added/removed/renamed/requiredness/ReleaseState contract changes fail closed.
+- P1 22/22 and live A/B PASS; P0 9/9 and live JWT/SOQL/metadata PASS; P0 HTTP 1/1 PASS.
+- P2 live A/B, 50-request zero-leak load, official Tool calls, and project-local Inspector initialize/list/call PASS. The first P2 live attempt lacked `MCP_CLIENT_TOKEN`; a command-local non-persisted test token was supplied and the complete rerun passed.
+- Original Salesforce stdio initialize/list/call PASS; Git Bash root build PASS in 94.94 s; root tests PASS in 325.05 s.
+- SFoA changed-code lint PASS. Root lint reproduced exactly 47 unchanged official code-analyzer errors: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`.
+- Official Salesforce TypeScript modifications: 0. Root `package.json`: unchanged. `yarn.lock`: unchanged. Official Tool copied/reimplemented: NO.
+
+### Result
+
+`P2-CLOSURE HOTFIX01 = PASS`. Baseline advanced to `P2-BL-1.2`; P3 remains not started pending maintainer final acceptance.
+
 ## 2026-08-22 — P2 remote runtime and Tool governance completed
 
 ### Added

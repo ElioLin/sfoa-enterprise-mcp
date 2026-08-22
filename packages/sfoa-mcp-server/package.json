@@ -17,6 +17,7 @@
     "package": "node -e \"console.log('Private P2 remote MCP server: package skipped')\"",
     "start": "yarn build && node dist/main.js",
     "test": "yarn build && node --test dist/test/*.test.js",
+    "validate:upstream": "yarn build && node dist/validation/upstream-compatibility.js",
     "validate:p2": "yarn build && node dist/validation/main.js",
     "validate:inspector": "yarn build && node dist/validation/inspector-gate.js"
   },

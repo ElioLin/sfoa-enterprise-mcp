@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P2-BL-1.1**
+Baseline ID: **P2-BL-1.2**
 
 Baseline date: 2026-08-22
 
@@ -90,11 +90,11 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P2 — Remote MCP Runtime & Tool Governance (COMPLETE / AWAITING MAINTAINER REVIEW)`
+`P2 — Remote MCP Runtime & Tool Governance (COMPLETE; CLOSURE HOTFIX01 PASS / AWAITING MAINTAINER REVIEW)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P3 = NOT STARTED`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE; P2-CLOSURE HOTFIX01 = PASS — AWAITING MAINTAINER REVIEW; P3 = NOT STARTED`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -105,6 +105,8 @@ The maintainer accepted P1 as `PASS / COMPLETE` on 2026-08-22 and authorized P2 
 P1 was fast-forwarded without squashing to `main` at commit `3d35ef6` and pushed before `feature/p2-remote-runtime-governance` was created from that updated `main`. P2 preserves P1 identity routing and adds a separate production HTTP host, minimal internal Bearer client authentication, registration-time Tool governance, remote schema adaptation where the public Provider API permits it, request bounds/timeouts, graceful shutdown, and remote-client contracts. P2 remains read-only and database-free.
 
 P2 completed on its dedicated feature branch. The production Host, authentication/order boundary, default-deny Tool governance, remote schema facade, health/readiness, request bounds/timeouts, graceful shutdown, A/B identity isolation, 50-request load, official SDK Client, project-local Inspector, official Tool, and P0/P1/root regressions all passed. P2 modifies zero official Salesforce TypeScript files and adds no CLI/database/cache/DML dependency. P3 remains prohibited until maintainer review accepts this Gate.
+
+P2 Closure HOTFIX01 removes open-ended upstream schema inheritance before maintainer acceptance. The executable catalog now contains the audited dx-core Provider/package/API baseline, all 13 Tool name/ReleaseState/input-requiredness/output-schema contracts, and explicit host/Agent ownership for the three remote-compatible Tools. A real public-Provider compatibility Gate reports unrelated drift as `UPSTREAM_REVIEW_REQUIRED`; enabled contract drift fails startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`. New Tools, classifications, Providers, and fields remain default-deny. P2 defaults, request identity authority, official `Tool.exec()`, read-only scope, and dependency boundaries are unchanged.
 
 ## P0 acceptance decisions
 
@@ -177,6 +179,8 @@ P1 has received maintainer review and is accepted. P2 was implemented only on th
 - P2 tests 10/10, strict lint, root build, root full tests (394.13 s), P1 22/22/live, P0 9/9/live, P0 HTTP POC, and original stdio passed.
 - Root lint reproduced exactly 47 unchanged official code-analyzer errors and no SFoA error: `UPSTREAM_LINT_BASELINE = KNOWN UPSTREAM DEBT`; `SFOA_CHANGED_CODE_LINT = PASS`.
 - Salesforce CLI runtime dependency: none. Database/Redis/token-cache/Connection-pool dependency: none. Official Salesforce TypeScript modifications: 0. Root manifest/lockfile modifications: 0.
+- P2 Closure HOTFIX01 exact dx-core inventory Gate passed with nine GA Tools and zero drift; unknown Tool, added field, removed host field, removed Agent field, optionality change, ReleaseState change, exact remote schema, and identity-forgery tests passed.
+- Final HOTFIX regression evidence: P2 18/18, P1 22/22/live, P0 9/9/live, P0 HTTP 1/1, Inspector, original stdio, root build, root tests, and SFoA changed-code lint passed. Root lint reproduced exactly 47 unchanged official code-analyzer errors as `KNOWN UPSTREAM DEBT`.
 
 ### P1 entry criteria — satisfied (historical)
 
@@ -195,6 +199,7 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | Provider registry is a static internal array | `@salesforce/mcp` is not a public embeddable host library | Consume public provider packages and build a thin host |
 | Metadata retrieve requires an `SfProject` and writes files | Remote runtime needs workspace lifecycle | P1 uses one bounded disposable DX workspace per POST; avoid shared workspaces until proven necessary |
 | Upstream package versions can temporarily drift from local workspaces | A local provider change may not be the provider version bundled by `@salesforce/mcp` | Pin and record resolved versions; validate packaged server separately |
+| Official Tool inventory or schema drifts after upstream sync | A new/renamed Tool or field could bypass a manual mirror | Inspect the actual public Provider; fail the compatibility Gate for all drift; fail production startup when enabled contracts drift; whitelist Agent fields only |
 | Yarn v1 `nohoist` is expensive on Windows | Slow clean installs and CI | Preserve Upstream policy; use cache and measure, do not migrate package manager in P0 |
 | This already-open process still has the legacy Salesforce CLI PATH snapshot | CLI command may resolve 1.86.7 until terminal restart | Persistent user PATH now prefers the stable v2 shim; open a new terminal and verify v2.148.3. Production does not use CLI. |
 | SFoA credentials are local-only | Credentials must remain out of Git and reports | `.env.local` is ignored; live Gates passed without persisting values or tokens |
@@ -225,3 +230,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P1-BL-1.2 | 2026-08-22 | Recorded maintainer acceptance of P1 and authorization for P2 after rerunning the accepted P1 build, 22/22 tests, strict lint, and live two-user validation; P2 remains unstarted until its branch is created from updated `main`. |
 | P2-BL-1.0 | 2026-08-22 | Fast-forwarded accepted P1 to `main`, created the dedicated P2 branch, and entered a read-only, stateless remote-runtime phase with internal Bearer authentication, default-deny Tool governance, bounded requests, no database/cache, and no official Salesforce TypeScript patch. |
 | P2-BL-1.1 | 2026-08-22 | Closed P2 as PASS after authenticated stateless HTTP, default-deny/read-only Tool governance, remote schemas, bounds/timeouts/drain, real A/B and 50-request zero-leak validation, Inspector/official Tool/root regressions, measured fresh-JWT latency without cache, no CLI/database/DML dependency, and zero official Salesforce TypeScript changes; P3 remains unstarted pending maintainer review. |
+| P2-BL-1.2 | 2026-08-22 | Closed P2 Closure HOTFIX01 with an actual public-Provider inventory Gate, one executable audited dx-core contract catalog, enabled-contract startup fail-closed behavior, Agent-field whitelist projection, ADR-0007, 18/18 P2 tests, full live/protocol/root regressions, zero official Salesforce TypeScript changes, and no P3 scope. |

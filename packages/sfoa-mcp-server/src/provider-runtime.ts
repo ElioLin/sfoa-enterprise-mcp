@@ -1,15 +1,7 @@
-import type { Connection } from '@salesforce/core';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
-  type ConfigService,
   type McpTool,
-  type OrgConfigInfo,
-  type OrgService,
   ReleaseState,
-  type SanitizedOrgAuthorization,
-  type Services,
-  type TelemetryEvent,
-  type TelemetryService,
 } from '@salesforce/mcp-provider-api';
 import {
   NoopRuntimeLogger,
@@ -23,11 +15,20 @@ import {
 import { RemoteRuntimeError, toRemoteRuntimeError } from './errors.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
 import { ToolGovernancePolicy } from './tool-governance.js';
+import {
+  assertEnabledRemoteContractsCompatible,
+  compareOfficialProviderInventory,
+  inspectOfficialDxCoreInventory,
+  type OfficialProviderInventory,
+  type UpstreamInventoryComparison,
+} from './upstream-drift.js';
 
 export type InitializedProviderRuntime = Readonly<{
   toolSource: RequestToolSource;
   providerToolNames: readonly string[];
   policy: ToolGovernancePolicy;
+  inventory: OfficialProviderInventory;
+  inventoryComparison: UpstreamInventoryComparison;
 }>;
 
 export type CreateGovernedMcpServerOptions = Readonly<{
@@ -43,14 +44,23 @@ export type CreateGovernedMcpServerOptions = Readonly<{
 export async function initializeProviderRuntime(
   enabledTools: readonly string[],
   toolSource: RequestToolSource = new OfficialDxCoreToolSource(),
+  inventoryToolSource?: RequestToolSource,
 ): Promise<InitializedProviderRuntime> {
   try {
-    const tools = await toolSource.provideTools(createStartupServices());
+    const inventory = await inspectOfficialDxCoreInventory(inventoryToolSource);
+    const inventoryComparison = compareOfficialProviderInventory(inventory);
+    assertEnabledRemoteContractsCompatible(inventoryComparison, enabledTools, inventory);
     const providerToolNames = Object.freeze(
-      tools.filter((tool) => tool.getReleaseState() === ReleaseState.GA).map((tool) => tool.getName()),
+      inventory.tools.filter((tool) => tool.releaseState === ReleaseState.GA).map((tool) => tool.name),
     );
     const policy = new ToolGovernancePolicy(enabledTools, providerToolNames);
-    return Object.freeze({ toolSource, providerToolNames, policy });
+    return Object.freeze({
+      toolSource,
+      providerToolNames,
+      policy,
+      inventory,
+      inventoryComparison,
+    });
   } catch (error) {
     if (error instanceof RemoteRuntimeError) throw error;
     throw toRemoteRuntimeError(
@@ -99,6 +109,7 @@ export async function createGovernedMcpServer(
       }
       const facade = new RemoteToolFacade({
         tool,
+        policyRecord: options.initializedProvider.policy.getRecord(name),
         adapter,
         context: options.scope.context,
         route: options.scope.route,
@@ -117,67 +128,4 @@ export async function createGovernedMcpServer(
     await server.close().catch(() => undefined);
     throw error;
   }
-}
-
-class StartupTelemetryService implements TelemetryService {
-  public sendEvent(_eventName: string, _event: TelemetryEvent): void {
-    // Provider inventory must not emit telemetry or perform I/O at startup.
-  }
-}
-
-class StartupOrgService implements OrgService {
-  public getAllowedOrgUsernames(): Promise<Set<string>> {
-    return Promise.resolve(new Set());
-  }
-
-  public getAllowedOrgs(): Promise<SanitizedOrgAuthorization[]> {
-    return Promise.resolve([]);
-  }
-
-  public getConnection(_username: string): Promise<Connection> {
-    return Promise.reject(providerExecutionAtStartup());
-  }
-
-  public getDefaultTargetOrg(): Promise<OrgConfigInfo | undefined> {
-    return Promise.resolve(undefined);
-  }
-
-  public getDefaultTargetDevHub(): Promise<OrgConfigInfo | undefined> {
-    return Promise.resolve(undefined);
-  }
-
-  public findOrgByUsernameOrAlias(
-    _allOrgs: SanitizedOrgAuthorization[],
-    _usernameOrAlias: string,
-  ): SanitizedOrgAuthorization | undefined {
-    return undefined;
-  }
-}
-
-class StartupConfigService implements ConfigService {
-  public getDataDir(): string {
-    return process.cwd();
-  }
-
-  public getStartupFlags(): { 'allow-non-ga-tools': boolean; debug: boolean } {
-    return { 'allow-non-ga-tools': false, debug: false };
-  }
-}
-
-function createStartupServices(): Services {
-  const telemetry = new StartupTelemetryService();
-  const org = new StartupOrgService();
-  const config = new StartupConfigService();
-  return {
-    getTelemetryService: () => telemetry,
-    getOrgService: () => org,
-    getConfigService: () => config,
-  };
-}
-
-function providerExecutionAtStartup(): RemoteRuntimeError {
-  return new RemoteRuntimeError(
-    'MCP_PROVIDER_INITIALIZATION_FAILED',
-    'The official Provider attempted Salesforce execution during readiness initialization.',
-  );
 }

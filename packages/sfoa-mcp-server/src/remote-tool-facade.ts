@@ -14,13 +14,16 @@ import type {
 } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
+import type { OfficialToolPolicyRecord } from './official-tool-catalog.js';
 import { withTimeout } from './timeouts.js';
+import { validateRemoteToolContract } from './upstream-drift.js';
 
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 type ToolInput = Record<string, unknown>;
 
 export type RemoteToolFacadeOptions = Readonly<{
   tool: McpTool;
+  policyRecord: OfficialToolPolicyRecord;
   adapter: RequestScopedToolExecutionAdapter;
   context: RequestContext;
   route: SalesforceIdentityRoute;
@@ -30,12 +33,6 @@ export type RemoteToolFacadeOptions = Readonly<{
   clientId: string;
   redactionSecrets?: readonly string[];
 }>;
-
-const HOST_OWNED_ARGUMENTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  get_username: Object.freeze(['directory']),
-  run_soql_query: Object.freeze(['usernameOrAlias', 'directory']),
-  retrieve_metadata: Object.freeze(['usernameOrAlias', 'directory']),
-});
 
 const REMOTE_ANNOTATIONS: Readonly<Record<string, ToolAnnotations>> = Object.freeze({
   get_username: Object.freeze({
@@ -69,10 +66,10 @@ const REMOTE_DESCRIPTIONS: Readonly<Record<string, string>> = Object.freeze({
 
 export class RemoteToolFacade {
   public constructor(private readonly options: RemoteToolFacadeOptions) {
-    if (!HOST_OWNED_ARGUMENTS[options.tool.getName()]) {
+    if (!options.policyRecord.remoteContract || options.policyRecord.name !== options.tool.getName()) {
       throw new RemoteRuntimeError(
         'MCP_TOOL_NOT_AVAILABLE',
-        `Tool ${options.tool.getName()} does not have an explicit remote host-argument policy.`,
+        `Tool ${options.tool.getName()} does not have a matching explicit remote contract.`,
       );
     }
   }
@@ -82,11 +79,18 @@ export class RemoteToolFacade {
   }
 
   public getConfig(): McpToolConfig<z.ZodRawShape, z.ZodRawShape> {
-    const official = this.options.tool.getConfig();
-    const hidden = new Set(HOST_OWNED_ARGUMENTS[this.getName()]);
-    const inputSchema = Object.fromEntries(
-      Object.entries(official.inputSchema ?? {}).filter(([name]) => !hidden.has(name)),
-    ) as z.ZodRawShape;
+    const official = validateRemoteToolContract(this.options.tool, this.options.policyRecord);
+    const inputSchema: z.ZodRawShape = {};
+    for (const name of this.options.policyRecord.remoteContract?.allowedAgentArguments ?? []) {
+      const schema = official.inputSchema?.[name];
+      if (!schema) {
+        throw new RemoteRuntimeError(
+          'MCP_UPSTREAM_TOOL_CONTRACT_DRIFT',
+          `Official Tool ${this.getName()} is missing audited Agent field ${name}.`,
+        );
+      }
+      inputSchema[name] = schema;
+    }
 
     return {
       ...official,
@@ -124,21 +128,21 @@ export class RemoteToolFacade {
   }
 
   private hostOwnedInput(): ToolInput {
-    switch (this.getName()) {
-      case 'get_username':
-        return { directory: this.options.workspaceRoot };
-      case 'run_soql_query':
-      case 'retrieve_metadata':
-        return {
-          usernameOrAlias: this.options.route.salesforceUsername,
-          directory: this.options.workspaceRoot,
-        };
-      default:
+    const authoritative: ToolInput = {
+      usernameOrAlias: this.options.route.salesforceUsername,
+      directory: this.options.workspaceRoot,
+    };
+    const injected: ToolInput = {};
+    for (const name of this.options.policyRecord.remoteContract?.hostOwnedArguments ?? []) {
+      if (!(name in authoritative)) {
         throw new RemoteRuntimeError(
-          'MCP_TOOL_NOT_AVAILABLE',
-          `Tool ${this.getName()} does not have an explicit remote input adapter.`,
+          'MCP_UPSTREAM_TOOL_CONTRACT_DRIFT',
+          `Tool ${this.getName()} has unsupported host-owned field ${name}.`,
         );
+      }
+      injected[name] = authoritative[name];
     }
+    return injected;
   }
 
   private log(result: 'PASS' | 'ERROR', durationMs: number, errorCode?: string): void {

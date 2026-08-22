@@ -1,6 +1,6 @@
 # ADR-0006: Adapt Remote Tool Schemas at the Host Boundary
 
-- Status: Accepted for P2
+- Status: Superseded by ADR-0007 for P2 Closure HOTFIX01
 - Date: 2026-08-22
 - Extends: ADR-0003 and ADR-0005
 
