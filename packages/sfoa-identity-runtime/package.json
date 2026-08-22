@@ -1,0 +1,33 @@
+{
+  "name": "@sfoa/identity-runtime",
+  "version": "0.1.0-p1",
+  "private": true,
+  "description": "P1 request-scoped Salesforce identity routing and Streamable HTTP validation runtime",
+  "type": "module",
+  "main": "dist/main.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P1 identity runtime: package skipped')\"",
+    "start:p1": "yarn build && node dist/main.js",
+    "test": "yarn build && node --test dist/test/*.test.js",
+    "validate:p1": "yarn build && node dist/validation/main.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.18.2",
+    "@salesforce/core": "8.29.0",
+    "@salesforce/mcp-provider-api": "0.6.0",
+    "@salesforce/mcp-provider-dx-core": "0.10.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}
