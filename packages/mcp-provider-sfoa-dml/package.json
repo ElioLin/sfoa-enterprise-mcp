@@ -1,0 +1,30 @@
+{
+  "name": "@sfoa/mcp-provider-sfoa-dml",
+  "version": "0.1.0-p3",
+  "private": true,
+  "description": "P3 generic Salesforce CREATE/UPDATE Provider with strict object-operation governance",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P3 SFoA DML Provider: package skipped')\"",
+    "test": "yarn build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.18.2",
+    "@salesforce/core": "8.29.0",
+    "@salesforce/mcp-provider-api": "0.6.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}

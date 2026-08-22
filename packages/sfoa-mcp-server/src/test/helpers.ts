@@ -1,4 +1,5 @@
 import type { Connection } from '@salesforce/core';
+import { parseDmlAllowlistJson } from '@sfoa/mcp-provider-sfoa-dml';
 import {
   CwdExecutionGuard,
   createIdentityRuntime,
@@ -37,8 +38,18 @@ export type ConnectionCreation = Readonly<{
   connection: Connection;
 }>;
 
+export type DmlCall = Readonly<{
+  sequence: number;
+  platformUserId: string;
+  salesforceUsername: string;
+  operation: 'CREATE' | 'UPDATE';
+  objectApiName: string;
+  record: Readonly<Record<string, unknown>>;
+}>;
+
 export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly creations: ConnectionCreation[] = [];
+  public readonly dmlCalls: DmlCall[] = [];
 
   public async create(route: SalesforceIdentityRoute): Promise<Connection> {
     const sequence = this.creations.length + 1;
@@ -47,6 +58,7 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       totalSize: 1,
       done: true,
     };
+    const createdRecordId = `00Q${String(sequence).padStart(12, '0')}AAA`;
     const connection = {
       getApiVersion: () => '65.0',
       identity: async () => ({
@@ -56,6 +68,30 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       }),
       query: async (_query: string) => queryResult,
       tooling: { query: async (_query: string) => queryResult },
+      sobject: (objectApiName: string) => ({
+        create: async (record: Record<string, unknown>) => {
+          this.dmlCalls.push({
+            sequence,
+            platformUserId: route.platformUserId,
+            salesforceUsername: route.salesforceUsername,
+            operation: 'CREATE',
+            objectApiName,
+            record: { ...record },
+          });
+          return { success: true, id: createdRecordId, errors: [] };
+        },
+        update: async (record: Record<string, unknown>) => {
+          this.dmlCalls.push({
+            sequence,
+            platformUserId: route.platformUserId,
+            salesforceUsername: route.salesforceUsername,
+            operation: 'UPDATE',
+            objectApiName,
+            record: { ...record },
+          });
+          return { success: true, id: String(record.Id), errors: [] };
+        },
+      }),
     } as unknown as Connection;
     this.creations.push({
       sequence,
@@ -99,6 +135,7 @@ export function createTestRemoteConfig(
     requestTimeoutMs: 2_000,
     toolTimeoutMs: 1_000,
     enabledTools: Object.freeze(['get_username', 'run_soql_query']),
+    dmlAllowlist: parseDmlAllowlistJson(undefined),
     allowedHosts: Object.freeze([]),
     allowedOrigins: Object.freeze([]),
     useLoopbackHostDefaults: true,

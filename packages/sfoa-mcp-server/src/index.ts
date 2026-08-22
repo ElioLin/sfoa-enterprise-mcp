@@ -1,5 +1,7 @@
 export * from './authenticator.js';
 export * from './config.js';
+export * from './dml-tool-facade.js';
+export * from './dml-tool-governance.js';
 export * from './errors.js';
 export * from './http-server.js';
 export * from './official-tool-catalog.js';

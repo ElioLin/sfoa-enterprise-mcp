@@ -88,6 +88,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
     options.config.enabledTools,
     options.toolSource,
     options.inventoryToolSource,
+    options.config.dmlAllowlist,
   );
   const authenticator = options.authenticator ?? createAuthenticator(options.config);
   const activeRequests = new Set<Promise<void>>();
@@ -177,7 +178,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
     mcpUrl,
     healthUrl,
     readyUrl,
-    registeredTools: initializedProvider.policy.enabledTools,
+    registeredTools: initializedProvider.enabledTools,
     getMetrics: () =>
       Object.freeze({
         totalRequests,

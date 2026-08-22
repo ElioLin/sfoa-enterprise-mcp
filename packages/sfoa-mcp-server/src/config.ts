@@ -5,6 +5,11 @@ import {
   parseEnvFile,
   type IdentityRuntimeConfig,
 } from '@sfoa/identity-runtime';
+import {
+  DmlRuntimeError,
+  parseDmlAllowlistJson,
+  type DmlAllowlistPolicy,
+} from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
 import { DEFAULT_ENABLED_TOOLS } from './tool-governance.js';
 import { RemoteRuntimeError } from './errors.js';
@@ -23,6 +28,7 @@ export type RemoteRuntimeConfig = Readonly<{
   requestTimeoutMs: number;
   toolTimeoutMs: number;
   enabledTools: readonly string[];
+  dmlAllowlist: DmlAllowlistPolicy;
   allowedHosts: readonly string[];
   allowedOrigins: readonly string[];
   useLoopbackHostDefaults: boolean;
@@ -48,6 +54,7 @@ const rawRemoteConfigSchema = z
     MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(60_000),
     MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(120_000),
     MCP_ENABLED_TOOLS: z.string().trim().default(DEFAULT_ENABLED_TOOLS.join(',')),
+    MCP_DML_ALLOWLIST_JSON: z.string().max(65_536).optional(),
     MCP_ALLOWED_HOSTS: z.string().trim().optional(),
     MCP_ALLOWED_ORIGINS: z.string().trim().optional(),
   })
@@ -64,6 +71,7 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'MCP_REQUEST_TIMEOUT_MS',
   'MCP_TOOL_TIMEOUT_MS',
   'MCP_ENABLED_TOOLS',
+  'MCP_DML_ALLOWLIST_JSON',
   'MCP_ALLOWED_HOSTS',
   'MCP_ALLOWED_ORIGINS',
 ] as const;
@@ -112,6 +120,15 @@ export async function loadRemoteRuntimeConfig(
   if (enabledTools.length === 0) {
     throw configurationError('MCP_ENABLED_TOOLS must contain at least one explicitly enabled Tool.');
   }
+  let dmlAllowlist: DmlAllowlistPolicy;
+  try {
+    dmlAllowlist = parseDmlAllowlistJson(parsed.data.MCP_DML_ALLOWLIST_JSON);
+  } catch (error) {
+    if (error instanceof DmlRuntimeError && error.code === 'MCP_DML_CONFIGURATION_INVALID') {
+      throw new RemoteRuntimeError('MCP_DML_CONFIGURATION_INVALID', error.message, { cause: error });
+    }
+    throw error;
+  }
 
   return Object.freeze({
     identity,
@@ -125,6 +142,7 @@ export async function loadRemoteRuntimeConfig(
     requestTimeoutMs: parsed.data.MCP_REQUEST_TIMEOUT_MS,
     toolTimeoutMs: parsed.data.MCP_TOOL_TIMEOUT_MS,
     enabledTools,
+    dmlAllowlist,
     allowedHosts,
     allowedOrigins,
     useLoopbackHostDefaults: loopback && allowedHosts.length === 0,
