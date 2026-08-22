@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P0-BL-1.4**
+Baseline ID: **P1-BL-1.0**
 
 Baseline date: 2026-08-22
 
@@ -48,7 +48,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Future Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Database | P0/P0-Closure: none. Persistence is introduced only when request-scoped identity mapping or Admin configuration proves it is needed. |
+| Database | P0/P0-Closure/P1: none. P1 uses an `IdentityRepository` contract with an in-memory implementation; persistence is introduced only when durable routing or Admin configuration proves it is needed. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
 
@@ -90,13 +90,15 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P0-Closure — COMPLETE; P1 not started`
+`P1 — Request-Scoped Identity Routing (AUTHORIZED / IN PROGRESS)`
 
 ## Current status
 
-`P0 = PASS — AWAITING MAINTAINER REVIEW`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = IN PROGRESS`
 
-The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. P1 has not started; this baseline records eligibility for maintainer review, not authorization to begin P1.
+The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
+
+The maintainer had supplied `SECOND_TEST_USER`, but the P0-Closure configuration loader did not read it. Therefore the historical P0 matrix statement "`SECOND_TEST_USER` not supplied" is inaccurate as an input statement while remaining accurate that the second user was not exercised by P0. Historical reports are not rewritten to imply a test that did not occur. Real second-user execution is a mandatory P1 Gate.
 
 ## P0 acceptance decisions
 
@@ -125,7 +127,7 @@ The authoritative evidence and answers are maintained in `P0_FINAL_REPORT.md`. A
 - NOT TESTED: second-user request isolation and optional additional Metadata types (ValidationRule, Flow, ApexClass/ApexTrigger, Layout, FlexiPage); these are not P0 closure requirements.
 - Official Salesforce TypeScript files modified: 0. Upstream-tracked integration files modified: `.gitignore` only.
 
-## P1 scope (planned; not started)
+## P1 scope (authorized; in progress)
 
 1. Define authenticated request context (`platformUserId`, correlation ID, immutable workspace reference).
 2. Define an `IdentityRepository` interface and implement an identity resolver from platform user to configured Salesforce username and JWT material reference. An in-memory/local test mapping is sufficient for the P1 runtime POC.
@@ -134,14 +136,17 @@ The authoritative evidence and answers are maintained in `P0_FINAL_REPORT.md`. A
 5. Wrap Tool execution with a working-directory isolation strategy; the P1 minimum is a global mutex plus restore, with child-process isolation evaluated for metadata/concurrency.
 6. Add positive, negative, cross-user, concurrent, token-expiry, and no-route tests.
 7. Record the final routing choice in a superseding/accepted ADR before implementation is declared complete.
+8. Reserve `ConnectionRole = USER | DIAGNOSTIC` in request/connection contracts. P1 implements only `USER`. A fixed Diagnostic Integration User is deferred to P4 and must never execute business SOQL, record query, CREATE, or UPDATE.
 
 P1 explicitly excludes the production DML provider, production Admin UI, complex policy engine, database-first redesign, and Redis. A persistent database is added only when routing management or Admin configuration actually requires it; it must not block the request-scoped runtime POC. P1 production/runtime tests must not depend on the local Salesforce CLI Auth Cache.
 
-### P1 entry criteria
+### P1 entry criteria — satisfied
 
 - P0-Closure live Fresh JWT, Direct Connection, Identity Match, Direct SOQL, official SOQL, and at least one official CustomObject metadata retrieval are PASS.
 - Original stdio, Streamable HTTP, and SFoA changed-code lint regressions remain PASS.
 - The maintainer reviews `P0_CLOSURE_REPORT.md` and explicitly authorizes P1.
+
+All three criteria are satisfied. P2 remains prohibited until the completed P1 Gate receives maintainer review.
 
 ## Known risks
 
@@ -160,7 +165,7 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 
 ## Open questions
 
-- Is a second Salesforce user available for the P1 request-scoped isolation Gate?
+- `SECOND_TEST_USER` is locally supplied and must be consumed by the P1 live Gate; no real username may be committed.
 - Does the production WorkBuddy/Dify deployment pass a trustworthy platform-user claim directly, or require a gateway-issued token?
 - For metadata operations, is per-request temporary workspace cost acceptable, or is a controlled per-user shared workspace required?
 
@@ -173,3 +178,4 @@ P1 explicitly excludes the production DML provider, production Admin UI, complex
 | P0-BL-1.2 | 2026-08-22 | Associated the local `origin` remote with the supplied company GitHub repository and made `origin/main` the project branch tracking target. |
 | P0-BL-1.3 | 2026-08-22 | Added P0-Closure Harness and user test flow; normalized lint debt, established exact Provider baselines, removed CLI/database from production/P0 assumptions, moved the second-user Gate to P1, and retained PARTIAL PASS pending live SFoA inputs. |
 | P0-BL-1.4 | 2026-08-22 | Completed live SFoA JWT, identity, Direct/official SOQL, CustomObject metadata, CWD boundary, and CLI v2 cross-check Gates; upgraded P0 to PASS while keeping P1 unstarted and recording remaining Upstream/concurrency risks. |
+| P1-BL-1.0 | 2026-08-22 | Recorded maintainer acceptance of P0, corrected the historical `SECOND_TEST_USER` input omission without rewriting P0 results, entered P1 on an isolated feature branch, retained a database-free in-memory repository, and reserved the non-implemented P4 `DIAGNOSTIC` connection role. |
