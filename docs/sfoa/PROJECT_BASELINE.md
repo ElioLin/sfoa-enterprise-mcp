@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P1-BL-1.2**
+Baseline ID: **P2-BL-1.0**
 
 Baseline date: 2026-08-22
 
@@ -48,7 +48,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Future Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Database | P0/P0-Closure/P1: none. P1 uses an `IdentityRepository` contract with an in-memory implementation; persistence is introduced only when durable routing or Admin configuration proves it is needed. |
+| Database | P0/P0-Closure/P1/P2: none. P2 continues to use the P1 `IdentityRepository` contract and in-memory implementation; persistence is introduced only when durable routing or Admin configuration proves it is needed. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
 
@@ -90,17 +90,19 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P1 — Request-Scoped Identity Routing (PASS / COMPLETE / MAINTAINER ACCEPTED)`
+`P2 — Remote MCP Runtime & Tool Governance (IN PROGRESS)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = AUTHORIZED / NOT STARTED`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = IN PROGRESS`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
 The maintainer had supplied `SECOND_TEST_USER`, but the P0-Closure configuration loader did not read it. Therefore the historical P0 matrix statement "`SECOND_TEST_USER` not supplied" was inaccurate as an input statement while remaining accurate that the second user was not exercised by P0. Historical reports are not rewritten to imply a test that did not occur. The P1 configuration now explicitly consumes `SECOND_TEST_USER`, constructs the second route, and the mandatory real two-user Gate passed.
 
 The maintainer accepted P1 as `PASS / COMPLETE` on 2026-08-22 and authorized P2 Remote MCP Runtime & Tool Governance. The required P1 build, 22/22 tests, strict lint, and live two-user validation were rerun successfully on the accepted P1 branch before merge to `main`.
+
+P1 was fast-forwarded without squashing to `main` at commit `3d35ef6` and pushed before `feature/p2-remote-runtime-governance` was created from that updated `main`. P2 preserves P1 identity routing and adds a separate production HTTP host, minimal internal Bearer client authentication, registration-time Tool governance, remote schema adaptation where the public Provider API permits it, request bounds/timeouts, graceful shutdown, and remote-client contracts. P2 remains read-only and database-free.
 
 ## P0 acceptance decisions
 
@@ -199,3 +201,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P1-BL-1.0 | 2026-08-22 | Recorded maintainer acceptance of P0, corrected the historical `SECOND_TEST_USER` input omission without rewriting P0 results, entered P1 on an isolated feature branch, retained a database-free in-memory repository, and reserved the non-implemented P4 `DIAGNOSTIC` connection role. |
 | P1-BL-1.1 | 2026-08-22 | Closed P1 as PASS after real A/B JWT/identity and official Tool execution, bidirectional forgery denial, 20-request zero-leak concurrency, metadata/CWD/workspace isolation, request cleanup, stdio/HTTP/P0 regressions, zero official TypeScript patches, and SFoA changed-code lint; P2 remains unstarted pending maintainer review. |
 | P1-BL-1.2 | 2026-08-22 | Recorded maintainer acceptance of P1 and authorization for P2 after rerunning the accepted P1 build, 22/22 tests, strict lint, and live two-user validation; P2 remains unstarted until its branch is created from updated `main`. |
+| P2-BL-1.0 | 2026-08-22 | Fast-forwarded accepted P1 to `main`, created the dedicated P2 branch, and entered a read-only, stateless remote-runtime phase with internal Bearer authentication, default-deny Tool governance, bounded requests, no database/cache, and no official Salesforce TypeScript patch. |

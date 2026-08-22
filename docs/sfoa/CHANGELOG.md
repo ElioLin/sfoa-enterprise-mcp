@@ -2,6 +2,22 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-22 — P2 remote runtime and Tool governance authorized
+
+### Phase transition
+
+- Maintainer review accepted `P1 = PASS / COMPLETE` and authorized P2.
+- The accepted P1 branch was rerun through build, 22/22 tests, strict lint, and live two-user validation, then fast-forwarded without squashing to `main` at `3d35ef6` and pushed.
+- P2 development began from updated `main` on `feature/p2-remote-runtime-governance`; P3 remains prohibited pending the complete P2 Gate and maintainer review.
+
+### Baseline decisions
+
+- P2 adds a separate SFoA-owned production Streamable HTTP host; `@sfoa/identity-runtime` remains the request-scoped identity foundation and its P1 test host is not promoted unchanged.
+- `platformUserId` remains the sole business identity authority after minimal internal Bearer client authentication.
+- Tool governance is registration-time and default-deny. P2 remains read-only; mutation, admin, local-development, and unknown Tools are forbidden.
+- P2 remains database-, Redis-, token-cache-, connection-pool-, Salesforce-CLI-runtime-, DML-, and Admin-UI-free.
+- Baseline advanced to `P2-BL-1.0`; `P2 = IN PROGRESS`.
+
 ## 2026-08-22 — P1 request-scoped identity routing completed
 
 ### Added
