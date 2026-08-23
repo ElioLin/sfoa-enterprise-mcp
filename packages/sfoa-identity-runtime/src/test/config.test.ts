@@ -15,6 +15,7 @@ test('P1 config consumes SECOND_TEST_USER and builds two non-secret identity rou
       [
         'SFOA_INSTANCE_URL=https://example.test',
         'SALESFORCE_USERNAME=user-a@example.test',
+        'SFOA_DIAGNOSTIC_USERNAME=diagnostic@example.test',
         'SECOND_TEST_USER=user-b@example.test',
         'CONNECTED_APP_CLIENT_ID=test-client-id',
         'JWT_PRIVATE_KEY_PATH=test-key.pem',
@@ -29,6 +30,7 @@ test('P1 config consumes SECOND_TEST_USER and builds two non-secret identity rou
 
     const config = await loadIdentityRuntimeConfig(testRoot, {});
     assert.equal(config.secondaryUsername, 'user-b@example.test');
+    assert.equal(config.diagnosticUsername, 'diagnostic@example.test');
     const routes = buildIdentityRoutes(config);
     assert.equal(routes.length, 2);
     assert.equal(routes[1]?.salesforceUsername, config.secondaryUsername);
@@ -37,6 +39,11 @@ test('P1 config consumes SECOND_TEST_USER and builds two non-secret identity rou
 
     const withoutSecond: IdentityRuntimeConfig = { ...config, secondaryUsername: undefined };
     assert.deepEqual(missingLiveVariables(withoutSecond), ['SECOND_TEST_USER']);
+
+    await assert.rejects(
+      loadIdentityRuntimeConfig(testRoot, { SFOA_DIAGNOSTIC_USERNAME: 'USER-A@EXAMPLE.TEST' }),
+      /SFOA_DIAGNOSTIC_USERNAME must be distinct/iu,
+    );
 
     const sensitiveMissingPath = path.join(testRoot, 'sensitive-private-key-name.pem');
     await assert.rejects(

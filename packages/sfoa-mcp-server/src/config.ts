@@ -1,8 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  SFOA_CONTEXT_TOOL_ROLES,
+  isSfoaContextToolName,
+} from '@sfoa/mcp-provider-sfoa-context';
+import {
   loadIdentityRuntimeConfig,
   parseEnvFile,
+  RuntimeConfigurationError,
   type IdentityRuntimeConfig,
 } from '@sfoa/identity-runtime';
 import {
@@ -84,7 +89,18 @@ export async function loadRemoteRuntimeConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<RemoteRuntimeConfig> {
   const resolvedProjectRoot = path.resolve(projectRoot);
-  const identity = await loadIdentityRuntimeConfig(resolvedProjectRoot, environment);
+  let identity: IdentityRuntimeConfig;
+  try {
+    identity = await loadIdentityRuntimeConfig(resolvedProjectRoot, environment);
+  } catch (error) {
+    if (
+      error instanceof RuntimeConfigurationError &&
+      error.message.startsWith('SFOA_DIAGNOSTIC_USERNAME')
+    ) {
+      throw new RemoteRuntimeError('MCP_DIAGNOSTIC_CONFIGURATION_INVALID', error.message, { cause: error });
+    }
+    throw error;
+  }
   const fileValues = await readLocalEnvironment(resolvedProjectRoot);
   const combined: Record<string, string | undefined> = {};
   for (const name of REMOTE_ENVIRONMENT_NAMES) {
@@ -126,6 +142,15 @@ export async function loadRemoteRuntimeConfig(
   const enabledTools = parseToolNames(parsed.data.MCP_ENABLED_TOOLS);
   if (enabledTools.length === 0) {
     throw configurationError('MCP_ENABLED_TOOLS must contain at least one explicitly enabled Tool.');
+  }
+  const diagnosticTools = enabledTools.filter(
+    (name) => isSfoaContextToolName(name) && SFOA_CONTEXT_TOOL_ROLES[name] === 'DIAGNOSTIC',
+  );
+  if (diagnosticTools.length > 0 && !identity.diagnosticUsername) {
+    throw new RemoteRuntimeError(
+      'MCP_DIAGNOSTIC_CONFIGURATION_INVALID',
+      `SFOA_DIAGNOSTIC_USERNAME is required when diagnostic Tools are enabled: ${diagnosticTools.join(', ')}.`,
+    );
   }
   let dmlAllowlist: DmlAllowlistPolicy;
   try {

@@ -20,6 +20,7 @@ import type {
 } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import { RemoteRuntimeError } from './errors.js';
+import { remoteRuntimeErrorToolResult } from './errors.js';
 import { withTimeout } from './timeouts.js';
 
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -59,6 +60,26 @@ export class DmlToolFacade {
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
     const started = performance.now();
+    if (this.options.route.connectionRole !== 'USER') {
+      const error = new RemoteRuntimeError(
+        'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',
+        `Mutation Tool ${this.getName()} is fixed to the USER request scope and cannot execute with DIAGNOSTIC authority.`,
+        { correlationId: this.options.context.correlationId },
+      );
+      this.options.logger.log({
+        correlationId: this.options.context.correlationId,
+        clientId: this.options.clientId,
+        platformUserId: this.options.context.platformUserId,
+        salesforceUsername: this.options.route.salesforceUsername,
+        executionRole: this.options.route.connectionRole,
+        toolName: this.getName(),
+        operation: this.operation,
+        durationMs: elapsed(started),
+        result: 'BLOCKED',
+        errorCode: error.code,
+      });
+      return remoteRuntimeErrorToolResult(error, [], this.options.context.correlationId);
+    }
     try {
       const result = await withTimeout(
         Promise.resolve(this.options.tool.exec(input, extra)),
@@ -99,6 +120,7 @@ export class DmlToolFacade {
       clientId: this.options.clientId,
       platformUserId: this.options.context.platformUserId,
       salesforceUsername: this.options.route.salesforceUsername,
+      executionRole: this.options.route.connectionRole,
       toolName: this.getName(),
       operation: this.operation,
       ...(outcomeUnknown

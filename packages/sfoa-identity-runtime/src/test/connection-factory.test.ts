@@ -68,7 +68,7 @@ test('JwtConnectionFactory maps authentication and Connection failures to stable
   );
 });
 
-test('JwtConnectionFactory refuses the reserved DIAGNOSTIC role before authentication', async () => {
+test('JwtConnectionFactory authenticates a server-created DIAGNOSTIC route with the shared JWT configuration', async () => {
   let authCalls = 0;
   const factory = new JwtConnectionFactory(credentialConfig, {
     createAuthInfo: async () => {
@@ -84,9 +84,6 @@ test('JwtConnectionFactory refuses the reserved DIAGNOSTIC role before authentic
     connectionRole: 'DIAGNOSTIC',
     aliases: [],
   });
-  await assert.rejects(
-    factory.create(diagnosticRoute),
-    (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
-  );
-  assert.equal(authCalls, 0);
+  await factory.create(diagnosticRoute);
+  assert.equal(authCalls, 1);
 });

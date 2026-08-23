@@ -13,6 +13,10 @@ import {
   type DmlOperation,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import {
+  SFOA_CONTEXT_TOOL_ROLES,
+  isSfoaContextToolName,
+} from '@sfoa/mcp-provider-sfoa-context';
+import {
   formatRuntimeError,
   IdentityRuntimeError,
   type IdentityRuntime,
@@ -380,7 +384,10 @@ async function executeMcpPost(
   const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
   resources.assertAvailable(signal);
 
-  const scope = await options.identityRuntime.scopeFactory.create(identity);
+  const requestedRole = getRequestedExecutionRole(parsedBody, options.config.enabledTools);
+  const scope = requestedRole === 'DIAGNOSTIC'
+    ? await createDiagnosticScope(options.identityRuntime, identity)
+    : await options.identityRuntime.scopeFactory.create(identity);
   await resources.attachScope(scope);
   resources.assertAvailable(signal);
   observation.salesforceUsername = scope.route.salesforceUsername;
@@ -410,6 +417,37 @@ async function executeMcpPost(
   const responseCompleted = waitForResponseCompletion(options.response);
   await transport.handleRequest(options.request, options.response, parsedBody);
   if (!options.response.writableEnded && !options.response.destroyed) await responseCompleted;
+}
+
+export function getRequestedExecutionRole(
+  body: unknown,
+  enabledTools: readonly string[],
+): 'USER' | 'DIAGNOSTIC' {
+  if (!isRecord(body) || body.method !== 'tools/call' || !isRecord(body.params)) return 'USER';
+  const name = body.params.name;
+  if (
+    typeof name === 'string' &&
+    enabledTools.includes(name) &&
+    isSfoaContextToolName(name) &&
+    SFOA_CONTEXT_TOOL_ROLES[name] === 'DIAGNOSTIC'
+  ) {
+    return 'DIAGNOSTIC';
+  }
+  return 'USER';
+}
+
+async function createDiagnosticScope(
+  identityRuntime: IdentityRuntime,
+  identity: TrustedRequestIdentity,
+): Promise<RequestScope> {
+  if (!identityRuntime.diagnosticScopeFactory) {
+    throw new RemoteRuntimeError(
+      'MCP_DIAGNOSTIC_CONFIGURATION_INVALID',
+      'A diagnostic Tool was selected but the server-owned DIAGNOSTIC scope is not configured.',
+      { correlationId: identity.correlationId },
+    );
+  }
+  return identityRuntime.diagnosticScopeFactory.create(identity);
 }
 
 class RequestResources {
@@ -541,6 +579,7 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
     case 'MCP_IDENTITY_ROUTE_NOT_FOUND':
     case 'MCP_IDENTITY_CONTEXT_MISMATCH':
     case 'MCP_CONNECTION_ROLE_NOT_AVAILABLE':
+    case 'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED':
     case 'MCP_HOST_NOT_ALLOWED':
     case 'MCP_ORIGIN_NOT_ALLOWED':
       return 403;
@@ -570,6 +609,7 @@ function isBlocked(code: string): boolean {
     'MCP_IDENTITY_ROUTE_NOT_FOUND',
     'MCP_IDENTITY_CONTEXT_MISMATCH',
     'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
+    'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',
     'MCP_HOST_NOT_ALLOWED',
     'MCP_ORIGIN_NOT_ALLOWED',
     'MCP_TOOL_DISABLED',
@@ -746,6 +786,10 @@ function logCleanupFailure(
 
 function elapsed(started: number): number {
   return Math.round(performance.now() - started);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 async function closeHttpServerImmediately(server: Server): Promise<void> {

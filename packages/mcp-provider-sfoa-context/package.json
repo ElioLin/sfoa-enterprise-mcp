@@ -1,8 +1,8 @@
 {
-  "name": "@sfoa/identity-runtime",
+  "name": "@sfoa/mcp-provider-sfoa-context",
   "version": "0.1.0-p4",
   "private": true,
-  "description": "Request-scoped Salesforce USER and server-owned P4 DIAGNOSTIC identity runtime",
+  "description": "P4 deterministic Salesforce diagnostic and record-action context Provider",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,16 +14,13 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "clean-all": "yarn clean",
     "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "package": "node -e \"console.log('Private P1 identity runtime: package skipped')\"",
-    "start:p1": "yarn build && node dist/main.js",
-    "test": "yarn build && node --test dist/test/*.test.js",
-    "validate:p1": "yarn build && node dist/validation/main.js"
+    "package": "node -e \"console.log('Private P4 SFoA Context Provider: package skipped')\"",
+    "test": "yarn build && node --test dist/test/*.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.18.2",
     "@salesforce/core": "8.29.0",
     "@salesforce/mcp-provider-api": "0.6.0",
-    "@salesforce/mcp-provider-dx-core": "0.10.0",
     "zod": "3.25.76"
   },
   "devDependencies": {

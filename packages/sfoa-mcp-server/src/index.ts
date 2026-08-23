@@ -1,5 +1,7 @@
 export * from './authenticator.js';
 export * from './config.js';
+export * from './context-tool-facade.js';
+export * from './diagnostic-context-adapters.js';
 export * from './dml-tool-facade.js';
 export * from './dml-tool-governance.js';
 export * from './errors.js';

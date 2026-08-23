@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P4-BL-1.0**
+Baseline ID: **P4-BL-1.1**
 
 Baseline date: 2026-08-23
 
@@ -48,7 +48,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Future Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Database | P0/P0-Closure/P1/P2/P3: none. P3 continues to use the P1 `IdentityRepository` contract and in-memory implementation plus a strict environment-backed DML allowlist; persistence is introduced only when durable routing or Admin configuration proves it is needed. |
+| Database | P0/P0-Closure/P1/P2/P3/P4: none. P4 keeps the in-memory identity routes, environment-backed DML policy, fresh request scopes, and live Salesforce context; persistence is introduced only when durable routing or Admin configuration proves it is needed. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
 
@@ -90,11 +90,11 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P4 — Diagnosis & Runtime Context (IN PROGRESS)`
+`P4 — Diagnosis & Runtime Context (IMPLEMENTED; PARTIAL LIVE GATE)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 = IN PROGRESS`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 = PARTIAL`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -117,6 +117,12 @@ Maintainer review accepted the P3 architecture and required only P3-Closure HOTF
 Cross-layer review then found that the outer HTTP deadline could expire after SDK dispatch but before the DML Tool deadline. P3-Closure HOTFIX02 adds one minimal request-owned mutation state and marks it immediately before the public SDK CREATE/UPDATE call. An outer request timeout remains `MCP_REQUEST_TIMEOUT` while that state is not started, but becomes `MCP_DML_OUTCOME_UNKNOWN` after mutation start. Defaults are now request 180000 ms and Tool 120000 ms; startup rejects request timeout less than or equal to Tool timeout. The state is not a ledger or idempotency key, and the Host adds no retry, replay, persistence, or P4 capability.
 
 The maintainer final-accepted P3 and authorized P4 on 2026-08-23. Immediately before the transition, the clean P3 branch passed Provider tests 17/17, Host tests 18/18, `validate:upstream` with zero drift, and strict lint for all five SFoA TypeScript workspaces. P3 was then fast-forwarded without squashing to `main` at `4c3a45e`, pushed to `origin/main`, and `feature/p4-diagnosis-runtime-context` was created from that exact commit. P4 begins audit-first: no diagnosis or runtime-context capability is treated as implemented until the official Provider and live SFoA capability audits support an ADR decision.
+
+P4-00 then initialized the actual pinned dx-core and Code Analyzer Providers, inspected their executable contracts and filesystem behavior, live-ran official metadata retrieval, and exercised SFoA API 67.0 REST/GraphQL UI API for both users. ADR-0009 selected unchanged official `run_soql_query` and `retrieve_metadata` as internal primitives, REST UI API for record-action facts, no production GraphQL dependency, and no remote Code Analyzer because its installed absolute-path/durable-result contracts are incompatible with stateless request workspaces.
+
+P4 implementation adds the private `@sfoa/mcp-provider-sfoa-context` workspace and three independently enabled read-only Tools. `get_record_action_context` is fixed to USER. `run_diagnostic_tooling_query` and `get_metadata_component_context` are fixed to a server-owned `SFOA_DIAGNOSTIC_USERNAME`, fail startup when enabled without that setting, and cannot receive client identity/role/token/URL/filesystem authority. Each call uses a fresh Connection/workspace; no cache, pool, database, Redis, snapshot, evidence graph, form engine, permission replica, rule interpreter, lookup engine, or mutation was added.
+
+Final USER live evidence passed for both routes at API 67.0 with distinct Connections, identity mismatch 0, reuse 0, and exact workspace cleanup 2/2. All unit/protocol/security Gates, P0–P3 live regressions, original stdio, Inspector, upstream compatibility, Git Bash root build, full root tests, and six SFoA changed-code lints passed. The real fixed-DIAGNOSTIC Tooling and metadata evidence chain is `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is absent. P4 is therefore `PARTIAL`; mocks are not accepted as live evidence and P5 remains unauthorized.
 
 ## P0 acceptance decisions
 
@@ -242,7 +248,7 @@ P3 remains database-, Redis-, token-cache-, Connection-pool-, Salesforce-CLI-run
 - P3 live, P2 18/18 and live A/B/50-load, P1 22/22/live, P0 9/9/live, P0 HTTP, original stdio, Inspector, upstream compatibility, root build/tests, and all five SFoA strict TypeScript lints passed. Root lint reproduced exactly 47 unchanged official code-analyzer errors / 0 warnings as `KNOWN UPSTREAM DEBT`.
 - Official Salesforce TypeScript modified: 0. JSforce patched: NO. Root manifest/lockfile modified: 0. Database/Redis/idempotency/retry/UPSERT/DELETE/P4 additions: 0.
 
-## P4 scope (in progress)
+## P4 scope (implemented; live diagnostic chain pending)
 
 1. Audit the actual pinned official Providers, Tool inventory, ReleaseState, result shape, filesystem/service requirements, and request-workspace compatibility before adding any context implementation.
 2. Validate the live SFoA API version and REST UI API Object Info, Create/Edit Layout, Create Defaults, record-type-aware Picklist, and optional GraphQL UI API support with request-scoped USER Connections.
@@ -253,6 +259,22 @@ P3 remains database-, Redis-, token-cache-, Connection-pool-, Salesforce-CLI-run
 7. Complete unit, protocol, authorization, identity-isolation, live SFoA, cleanup/CWD, performance-observation, Inspector, stdio/HTTP, P0-P3 regression, root build/test, and changed-code lint Gates. Unavailable live evidence is `NOT TESTED`, never inferred as PASS.
 
 P4 is not authorized to enter P5. Its final result must be `PASS / COMPLETE — AWAITING MAINTAINER REVIEW`, `PARTIAL`, or `FAIL` based only on recorded evidence.
+
+## P4 result
+
+`P4 = PARTIAL`
+
+- Actual official Provider audit: PASS. DxCore returned 13 Tools/nine GA; `run_soql_query` and `retrieve_metadata` are reused unchanged. Official metadata live audit returned status text only and wrote 137 request-workspace files, proving the same-request bounded wrapper is necessary.
+- Actual Code Analyzer remote-compatibility audit: PASS as a decision, with result `NOT REMOTE COMPATIBLE`. Its absolute client targets, durable local project, and process-global temp result path are not exposed or rewritten.
+- Live UI API 67.0 audit: Object Info, Create/Edit Layout, Create Defaults, record-type Picklists/dependencies, and GraphQL `recordLayouts` PASS. REST is the runtime surface; GraphQL is NOT REQUIRED.
+- P4 Provider tests: 10/10. P4 Host tests: 7/7. Identity Runtime tests: 26/26. P3 Provider/Host regressions: 17/17 and 18/18. P2 Host regression: 18/18. P0 tests: 9/9; HTTP POC: 1/1.
+- Live USER record context: PASS for A/B with real distinct USER Connections, 111/79 returned fields, separate required/editable/default/picklist facts, identity mismatch 0, Connection reuse 0, and cleanup 2/2.
+- Real DIAGNOSTIC Tooling query and metadata context: NOT TESTED because no `SFOA_DIAGNOSTIC_USERNAME` is configured. This is the sole key capability preventing P4 PASS.
+- P3 live CREATE/UPDATE/failure/cleanup, P2 live A/B/50-load, P1 live A/B/20-concurrency, P0 live JWT/SOQL/official metadata, original stdio, project-local Inspector, and upstream zero-drift Gates: PASS.
+- Git Bash root build: PASS in 106.76 s. Root full tests: PASS in 419.58 s. All six SFoA strict TypeScript lints: PASS.
+- Root lint: exactly 47 errors / 0 warnings under unchanged official Code Analyzer paths, `KNOWN UPSTREAM DEBT`; no SFoA path.
+- Frozen Yarn Classic install: `KNOWN UPSTREAM DEBT`. It aborted on a nested `@typescript-eslint/.../ignore` ENOENT and removed generated `.bin` entries; root source/manifest/lockfile stayed unchanged. The 513 missing ignored commands were mechanically regenerated from installed `package.json#bin` declarations before stdio/build/tests passed.
+- Official Salesforce TypeScript changed: 0. Official Tool copied/reimplemented: 0. JSforce patched: 0. Root manifest/lockfile changed: 0. Database/Redis/cache/pool added: 0.
 
 ### P1 entry criteria — satisfied (historical)
 
@@ -276,20 +298,19 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | This already-open process still has the legacy Salesforce CLI PATH snapshot | CLI command may resolve 1.86.7 until terminal restart | Persistent user PATH now prefers the stable v2 shim; open a new terminal and verify v2.148.3. Production does not use CLI. |
 | SFoA credentials are local-only | Credentials must remain out of Git and reports | `.env.local` is ignored; live Gates passed without persisting values or tokens |
 | Upstream root lint fails in code-analyzer | Repository-wide lint Gate is red despite SFoA changed-code lint passing | Record `KNOWN UPSTREAM DEBT`; do not patch 47 unrelated official findings in P0 |
-| Yarn Classic frozen reinstall hits a repeatable Windows `brace-expansion` link error | A from-scratch reinstall is not currently reproducible in this worktree and can remove generated `.bin` shims before failing | Preserve the unchanged lockfile; restore only local generated shims when needed; root build/full tests and targeted Gates passed; investigate separately from P1 identity correctness |
+| Yarn Classic frozen reinstall hits repeatable Windows nested-link `ENOENT` errors (`brace-expansion` historically; nested `ignore` in P4) | A from-scratch reinstall is not currently reproducible in this worktree and can remove generated `.bin` shims before failing | Preserve the unchanged lockfile; restore only declared ignored command shims when needed; stdio/root build/full tests and targeted Gates passed; investigate separately from SFoA runtime correctness |
 | Internal Bearer identifies a controlled MCP client, not an individual human | An untrusted client could lie in `X-Platform-User-Id` | Keep P2 internal/controlled; Dify/WorkBuddy dynamic per-user Header mapping requires client verification; a future trusted SSO gateway must overwrite the Header from authenticated claims |
 | Fresh JWT/Connection adds about 0.87 s p50 / 1.08 s p95 in the latest run | Remote Agent latency and Salesforce auth traffic | Keep fresh-per-request isolation in P2; do not add a cache without sustained production evidence and a maintainer-approved identity-keyed/expiry-aware design |
 | SDK or request timeout cannot guarantee Salesforce server-side cancellation | A P3 CREATE/UPDATE may commit after the Host stops waiting, and blind retry can duplicate non-idempotent work | P3-Closure HOTFIX01 covers Tool/SDK ambiguity; HOTFIX02 carries the same UNKNOWN/no-retry contract across the outer request boundary using request-local dispatch awareness. A disconnected client cannot receive the response, so the Host logs UNKNOWN and never replays. No retry/idempotency machinery is added. |
+| Diagnostic Integration User is not configured in this environment | Real Tooling/metadata diagnosis cannot be promoted from structural tests to live PASS | Keep diagnostic Tools disabled/fail-closed; configure and authorize `SFOA_DIAGNOSTIC_USERNAME`, then rerun `validate:p4` before requesting P4 completion review |
 
-## P4 entry questions
+## P4 closure questions
 
 - Which trusted platform claim will a future SSO/reverse-proxy layer map to `platformUserId` when the runtime is opened beyond controlled clients?
 - Will Salesforce publish an embeddable generic mutation Provider, or prove Hosted MCP availability and request-identity compatibility for Salesforce on Alibaba Cloud, such that ADR-0008 should be revisited?
 - Do sustained post-P2 production measurements—not this validation sample—ever justify an identity-keyed, expiry-aware Connection cache?
-- Which deterministic diagnosis capability, if any, is actually missing after composing official SOQL/metadata/Apex/code-analysis Tools? P4-00 must answer this before implementation.
-- Which REST UI API surfaces and GraphQL UI API fields are genuinely supported by the current live SFoA API version for the configured test users?
-- Does official `retrieve_metadata` return Agent-consumable content in the same remote request, or only request-workspace paths that are removed after the response?
-- Is the pinned official Code Analyzer Provider compatible with a disposable remote request workspace and complete local runtime dependencies, or must it remain unavailable?
+- Which Salesforce username will the maintainer authorize as the fixed Diagnostic Integration User for the final live Tooling/metadata Gate?
+- Which allowlisted controlled metadata component should the final real diagnostic evidence chain retrieve after that credential is configured?
 
 ## Baseline change history
 
@@ -311,3 +332,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P3-BL-1.2 | 2026-08-23 | Closed P3-Closure HOTFIX01 with conservative ambiguous-outcome semantics, structured `MCP_DML_OUTCOME_UNKNOWN`, no-automatic-retry/read-before-retry Tool guidance, 16/16 Provider and 10/10 Host tests, full live/protocol/root regressions, zero official TypeScript changes, and no idempotency/retry/database/Redis/UPSERT/DELETE/P4 scope. |
 | P3-BL-1.3 | 2026-08-23 | Closed P3-Closure HOTFIX02 with request-owned mutation-start awareness, outer-timeout UNKNOWN classification after SDK dispatch, 180000/120000 fail-closed timeout hierarchy, pinned JSforce POST/PATCH no-retry evidence, 17/17 Provider and 18/18 Host tests, complete live/protocol/root regressions, zero official/JSforce patches, and no persistence/retry/UPSERT/DELETE/P4 scope. |
 | P4-BL-1.0 | 2026-08-23 | Recorded maintainer final acceptance of P3 and authorization of P4; reran the clean P3 17/17 Provider, 18/18 Host, zero-drift upstream, and five-workspace lint Gates; fast-forwarded/pushed `main` without squashing; created the dedicated P4 branch; and entered audit-first diagnosis/runtime context with no capability pre-claimed. |
+| P4-BL-1.1 | 2026-08-23 | Implemented the audited three-Tool context Provider, fixed request-scoped DIAGNOSTIC boundary, official Tool adapters, REST UI API record-action facts, bounds/guidance/security tests, and complete P0–P3 regressions; USER A/B live Gates passed, but real diagnostic Tooling/metadata remained NOT TESTED without `SFOA_DIAGNOSTIC_USERNAME`, so P4 closed as PARTIAL and P5 remained unauthorized. |

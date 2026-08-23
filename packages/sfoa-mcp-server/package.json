@@ -1,8 +1,8 @@
 {
   "name": "@sfoa/mcp-server",
-  "version": "0.1.0-p3",
+  "version": "0.1.0-p4",
   "private": true,
-  "description": "P3 stateless remote MCP host with request identity, Tool governance, and allowlisted generic DML",
+  "description": "P4 stateless remote MCP host with governed USER/DIAGNOSTIC context and allowlisted generic DML",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,13 +14,15 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "clean-all": "yarn clean",
     "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "package": "node -e \"console.log('Private P2 remote MCP server: package skipped')\"",
+    "package": "node -e \"console.log('Private P4 remote MCP server: package skipped')\"",
     "start": "yarn build && node dist/main.js",
     "test": "yarn build && node --test dist/test/*.test.js",
     "test:p3": "yarn build && node --test dist/p3-test/*.test.js",
+    "test:p4": "yarn build && node --test dist/p4-test/*.test.js",
     "validate:upstream": "yarn build && node dist/validation/upstream-compatibility.js",
     "validate:p2": "yarn build && node dist/validation/main.js",
     "validate:p3": "yarn build && node dist/validation/p3-main.js",
+    "validate:p4": "yarn build && node dist/validation/p4-main.js",
     "validate:inspector": "yarn build && node dist/validation/inspector-gate.js"
   },
   "dependencies": {
@@ -28,7 +30,8 @@
     "@salesforce/core": "8.29.0",
     "@salesforce/mcp-provider-api": "0.6.0",
     "@salesforce/mcp-provider-dx-core": "0.10.0",
-    "@sfoa/identity-runtime": "0.1.0-p1",
+    "@sfoa/identity-runtime": "0.1.0-p4",
+    "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",
     "@sfoa/mcp-provider-sfoa-dml": "0.1.0-p3",
     "zod": "3.25.76"
   },

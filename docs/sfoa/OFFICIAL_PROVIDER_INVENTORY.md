@@ -1,6 +1,6 @@
 # Official Salesforce Provider Inventory
 
-Date: 2026-08-22
+Date: 2026-08-23
 
 Scope: official Providers registered by `packages/mcp/src/registry.ts` at audited Upstream commit `670234dbdca4d3fcdebd9d58b231e311fd34aeec`, plus the P2-pinned dx-core 0.10.0 composition.
 
@@ -14,13 +14,15 @@ Scope: official Providers registered by `packages/mcp/src/registry.ts` at audite
 - P2 rejects configuration of every `MUTATION`, `ADMIN`, `LOCAL_DEV`, and `UNKNOWN` classification at startup.
 - Other official Providers remain inventoried extension seams. Adding one requires an explicit compatibility review and catalog record; the Host architecture does not change.
 - An unreviewed official Tool is never automatically classified or registered. An unrelated added Tool makes the compatibility Gate return `UPSTREAM_REVIEW_REQUIRED`; production may continue only because registration remains default-deny. Drift affecting an enabled remote Tool fails startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`.
+- P4 reuses `run_soql_query` and `retrieve_metadata` only as internal primitives for fixed DIAGNOSTIC facades. Their official remote USER contracts remain unchanged. The live retrieve result did not contain source content, so the P4 wrapper reads bounded files in the same request workspace.
+- P4 reinitialized the actual Code Analyzer Provider and found six Tools: four GA and two NON_GA. Its absolute local target/result-file authority and durable/global-temp lifecycle are `NOT REMOTE COMPATIBLE`; no Code Analyzer Tool is exposed or copied.
 
 ## Provider matrix
 
 | Provider | Version in official stdio host | Tools | Purpose | Remote compatibility | Needs filesystem/local project | Needs additional service | Read/write nature | P2 decision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `DxCoreMcpProvider` | stdio 0.9.8; P2 composition 0.10.0 | `get_username`, `run_soql_query`, `retrieve_metadata`, `deploy_metadata`, `assign_permission_set`, `create_org_snapshot`, `create_scratch_org`, `delete_org`, `list_all_orgs`, `open_org`, `resume_tool_operation`, `run_agent_test`, `run_apex_test` | Core org identity, SOQL, metadata, org administration, tests | Mixed; the first three were composition-reviewed | Metadata/deploy/open/test paths do; username/SOQL do not | No separate service for the two P2 defaults | READ, METADATA_READ, MUTATION, ADMIN, LOCAL_DEV | Enable first two; retain metadata facade but default off; deny all other Tools |
-| `CodeAnalyzerMcpProvider` | 0.8.1 | `create_custom_rule` (NON_GA), `describe_code_analyzer_rule`, `get_ast_nodes_to_generate_xpath`, `list_code_analyzer_rules`, `query_code_analyzer_results`, `run_code_analyzer` | Local source-code analysis and result inspection | Not P2-compatible | Yes | Code Analyzer engines/binaries; current Windows audit also observed a missing local `retire` command during standalone provider initialization | Primarily local reads plus local file generation | `LOCAL_DEV`; deny |
+| `CodeAnalyzerMcpProvider` | 0.8.1 | `create_custom_rule` (NON_GA), `get_ast_nodes_to_generate_xpath` (NON_GA), `describe_code_analyzer_rule`, `list_code_analyzer_rules`, `query_code_analyzer_results`, `run_code_analyzer` | Local source-code analysis and result inspection | Not P2/P4-compatible | Yes; Agent-selected absolute targets and durable project/result files | Code Analyzer engines/binaries | Primarily local reads plus local/global-temp file generation | `LOCAL_DEV`; deny |
 | `LwcExpertsMcpProvider` | 0.7.0 | LWC creation/testing/review/orchestration; LDS/GraphQL; SLDS/LBC; accessibility/security/migration guidance. Exact GA names are listed below. | Developer guidance and code generation | Not P2-compatible | Yes | Bundled expert/knowledge assets | Local development; some generated-file writes | `LOCAL_DEV`; deny |
 | `AuraExpertsMcpProvider` | 0.3.7 | `create_aura_blueprint_draft`, `enhance_aura_blueprint_draft`, `orchestrate_aura_migration`, `transition_prd_to_lwc` | Aura-to-LWC developer workflows | Not P2-compatible | Yes | Bundled expert assets | Local development/write | `LOCAL_DEV`; deny |
 | `MobileWebMcpProvider` | 0.3.0 | Eleven `create_mobile_lwc_*` native-capability guides plus `get_mobile_lwc_offline_analysis`, `get_mobile_lwc_offline_guidance` | Mobile LWC development guidance | Not P2-compatible | Yes | Bundled mobile definitions/grounding | Local development | `LOCAL_DEV`; deny |
@@ -56,7 +58,7 @@ The facade first requires an exact audited official field/requiredness/ReleaseSt
 
 `create_custom_rule`, `describe_code_analyzer_rule`, `get_ast_nodes_to_generate_xpath`, `list_code_analyzer_rules`, `query_code_analyzer_results`, `run_code_analyzer`.
 
-All are `LOCAL_DEV`. `create_custom_rule` is NON_GA in the audited source; P2 never opts into non-GA Tools.
+All are `LOCAL_DEV`. `create_custom_rule` and `get_ast_nodes_to_generate_xpath` are NON_GA in the actual P4 initialization; P2/P4 never opt into non-GA Tools. `run_code_analyzer` needs absolute local targets/workspace and writes results below process-global temp; `query_code_analyzer_results` accepts an absolute result file. These contracts are not adapted into the stateless remote runtime.
 
 ### LWC Experts 0.7.0
 

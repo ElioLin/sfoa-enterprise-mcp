@@ -3,7 +3,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-test('P2 upstream pins remain exact while P3 adds only the SFoA DML Provider dependency', async () => {
+test('official pins remain exact while P3/P4 add only SFoA Provider dependencies', async () => {
   const packageRoot = path.resolve(process.cwd());
   const manifestText = await readFile(path.join(packageRoot, 'package.json'), 'utf8');
   const manifest: unknown = JSON.parse(manifestText);
@@ -13,7 +13,8 @@ test('P2 upstream pins remain exact while P3 adds only the SFoA DML Provider dep
   assert.equal(manifest.dependencies['@salesforce/mcp-provider-dx-core'], '0.10.0');
   assert.equal(manifest.dependencies['@salesforce/core'], '8.29.0');
   assert.equal(manifest.dependencies.zod, '3.25.76');
-  assert.equal(manifest.dependencies['@sfoa/identity-runtime'], '0.1.0-p1');
+  assert.equal(manifest.dependencies['@sfoa/identity-runtime'], '0.1.0-p4');
+  assert.equal(manifest.dependencies['@sfoa/mcp-provider-sfoa-context'], '0.1.0-p4');
   assert.equal(manifest.dependencies['@sfoa/mcp-provider-sfoa-dml'], '0.1.0-p3');
   for (const forbidden of ['prisma', 'drizzle', 'mysql', 'pg', 'redis', 'sequelize']) {
     assert.equal(forbidden in manifest.dependencies, false);
@@ -29,6 +30,10 @@ test('P2 upstream pins remain exact while P3 adds only the SFoA DML Provider dep
   ).join('\n');
   assert.doesNotMatch(productionSource, /node:child_process|AuthInfo\.listAllAuthorizations|StateAggregator/u);
   assert.doesNotMatch(productionSource, /create_sobject|update_sobject|delete_sobject/u);
+  assert.doesNotMatch(
+    productionSource,
+    /@salesforce\/mcp-provider-code-analyzer|\bnew\s+CodeAnalyzerMcpProvider|node:child_process|\b(?:redis|prisma|sequelize)\b/iu,
+  );
   assert.doesNotMatch(productionSource, /MCP_CLIENT_TOKEN.*(?:log|write)|authorization.*(?:log|write)/iu);
 });
 

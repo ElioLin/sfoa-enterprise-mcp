@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P3 implemented and validated; P3-Closure HOTFIX01 and HOTFIX02 close Tool- and request-level ambiguous mutation outcomes while final maintainer acceptance remains pending
+Status: P3 final accepted; P4 diagnosis/runtime context implemented with USER live evidence and a PARTIAL Gate because the fixed DIAGNOSTIC live chain is not configured
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -78,7 +78,7 @@ sequenceDiagram
 | Request workspace | Unique bounded OS temporary directory with minimal DX project, package directory, and optional generated manifest; removed after response. |
 | CWD guard | Host-wide read/write execution guard. Source-audited identity/SOQL Tools use the shared side; `retrieve_metadata` uses exclusive execution and restores CWD in `finally`. |
 
-Request/connection contracts reserve `ConnectionRole = USER | DIAGNOSTIC`. P1 accepts only `USER` and rejects `DIAGNOSTIC` before authentication. P4 may introduce one fixed Diagnostic Integration User for metadata/Tooling system diagnosis; that role must never execute business SOQL, record queries, CREATE, or UPDATE.
+Request/connection contracts use `ConnectionRole = USER | DIAGNOSTIC`. P1 established USER routing. P4 adds a separate server-created DIAGNOSTIC route only when `SFOA_DIAGNOSTIC_USERNAME` is configured; clients cannot construct or select it. USER business reads/UI context/CREATE/UPDATE and DIAGNOSTIC Tooling/metadata reads are mutually blocked at the facade boundary.
 
 ## Upstream package dependency map
 
@@ -465,6 +465,67 @@ Pinned `@jsforce/jsforce-node@3.10.13` source keeps default retry methods at `GE
 
 The independent live validator may call SDK `destroy(recordId)` only for IDs returned by that validator run. That cleanup method is not imported by the Provider, registered as a Tool, or used for query-based deletion.
 
+## P4 Diagnosis and Runtime Context Boundary
+
+P4 splits one authenticated MCP request into one of two fixed execution roles:
+
+```mermaid
+flowchart TD
+  Request[MCP POST + authenticated platformUserId] --> Select{Registered Tool role}
+  Select -->|USER Tool| UserRoute[IdentityResolver USER route]
+  Select -->|DIAGNOSTIC Tool| DiagnosticRoute[Server-owned fixed diagnostic username]
+  UserRoute --> UserScope[Fresh USER Connection + workspace]
+  DiagnosticRoute --> DiagnosticScope[Fresh DIAGNOSTIC Connection + workspace]
+  UserScope --> UserFacts[Business SOQL / REST UI API / CREATE / UPDATE]
+  DiagnosticScope --> DiagnosticFacts[Tooling API / allowlisted metadata context]
+  UserFacts --> Salesforce[Salesforce authority]
+  DiagnosticFacts --> Salesforce
+```
+
+The client cannot submit a role, username, credential, token, instance URL, directory, manifest, arbitrary URL, or API-route switch. A single enabled diagnostic Tool name selects only the fixed diagnostic scope. Non-Tool calls and JSON-RPC batches remain USER-scoped; wrong-role facades reject execution before invoking an official Tool or SDK mutation.
+
+`SFOA_DIAGNOSTIC_USERNAME` is optional while diagnostic Tools are disabled. Enabling `run_diagnostic_tooling_query` or `get_metadata_component_context` without it fails startup with `MCP_DIAGNOSTIC_CONFIGURATION_INVALID`. P4 reuses the existing Connected App/JWT configuration and creates a new Connection per request. It adds no second OAuth scheme, global admin Connection, token cache, Connection pool, database, or Redis.
+
+### P4 Context Provider
+
+`@sfoa/mcp-provider-sfoa-context` is an SFoA-owned public-Provider-API extension with exactly three GA read-only Tools:
+
+| Tool | Role | Execution surface |
+| --- | --- | --- |
+| `get_record_action_context` | USER | Direct verified REST UI API through the request Connection |
+| `run_diagnostic_tooling_query` | DIAGNOSTIC | Unchanged official `run_soql_query` with server-forced `useToolingApi=true` |
+| `get_metadata_component_context` | DIAGNOSTIC | Unchanged official `retrieve_metadata` plus same-request bounded file reading |
+
+The actual dx-core audit found 13 Tools and nine GA Tools. `run_soql_query` and `retrieve_metadata` are reused as internal primitives, not copied. The actual Code Analyzer Provider returned six Tools, but its Agent-selected absolute local targets, durable project requirement, and global-temp result file are incompatible with the request-owned remote workspace. Code Analyzer remains unavailable; no replacement analyzer or durable filesystem service was added.
+
+### Record action facts
+
+The live SFoA API 67.0 audit verified REST UI API Object Info, Create/Edit Layout, Create Defaults, and record-type Picklist Values for both USER routes. GraphQL `recordLayouts` also worked, but is not required because REST covers the complete P4 fact set through one public surface.
+
+CREATE resolves the USER default record type unless an explicit currently available type is supplied. UPDATE obtains the record's real record type and rejects an explicit mismatch. Output keeps these facts separate:
+
+- API required versus Page Layout required;
+- field createable/updateable versus layout create/update editability;
+- Salesforce-supplied defaults versus absent values;
+- layout membership, section, and order;
+- record-type picklist values/defaults and dependent-controller indexes;
+- field label/type/reference metadata;
+- coverage sources, call count, duration, source-response bytes, warnings, and truncation.
+
+Field output is capped at 200, with API-required fields selected first. Picklists are capped at 100 values per field and 500 globally. Defaults, reference targets, dependency indexes, total response size, metadata file count, per-file bytes, total bytes, and diagnostic records are separately bounded. Truncation is explicit; a required-field set that cannot fit safely fails rather than silently dropping required facts.
+
+This is an effective Page Layout/UI API action context, not a complete Dynamic Forms or Lightning component-visibility engine. `dynamicFormsEvaluated=false` and `completeLightningPageEvaluated=false` are explicit. Salesforce still evaluates CRUD, FLS, sharing, validation, Flow, Trigger, and final DML.
+
+### Diagnostic metadata workspace
+
+The metadata wrapper accepts only one allowlisted type and exact Metadata API full name. It XML-escapes a server-generated manifest, invokes official `retrieve_metadata` under the existing exclusive CWD guard, and reads only `force-app/main/default` beneath the request root. Symlinks and path escape do not become readable files. Only UTF-8 `.xml`, `.cls`, and `.trigger` content is returned, with known credential patterns redacted and omission summaries bounded.
+
+The initial allowlist is `CustomObject`, `CustomField`, `ValidationRule`, `Flow`, `ApexClass`, `ApexTrigger`, `Layout`, and `FlexiPage`. Wildcards, package manifests, directories, output paths, deployment, permission assignment, anonymous Apex, and arbitrary metadata types are absent.
+
+### Reasoning boundary
+
+MCP returns facts. The LLM decides whether information is missing, asks the user, selects optional fields, resolves ambiguous references through USER reads, and explains diagnostic evidence. No Metadata Snapshot, Evidence Graph, Runtime Form Engine, FLS/Profile/Permission replica, Validation Rule/Flow/Apex interpreter, Lookup Engine, or recommended-field score exists.
+
 ## Future Admin UI location
 
 Recommended P5 location: `apps/admin-web`.
@@ -475,7 +536,7 @@ Planned UI areas: dashboard, Salesforce account routing, object CREATE/UPDATE al
 
 ## Data, cache, and security baseline
 
-- P0, P0-Closure, P1, P2, and P3 use no database.
+- P0, P0-Closure, P1, P2, P3, and P4 use no database.
 - P1 proves request-scoped identity routing with an in-memory repository. Persistence is introduced only when durable routing or Admin configuration actually needs it.
 - No Redis, token cache, or Connection pool without measured multi-node/session/cache requirements and maintainer approval. P2 measurements retain fresh JWT/Connection per request.
 - Secrets remain outside Git; logs must redact tokens and private-key material.

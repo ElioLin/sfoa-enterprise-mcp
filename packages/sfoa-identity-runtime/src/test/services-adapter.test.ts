@@ -18,7 +18,7 @@ import {
 } from '@salesforce/mcp-provider-api';
 import { z } from 'zod';
 import { CwdExecutionGuard } from '../cwd-execution-guard.js';
-import { IdentityRuntimeError } from '../errors.js';
+import { IdentityRuntimeError, redactSensitiveText } from '../errors.js';
 import { RequestScopedOrgService } from '../org-service.js';
 import { createRequestContext } from '../request-context.js';
 import { NoopRuntimeLogger } from '../runtime-logger.js';
@@ -62,6 +62,11 @@ class RecordingTool extends McpTool<TestInputShape> {
     return this.responseFactory(input);
   }
 }
+
+test('Bearer redaction preserves surrounding JSON syntax', () => {
+  const redacted = redactSensitiveText(JSON.stringify({ value: 'Bearer token-value', after: true }));
+  assert.deepEqual(JSON.parse(redacted), { value: 'Bearer <redacted>', after: true });
+});
 
 test('RequestScopedOrgService exposes exactly one route and rejects cross-user usernames and aliases', async () => {
   const connection = {} as unknown as Connection;

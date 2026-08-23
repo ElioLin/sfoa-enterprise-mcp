@@ -102,6 +102,19 @@ export class RemoteToolFacade {
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
     const started = performance.now();
+    if (this.options.route.connectionRole !== 'USER') {
+      const error = new RemoteRuntimeError(
+        'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',
+        `Official business Tool ${this.getName()} is fixed to the USER request scope and cannot execute with DIAGNOSTIC authority.`,
+        { correlationId: this.options.context.correlationId },
+      );
+      this.log('BLOCKED', elapsed(started), error.code);
+      return remoteRuntimeErrorToolResult(
+        error,
+        this.options.redactionSecrets,
+        this.options.context.correlationId,
+      );
+    }
     const officialInput = { ...input, ...this.hostOwnedInput() };
     const operation = this.options.adapter.execute(this.options.tool, officialInput, extra);
     try {
@@ -145,12 +158,13 @@ export class RemoteToolFacade {
     return injected;
   }
 
-  private log(result: 'PASS' | 'ERROR', durationMs: number, errorCode?: string): void {
+  private log(result: 'PASS' | 'ERROR' | 'BLOCKED', durationMs: number, errorCode?: string): void {
     this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,
       platformUserId: this.options.context.platformUserId,
       salesforceUsername: this.options.route.salesforceUsername,
+      executionRole: this.options.route.connectionRole,
       toolName: this.getName(),
       durationMs,
       result,

@@ -5,6 +5,7 @@ export type RuntimeLogEvent = Readonly<{
   clientId?: string;
   platformUserId?: string;
   salesforceUsername?: string;
+  executionRole?: 'USER' | 'DIAGNOSTIC';
   toolName?: string;
   operation?: 'CREATE' | 'UPDATE';
   outcome?: 'UNKNOWN';

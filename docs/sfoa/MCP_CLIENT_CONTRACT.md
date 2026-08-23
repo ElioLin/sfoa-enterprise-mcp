@@ -29,9 +29,9 @@ The Bearer token authenticates the controlled MCP client. Only after that succee
 authenticated HTTP client
   -> platformUserId Header
   -> IdentityRepository/IdentityResolver
-  -> Salesforce username/JWT route
+  -> fixed Tool role selects USER route or server-owned DIAGNOSTIC route
   -> fresh request-scoped Connection
-  -> unchanged official Tool.exec()
+  -> governed official/SFoA Tool
 ```
 
 Clients must not send, and the Host does not trust:
@@ -40,6 +40,8 @@ Clients must not send, and the Host does not trust:
 - Salesforce username/alias headers;
 - `platformUserId` in JSON body, Tool arguments, or query parameters;
 - `usernameOrAlias` or `directory` Tool arguments.
+
+P4 also rejects client authority fields such as `connectionRole`, diagnostic username, credential profile, instance URL, arbitrary REST URL, manifest/source/output path, or a Tooling API switch. A diagnostic Tool's registered name selects a fixed server-owned route; arguments cannot escalate a USER Tool. A JSON-RPC batch remains USER-scoped, so a diagnostic call in a mixed batch is blocked rather than receiving diagnostic authority.
 
 The P2 facade hides `usernameOrAlias` and `directory` from the remote schemas and injects the authoritative route/workspace internally. Extra identity/workspace arguments sent anyway are stripped by the registered Zod object and cannot select a route.
 
@@ -55,6 +57,42 @@ run_soql_query
 `retrieve_metadata` remains available in the official composition but is disabled by default. Mutation, admin, local-development, incompatible, and unknown Tools cannot be registered in P2. A configured forbidden/unknown Tool fails process startup.
 
 P3 may additionally expose exactly `create_record` and/or `update_record` only when the exact Tool name is enabled and the strict Object-by-Operation DML policy contains a matching operation. DELETE, UPSERT, arbitrary REST, deploy, and admin Tools remain absent or startup-denied.
+
+P4 may additionally expose these independently enabled read-only Tools:
+
+| Tool | Fixed role | Agent-visible input |
+| --- | --- | --- |
+| `get_record_action_context` | USER | `objectApiName`, `action=CREATE|UPDATE`, optional `recordTypeId`, UPDATE `recordId` |
+| `run_diagnostic_tooling_query` | DIAGNOSTIC | One bounded Tooling API `SELECT` query |
+| `get_metadata_component_context` | DIAGNOSTIC | One allowlisted `metadataType` and exact `fullName` |
+
+The diagnostic Tools require a server-owned `SFOA_DIAGNOSTIC_USERNAME`; enabling either without it fails startup. Their presence does not expose the official business query, metadata filesystem, Code Analyzer, deployment, permission, Apex execution, or admin Tools under DIAGNOSTIC authority.
+
+Example record-action call:
+
+```json
+{
+  "objectApiName": "Opportunity",
+  "action": "CREATE"
+}
+```
+
+Example diagnostic calls:
+
+```json
+{
+  "query": "SELECT Id, Name FROM ApexClass LIMIT 5"
+}
+```
+
+```json
+{
+  "metadataType": "ValidationRule",
+  "fullName": "Opportunity.Price_Must_Be_Positive"
+}
+```
+
+Record-action output is bounded and distinguishes API requiredness, Page Layout requiredness, field create/update capability, layout create/update editability, Salesforce defaults, and record-type picklist/dependency facts. It is Page Layout/UI API context, not a complete Dynamic Forms/Lightning-page evaluation. When any coverage or picklist result is truncated, clients must not guess omitted values.
 
 Example SOQL call arguments:
 
@@ -81,6 +119,11 @@ Example SOQL call arguments:
 | DML Tool execution timeout | MCP Tool-level `isError: true` | `MCP_DML_OUTCOME_UNKNOWN` |
 | Runtime not ready | HTTP 503 | `MCP_RUNTIME_NOT_READY` |
 | Forbidden/unknown enabled Tool at startup | Startup failure | `MCP_TOOL_DISABLED` / `MCP_TOOL_NOT_AVAILABLE` |
+| Diagnostic Tool enabled without server username | Startup failure | `MCP_DIAGNOSTIC_CONFIGURATION_INVALID` |
+| Tool invoked with the wrong fixed role | MCP Tool-level error or HTTP 403 before protocol execution | `MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED` |
+| Invalid/unsupported record context | MCP Tool-level `isError: true` | `MCP_RECORD_ACTION_CONTEXT_INVALID` / `MCP_RECORD_ACTION_CONTEXT_UNSUPPORTED` |
+| Record Type unavailable or mismatched | MCP Tool-level `isError: true` | `MCP_RECORD_TYPE_NOT_AVAILABLE` |
+| Metadata context exceeds safe bounds | MCP Tool-level `isError: true` | `MCP_METADATA_CONTEXT_TOO_LARGE` |
 
 The request-level unknown wire shape is:
 

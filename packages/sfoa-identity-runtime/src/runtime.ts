@@ -1,15 +1,20 @@
 import type { SalesforceConnectionFactory } from './connection-factory.js';
 import { JwtConnectionFactory } from './connection-factory.js';
-import { buildIdentityRoutes, type IdentityRuntimeConfig } from './config.js';
+import {
+  assertDiagnosticIdentityDistinct,
+  buildIdentityRoutes,
+  type IdentityRuntimeConfig,
+} from './config.js';
 import { CwdExecutionGuard } from './cwd-execution-guard.js';
 import { IdentityResolver } from './identity-resolver.js';
 import { InMemoryIdentityRepository } from './identity-repository.js';
-import { RequestScopeFactory } from './request-scope.js';
+import { DiagnosticRequestScopeFactory, RequestScopeFactory } from './request-scope.js';
 import { JsonLineRuntimeLogger, type RuntimeLogger } from './runtime-logger.js';
 import { RequestWorkspaceFactory } from './workspace.js';
 
 export type IdentityRuntime = Readonly<{
   scopeFactory: RequestScopeFactory;
+  diagnosticScopeFactory?: DiagnosticRequestScopeFactory;
   workspaceFactory: RequestWorkspaceFactory;
   cwdGuard: CwdExecutionGuard;
   logger: RuntimeLogger;
@@ -27,6 +32,7 @@ export function createIdentityRuntime(
   config: IdentityRuntimeConfig,
   overrides: CreateIdentityRuntimeOverrides = {},
 ): IdentityRuntime {
+  assertDiagnosticIdentityDistinct(config);
   const repository = new InMemoryIdentityRepository(buildIdentityRoutes(config));
   const resolver = new IdentityResolver(repository);
   const connectionFactory =
@@ -41,6 +47,15 @@ export function createIdentityRuntime(
   const cwdGuard = overrides.cwdGuard ?? new CwdExecutionGuard();
   const logger = overrides.logger ?? new JsonLineRuntimeLogger();
 
+  const diagnosticScopeFactory = config.diagnosticUsername
+    ? new DiagnosticRequestScopeFactory({
+        diagnosticUsername: config.diagnosticUsername,
+        connectionFactory,
+        workspaceFactory,
+        instanceUrl: config.instanceUrl,
+      })
+    : undefined;
+
   return Object.freeze({
     scopeFactory: new RequestScopeFactory({
       resolver,
@@ -52,5 +67,6 @@ export function createIdentityRuntime(
     cwdGuard,
     logger,
     redactionSecrets: Object.freeze([config.clientId, config.privateKeyPath]),
+    ...(diagnosticScopeFactory ? { diagnosticScopeFactory } : {}),
   });
 }

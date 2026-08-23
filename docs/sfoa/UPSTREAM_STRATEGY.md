@@ -34,7 +34,7 @@ packages/
   sfoa-runtime-validation/   # P0 Closure Harness only
   sfoa-streamable-http-poc/  # P0 transport POC only
   mcp-provider-sfoa-dml/     # P3 generic CREATE/UPDATE tools
-  mcp-provider-sfoa-context/ # Proven missing context tools only
+  mcp-provider-sfoa-context/ # P4 deterministic USER/DIAGNOSTIC context Provider
 apps/
   admin-web/                 # P5 React application
 ```
@@ -93,6 +93,12 @@ P3-00 inspected the actual pinned dx-core Provider/public API/history before cho
 
 P3-Closure HOTFIX01 also remains entirely in SFoA-owned Provider/Host/tests/docs. It classifies the public SDK's returned `SaveResult` and structured JSforce error body without patching or copying JSforce, `@salesforce/core`, the Provider API, or an official Salesforce Tool. The Closure changes zero official Salesforce TypeScript files, root manifest entries, and lockfile entries; it adds no dependency or Upstream modification-matrix row. Merge risk remains LOW.
 
+P4 also modifies **zero official Salesforce TypeScript files**. The new `packages/mcp-provider-sfoa-context` workspace and P4 edits to `packages/sfoa-identity-runtime`, `packages/sfoa-mcp-server`, `.env.example`, and `docs/sfoa` are SFoA-owned paths. The existing root `packages/*` glob discovers the Provider, so root `package.json` and `yarn.lock` remain unchanged and no new Upstream modification-matrix row is required.
+
+P4 reuses public seams only. `run_diagnostic_tooling_query` invokes unchanged official `run_soql_query` `Tool.exec()` with server-forced Tooling/identity/workspace inputs. `get_metadata_component_context` invokes unchanged official `retrieve_metadata` and adds only same-request bounded reading because the live official result returned status text while its useful source files existed only in the disposable workspace. `get_record_action_context` uses the public `@salesforce/core` Connection REST UI API surface verified against SFoA API 67.0. No official Tool, JSforce method, or Salesforce runtime implementation is copied or patched.
+
+The actual Code Analyzer Provider was initialized and classified `NOT REMOTE COMPATIBLE` because its contracts accept absolute local targets and a durable/global-temp result file. P4 does not import or instantiate it in production, add it as an SFoA dependency, copy it, or create durable infrastructure around it. Merge risk remains LOW.
+
 ## Changes that require a new matrix entry
 
 - Root/package workspace configuration.
@@ -116,5 +122,7 @@ P0 observed Upstream maintenance issues that are recorded but intentionally not 
 - broad `eslint **/*.ts` scripts inspect generated declarations after build;
 - code-analyzer has 47 existing source/test/generated lint errors in the audited checkout.
 - a failed Windows Yarn link attempt can remove workspace `.bin` shims before aborting; P1 final verification restored only ignored generated shims, then the root build and full workspace test command passed without source or lockfile changes.
+
+P4 final verification reproduced the same class of Windows Yarn Classic installation debt at a different nested link target: `packages/mcp-provider-api/node_modules/@typescript-eslint/eslint-plugin/node_modules/ignore` failed with `ENOENT lstat`. The aborted install changed no source, manifest, or lockfile but removed generated command shims. Exactly 513 missing ignored commands were mechanically regenerated from the installed packages' `package.json#bin` declarations. Original stdio, root build, root full tests, Inspector, and targeted Gates then passed. This is environment/Upstream maintenance debt, not an SFoA source waiver.
 
 These findings keep the repository-wide lint Gate red but do not justify a broad official-code cleanup inside the SFoA P0 compatibility change.

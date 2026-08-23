@@ -1,7 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { createSalesforceIdentityRoute, type SalesforceIdentityRoute } from './contracts.js';
+import {
+  createSalesforceIdentityRoute,
+  normalizeSalesforceIdentity,
+  type SalesforceIdentityRoute,
+} from './contracts.js';
 import type { MetadataSeed } from './workspace.js';
 
 const usernameSchema = z
@@ -16,6 +20,7 @@ const rawConfigSchema = z
   .object({
     SFOA_INSTANCE_URL: z.string().trim().min(1),
     SALESFORCE_USERNAME: usernameSchema,
+    SFOA_DIAGNOSTIC_USERNAME: usernameSchema.optional(),
     SECOND_TEST_USER: usernameSchema.optional(),
     CONNECTED_APP_CLIENT_ID: z.string().trim().min(1).max(512),
     JWT_PRIVATE_KEY_PATH: z.string().trim().min(1).max(2048),
@@ -40,6 +45,7 @@ const REQUIRED_RUNTIME_VARIABLES = [
 const ENVIRONMENT_NAMES = [
   ...REQUIRED_RUNTIME_VARIABLES,
   'SECOND_TEST_USER',
+  'SFOA_DIAGNOSTIC_USERNAME',
   'SALESFORCE_ALIAS',
   'TEST_OBJECT',
   'TEST_METADATA_TYPE',
@@ -55,6 +61,7 @@ export type IdentityRuntimeConfig = Readonly<{
   instanceUrl: string;
   primaryUsername: string;
   secondaryUsername?: string;
+  diagnosticUsername?: string;
   clientId: string;
   privateKeyPath: string;
   primaryAlias?: string;
@@ -111,6 +118,12 @@ export async function loadIdentityRuntimeConfig(
     );
   }
 
+  assertDiagnosticIdentityDistinct({
+    primaryUsername: parsed.data.SALESFORCE_USERNAME,
+    secondaryUsername: parsed.data.SECOND_TEST_USER,
+    diagnosticUsername: parsed.data.SFOA_DIAGNOSTIC_USERNAME,
+  });
+
   const privateKeyPath = path.isAbsolute(parsed.data.JWT_PRIVATE_KEY_PATH)
     ? path.normalize(parsed.data.JWT_PRIVATE_KEY_PATH)
     : path.resolve(resolvedProjectRoot, parsed.data.JWT_PRIVATE_KEY_PATH);
@@ -124,6 +137,7 @@ export async function loadIdentityRuntimeConfig(
     instanceUrl: normalizeInstanceUrl(parsed.data.SFOA_INSTANCE_URL),
     primaryUsername: parsed.data.SALESFORCE_USERNAME,
     secondaryUsername: parsed.data.SECOND_TEST_USER,
+    diagnosticUsername: parsed.data.SFOA_DIAGNOSTIC_USERNAME,
     clientId: parsed.data.CONNECTED_APP_CLIENT_ID,
     privateKeyPath,
     primaryAlias: parsed.data.SALESFORCE_ALIAS,
@@ -137,6 +151,21 @@ export async function loadIdentityRuntimeConfig(
     concurrentRequests: parsed.data.P1_CONCURRENT_REQUESTS,
     port: parsed.data.PORT,
   });
+}
+
+export function assertDiagnosticIdentityDistinct(
+  config: Pick<IdentityRuntimeConfig, 'primaryUsername' | 'secondaryUsername' | 'diagnosticUsername'>,
+): void {
+  if (!config.diagnosticUsername) return;
+  const diagnostic = normalizeSalesforceIdentity(config.diagnosticUsername);
+  const userNames = [config.primaryUsername, config.secondaryUsername]
+    .filter((value): value is string => value !== undefined)
+    .map(normalizeSalesforceIdentity);
+  if (userNames.includes(diagnostic)) {
+    throw new RuntimeConfigurationError(
+      'SFOA_DIAGNOSTIC_USERNAME must be distinct from every configured USER Salesforce username.',
+    );
+  }
 }
 
 export function buildIdentityRoutes(config: IdentityRuntimeConfig): readonly SalesforceIdentityRoute[] {

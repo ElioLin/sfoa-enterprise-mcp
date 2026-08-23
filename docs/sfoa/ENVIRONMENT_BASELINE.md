@@ -67,6 +67,8 @@ The original P0 project-local `yarn install` completed successfully in 1499.30 s
 
 During P0-Closure, repeated `yarn install --frozen-lockfile --network-timeout 600000` attempts failed in Yarn Classic's Windows linking stage at `packages/mcp-provider-api/node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion` with `ENOENT lstat`. Moving only that generated dependency directory aside and retrying reproduced the same error; `yarn.lock` remained unchanged. Closure therefore uses targeted workspace build/test/lint plus stdio/HTTP integration evidence and records the frozen reinstall as a separate environment debt, not as a Salesforce compatibility result.
 
+P4 final verification again ran the repository-pinned Yarn Classic frozen install. After approximately eight minutes it aborted in the Windows link stage at `packages/mcp-provider-api/node_modules/@typescript-eslint/eslint-plugin/node_modules/ignore` with `ENOENT lstat`. No source, manifest, package lock, or `yarn.lock` changed. The aborted link removed generated workspace `.bin` commands; a local mechanical repair regenerated exactly 513 missing ignored commands from the already installed packages' `package.json#bin` declarations. Original stdio, Git Bash root build, full root tests, Inspector, and targeted P0–P4 Gates subsequently passed. The install remains `KNOWN UPSTREAM DEBT`, not an SFoA code exception.
+
 ## Runtime verification
 
 ```text

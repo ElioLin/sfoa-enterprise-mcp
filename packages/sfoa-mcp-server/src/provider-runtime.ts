@@ -12,6 +12,11 @@ import {
   type MutationExecutionObserver,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import {
+  SfoaContextMcpProvider,
+  isSfoaContextToolName,
+  type SfoaContextToolName,
+} from '@sfoa/mcp-provider-sfoa-context';
+import {
   NoopRuntimeLogger,
   OfficialDxCoreToolSource,
   RequestScopedToolExecutionAdapter,
@@ -21,6 +26,11 @@ import {
   type RuntimeLogger,
 } from '@sfoa/identity-runtime';
 import { RemoteRuntimeError, toRemoteRuntimeError } from './errors.js';
+import { ContextToolFacade } from './context-tool-facade.js';
+import {
+  OfficialDiagnosticToolingQueryExecutor,
+  OfficialMetadataComponentContextExecutor,
+} from './diagnostic-context-adapters.js';
 import { DmlToolFacade } from './dml-tool-facade.js';
 import { DmlToolGovernancePolicy } from './dml-tool-governance.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
@@ -85,7 +95,9 @@ export async function initializeProviderRuntime(
   try {
     const inventory = await inspectOfficialDxCoreInventory(inventoryToolSource);
     const inventoryComparison = compareOfficialProviderInventory(inventory);
-    const officialEnabledTools = enabledTools.filter((name) => !isSfoaDmlToolName(name));
+    const officialEnabledTools = enabledTools.filter(
+      (name) => !isSfoaDmlToolName(name) && !isSfoaContextToolName(name),
+    );
     const dmlEnabledTools = enabledTools.filter(isSfoaDmlToolName);
     assertEnabledRemoteContractsCompatible(inventoryComparison, officialEnabledTools, inventory);
     const providerToolNames = Object.freeze(
@@ -116,7 +128,7 @@ export async function initializeProviderRuntime(
 export async function createGovernedMcpServer(
   options: CreateGovernedMcpServerOptions,
 ): Promise<{ server: McpServer; registeredTools: readonly string[] }> {
-  const server = new McpServer({ name: 'sfoa-mcp-server', version: '0.1.0-p3' });
+  const server = new McpServer({ name: 'sfoa-mcp-server', version: '0.1.0-p4' });
   try {
     const providerTools = await options.initializedProvider.toolSource.provideTools(options.scope.services);
     const toolsByName = new Map<string, McpTool>();
@@ -154,6 +166,57 @@ export async function createGovernedMcpServer(
       new NoopRuntimeLogger(),
       options.redactionSecrets,
     );
+    const contextToolNames = options.initializedProvider.enabledTools.filter(isSfoaContextToolName);
+    if (contextToolNames.length > 0) {
+      const officialQueryTool = toolsByName.get('run_soql_query');
+      const officialRetrieveTool = toolsByName.get('retrieve_metadata');
+      const needsDiagnosticQuery = contextToolNames.includes('run_diagnostic_tooling_query');
+      const needsMetadataContext = contextToolNames.includes('get_metadata_component_context');
+      if (needsDiagnosticQuery && !officialQueryTool) {
+        throw new RemoteRuntimeError(
+          'MCP_TOOL_NOT_AVAILABLE',
+          'run_diagnostic_tooling_query requires the official run_soql_query primitive.',
+        );
+      }
+      if (needsMetadataContext && !officialRetrieveTool) {
+        throw new RemoteRuntimeError(
+          'MCP_TOOL_NOT_AVAILABLE',
+          'get_metadata_component_context requires the official retrieve_metadata primitive.',
+        );
+      }
+      const contextProvider = new SfoaContextMcpProvider({
+        toolNames: contextToolNames as readonly SfoaContextToolName[],
+        ...(officialQueryTool
+          ? {
+              diagnosticQueryExecutor: new OfficialDiagnosticToolingQueryExecutor(
+                options.scope,
+                adapter,
+                officialQueryTool,
+              ),
+            }
+          : {}),
+        ...(officialRetrieveTool
+          ? {
+              metadataContextExecutor: new OfficialMetadataComponentContextExecutor(
+                options.scope,
+                adapter,
+                officialRetrieveTool,
+              ),
+            }
+          : {}),
+      });
+      const contextTools = await contextProvider.provideTools(options.scope.services);
+      for (const tool of contextTools) {
+        if (tool.getReleaseState() !== ReleaseState.GA) continue;
+        if (toolsByName.has(tool.getName())) {
+          throw new RemoteRuntimeError(
+            'MCP_PROVIDER_INITIALIZATION_FAILED',
+            `The composed Providers returned duplicate Tool ${tool.getName()}.`,
+          );
+        }
+        toolsByName.set(tool.getName(), tool);
+      }
+    }
 
     for (const name of options.initializedProvider.enabledTools) {
       const tool = toolsByName.get(name);
@@ -172,6 +235,20 @@ export async function createGovernedMcpServer(
           logger: options.logger,
           clientId: options.clientId,
           mutationStarted: () => options.mutationRequestState.hasStarted(),
+        });
+        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
+        registered.push(name);
+        continue;
+      }
+      if (isSfoaContextToolName(name)) {
+        const facade = new ContextToolFacade({
+          tool,
+          context: options.scope.context,
+          route: options.scope.route,
+          toolTimeoutMs: options.toolTimeoutMs,
+          logger: options.logger,
+          clientId: options.clientId,
+          redactionSecrets: options.redactionSecrets,
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
         registered.push(name);

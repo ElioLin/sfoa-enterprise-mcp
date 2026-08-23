@@ -53,7 +53,7 @@ export function redactSensitiveText(value: string, secrets: readonly string[] = 
   for (const secret of orderedSecrets) redacted = redacted.split(secret).join('<redacted>');
 
   return redacted
-    .replace(/Bearer\s+[^\s,;]+/giu, 'Bearer <redacted>')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/=!-]+/giu, 'Bearer <redacted>')
     .replace(/\b00D[A-Za-z0-9]{9,}![A-Za-z0-9._-]+\b/gu, '<redacted-access-token>')
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, '<redacted-jwt>')
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gu, '<redacted-private-key>');

@@ -1,5 +1,6 @@
 import type { Connection } from '@salesforce/core';
 import type { SalesforceIdentityRoute } from './contracts.js';
+import { createSalesforceIdentityRoute } from './contracts.js';
 import type { SalesforceConnectionFactory } from './connection-factory.js';
 import { IdentityRuntimeError, toIdentityRuntimeError, withCorrelation } from './errors.js';
 import type { IdentityResolver } from './identity-resolver.js';
@@ -71,6 +72,46 @@ export class RequestScopeFactory {
           error,
           'MCP_REQUEST_SCOPE_FAILED',
           'The server could not create the isolated Salesforce request scope.',
+        ),
+        identity.correlationId,
+      );
+    }
+  }
+}
+
+export type DiagnosticRequestScopeFactoryOptions = Readonly<{
+  diagnosticUsername: string;
+  connectionFactory: SalesforceConnectionFactory;
+  workspaceFactory: RequestWorkspaceFactory;
+  instanceUrl: string;
+}>;
+
+export class DiagnosticRequestScopeFactory {
+  public constructor(private readonly options: DiagnosticRequestScopeFactoryOptions) {}
+
+  public async create(identity: TrustedRequestIdentity): Promise<RequestScope> {
+    let workspace: RequestWorkspace | undefined;
+    try {
+      const route = createSalesforceIdentityRoute({
+        platformUserId: identity.platformUserId,
+        salesforceUsername: this.options.diagnosticUsername,
+        credentialProfile: 'sfoa-shared-jwt-diagnostic',
+        connectionRole: 'DIAGNOSTIC',
+        aliases: [],
+      });
+      const connection = await this.options.connectionFactory.create(route);
+      workspace = await this.options.workspaceFactory.create(identity.correlationId, connection.getApiVersion());
+      const context = createRequestContext(identity, workspace.root);
+      const orgService = new RequestScopedOrgService(context, route, connection, this.options.instanceUrl);
+      const services = new RequestScopedServices(orgService, workspace.root);
+      return new RequestScope(context, route, connection, workspace, services);
+    } catch (error) {
+      if (workspace) await workspace.cleanup().catch(() => undefined);
+      throw withCorrelation(
+        toIdentityRuntimeError(
+          error,
+          'MCP_SALESFORCE_AUTH_FAILED',
+          'The server could not create the isolated DIAGNOSTIC Salesforce request scope.',
         ),
         identity.correlationId,
       );

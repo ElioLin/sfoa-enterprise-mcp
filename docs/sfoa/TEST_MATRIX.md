@@ -422,8 +422,66 @@ The request lifecycle now preserves UNKNOWN semantics across both Tool and outer
 | DIAGNOSTIC identity | NOT TESTED | Not implemented at baseline entry |
 | Record Action Context | NOT TESTED | Not implemented at baseline entry |
 
+## P4 Completion Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| P4-00 dx-core Provider inventory | PASS | Actual Provider initialized: 13 Tools, nine GA; Provider API 0.6.0 and dx-core 0.10.0 |
+| Official `run_soql_query` primitive audit | PASS | Actual schema/implementation inspected; diagnostic adapter invokes unchanged `Tool.exec()` with fixed username/workspace and `useToolingApi=true` |
+| Official `retrieve_metadata` result audit | PASS | Live run returned one 796-character status block/no structured content and wrote 137 files; CWD restored and workspace removed |
+| Code Analyzer compatibility decision | PASS | Actual six-Tool Provider audited; absolute targets, durable project, and global-temp results establish `NOT REMOTE COMPATIBLE`; none exposed/copied |
+| ADR before implementation | PASS | ADR-0009 records official/live audits and REST/adapter/Code Analyzer decisions |
+| Live SFoA API version | PASS | Both USER Connections reported 67.0 |
+| UI API Object Info | PASS | Live A/B labels, fields/types/required/editability, record types, and default type |
+| UI API Create/Edit Layout | PASS | Live A/B REST calls with object/type/mode/Full/Large succeeded |
+| UI API Create Defaults | PASS | Live A/B effective record type, Salesforce defaults, and Create Layout |
+| UI API record-type Picklists | PASS | Live A/B values/defaults/controller maps/dependent `validFor` facts |
+| GraphQL UI API capability | PASS | Live `recordLayouts` query returned zero GraphQL errors and visible edges; runtime use not required |
+| Context Provider contract | PASS | Exactly three GA Tools, stable output schemas, complete read-only annotations, fixed role map |
+| Context Provider tests | PASS | 10/10; CREATE/UPDATE Record Type, mismatch/availability, required/editable/default/picklist/reference/bounds/unsupported inputs |
+| Diagnostic configuration | PASS | Optional while disabled; startup fails with `MCP_DIAGNOSTIC_CONFIGURATION_INVALID` when a diagnostic Tool is enabled without a username or when that username aliases a configured USER |
+| Diagnostic request scope | PASS | Fresh fixed username Connection/workspace per request, triggering platform user retained, exact cleanup |
+| Client role/identity switch absent | PASS | Schemas omit role, identity, credential, token, instance, arbitrary URL, directory, manifest, source/output path, and Tooling switch |
+| Diagnostic Tooling-only route | PASS | Adapter forces official Tool input `useToolingApi=true`; SELECT-only/no semicolon/no record locking; 200 records/256 KiB bounds |
+| Diagnostic business Tool denial | PASS | Official USER query and DML facades reject DIAGNOSTIC before underlying execution |
+| USER diagnostic Tool denial | PASS | Context facade rejects diagnostic Tools on USER before underlying execution |
+| Metadata allowlist and manifest ownership | PASS | Eight explicit types; server-created escaped manifest; no wildcard/client path/package XML input |
+| Metadata path/UTF-8/size bounds | PASS | Request source root only; max scan 1000, return 40, 64 KiB/file, 256 KiB total, 100 summaries, explicit truncation |
+| Metadata cleanup/CWD/concurrency | PASS | Correct path existence/CWD assertions, exact cleanup metrics, and max one concurrent official retrieve under guard |
+| Diagnostic evidence credential redaction | PASS | Tooling Bearer JSON remains parseable and redacted; metadata PEM/JWT/access-token patterns redacted before output |
+| P4 Streamable HTTP protocol | PASS | 7/7 P4 Host tests include exact six-Tool list, A/B UI context, fixed diagnostic routing, USER DML, cleanup, and logs |
+| P4 live USER A Context | PASS | API 67.0, identity match, 111 fields, 28 API-required, 12 layout-required, 6 defaults, 32 picklist fields, 3 calls |
+| P4 live USER B Context | PASS | API 67.0, identity match, 79 fields, 23 API-required, 12 layout-required, 9 defaults, 21 picklist fields, 3 calls |
+| P4 live A/B isolation | PASS | Fresh Connections, distinct resolved users, identity mismatch 0, Connection reuse 0 |
+| P4 live workspace cleanup | PASS | Created 2, cleaned 2, active 0 |
+| Real diagnostic Tooling evidence | NOT TESTED | `SFOA_DIAGNOSTIC_USERNAME` is not configured |
+| Real diagnostic metadata evidence | NOT TESTED | `SFOA_DIAGNOSTIC_USERNAME` is not configured; no mock result promoted to live PASS |
+| P3 Provider regression | PASS | 17/17 |
+| P3 Host regression | PASS | 18/18, including Tool/request timeout UNKNOWN and one-invocation/no-retry semantics |
+| P3 live Salesforce | PASS | CREATE/UPDATE, required/validation/authorization/forgery, Connection reuse 0, cleanup 2/2 |
+| P2 Host regression | PASS | 18/18 |
+| P2 live A/B/50-load | PASS | Identity mismatch, cross-user leak, workspace leak, cleanup failure, Connection reuse, and errors all 0 |
+| P1 tests/live | PASS | 26/26; live A/B, 20 requests, mismatch/leak/reuse 0, CWD/workspace/cleanup |
+| P0 tests/live | PASS | 9/9; live JWT, identity, direct/official SOQL, official CustomObject metadata 135 files, CWD restore |
+| P0 Streamable HTTP | PASS | 1/1 initialize/list/call |
+| Original Salesforce stdio | PASS | Initialize, five-Tool list, official `get_username`; command completed in 122.95 s |
+| Project-local Inspector | PASS | Inspector 0.15.0 initialize/list/call for A and B; command completed in 50.98 s |
+| Upstream compatibility | PASS | Nine GA dx-core Tools and `drift: []` |
+| Root build | PASS | Git Bash all-workspace build, 106.76 s |
+| Root full tests | PASS | Complete all-workspace `yarn test`, 419.58 s |
+| SFoA changed-code lint | PASS | Context, DML, Identity, Host, P0 runtime, and HTTP POC strict TypeScript all exited 0 |
+| Repository lint | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings under unchanged official Code Analyzer paths; no SFoA path |
+| Frozen dependency install | KNOWN UPSTREAM DEBT | Windows Yarn nested `@typescript-eslint/.../ignore` ENOENT; source/manifests/lockfile unchanged; 513 ignored bin commands restored mechanically |
+| Official Salesforce TypeScript modified | PASS | Zero existing official TypeScript paths in P4 diff |
+| Official Tool copied/reimplemented | PASS | None; official SOQL/retrieve are invoked through public `Tool.exec()` |
+| JSforce patched | PASS | No |
+| Root manifest / lockfile | PASS | Root `package.json` and `yarn.lock` unchanged |
+| Database / Redis / cache / pool | PASS | None added |
+| Runtime Form / Evidence Graph / Snapshot / permission replica | PASS | None added |
+| P5 scope boundary | PASS | No Admin UI, persistence, or P5 work started |
+
 ## P4 current result
 
-`P4 = IN PROGRESS`
+`P4 = PARTIAL`
 
-Only the phase-entry Gates above are PASS. Audit, architecture decision, implementation, live capabilities, and P4 regression evidence remain outstanding; P5 is not authorized.
+Audit, architecture, implementation, USER live context, security/protocol, P0–P3 regressions, build/tests, changed-code lint, and upstream boundaries pass. Real fixed-DIAGNOSTIC Tooling and metadata evidence remains `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is absent. P4 cannot be promoted to PASS from mock evidence, and P5 is not authorized.

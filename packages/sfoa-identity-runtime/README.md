@@ -1,6 +1,6 @@
-# SFoA P1 Identity Runtime
+# SFoA Request-Scoped Identity Runtime
 
-This private SFoA-owned workspace implements P1 request-scoped identity routing over the public Salesforce Provider API:
+This private SFoA-owned workspace preserves P1 USER routing and adds the P4 server-owned DIAGNOSTIC route over the public Salesforce Provider API:
 
 ```text
 X-Platform-User-Id
@@ -12,7 +12,7 @@ X-Platform-User-Id
 
 The P1 host exposes only the official `get_username`, `run_soql_query`, and `retrieve_metadata` Tools. Client `usernameOrAlias` is non-authoritative and must match the resolved request identity. Client `directory` is replaced with a disposable request workspace. Metadata calls are serialized by the CWD guard; source-audited identity/SOQL calls may execute concurrently.
 
-No database, Salesforce CLI auth cache, token cache, connection pool, DML Provider, DELETE operation, or Diagnostic Connection is implemented. `ConnectionRole.DIAGNOSTIC` is a reserved P4 boundary only.
+P4 optionally configures `SFOA_DIAGNOSTIC_USERNAME`, which must be distinct from every configured USER Salesforce username. Only the Host can construct that route: the triggering `platformUserId` remains in the request context, while the actual Salesforce username is the fixed integration user. Every diagnostic request gets a fresh JWT Connection and workspace. No client identity/role selector, database, Salesforce CLI auth cache, token cache, connection pool, DELETE operation, or shared diagnostic Connection is implemented.
 
 From the repository root:
 

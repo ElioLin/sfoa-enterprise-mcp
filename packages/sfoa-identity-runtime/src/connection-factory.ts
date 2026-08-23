@@ -45,13 +45,6 @@ export class JwtConnectionFactory implements SalesforceConnectionFactory {
   }
 
   public async create(route: SalesforceIdentityRoute): Promise<Connection> {
-    if (route.connectionRole !== 'USER') {
-      throw new IdentityRuntimeError(
-        'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
-        'The DIAGNOSTIC Salesforce connection role is reserved for P4 and is unavailable in the P1 business-user runtime.',
-      );
-    }
-
     let authInfo: AuthInfo;
     try {
       authInfo = await this.dependencies.createAuthInfo({

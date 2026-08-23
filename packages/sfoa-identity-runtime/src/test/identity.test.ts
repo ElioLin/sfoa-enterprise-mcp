@@ -38,11 +38,11 @@ test('InMemoryIdentityRepository rejects duplicate platform ids and cross-route 
   );
 });
 
-test('ConnectionRole reserves DIAGNOSTIC without implementing it in the USER route', () => {
+test('ConnectionRole represents the server-owned P4 DIAGNOSTIC route', () => {
   const route = createSalesforceIdentityRoute({
     platformUserId: 'diagnostic-placeholder',
     salesforceUsername: 'diagnostic@example.test',
-    credentialProfile: 'future-p4',
+    credentialProfile: 'sfoa-shared-jwt-diagnostic',
     connectionRole: 'DIAGNOSTIC',
     aliases: [],
   });

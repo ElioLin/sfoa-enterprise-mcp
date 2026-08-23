@@ -2,6 +2,45 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-23 — P4 diagnosis and runtime context implemented with PARTIAL live Gate
+
+### Official and live capability audit
+
+- Initialized the actual pinned dx-core Provider: 13 Tools, nine GA. Confirmed the GA `run_soql_query` Tool selects `connection.tooling.query()` only when requested and the GA `retrieve_metadata` Tool uses the DX project/filesystem path.
+- Live-ran unchanged official `retrieve_metadata`: one 796-character status block, no `structuredContent` or XML, and 137 retrieved source files in the request workspace. This proved that a minimal same-request bounded file-content wrapper is required for stateless HTTP diagnosis.
+- Initialized the actual Code Analyzer Provider: six Tools. Its Agent-selected absolute targets, durable local project, and process-global temp result file are not compatible with request-owned remote workspaces. Recorded `NOT REMOTE COMPATIBLE`; no Tool was exposed, copied, or rewritten.
+- Exercised SFoA API 67.0 with both real USER routes. REST UI API Object Info, Create/Edit Layout, Create Defaults, and record-type Picklist/dependency calls passed. GraphQL `recordLayouts` also passed but is not required; ADR-0009 selects REST for the P4 runtime.
+
+### Added
+
+- New private `@sfoa/mcp-provider-sfoa-context` workspace with exactly three GA read-only Tools and stable structured outputs: USER `get_record_action_context`, DIAGNOSTIC `run_diagnostic_tooling_query`, and DIAGNOSTIC `get_metadata_component_context`.
+- Server-owned `SFOA_DIAGNOSTIC_USERNAME` route using the existing Connected App/JWT configuration. Diagnostic Tools fail startup without it, create a fresh Connection/workspace per request, retain the triggering platform user in logs, and expose no identity/role/token/URL/filesystem switch.
+- Official diagnostic adapters: Tooling query forces the unchanged official SOQL Tool to `useToolingApi=true`; metadata context creates an XML-escaped allowlisted manifest, invokes unchanged official retrieval, and reads only bounded UTF-8 files beneath the request source root.
+- REST UI API record-action executor with available/default/record-derived Record Type handling; separate API/layout requiredness; field/layout editability; Salesforce defaults; record-type picklists/dependencies; labels/types/references/layout order; source coverage, call count, duration, bytes, warnings, and explicit truncation.
+- Credential-pattern redaction for Tooling/metadata evidence and JSON-safe Bearer redaction regression coverage.
+- `P4_AGENT_GUIDANCE.md`, `P4_FINAL_REPORT.md`, and ADR-0009.
+
+### Security and scope
+
+- USER official reads, UI context, CREATE, and UPDATE are blocked on DIAGNOSTIC scopes. Diagnostic Tools are blocked on USER scopes. A mixed batch remains USER-scoped and cannot turn a diagnostic identity into a business-record or mutation route.
+- Metadata types are limited to CustomObject, CustomField, ValidationRule, Flow, ApexClass, ApexTrigger, Layout, and FlexiPage. Wildcards, client manifests/paths, deployment, permission assignment, anonymous Apex, normal business SOQL through DIAGNOSTIC, and DELETE remain absent.
+- Added no Metadata Snapshot, Evidence Graph, Runtime Form Engine, FLS/Profile/Permission replica, Validation/Flow/Apex interpreter, Lookup Engine, database, Redis, token cache, Connection pool, Admin UI, or P5 capability.
+
+### Verification
+
+- Context Provider: PASS, 10/10. P4 Host: PASS, 7/7. Identity Runtime: PASS, 26/26. P3 Provider/Host: PASS, 17/17 and 18/18. P2 Host: PASS, 18/18.
+- P4 real USER A/B record action context: PASS at API 67.0. Returned 111/79 fields with 28/23 API-required, 12/12 layout-required, 6/9 defaulted, and 32/21 picklist fields. Identity mismatch 0, Connection reuse 0, workspace cleanup 2/2.
+- Real DIAGNOSTIC Tooling and metadata context: `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is not configured.
+- P3 live CREATE/UPDATE/native failure/forgery/cleanup, P2 live A/B/50-request load, P1 live A/B/20-concurrency, P0 live JWT/SOQL/official CustomObject metadata, P0 HTTP, original stdio, project-local Inspector, and upstream zero drift: PASS.
+- Git Bash root build: PASS, 106.76 s. Root full tests: PASS, 419.58 s. All six SFoA strict TypeScript lints: PASS.
+- Root lint reproduced exactly 47 unchanged official Code Analyzer errors / 0 warnings: `KNOWN UPSTREAM DEBT`; no SFoA file is affected.
+- Frozen Yarn Classic install aborted on a nested `@typescript-eslint/.../ignore` ENOENT and removed generated `.bin` entries. Source/manifests/lockfile stayed unchanged; 513 ignored command shims were mechanically rebuilt from installed package manifests before stdio/build/tests passed. This remains `KNOWN UPSTREAM DEBT`.
+- Official Salesforce TypeScript modifications: 0. Official Tool copies: 0. JSforce patches: 0. Root `package.json`/`yarn.lock` modifications: 0. Database/Redis/cache/pool additions: 0.
+
+### Result
+
+Baseline advanced to `P4-BL-1.1`. `P4 = PARTIAL`: all independent implementation and USER live evidence passed, but the key real fixed-DIAGNOSTIC evidence chain is not tested. P5 remains unauthorized.
+
 ## 2026-08-23 — P4 diagnosis and runtime context authorized
 
 ### Phase transition
