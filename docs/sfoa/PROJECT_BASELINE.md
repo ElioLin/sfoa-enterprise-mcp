@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P4-BL-1.2**
+Baseline ID: **P5-BL-1.0**
 
 Baseline date: 2026-08-23
 
@@ -48,7 +48,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Future Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Database | P0/P0-Closure/P1/P2/P3/P4: none. P4 keeps the in-memory identity routes, environment-backed DML policy, fresh request scopes, and live Salesforce context; persistence is introduced only when durable routing or Admin configuration proves it is needed. |
+| Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
 
@@ -90,11 +90,11 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P4 implementation maintainer-accepted; live diagnostic closure deferred; P5 development authorized`
+`P5 — Admin Control Plane (IN PROGRESS)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 IMPLEMENTATION = MAINTAINER ACCEPTED; P4 LIVE DIAGNOSTIC CLOSURE = DEFERRED; P4 recorded result = PARTIAL; P5 DEVELOPMENT = AUTHORIZED`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 IMPLEMENTATION = MAINTAINER ACCEPTED; P4 LIVE DIAGNOSTIC CLOSURE = DEFERRED; P4 recorded result = PARTIAL; P5 = IN PROGRESS`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -125,6 +125,8 @@ P4 implementation adds the private `@sfoa/mcp-provider-sfoa-context` workspace a
 Final USER live evidence passed for both routes at API 67.0 with distinct Connections, identity mismatch 0, reuse 0, and exact workspace cleanup 2/2. All unit/protocol/security Gates, P0–P3 live regressions, original stdio, Inspector, upstream compatibility, Git Bash root build, full root tests, and six SFoA changed-code lints passed. The real fixed-DIAGNOSTIC Tooling and metadata evidence chain is `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is absent. P4 therefore retains its historical recorded result `PARTIAL`; mocks are not accepted as live evidence.
 
 Maintainer review subsequently accepted the P4 implementation and issued an explicit Phase-Gate waiver: the external-credential live diagnostic Gate is deferred, and P5 development is authorized. Before P5 final acceptance, the P4 live diagnostic closure must be attempted again and its evidence recorded. P5 implementation may complete without that credential, but P5 must remain `PARTIAL` unless the real diagnostic Tooling/metadata chain passes. Any implementation defect found by the live closure belongs to P5 Closure and requires the affected P4/P5 Gates to be rerun. ADR-0010 records this waiver without rewriting the historical P4 `PARTIAL` result.
+
+The accepted P4 branch, including ADR-0010, was fast-forwarded without squashing to `main` at `e6ae8d5` and pushed to `origin/main`. `feature/p5-admin-control-plane` was created from that exact updated commit. ADR-0011 establishes the P5 persistence and Admin security architecture before product implementation begins.
 
 ## P0 acceptance decisions
 
@@ -292,6 +294,19 @@ P4 originally could not authorize itself to enter P5. Maintainer review later ac
 - If the credential remains unavailable, P5 code may complete but the overall P5 result must be `PARTIAL`.
 - If the live attempt exposes a P4 defect, P5 Closure must fix it and rerun the affected P4/P5 Gates.
 
+## P5 scope (in progress)
+
+1. Add an SFoA-owned Control Plane split into `packages/sfoa-control-plane`, `packages/sfoa-admin-api`, and `packages/sfoa-admin-web`.
+2. Persist only SFoA governance and audit in MySQL 8.x: USER identity routes, audited Tool enabled state, Object-by-CREATE/UPDATE policy, server-owned Diagnostic configuration, allowlisted non-secret runtime settings, migrations, and durable audit.
+3. Preserve `SFOA_CONTROL_PLANE_MODE=env` as the default P0-P4 compatibility path. In `mysql` mode, missing/unavailable configuration fails closed with no environment fallback.
+4. Load one immutable governance snapshot per MCP HTTP request so Admin changes affect the next request without restarting the runtime. Do not cache Salesforce Connections/JWTs or introduce Redis.
+5. Add a separately hosted, authenticated Admin REST API with scrypt password verification, signed expiring HttpOnly SameSite=Strict sessions, CSRF/Origin checks, login rate limiting, strict validation, optimistic locking, transactionally audited configuration writes, bounded pagination, no-store responses, and masked secrets.
+6. Add the accepted React/TypeScript/Vite/Ant Design/TanStack Query/React Router Admin Console with login, dashboard, identity routes, Tool governance, DML policy, Diagnostic, audit, and system pages.
+7. Add versioned migrations, idempotent environment bootstrap, MySQL integration/runtime-outage tests, Admin API/security tests, frontend tests, browser E2E, deployment/setup guidance, and a P5 final report.
+8. Reattempt the real P4 DIAGNOSTIC closure through the actual P4 request-scope path before P5 final acceptance. Missing credentials remain `NOT TESTED` and force P5 overall `PARTIAL`.
+
+P5 does not manage Salesforce CRUD, FLS, sharing, Profiles, Permission Sets, Validation Rules, Flow, Trigger, Page Layout/Record Type authorization, lookup filters, or business data. It adds no Salesforce permission replica, metadata warehouse, form/runtime-rule engine, DELETE/UPSERT/Bulk DML, Redis, token/Connection cache, OAuth server, SSO, multi-tenant framework, workflow engine, notification center, report builder, AI chat UI, or P6 evaluation work.
+
 ### P1 entry criteria — satisfied (historical)
 
 - P0-Closure live Fresh JWT, Direct Connection, Identity Match, Direct SOQL, official SOQL, and at least one official CustomObject metadata retrieval are PASS.
@@ -350,3 +365,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P4-BL-1.0 | 2026-08-23 | Recorded maintainer final acceptance of P3 and authorization of P4; reran the clean P3 17/17 Provider, 18/18 Host, zero-drift upstream, and five-workspace lint Gates; fast-forwarded/pushed `main` without squashing; created the dedicated P4 branch; and entered audit-first diagnosis/runtime context with no capability pre-claimed. |
 | P4-BL-1.1 | 2026-08-23 | Implemented the audited three-Tool context Provider, fixed request-scoped DIAGNOSTIC boundary, official Tool adapters, REST UI API record-action facts, bounds/guidance/security tests, and complete P0–P3 regressions; USER A/B live Gates passed, but real diagnostic Tooling/metadata remained NOT TESTED without `SFOA_DIAGNOSTIC_USERNAME`, so P4 closed as PARTIAL and P5 remained unauthorized. |
 | P4-BL-1.2 | 2026-08-23 | Recorded Maintainer acceptance of the P4 implementation and an explicit Phase-Gate waiver deferring the external-credential live diagnostic closure; revalidated 10/10 Context Provider, 7/7 P4 Host, 26/26 Identity Runtime, zero upstream drift, and six-workspace changed-code lint; authorized P5 development while requiring a renewed P4 closure attempt and evidence before P5 final PASS. |
+| P5-BL-1.0 | 2026-08-23 | Fast-forwarded and pushed the accepted P4 history to `main` at `e6ae8d5`, created `feature/p5-admin-control-plane`, entered P5 with three SFoA-owned workspaces, MySQL-authoritative production mode plus default env compatibility, immutable per-request policy snapshots, durable safe audit, bounded bootstrap Admin authentication, no Salesforce permission replica/Redis/cache, and the deferred P4 live closure prerequisite. |

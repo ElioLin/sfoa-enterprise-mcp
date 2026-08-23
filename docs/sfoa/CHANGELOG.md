@@ -2,6 +2,22 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-23 — P5 Admin Control Plane entered
+
+### Phase transition
+
+- Pushed the accepted P4 waiver commit to `feature/p4-diagnosis-runtime-context`.
+- Fast-forwarded `main` from `4c3a45e` to `e6ae8d5` without squashing and pushed `origin/main`.
+- Created `feature/p5-admin-control-plane` from updated `main` at `e6ae8d5`.
+- Advanced the authoritative baseline to `P5-BL-1.0`; P5 is now `IN PROGRESS` and P6 remains prohibited.
+
+### Architecture entry
+
+- Added ADR-0011 for MySQL-backed SFoA governance/audit, the `env|mysql` compatibility boundary, immutable per-request policy snapshots, separate Control Plane/Admin API/Web workspaces, no Redis, and bootstrap session authentication rather than P5 SSO.
+- MySQL is justified only for durable Admin-managed SFoA configuration and audit. It does not store Salesforce secrets or become a Salesforce permission authority.
+- The default `env` mode preserves P0-P4 and official stdio regressions. `mysql` mode is authoritative and fails closed without environment fallback.
+- P4 live DIAGNOSTIC closure remains deferred and mandatory before P5 final PASS.
+
 ## 2026-08-23 — P4 implementation accepted; live closure deferred; P5 development authorized
 
 ### Phase-Gate waiver
