@@ -1,0 +1,46 @@
+{
+  "name": "@sfoa/admin-web",
+  "version": "0.1.0-p5",
+  "private": true,
+  "description": "P5 React Admin Console for SFoA-owned governance and durable audit",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
+    "build": "yarn lint && node ./node_modules/vite/bin/vite.js build",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P5 Admin Web: package skipped')\"",
+    "test": "node ./node_modules/vitest/vitest.mjs run",
+    "test:watch": "node ./node_modules/vitest/vitest.mjs",
+    "e2e": "node ./node_modules/@playwright/test/cli.js test",
+    "preview": "node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@ant-design/icons": "6.3.2",
+    "@sfoa/control-plane": "0.1.0-p5",
+    "@tanstack/react-query": "5.102.0",
+    "antd": "6.6.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router-dom": "7.18.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.6",
+    "@types/node": "22.16.5",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.1.0",
+    "jsdom": "29.0.0",
+    "typescript": "5.8.3",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}

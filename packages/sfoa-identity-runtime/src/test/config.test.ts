@@ -62,3 +62,29 @@ test('P1 config consumes SECOND_TEST_USER and builds two non-secret identity rou
     await rm(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
+
+test('mysql identity mode ignores environment-owned USER and DIAGNOSTIC routes without fallback', async () => {
+  const testRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p5-db-identity-config-'));
+  try {
+    await writeFile(path.join(testRoot, 'test-key.pem'), 'test key fixture', 'utf8');
+    const config = await loadIdentityRuntimeConfig(testRoot, {
+      SFOA_INSTANCE_URL: 'https://example.test',
+      CONNECTED_APP_CLIENT_ID: 'test-client-id',
+      JWT_PRIVATE_KEY_PATH: path.join(testRoot, 'test-key.pem'),
+      SALESFORCE_USERNAME: 'not a valid stale username',
+      SECOND_TEST_USER: 'same@example.test',
+      SFOA_DIAGNOSTIC_USERNAME: 'SAME@example.test',
+      P1_PLATFORM_USER_A: 'not valid!',
+      TEST_METADATA_TYPE: '../stale',
+      TEST_METADATA_FULL_NAME: '../stale',
+    }, { routesFromDatabase: true });
+    assert.equal(config.primaryUsername, '');
+    assert.equal(config.secondaryUsername, undefined);
+    assert.equal(config.diagnosticUsername, undefined);
+    assert.equal(config.testMetadataType, undefined);
+    assert.equal(config.testMetadataFullName, undefined);
+    assert.deepEqual(buildIdentityRoutes(config), []);
+  } finally {
+    await rm(testRoot, { recursive: true, force: true });
+  }
+});

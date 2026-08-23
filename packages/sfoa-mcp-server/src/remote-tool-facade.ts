@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type {
   CallToolResult,
@@ -108,7 +109,7 @@ export class RemoteToolFacade {
         `Official business Tool ${this.getName()} is fixed to the USER request scope and cannot execute with DIAGNOSTIC authority.`,
         { correlationId: this.options.context.correlationId },
       );
-      this.log('BLOCKED', elapsed(started), error.code);
+      await this.log('BLOCKED', elapsed(started), error.code, input);
       return remoteRuntimeErrorToolResult(
         error,
         this.options.redactionSecrets,
@@ -125,11 +126,11 @@ export class RemoteToolFacade {
         `Tool ${this.getName()} exceeded the configured MCP_TOOL_TIMEOUT_MS. The runtime stopped waiting; Salesforce server-side cancellation is not guaranteed.`,
         this.options.context.correlationId,
       );
-      this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started));
+      await this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), undefined, input, result);
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
-        this.log('ERROR', elapsed(started), error.code);
+        await this.log('ERROR', elapsed(started), error.code, input);
         return remoteRuntimeErrorToolResult(
           error,
           this.options.redactionSecrets,
@@ -158,8 +159,14 @@ export class RemoteToolFacade {
     return injected;
   }
 
-  private log(result: 'PASS' | 'ERROR' | 'BLOCKED', durationMs: number, errorCode?: string): void {
-    this.options.logger.log({
+  private async log(
+    result: 'PASS' | 'ERROR' | 'BLOCKED',
+    durationMs: number,
+    errorCode?: string,
+    input: ToolInput = {},
+    response?: CallToolResult,
+  ): Promise<void> {
+    await Promise.resolve(this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,
       platformUserId: this.options.context.platformUserId,
@@ -168,9 +175,31 @@ export class RemoteToolFacade {
       toolName: this.getName(),
       durationMs,
       result,
+      outcome: result === 'PASS' ? 'SUCCESS' : result === 'BLOCKED' ? 'DENIED' : 'FAILED',
       ...(errorCode ? { errorCode } : {}),
-    });
+      requestSummary: safeOfficialRequestSummary(this.getName(), input),
+      responseSummary: { isError: response?.isError === true },
+    })).catch(() => undefined);
   }
+}
+
+function safeOfficialRequestSummary(toolName: string, input: ToolInput): unknown {
+  if (toolName === 'run_soql_query') {
+    const query = typeof input.query === 'string' ? input.query : '';
+    return {
+      querySha256: createHash('sha256').update(query).digest('hex'),
+      queryLength: query.length,
+      useToolingApi: input.useToolingApi === true,
+    };
+  }
+  if (toolName === 'retrieve_metadata') {
+    return {
+      hasManifest: typeof input.manifest === 'string' && input.manifest.length > 0,
+      hasSourceDir: typeof input.sourceDir === 'string' && input.sourceDir.length > 0,
+      ignoreConflicts: input.ignoreConflicts === true,
+    };
+  }
+  return { toolName };
 }
 
 function elapsed(started: number): number {

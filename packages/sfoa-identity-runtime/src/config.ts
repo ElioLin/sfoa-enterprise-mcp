@@ -19,7 +19,7 @@ const identifierSchema = z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]*$/u);
 const rawConfigSchema = z
   .object({
     SFOA_INSTANCE_URL: z.string().trim().min(1),
-    SALESFORCE_USERNAME: usernameSchema,
+    SALESFORCE_USERNAME: usernameSchema.optional(),
     SFOA_DIAGNOSTIC_USERNAME: usernameSchema.optional(),
     SECOND_TEST_USER: usernameSchema.optional(),
     CONNECTED_APP_CLIENT_ID: z.string().trim().min(1).max(512),
@@ -35,15 +35,15 @@ const rawConfigSchema = z
   })
   .strict();
 
-const REQUIRED_RUNTIME_VARIABLES = [
+const REQUIRED_AUTH_VARIABLES = [
   'SFOA_INSTANCE_URL',
-  'SALESFORCE_USERNAME',
   'CONNECTED_APP_CLIENT_ID',
   'JWT_PRIVATE_KEY_PATH',
 ] as const;
 
 const ENVIRONMENT_NAMES = [
-  ...REQUIRED_RUNTIME_VARIABLES,
+  ...REQUIRED_AUTH_VARIABLES,
+  'SALESFORCE_USERNAME',
   'SECOND_TEST_USER',
   'SFOA_DIAGNOSTIC_USERNAME',
   'SALESFORCE_ALIAS',
@@ -55,6 +55,18 @@ const ENVIRONMENT_NAMES = [
   'P1_CONCURRENT_REQUESTS',
   'PORT',
 ] as const;
+
+const DATABASE_OWNED_IDENTITY_NAMES = new Set<string>([
+  'SALESFORCE_USERNAME',
+  'SECOND_TEST_USER',
+  'SFOA_DIAGNOSTIC_USERNAME',
+  'SALESFORCE_ALIAS',
+  'SECOND_TEST_ALIAS',
+  'P1_PLATFORM_USER_A',
+  'P1_PLATFORM_USER_B',
+  'TEST_METADATA_TYPE',
+  'TEST_METADATA_FULL_NAME',
+]);
 
 export type IdentityRuntimeConfig = Readonly<{
   projectRoot: string;
@@ -86,6 +98,7 @@ export class RuntimeConfigurationError extends Error {
 export async function loadIdentityRuntimeConfig(
   projectRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
+  options: Readonly<{ routesFromDatabase?: boolean }> = {},
 ): Promise<IdentityRuntimeConfig> {
   const resolvedProjectRoot = path.resolve(projectRoot);
   let fileValues: Record<string, string> = {};
@@ -97,11 +110,16 @@ export async function loadIdentityRuntimeConfig(
 
   const combined: Record<string, string | undefined> = {};
   for (const name of ENVIRONMENT_NAMES) {
-    const value = environment[name] ?? fileValues[name];
+    const value = options.routesFromDatabase && DATABASE_OWNED_IDENTITY_NAMES.has(name)
+      ? undefined
+      : environment[name] ?? fileValues[name];
     combined[name] = value?.trim() ? value : undefined;
   }
 
-  const missing = REQUIRED_RUNTIME_VARIABLES.filter((name) => !combined[name]);
+  const requiredVariables = options.routesFromDatabase
+    ? REQUIRED_AUTH_VARIABLES
+    : [...REQUIRED_AUTH_VARIABLES, 'SALESFORCE_USERNAME'] as const;
+  const missing = requiredVariables.filter((name) => !combined[name]);
   if (missing.length > 0) {
     throw new RuntimeConfigurationError(`Missing required P1 runtime configuration: ${missing.join(', ')}`, missing);
   }
@@ -118,11 +136,13 @@ export async function loadIdentityRuntimeConfig(
     );
   }
 
-  assertDiagnosticIdentityDistinct({
-    primaryUsername: parsed.data.SALESFORCE_USERNAME,
-    secondaryUsername: parsed.data.SECOND_TEST_USER,
-    diagnosticUsername: parsed.data.SFOA_DIAGNOSTIC_USERNAME,
-  });
+  if (!options.routesFromDatabase) {
+    assertDiagnosticIdentityDistinct({
+      primaryUsername: parsed.data.SALESFORCE_USERNAME ?? '',
+      secondaryUsername: parsed.data.SECOND_TEST_USER,
+      diagnosticUsername: parsed.data.SFOA_DIAGNOSTIC_USERNAME,
+    });
+  }
 
   const privateKeyPath = path.isAbsolute(parsed.data.JWT_PRIVATE_KEY_PATH)
     ? path.normalize(parsed.data.JWT_PRIVATE_KEY_PATH)
@@ -135,7 +155,7 @@ export async function loadIdentityRuntimeConfig(
   return Object.freeze({
     projectRoot: resolvedProjectRoot,
     instanceUrl: normalizeInstanceUrl(parsed.data.SFOA_INSTANCE_URL),
-    primaryUsername: parsed.data.SALESFORCE_USERNAME,
+    primaryUsername: parsed.data.SALESFORCE_USERNAME ?? '',
     secondaryUsername: parsed.data.SECOND_TEST_USER,
     diagnosticUsername: parsed.data.SFOA_DIAGNOSTIC_USERNAME,
     clientId: parsed.data.CONNECTED_APP_CLIENT_ID,
@@ -169,15 +189,16 @@ export function assertDiagnosticIdentityDistinct(
 }
 
 export function buildIdentityRoutes(config: IdentityRuntimeConfig): readonly SalesforceIdentityRoute[] {
-  const routes: SalesforceIdentityRoute[] = [
-    createSalesforceIdentityRoute({
+  const routes: SalesforceIdentityRoute[] = [];
+  if (config.primaryUsername) {
+    routes.push(createSalesforceIdentityRoute({
       platformUserId: config.platformUserA,
       salesforceUsername: config.primaryUsername,
       credentialProfile: 'sfoa-shared-jwt',
       connectionRole: 'USER',
       aliases: config.primaryAlias ? [config.primaryAlias] : [],
-    }),
-  ];
+    }));
+  }
   if (config.secondaryUsername) {
     routes.push(
       createSalesforceIdentityRoute({

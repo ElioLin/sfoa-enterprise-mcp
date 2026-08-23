@@ -7,17 +7,21 @@ export type RuntimeLogEvent = Readonly<{
   salesforceUsername?: string;
   executionRole?: 'USER' | 'DIAGNOSTIC';
   toolName?: string;
-  operation?: 'CREATE' | 'UPDATE';
-  outcome?: 'UNKNOWN';
+  operation?: string;
+  objectApiName?: string;
+  recordId?: string;
+  outcome?: 'SUCCESS' | 'FAILED' | 'DENIED' | 'UNKNOWN';
   mutationStarted?: boolean;
   terminationLayer?: 'TOOL' | 'REQUEST' | 'TRANSPORT';
   durationMs?: number;
   result: RuntimeLogResult;
   errorCode?: string;
+  requestSummary?: unknown;
+  responseSummary?: unknown;
 }>;
 
 export interface RuntimeLogger {
-  log(event: RuntimeLogEvent): void;
+  log(event: RuntimeLogEvent): void | Promise<void>;
 }
 
 export class JsonLineRuntimeLogger implements RuntimeLogger {

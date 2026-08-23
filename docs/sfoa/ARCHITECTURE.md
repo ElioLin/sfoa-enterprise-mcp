@@ -526,19 +526,41 @@ The initial allowlist is `CustomObject`, `CustomField`, `ValidationRule`, `Flow`
 
 MCP returns facts. The LLM decides whether information is missing, asks the user, selects optional fields, resolves ambiguous references through USER reads, and explains diagnostic evidence. No Metadata Snapshot, Evidence Graph, Runtime Form Engine, FLS/Profile/Permission replica, Validation Rule/Flow/Apex interpreter, Lookup Engine, or recommended-field score exists.
 
-## Future Admin UI location
+## P5 Control Plane persistence and Admin boundary
 
-Recommended P5 location: `apps/admin-web`.
+ADR-0011 supersedes the earlier prospective `apps/admin-web` location. P5 uses the existing `packages/*` workspace discovery and keeps three private SFoA modules:
 
-This keeps a deployable application separate from publishable provider packages. At P5, add `apps/*` to Yarn workspaces through one deliberate root manifest change and record it in the Upstream divergence matrix. Do not create the workspace during P0.
+```text
+packages/sfoa-control-plane  MySQL/Kysely, migrations, repositories, immutable snapshots, audit, shared contracts
+packages/sfoa-admin-api      bootstrap Admin authentication, REST, verification, health/status
+packages/sfoa-admin-web      React/Vite/Ant Design/TanStack Query/React Router Console
+```
 
-Planned UI areas: dashboard, Salesforce account routing, object CREATE/UPDATE allowlists, MCP Tool governance, call audit, and system configuration.
+The runtime and Admin API are separate processes and authentication domains. Browser requests never receive Salesforce credentials, database credentials, the MCP bearer, or the Admin session secret.
+
+```mermaid
+flowchart LR
+  Browser[Admin browser] -->|signed HttpOnly session + Origin + CSRF| Admin[Admin API :8081]
+  Admin -->|transactional config + admin audit| MySQL[(MySQL 8)]
+  Client[Authenticated MCP client] -->|Bearer + platformUserId| MCP[MCP runtime :8080]
+  MCP -->|one REPEATABLE READ snapshot per POST| MySQL
+  MCP -->|fresh JWT / fresh Connection| SF[Salesforce authority]
+  MCP -->|safe durable runtime audit| MySQL
+```
+
+`SFOA_CONTROL_PLANE_MODE=env` remains the default compatibility route for historical P0-P4 and official stdio regression. In `mysql` mode, MySQL is authoritative for identity routes, Tool enabled state, CREATE/UPDATE object policy, Diagnostic identity, and allowlisted safe runtime settings. Missing rows, invalid policy, database failure, or an unknown enabled Tool denies the request; the runtime never falls back to environment policy.
+
+Each HTTP POST loads one immutable request snapshot. Admin changes become visible on the next POST without restart, while an in-flight request never mixes versions. No Redis or policy cache is introduced, and Salesforce Connection/JWT/token caching remains prohibited.
+
+MySQL stores only SFoA governance and safe audit. Executable-code facts still define Tool classification, role, Agent/Host argument ownership, remote compatibility, release state, and upstream-drift acceptance. Salesforce continues to decide CRUD, FLS, sharing, validation, Flow, Trigger, native permissions, and final DML.
+
+Configuration updates use optimistic `row_version` checks and include their Admin audit insertion in the same transaction. Runtime audit failure is deliberately different: it degrades audit health and falls back to the existing logger, but never changes or retries an already determined Salesforce mutation outcome.
 
 ## Data, cache, and security baseline
 
-- P0, P0-Closure, P1, P2, P3, and P4 use no database.
-- P1 proves request-scoped identity routing with an in-memory repository. Persistence is introduced only when durable routing or Admin configuration actually needs it.
-- No Redis, token cache, or Connection pool without measured multi-node/session/cache requirements and maintainer approval. P2 measurements retain fresh JWT/Connection per request.
+- P0, P0-Closure, P1, P2, P3, and P4 use no database. P5 introduces MySQL only for durable SFoA governance and audit.
+- P1 proves request-scoped identity routing with an in-memory repository. P5 supplies `MySqlIdentityRepository` behind the same authority boundary while env mode retains the historical repository.
+- A bounded MySQL connection pool is allowed. Redis, Salesforce token cache, and Salesforce Connection pool remain absent; every Salesforce request retains a fresh JWT/Connection.
 - Secrets remain outside Git; logs must redact tokens and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.
 - DELETE is absent from the initial mutation design.

@@ -8,6 +8,7 @@ import {
 } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ControlPlaneError } from '@sfoa/control-plane';
 import {
   dmlOutcomeUnknownError,
   type DmlOperation,
@@ -41,10 +42,17 @@ import {
 } from './errors.js';
 import {
   createGovernedMcpServer,
+  configureProviderRuntime,
   initializeProviderRuntime,
   type InitializedProviderRuntime,
   MutationRequestState,
 } from './provider-runtime.js';
+import {
+  snapshotDiagnosticRoute,
+  snapshotDmlAllowlist,
+  snapshotUserRoute,
+  type RuntimePolicySnapshotSource,
+} from './policy-snapshot.js';
 import { readBoundedJsonBody } from './request-body.js';
 import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
@@ -83,6 +91,7 @@ export type StartRemoteMcpServerOptions = Readonly<{
   toolSource?: RequestToolSource;
   inventoryToolSource?: RequestToolSource;
   authenticator?: ClientAuthenticator;
+  policySnapshotSource?: RuntimePolicySnapshotSource;
 }>;
 
 type RequestObservation = {
@@ -118,6 +127,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       config: options.config,
       identityRuntime: options.identityRuntime,
       initializedProvider,
+      policySnapshotSource: options.policySnapshotSource,
       authenticator,
       allowedHosts,
       allowedOrigins,
@@ -205,6 +215,7 @@ type HandleRemoteRequestOptions = Readonly<{
   config: RemoteRuntimeConfig;
   identityRuntime: IdentityRuntime;
   initializedProvider: InitializedProviderRuntime;
+  policySnapshotSource?: RuntimePolicySnapshotSource;
   authenticator: ClientAuthenticator;
   allowedHosts: readonly string[];
   allowedOrigins: readonly string[];
@@ -223,7 +234,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
   const logTransportTermination = (operation: DmlOperation): void => {
     if (transportTerminationLogged) return;
     transportTerminationLogged = true;
-    options.logger.log({
+    void Promise.resolve(options.logger.log({
       correlationId: observation.correlationId,
       ...(observation.clientId ? { clientId: observation.clientId } : {}),
       ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
@@ -236,7 +247,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       durationMs: elapsed(started),
       result: 'ERROR',
       errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
-    });
+    })).catch(() => undefined);
   };
   const mutationRequestState = new MutationRequestState((operation) => {
     if (clientDisconnected) logTransportTermination(operation);
@@ -267,7 +278,11 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
     const requestUrl = new URL(options.request.url ?? '/', 'http://sfoa.invalid');
     if (requestUrl.pathname === '/health') {
       assertMethod(options.request, 'GET');
-      writeJson(options.response, 200, { status: 'UP' });
+      const auditPersistence = readAuditPersistenceHealth(options.logger);
+      writeJson(options.response, 200, {
+        status: 'UP',
+        ...(auditPersistence ? { auditPersistence } : {}),
+      });
       return;
     }
     if (requestUrl.pathname === '/ready') {
@@ -326,7 +341,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
     const mutationOperation = mutationRequestState.getOperation();
     const outcomeUnknown = normalized.code === 'MCP_DML_OUTCOME_UNKNOWN';
     if (!transportTerminationLogged) {
-      options.logger.log({
+      await Promise.resolve(options.logger.log({
         correlationId: observation.correlationId,
         ...(observation.clientId ? { clientId: observation.clientId } : {}),
         ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
@@ -347,14 +362,18 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         durationMs: elapsed(started),
         result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
         errorCode: normalized.code,
-      });
+      })).catch(() => undefined);
     }
     if (!options.response.headersSent) {
       writeNormalizedError(
         options.response,
         normalized,
         errorStatus(error, normalized),
-        [...options.identityRuntime.redactionSecrets, options.config.clientToken ?? ''],
+        [
+          ...options.identityRuntime.redactionSecrets,
+          options.config.clientToken ?? '',
+          options.config.controlPlane.database?.password ?? '',
+        ],
       );
     } else if (!options.response.writableEnded) {
       options.response.end();
@@ -384,10 +403,45 @@ async function executeMcpPost(
   const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
   resources.assertAvailable(signal);
 
-  const requestedRole = getRequestedExecutionRole(parsedBody, options.config.enabledTools);
-  const scope = requestedRole === 'DIAGNOSTIC'
-    ? await createDiagnosticScope(options.identityRuntime, identity)
-    : await options.identityRuntime.scopeFactory.create(identity);
+  let initializedProvider = options.initializedProvider;
+  let scope: RequestScope;
+  if (options.policySnapshotSource) {
+    const snapshot = await options.policySnapshotSource.load(identity.platformUserId);
+    const userRoute = snapshotUserRoute(snapshot);
+    if (!userRoute) {
+      throw new IdentityRuntimeError(
+        'MCP_IDENTITY_ROUTE_NOT_FOUND',
+        'No enabled Salesforce identity route exists for the authenticated platform user.',
+        { correlationId: identity.correlationId },
+      );
+    }
+    assertDiagnosticSnapshotValid(snapshot.enabledTools, snapshot.diagnostic !== null, identity.correlationId);
+    initializedProvider = configureProviderRuntime(
+      options.initializedProvider,
+      snapshot.enabledTools,
+      snapshotDmlAllowlist(snapshot),
+    );
+    await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, identity, client, options.logger);
+    const requestedRole = getRequestedExecutionRole(parsedBody, initializedProvider.enabledTools);
+    if (requestedRole === 'DIAGNOSTIC') {
+      const diagnosticRoute = snapshotDiagnosticRoute(snapshot, identity.platformUserId);
+      if (!diagnosticRoute) {
+        throw new RemoteRuntimeError(
+          'MCP_DIAGNOSTIC_CONFIGURATION_INVALID',
+          'A diagnostic Tool was selected but the MySQL Control Plane has no enabled Diagnostic identity.',
+          { correlationId: identity.correlationId },
+        );
+      }
+      scope = await options.identityRuntime.scopeFactory.createForRoute(identity, diagnosticRoute);
+    } else {
+      scope = await options.identityRuntime.scopeFactory.createForRoute(identity, userRoute);
+    }
+  } else {
+    const requestedRole = getRequestedExecutionRole(parsedBody, options.config.enabledTools);
+    scope = requestedRole === 'DIAGNOSTIC'
+      ? await createDiagnosticScope(options.identityRuntime, identity)
+      : await options.identityRuntime.scopeFactory.create(identity);
+  }
   await resources.attachScope(scope);
   resources.assertAvailable(signal);
   observation.salesforceUsername = scope.route.salesforceUsername;
@@ -398,9 +452,13 @@ async function executeMcpPost(
     logger: options.logger,
     clientId: client.clientId,
     toolTimeoutMs: options.config.toolTimeoutMs,
-    redactionSecrets: [...options.identityRuntime.redactionSecrets, options.config.clientToken ?? ''],
+    redactionSecrets: [
+      ...options.identityRuntime.redactionSecrets,
+      options.config.clientToken ?? '',
+      options.config.controlPlane.database?.password ?? '',
+    ],
     mutationRequestState,
-    initializedProvider: options.initializedProvider,
+    initializedProvider,
   });
   await resources.attachMcpServer(created.server);
   resources.assertAvailable(signal);
@@ -534,6 +592,14 @@ function normalizeRequestError(error: unknown, correlationId: string): Normalize
       : new IdentityRuntimeError(error.code, error.message, { cause: error.cause, correlationId });
     return { code: correlated.code, correlationId, message: correlated.message, identityError: correlated };
   }
+  if (error instanceof ControlPlaneError) {
+    const remote = new RemoteRuntimeError(
+      'MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE',
+      error.message,
+      { cause: error, correlationId },
+    );
+    return { code: remote.code, correlationId, message: remote.message, remoteError: remote };
+  }
   const remote = error instanceof RemoteRuntimeError
     ? withRemoteCorrelation(error, correlationId)
     : toRemoteRuntimeError(
@@ -590,6 +656,7 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
     case 'MCP_DML_OUTCOME_UNKNOWN':
       return 504;
     case 'MCP_RUNTIME_NOT_READY':
+    case 'MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE':
       return 503;
     case 'MCP_SALESFORCE_AUTH_FAILED':
     case 'MCP_SALESFORCE_CONNECTION_FAILED':
@@ -774,14 +841,76 @@ function logCleanupFailure(
     'Request resource cleanup failed.',
     observation.correlationId,
   );
-  logger.log({
+  void Promise.resolve(logger.log({
     correlationId: observation.correlationId,
     ...(observation.clientId ? { clientId: observation.clientId } : {}),
     ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
     ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
     result: 'ERROR',
     errorCode: runtimeError.code,
-  });
+  })).catch(() => undefined);
+}
+
+function readAuditPersistenceHealth(
+  logger: RuntimeLogger,
+): Readonly<{ status: 'UP' | 'DEGRADED'; failureCount: number }> | undefined {
+  const candidate = logger as RuntimeLogger & Readonly<{ getHealth?: () => unknown }>;
+  if (typeof candidate.getHealth !== 'function') return undefined;
+  const health = candidate.getHealth();
+  if (
+    typeof health !== 'object' ||
+    health === null ||
+    !('status' in health) ||
+    !('failureCount' in health)
+  ) return undefined;
+  const status = health.status;
+  const failureCount = health.failureCount;
+  if (
+    (status !== 'UP' && status !== 'DEGRADED') ||
+    typeof failureCount !== 'number' ||
+    !Number.isInteger(failureCount) ||
+    failureCount < 0
+  ) return undefined;
+  return Object.freeze({ status, failureCount });
+}
+
+function assertDiagnosticSnapshotValid(
+  enabledTools: readonly string[],
+  hasDiagnostic: boolean,
+  correlationId: string,
+): void {
+  const diagnosticEnabled = enabledTools.some(
+    (name) => isSfoaContextToolName(name) && SFOA_CONTEXT_TOOL_ROLES[name] === 'DIAGNOSTIC',
+  );
+  if (diagnosticEnabled && !hasDiagnostic) {
+    throw new RemoteRuntimeError(
+      'MCP_DIAGNOSTIC_CONFIGURATION_INVALID',
+      'Diagnostic Tools are enabled but the MySQL Control Plane has no enabled Diagnostic configuration.',
+      { correlationId },
+    );
+  }
+}
+
+async function auditDisabledToolAttempt(
+  body: unknown,
+  enabledTools: readonly string[],
+  identity: TrustedRequestIdentity,
+  client: AuthenticatedClient,
+  logger: RuntimeLogger,
+): Promise<void> {
+  if (!isRecord(body) || body.method !== 'tools/call' || !isRecord(body.params)) return;
+  const name = body.params.name;
+  if (typeof name !== 'string' || enabledTools.includes(name)) return;
+  await Promise.resolve(logger.log({
+    correlationId: identity.correlationId,
+    clientId: client.clientId,
+    platformUserId: identity.platformUserId,
+    toolName: name.slice(0, 128),
+    result: 'BLOCKED',
+    outcome: 'DENIED',
+    errorCode: 'MCP_TOOL_DISABLED',
+    requestSummary: { toolName: name.slice(0, 128) },
+  })).catch(() => undefined);
 }
 
 function elapsed(started: number): number {

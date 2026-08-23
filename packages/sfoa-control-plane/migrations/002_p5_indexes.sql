@@ -1,0 +1,10 @@
+CREATE INDEX idx_sfoa_audit_occurred_at ON sfoa_audit_log (occurred_at DESC, id DESC);
+CREATE INDEX idx_sfoa_audit_correlation ON sfoa_audit_log (correlation_id);
+CREATE INDEX idx_sfoa_audit_platform_user ON sfoa_audit_log (platform_user_id, occurred_at DESC);
+CREATE INDEX idx_sfoa_audit_salesforce_user ON sfoa_audit_log (salesforce_username, occurred_at DESC);
+CREATE INDEX idx_sfoa_audit_tool ON sfoa_audit_log (tool_name, occurred_at DESC);
+CREATE INDEX idx_sfoa_audit_result ON sfoa_audit_log (result, occurred_at DESC);
+CREATE INDEX idx_sfoa_audit_error ON sfoa_audit_log (error_code, occurred_at DESC);
+CREATE INDEX idx_sfoa_identity_enabled_username ON sfoa_identity_route (enabled, salesforce_username);
+CREATE INDEX idx_sfoa_tool_enabled ON sfoa_tool_control (enabled, tool_name);
+CREATE INDEX idx_sfoa_dml_enabled ON sfoa_dml_policy (enabled, object_api_name);

@@ -26,6 +26,17 @@
     "clean-all": "yarn workspaces run clean-all && rimraf node_modules",
     "lint": "yarn workspaces run lint",
     "package": "yarn workspaces run package",
-    "test": "yarn workspaces run test"
+    "test": "yarn workspaces run test",
+    "db:create": "yarn workspace @sfoa/control-plane db:create",
+    "db:migrate": "yarn workspace @sfoa/control-plane db:migrate",
+    "db:status": "yarn workspace @sfoa/control-plane db:status",
+    "p5:bootstrap": "yarn workspace @sfoa/control-plane p5:bootstrap",
+    "admin:hash-password": "yarn workspace @sfoa/admin-api admin:hash-password",
+    "admin:api:dev": "yarn workspace @sfoa/admin-api dev",
+    "admin:web:dev": "yarn workspace @sfoa/admin-web dev",
+    "p5:dev": "node scripts/p5-dev.mjs",
+    "p5:test": "yarn workspace @sfoa/control-plane test && yarn workspace @sfoa/control-plane test:mysql && yarn workspace @sfoa/identity-runtime test && yarn workspace @sfoa/mcp-server test:p5 && yarn workspace @sfoa/admin-api test && yarn workspace @sfoa/admin-web test",
+    "p5:e2e": "yarn workspace @sfoa/admin-web e2e",
+    "validate:p5": "node scripts/validate-p5.mjs"
   }
 }

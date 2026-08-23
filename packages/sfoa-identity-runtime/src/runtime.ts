@@ -7,7 +7,7 @@ import {
 } from './config.js';
 import { CwdExecutionGuard } from './cwd-execution-guard.js';
 import { IdentityResolver } from './identity-resolver.js';
-import { InMemoryIdentityRepository } from './identity-repository.js';
+import { InMemoryIdentityRepository, type IdentityRepository } from './identity-repository.js';
 import { DiagnosticRequestScopeFactory, RequestScopeFactory } from './request-scope.js';
 import { JsonLineRuntimeLogger, type RuntimeLogger } from './runtime-logger.js';
 import { RequestWorkspaceFactory } from './workspace.js';
@@ -26,6 +26,7 @@ export type CreateIdentityRuntimeOverrides = Readonly<{
   logger?: RuntimeLogger;
   workspaceFactory?: RequestWorkspaceFactory;
   cwdGuard?: CwdExecutionGuard;
+  identityRepository?: IdentityRepository;
 }>;
 
 export function createIdentityRuntime(
@@ -33,7 +34,7 @@ export function createIdentityRuntime(
   overrides: CreateIdentityRuntimeOverrides = {},
 ): IdentityRuntime {
   assertDiagnosticIdentityDistinct(config);
-  const repository = new InMemoryIdentityRepository(buildIdentityRoutes(config));
+  const repository = overrides.identityRepository ?? new InMemoryIdentityRepository(buildIdentityRoutes(config));
   const resolver = new IdentityResolver(repository);
   const connectionFactory =
     overrides.connectionFactory ??

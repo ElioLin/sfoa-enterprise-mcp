@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type {
   CallToolResult,
@@ -70,7 +71,7 @@ export class ContextToolFacade {
         ),
         'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',
       );
-      this.log('BLOCKED', elapsed(started), 'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED');
+      await this.log('BLOCKED', elapsed(started), 'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED', input);
       return result;
     }
 
@@ -83,11 +84,11 @@ export class ContextToolFacade {
         this.options.context.correlationId,
       );
       const errorCode = resultErrorCode(result);
-      this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), errorCode);
+      await this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), errorCode, input, result);
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
-        this.log('ERROR', elapsed(started), error.code);
+        await this.log('ERROR', elapsed(started), error.code, input);
         return remoteRuntimeErrorToolResult(
           error,
           this.options.redactionSecrets,
@@ -98,8 +99,14 @@ export class ContextToolFacade {
     }
   }
 
-  private log(result: 'PASS' | 'ERROR' | 'BLOCKED', durationMs: number, errorCode?: string): void {
-    this.options.logger.log({
+  private async log(
+    result: 'PASS' | 'ERROR' | 'BLOCKED',
+    durationMs: number,
+    errorCode?: string,
+    input: ToolInput = {},
+    response?: CallToolResult,
+  ): Promise<void> {
+    await Promise.resolve(this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,
       platformUserId: this.options.context.platformUserId,
@@ -108,9 +115,48 @@ export class ContextToolFacade {
       toolName: this.getName(),
       durationMs,
       result,
+      outcome: result === 'PASS' ? 'SUCCESS' : result === 'BLOCKED' ? 'DENIED' : 'FAILED',
       ...(errorCode ? { errorCode } : {}),
-    });
+      requestSummary: safeContextRequestSummary(this.getName(), input),
+      responseSummary: safeContextResponseSummary(response, errorCode),
+    })).catch(() => undefined);
   }
+}
+
+function safeContextRequestSummary(toolName: string, input: ToolInput): unknown {
+  if (toolName === 'run_diagnostic_tooling_query') {
+    const query = typeof input.query === 'string' ? input.query : '';
+    return {
+      querySha256: createHash('sha256').update(query).digest('hex'),
+      queryLength: query.length,
+    };
+  }
+  if (toolName === 'get_metadata_component_context') {
+    return {
+      metadataType: typeof input.metadataType === 'string' ? input.metadataType : null,
+      fullName: typeof input.fullName === 'string' ? input.fullName : null,
+    };
+  }
+  return {
+    objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : null,
+    action: input.action === 'CREATE' || input.action === 'UPDATE' ? input.action : null,
+    recordId: typeof input.recordId === 'string' ? input.recordId : null,
+    recordTypeId: typeof input.recordTypeId === 'string' ? input.recordTypeId : null,
+  };
+}
+
+function safeContextResponseSummary(response: CallToolResult | undefined, errorCode?: string): unknown {
+  const content = response?.structuredContent;
+  if (!content) return { isError: response?.isError === true, ...(errorCode ? { errorCode } : {}) };
+  const fields = Array.isArray(content.fields) ? content.fields.length : undefined;
+  return {
+    isError: response?.isError === true,
+    ...(typeof content.returnedRecords === 'number' ? { returnedRecords: content.returnedRecords } : {}),
+    ...(typeof content.returnedFiles === 'number' ? { returnedFiles: content.returnedFiles } : {}),
+    ...(fields !== undefined ? { fieldCount: fields } : {}),
+    ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
+    ...(errorCode ? { errorCode } : {}),
+  };
 }
 
 function resultErrorCode(result: CallToolResult): string | undefined {

@@ -127,6 +127,7 @@ export function createTestRemoteConfig(
 ): RemoteRuntimeConfig {
   return Object.freeze({
     identity: TEST_IDENTITY_CONFIG,
+    controlPlane: Object.freeze({ mode: 'env' }),
     bindHost: '127.0.0.1',
     port: 0,
     mcpPath: '/mcp',

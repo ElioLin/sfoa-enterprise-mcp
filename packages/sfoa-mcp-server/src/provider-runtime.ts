@@ -95,26 +95,15 @@ export async function initializeProviderRuntime(
   try {
     const inventory = await inspectOfficialDxCoreInventory(inventoryToolSource);
     const inventoryComparison = compareOfficialProviderInventory(inventory);
-    const officialEnabledTools = enabledTools.filter(
-      (name) => !isSfoaDmlToolName(name) && !isSfoaContextToolName(name),
-    );
-    const dmlEnabledTools = enabledTools.filter(isSfoaDmlToolName);
-    assertEnabledRemoteContractsCompatible(inventoryComparison, officialEnabledTools, inventory);
     const providerToolNames = Object.freeze(
       inventory.tools.filter((tool) => tool.releaseState === ReleaseState.GA).map((tool) => tool.name),
     );
-    const policy = new ToolGovernancePolicy(officialEnabledTools, providerToolNames);
-    const dmlPolicy = new DmlToolGovernancePolicy(dmlEnabledTools, dmlAllowlist);
-    return Object.freeze({
+    return configureProviderRuntime(Object.freeze({
       toolSource,
       providerToolNames,
-      policy,
-      dmlPolicy,
-      dmlAllowlist,
-      enabledTools: Object.freeze([...enabledTools]),
       inventory,
       inventoryComparison,
-    });
+    }), enabledTools, dmlAllowlist);
   } catch (error) {
     if (error instanceof RemoteRuntimeError) throw error;
     throw toRemoteRuntimeError(
@@ -123,6 +112,35 @@ export async function initializeProviderRuntime(
       'The official Provider could not be initialized for P2 startup validation.',
     );
   }
+}
+
+export function configureProviderRuntime(
+  baseline: Pick<InitializedProviderRuntime, 'toolSource' | 'providerToolNames' | 'inventory' | 'inventoryComparison'>,
+  enabledTools: readonly string[],
+  dmlAllowlist: DmlAllowlistPolicy,
+): InitializedProviderRuntime {
+  const officialEnabledTools = enabledTools.filter(
+    (name) => !isSfoaDmlToolName(name) && !isSfoaContextToolName(name),
+  );
+  const dmlEnabledTools = enabledTools.filter(isSfoaDmlToolName);
+  const officialContextDependencies = [
+    ...(enabledTools.includes('run_diagnostic_tooling_query') ? ['run_soql_query'] : []),
+    ...(enabledTools.includes('get_metadata_component_context') ? ['retrieve_metadata'] : []),
+  ];
+  assertEnabledRemoteContractsCompatible(
+    baseline.inventoryComparison,
+    [...new Set([...officialEnabledTools, ...officialContextDependencies])],
+    baseline.inventory,
+  );
+  const policy = new ToolGovernancePolicy(officialEnabledTools, baseline.providerToolNames);
+  const dmlPolicy = new DmlToolGovernancePolicy(dmlEnabledTools, dmlAllowlist);
+  return Object.freeze({
+    ...baseline,
+    policy,
+    dmlPolicy,
+    dmlAllowlist,
+    enabledTools: Object.freeze([...enabledTools]),
+  });
 }
 
 export async function createGovernedMcpServer(

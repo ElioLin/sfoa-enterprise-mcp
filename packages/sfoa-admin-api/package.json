@@ -1,0 +1,35 @@
+{
+  "name": "@sfoa/admin-api",
+  "version": "0.1.0-p5",
+  "private": true,
+  "description": "P5 authenticated Admin REST API for the SFoA Control Plane",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P5 Admin API: package skipped')\"",
+    "test": "yarn build && node --test dist/test/*.test.js",
+    "start": "yarn build && node dist/main.js",
+    "dev": "yarn build && node --watch dist/main.js",
+    "admin:hash-password": "yarn build && node dist/cli/hash-password.js"
+  },
+  "dependencies": {
+    "@sfoa/control-plane": "0.1.0-p5",
+    "@sfoa/identity-runtime": "0.1.0-p4",
+    "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",
+    "@sfoa/mcp-provider-sfoa-dml": "0.1.0-p3",
+    "@sfoa/mcp-server": "0.1.0-p4",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}

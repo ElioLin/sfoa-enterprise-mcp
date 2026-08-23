@@ -66,7 +66,7 @@ export class DmlToolFacade {
         `Mutation Tool ${this.getName()} is fixed to the USER request scope and cannot execute with DIAGNOSTIC authority.`,
         { correlationId: this.options.context.correlationId },
       );
-      this.options.logger.log({
+      await Promise.resolve(this.options.logger.log({
         correlationId: this.options.context.correlationId,
         clientId: this.options.clientId,
         platformUserId: this.options.context.platformUserId,
@@ -76,8 +76,10 @@ export class DmlToolFacade {
         operation: this.operation,
         durationMs: elapsed(started),
         result: 'BLOCKED',
+        outcome: 'DENIED',
         errorCode: error.code,
-      });
+        requestSummary: safeDmlRequestSummary(input, this.operation),
+      })).catch(() => undefined);
       return remoteRuntimeErrorToolResult(error, [], this.options.context.correlationId);
     }
     try {
@@ -89,33 +91,39 @@ export class DmlToolFacade {
         this.options.context.correlationId,
       );
       const errorCode = resultErrorCode(result);
-      this.log(
+      await this.log(
         result.isError === true ? 'ERROR' : 'PASS',
         elapsed(started),
         errorCode,
         errorCode === 'MCP_DML_OUTCOME_UNKNOWN' ? 'TRANSPORT' : undefined,
+        input,
+        result,
       );
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
         const result = dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error));
-        this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL');
+        await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', input, result);
         return result;
       }
       const result = dmlExecutionErrorToolResult(error, this.operation);
-      this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT');
+      await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT', input, result);
       return result;
     }
   }
 
-  private log(
+  private async log(
     result: 'PASS' | 'ERROR',
     durationMs: number,
     errorCode?: string,
     terminationLayer?: 'TOOL' | 'TRANSPORT',
-  ): void {
+    input: ToolInput = {},
+    response?: CallToolResult,
+  ): Promise<void> {
     const outcomeUnknown = errorCode === 'MCP_DML_OUTCOME_UNKNOWN';
-    this.options.logger.log({
+    const requestSummary = safeDmlRequestSummary(input, this.operation);
+    const responseRecordId = resultRecordId(response);
+    await Promise.resolve(this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,
       platformUserId: this.options.context.platformUserId,
@@ -123,6 +131,8 @@ export class DmlToolFacade {
       executionRole: this.options.route.connectionRole,
       toolName: this.getName(),
       operation: this.operation,
+      objectApiName: requestSummary.objectApiName,
+      recordId: this.operation === 'UPDATE' ? requestSummary.recordId : responseRecordId,
       ...(outcomeUnknown
         ? {
             outcome: 'UNKNOWN' as const,
@@ -132,9 +142,44 @@ export class DmlToolFacade {
         : {}),
       durationMs,
       result,
+      outcome: outcomeUnknown ? 'UNKNOWN' : result === 'PASS' ? 'SUCCESS' : 'FAILED',
       ...(errorCode ? { errorCode } : {}),
-    });
+      requestSummary,
+      responseSummary: {
+        success: result === 'PASS',
+        ...(responseRecordId ? { recordId: responseRecordId } : {}),
+        ...(errorCode ? { errorCode } : {}),
+      },
+    })).catch(() => undefined);
   }
+}
+
+type SafeDmlRequestSummary = Readonly<{
+  operation: DmlOperation;
+  objectApiName?: string;
+  recordId?: string;
+  fieldNames: readonly string[];
+  fieldCount: number;
+}>;
+
+function safeDmlRequestSummary(input: ToolInput, operation: DmlOperation): SafeDmlRequestSummary {
+  const fields = isRecord(input.fields) ? Object.keys(input.fields).sort() : [];
+  return Object.freeze({
+    operation,
+    ...(typeof input.objectApiName === 'string' ? { objectApiName: input.objectApiName } : {}),
+    ...(operation === 'UPDATE' && typeof input.recordId === 'string' ? { recordId: input.recordId } : {}),
+    fieldNames: Object.freeze(fields),
+    fieldCount: fields.length,
+  });
+}
+
+function resultRecordId(result: CallToolResult | undefined): string | undefined {
+  const content = result?.structuredContent;
+  return content && typeof content.recordId === 'string' ? content.recordId : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function resultErrorCode(result: CallToolResult): string | undefined {

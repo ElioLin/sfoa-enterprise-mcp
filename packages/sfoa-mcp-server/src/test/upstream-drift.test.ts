@@ -183,6 +183,10 @@ test('enabled official Tool schema added field fails production startup closed',
     initializeProviderRuntime(DEFAULT_ENABLED_TOOLS, source, source),
     isErrorCode('MCP_UPSTREAM_TOOL_CONTRACT_DRIFT'),
   );
+  await assert.rejects(
+    initializeProviderRuntime(['run_diagnostic_tooling_query'], source, source),
+    isErrorCode('MCP_UPSTREAM_TOOL_CONTRACT_DRIFT'),
+  );
 });
 
 test('remote contract rejects an added official field before it can enter the Agent schema', () => {

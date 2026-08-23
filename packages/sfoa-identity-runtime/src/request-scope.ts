@@ -48,13 +48,20 @@ export class RequestScopeFactory {
   }
 
   public async create(identity: TrustedRequestIdentity): Promise<RequestScope> {
+    const route = await this.options.resolver.resolve(identity.platformUserId, identity.correlationId);
+    return this.createForRoute(identity, route);
+  }
+
+  public async createForRoute(
+    identity: TrustedRequestIdentity,
+    route: SalesforceIdentityRoute,
+  ): Promise<RequestScope> {
     let workspace: RequestWorkspace | undefined;
     try {
-      const route = await this.options.resolver.resolve(identity.platformUserId, identity.correlationId);
-      if (route.connectionRole !== 'USER') {
+      if (route.platformUserId !== identity.platformUserId) {
         throw new IdentityRuntimeError(
-          'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
-          'Only the USER Salesforce connection role is available in P1.',
+          'MCP_IDENTITY_CONTEXT_MISMATCH',
+          'The resolved Salesforce route does not belong to the authenticated platform user.',
           { correlationId: identity.correlationId },
         );
       }

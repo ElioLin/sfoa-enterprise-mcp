@@ -1,0 +1,40 @@
+{
+  "name": "@sfoa/control-plane",
+  "version": "0.1.0-p5",
+  "private": true,
+  "description": "P5 MySQL persistence, governance snapshots, migrations, bootstrap, and durable audit",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./contracts": "./dist/contracts.js",
+    "./admin-contracts": "./dist/admin-contracts.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P5 Control Plane: package skipped')\"",
+    "test": "yarn build && node --test dist/test/*.test.js",
+    "test:mysql": "yarn build && node --test dist/mysql-test/*.test.js",
+    "db:create": "yarn build && node dist/cli/database.js create",
+    "db:migrate": "yarn build && node dist/cli/database.js migrate",
+    "db:status": "yarn build && node dist/cli/database.js status",
+    "p5:bootstrap": "yarn build && node dist/cli/bootstrap.js"
+  },
+  "dependencies": {
+    "@sfoa/identity-runtime": "0.1.0-p4",
+    "kysely": "0.29.5",
+    "mysql2": "3.23.4",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}

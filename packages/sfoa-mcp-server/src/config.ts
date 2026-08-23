@@ -16,6 +16,10 @@ import {
   type DmlAllowlistPolicy,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
+import {
+  loadControlPlaneConfig,
+  type ControlPlaneConfig,
+} from '@sfoa/control-plane';
 import { DEFAULT_ENABLED_TOOLS } from './tool-governance.js';
 import { RemoteRuntimeError } from './errors.js';
 
@@ -26,6 +30,7 @@ export const DEFAULT_MCP_TOOL_TIMEOUT_MS = 120_000;
 
 export type RemoteRuntimeConfig = Readonly<{
   identity: IdentityRuntimeConfig;
+  controlPlane: ControlPlaneConfig;
   bindHost: string;
   port: number;
   mcpPath: string;
@@ -89,9 +94,12 @@ export async function loadRemoteRuntimeConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<RemoteRuntimeConfig> {
   const resolvedProjectRoot = path.resolve(projectRoot);
+  const controlPlane = await loadControlPlaneConfig(resolvedProjectRoot, environment);
   let identity: IdentityRuntimeConfig;
   try {
-    identity = await loadIdentityRuntimeConfig(resolvedProjectRoot, environment);
+    identity = await loadIdentityRuntimeConfig(resolvedProjectRoot, environment, {
+      routesFromDatabase: controlPlane.mode === 'mysql',
+    });
   } catch (error) {
     if (
       error instanceof RuntimeConfigurationError &&
@@ -139,14 +147,16 @@ export async function loadRemoteRuntimeConfig(
     throw configurationError('MCP_ALLOWED_HOSTS must be explicit when MCP_BIND_HOST is not loopback.');
   }
   const allowedOrigins = parseOrigins(parsed.data.MCP_ALLOWED_ORIGINS);
-  const enabledTools = parseToolNames(parsed.data.MCP_ENABLED_TOOLS);
-  if (enabledTools.length === 0) {
+  const enabledTools = controlPlane.mode === 'mysql'
+    ? Object.freeze([])
+    : parseToolNames(parsed.data.MCP_ENABLED_TOOLS);
+  if (controlPlane.mode === 'env' && enabledTools.length === 0) {
     throw configurationError('MCP_ENABLED_TOOLS must contain at least one explicitly enabled Tool.');
   }
   const diagnosticTools = enabledTools.filter(
     (name) => isSfoaContextToolName(name) && SFOA_CONTEXT_TOOL_ROLES[name] === 'DIAGNOSTIC',
   );
-  if (diagnosticTools.length > 0 && !identity.diagnosticUsername) {
+  if (controlPlane.mode === 'env' && diagnosticTools.length > 0 && !identity.diagnosticUsername) {
     throw new RemoteRuntimeError(
       'MCP_DIAGNOSTIC_CONFIGURATION_INVALID',
       `SFOA_DIAGNOSTIC_USERNAME is required when diagnostic Tools are enabled: ${diagnosticTools.join(', ')}.`,
@@ -154,7 +164,9 @@ export async function loadRemoteRuntimeConfig(
   }
   let dmlAllowlist: DmlAllowlistPolicy;
   try {
-    dmlAllowlist = parseDmlAllowlistJson(parsed.data.MCP_DML_ALLOWLIST_JSON);
+    dmlAllowlist = parseDmlAllowlistJson(
+      controlPlane.mode === 'env' ? parsed.data.MCP_DML_ALLOWLIST_JSON : undefined,
+    );
   } catch (error) {
     if (error instanceof DmlRuntimeError && error.code === 'MCP_DML_CONFIGURATION_INVALID') {
       throw new RemoteRuntimeError('MCP_DML_CONFIGURATION_INVALID', error.message, { cause: error });
@@ -164,6 +176,7 @@ export async function loadRemoteRuntimeConfig(
 
   return Object.freeze({
     identity,
+    controlPlane,
     bindHost,
     port: parsed.data.MCP_PORT,
     mcpPath,
