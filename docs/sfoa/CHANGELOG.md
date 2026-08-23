@@ -2,6 +2,26 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-23 — P4 diagnosis and runtime context authorized
+
+### Phase transition
+
+- Maintainer review final-accepted P3, including `P3-CLOSURE HOTFIX01 = PASS` and `P3-CLOSURE HOTFIX02 = PASS`, and explicitly authorized P4.
+- The clean P3 feature branch was revalidated before merge: Provider tests 17/17 PASS, Host tests 18/18 PASS, `validate:upstream` PASS with zero drift, and strict TypeScript lint PASS for all five SFoA workspaces.
+- `feature/p3-generic-dml-allowlist` was fast-forwarded without squashing to `main` at `4c3a45e` and pushed to `origin/main`.
+- `feature/p4-diagnosis-runtime-context` was created from the updated `main` at the same commit.
+
+### Baseline
+
+- Advanced the authoritative baseline to `P4-BL-1.0` with `P3 = FINAL ACCEPTED` and `P4 = IN PROGRESS`.
+- P4 begins with the P4-00 official/SFoA capability audit. ADR-0009 must record actual official Provider/result/runtime evidence and live UI API support before any new Context Tool is implemented.
+- No P4 capability is marked PASS at entry. DIAGNOSTIC identity, Tooling/metadata context, Record Action Context, GraphQL UI API, and Code Analyzer remote compatibility remain `NOT TESTED` until executed.
+
+### Scope boundary
+
+- P4 is read-only diagnosis/context. It does not add DELETE, UPSERT, Bulk DML, deployment, anonymous Apex, permission assignment, database, Redis, cache, pool, Metadata Snapshot, Evidence Graph, Runtime Form Engine, Salesforce permission replica, rule interpreter, Lookup Engine, Admin UI, or P5/P6 scope.
+- Salesforce remains the authority, MCP returns governed deterministic facts, and the LLM retains reasoning and dialogue.
+
 ## 2026-08-23 — P3-Closure HOTFIX02 request-level mutation outcome safety completed
 
 ### Changed

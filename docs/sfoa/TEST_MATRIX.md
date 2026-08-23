@@ -1,4 +1,4 @@
-# P0 / P1 / P2 / P3 Gate Matrix
+# P0 / P1 / P2 / P3 / P4 Gate Matrix
 
 Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
@@ -381,9 +381,9 @@ All mandatory P2 runtime, authentication, identity, governance, schema, request-
 
 ## P3 overall result
 
-`P3 = PASS / COMPLETE — AWAITING MAINTAINER FINAL ACCEPTANCE`
+`P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED`
 
-P3 is a thin enterprise mutation gate over the accepted request-scoped Salesforce SDK path. CREATE/UPDATE, strict Object-by-Operation governance, Tool-level safe errors, identity isolation, native Salesforce validation/authorization, bounded validator cleanup, protocol surfaces, and all required regressions passed. DELETE and every prohibited substitute remain absent. P4 has not started.
+P3 is a thin enterprise mutation gate over the accepted request-scoped Salesforce SDK path. CREATE/UPDATE, strict Object-by-Operation governance, Tool-level safe errors, identity isolation, native Salesforce validation/authorization, bounded validator cleanup, protocol surfaces, and all required regressions passed. DELETE and every prohibited substitute remain absent. Maintainer final acceptance authorized P4.
 
 ## P3 Closure HOTFIX01 overall result
 
@@ -396,3 +396,34 @@ The Closure changes only outcome semantics and Agent retry safety. It adds no id
 `P3-CLOSURE HOTFIX02 = PASS`
 
 The request lifecycle now preserves UNKNOWN semantics across both Tool and outer HTTP deadlines after CREATE/UPDATE dispatch. Before dispatch and for reads, ordinary request timeout semantics remain unchanged. The operational timeout hierarchy is fail-closed, pinned JSforce does not retry POST/PATCH by default, and SFoA adds no retry, persistence, idempotency framework, prohibited mutation, official patch, or P4 capability. P3 may be recommended for final maintainer acceptance; merge and P4 authorization remain maintainer decisions.
+
+## P4 Entry Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Maintainer authorization | PASS | Maintainer final-accepted P3 and explicitly authorized P4 in the supplied task authority |
+| P3 branch cleanliness | PASS | `git status --short --branch` showed no changed or untracked files before transition |
+| P3 Provider acceptance rerun | PASS | `yarn workspace @sfoa/mcp-provider-sfoa-dml test`: 17/17, 0 failed |
+| P3 Host acceptance rerun | PASS | `yarn workspace @sfoa/mcp-server test:p3`: 18/18, 0 failed |
+| Upstream compatibility rerun | PASS | Provider API 0.6.0, dx-core 0.10.0, nine GA Tools, `drift: []` |
+| SFoA changed-code lint rerun | PASS | POC, runtime validation, identity runtime, DML Provider, and remote Host strict TypeScript lint all exited 0 |
+| P3 history preservation | PASS | `main` fast-forwarded from `f532c8a` to `4c3a45e`; no squash or rewritten P3/HOTFIX commit |
+| `origin/main` push | PASS | `git push origin main` advanced the remote from `f532c8a` to `4c3a45e` |
+| Dedicated P4 branch | PASS | `feature/p4-diagnosis-runtime-context` created from updated `main` at `4c3a45e` |
+| Official Provider capability audit | NOT TESTED | P4-00 pending; no result inferred from names or historical documentation |
+| Official `retrieve_metadata` result audit | NOT TESTED | P4-00 must inspect actual same-request result and remote-workspace implications |
+| Official Code Analyzer remote compatibility | NOT TESTED | P4-00 must initialize the actual Provider and inspect tools, ReleaseState, dependencies, filesystem, and cleanup compatibility |
+| Live SFoA API version | NOT TESTED | P4-00 live Connection audit pending |
+| UI API Object Info | NOT TESTED | Live USER-context endpoint audit pending |
+| UI API Create/Edit Layout | NOT TESTED | Live USER-context endpoint audit pending |
+| UI API Create Defaults | NOT TESTED | Live USER-context endpoint audit pending |
+| UI API record-type Picklist | NOT TESTED | Live USER-context endpoint audit pending |
+| GraphQL UI API / `recordLayouts` | NOT TESTED | Optional live capability audit pending; no project upgrade authorized |
+| DIAGNOSTIC identity | NOT TESTED | Not implemented at baseline entry |
+| Record Action Context | NOT TESTED | Not implemented at baseline entry |
+
+## P4 current result
+
+`P4 = IN PROGRESS`
+
+Only the phase-entry Gates above are PASS. Audit, architecture decision, implementation, live capabilities, and P4 regression evidence remain outstanding; P5 is not authorized.
