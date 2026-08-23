@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P4-BL-1.1**
+Baseline ID: **P4-BL-1.2**
 
 Baseline date: 2026-08-23
 
@@ -90,11 +90,11 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P4 — Diagnosis & Runtime Context (IMPLEMENTED; PARTIAL LIVE GATE)`
+`P4 implementation maintainer-accepted; live diagnostic closure deferred; P5 development authorized`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 = PARTIAL`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 IMPLEMENTATION = MAINTAINER ACCEPTED; P4 LIVE DIAGNOSTIC CLOSURE = DEFERRED; P4 recorded result = PARTIAL; P5 DEVELOPMENT = AUTHORIZED`
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -122,7 +122,9 @@ P4-00 then initialized the actual pinned dx-core and Code Analyzer Providers, in
 
 P4 implementation adds the private `@sfoa/mcp-provider-sfoa-context` workspace and three independently enabled read-only Tools. `get_record_action_context` is fixed to USER. `run_diagnostic_tooling_query` and `get_metadata_component_context` are fixed to a server-owned `SFOA_DIAGNOSTIC_USERNAME`, fail startup when enabled without that setting, and cannot receive client identity/role/token/URL/filesystem authority. Each call uses a fresh Connection/workspace; no cache, pool, database, Redis, snapshot, evidence graph, form engine, permission replica, rule interpreter, lookup engine, or mutation was added.
 
-Final USER live evidence passed for both routes at API 67.0 with distinct Connections, identity mismatch 0, reuse 0, and exact workspace cleanup 2/2. All unit/protocol/security Gates, P0–P3 live regressions, original stdio, Inspector, upstream compatibility, Git Bash root build, full root tests, and six SFoA changed-code lints passed. The real fixed-DIAGNOSTIC Tooling and metadata evidence chain is `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is absent. P4 is therefore `PARTIAL`; mocks are not accepted as live evidence and P5 remains unauthorized.
+Final USER live evidence passed for both routes at API 67.0 with distinct Connections, identity mismatch 0, reuse 0, and exact workspace cleanup 2/2. All unit/protocol/security Gates, P0–P3 live regressions, original stdio, Inspector, upstream compatibility, Git Bash root build, full root tests, and six SFoA changed-code lints passed. The real fixed-DIAGNOSTIC Tooling and metadata evidence chain is `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is absent. P4 therefore retains its historical recorded result `PARTIAL`; mocks are not accepted as live evidence.
+
+Maintainer review subsequently accepted the P4 implementation and issued an explicit Phase-Gate waiver: the external-credential live diagnostic Gate is deferred, and P5 development is authorized. Before P5 final acceptance, the P4 live diagnostic closure must be attempted again and its evidence recorded. P5 implementation may complete without that credential, but P5 must remain `PARTIAL` unless the real diagnostic Tooling/metadata chain passes. Any implementation defect found by the live closure belongs to P5 Closure and requires the affected P4/P5 Gates to be rerun. ADR-0010 records this waiver without rewriting the historical P4 `PARTIAL` result.
 
 ## P0 acceptance decisions
 
@@ -258,7 +260,7 @@ P3 remains database-, Redis-, token-cache-, Connection-pool-, Salesforce-CLI-run
 6. Keep diagnosis reasoning, missing-information decisions, optional-field selection, user dialogue, and error explanation in the LLM. P4 adds no Salesforce permission replica, Runtime Form Engine, Evidence Graph, Metadata Snapshot, rule interpreter, Lookup Engine, database, Redis, cache, pool, or new mutation.
 7. Complete unit, protocol, authorization, identity-isolation, live SFoA, cleanup/CWD, performance-observation, Inspector, stdio/HTTP, P0-P3 regression, root build/test, and changed-code lint Gates. Unavailable live evidence is `NOT TESTED`, never inferred as PASS.
 
-P4 is not authorized to enter P5. Its final result must be `PASS / COMPLETE — AWAITING MAINTAINER REVIEW`, `PARTIAL`, or `FAIL` based only on recorded evidence.
+P4 originally could not authorize itself to enter P5. Maintainer review later accepted the implementation and explicitly authorized P5 development through the ADR-0010 Phase-Gate waiver; the live diagnostic closure remains mandatory before P5 final acceptance.
 
 ## P4 result
 
@@ -275,6 +277,20 @@ P4 is not authorized to enter P5. Its final result must be `PASS / COMPLETE — 
 - Root lint: exactly 47 errors / 0 warnings under unchanged official Code Analyzer paths, `KNOWN UPSTREAM DEBT`; no SFoA path.
 - Frozen Yarn Classic install: `KNOWN UPSTREAM DEBT`. It aborted on a nested `@typescript-eslint/.../ignore` ENOENT and removed generated `.bin` entries; root source/manifest/lockfile stayed unchanged. The 513 missing ignored commands were mechanically regenerated from installed `package.json#bin` declarations before stdio/build/tests passed.
 - Official Salesforce TypeScript changed: 0. Official Tool copied/reimplemented: 0. JSforce patched: 0. Root manifest/lockfile changed: 0. Database/Redis/cache/pool added: 0.
+
+## P4 Phase-Gate waiver and P5 authorization
+
+`P4 IMPLEMENTATION = MAINTAINER ACCEPTED`
+
+`P4 LIVE DIAGNOSTIC CLOSURE = DEFERRED`
+
+`P5 DEVELOPMENT = AUTHORIZED`
+
+- Entry revalidation on the clean P4 branch passed Context Provider tests 10/10, P4 Host tests 7/7, Identity Runtime tests 26/26, `validate:upstream` with zero drift, and strict TypeScript lint for all six SFoA workspaces.
+- Real fixed-DIAGNOSTIC Tooling and metadata execution remains `NOT TESTED`; no mock result is promoted to live evidence.
+- P5 cannot receive final PASS until the P4 live diagnostic closure is attempted again and evidence is recorded.
+- If the credential remains unavailable, P5 code may complete but the overall P5 result must be `PARTIAL`.
+- If the live attempt exposes a P4 defect, P5 Closure must fix it and rerun the affected P4/P5 Gates.
 
 ### P1 entry criteria — satisfied (historical)
 
@@ -333,3 +349,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P3-BL-1.3 | 2026-08-23 | Closed P3-Closure HOTFIX02 with request-owned mutation-start awareness, outer-timeout UNKNOWN classification after SDK dispatch, 180000/120000 fail-closed timeout hierarchy, pinned JSforce POST/PATCH no-retry evidence, 17/17 Provider and 18/18 Host tests, complete live/protocol/root regressions, zero official/JSforce patches, and no persistence/retry/UPSERT/DELETE/P4 scope. |
 | P4-BL-1.0 | 2026-08-23 | Recorded maintainer final acceptance of P3 and authorization of P4; reran the clean P3 17/17 Provider, 18/18 Host, zero-drift upstream, and five-workspace lint Gates; fast-forwarded/pushed `main` without squashing; created the dedicated P4 branch; and entered audit-first diagnosis/runtime context with no capability pre-claimed. |
 | P4-BL-1.1 | 2026-08-23 | Implemented the audited three-Tool context Provider, fixed request-scoped DIAGNOSTIC boundary, official Tool adapters, REST UI API record-action facts, bounds/guidance/security tests, and complete P0–P3 regressions; USER A/B live Gates passed, but real diagnostic Tooling/metadata remained NOT TESTED without `SFOA_DIAGNOSTIC_USERNAME`, so P4 closed as PARTIAL and P5 remained unauthorized. |
+| P4-BL-1.2 | 2026-08-23 | Recorded Maintainer acceptance of the P4 implementation and an explicit Phase-Gate waiver deferring the external-credential live diagnostic closure; revalidated 10/10 Context Provider, 7/7 P4 Host, 26/26 Identity Runtime, zero upstream drift, and six-workspace changed-code lint; authorized P5 development while requiring a renewed P4 closure attempt and evidence before P5 final PASS. |

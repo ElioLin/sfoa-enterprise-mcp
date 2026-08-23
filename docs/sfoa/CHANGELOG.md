@@ -2,6 +2,30 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-23 — P4 implementation accepted; live closure deferred; P5 development authorized
+
+### Phase-Gate waiver
+
+- Maintainer accepted the P4 implementation while preserving the historical `P4 = PARTIAL` result.
+- The external-credential live DIAGNOSTIC Gate is deferred because `SFOA_DIAGNOSTIC_USERNAME` remains unavailable; real Tooling and metadata context are still `NOT TESTED`.
+- Maintainer explicitly authorized P5 development. P5 cannot receive final PASS until the P4 live diagnostic closure is attempted again and evidence is recorded.
+- If the credential remains unavailable, P5 implementation may complete but P5 must be reported `PARTIAL`. Any defect found by the live attempt must be fixed in P5 Closure with affected P4/P5 Gate reruns.
+
+### Entry revalidation
+
+- Clean P4 branch confirmed before generated test output.
+- Context Provider tests: PASS, 10/10.
+- P4 Host tests: PASS, 7/7.
+- Identity Runtime tests: PASS, 26/26.
+- `validate:upstream`: PASS with Provider API 0.6.0, dx-core 0.10.0, nine GA Tools, and `drift: []`.
+- Strict changed-code lint: PASS for all six SFoA TypeScript workspaces.
+
+### Baseline and decision record
+
+- Advanced the baseline to `P4-BL-1.2`.
+- Added ADR-0010 for the explicit waiver, P5 authorization, immutable historical result, and P5 final-result semantics.
+- The waiver authorizes P5 development only; it does not authorize P6 or a P5 merge.
+
 ## 2026-08-23 — P4 diagnosis and runtime context implemented with PARTIAL live Gate
 
 ### Official and live capability audit
