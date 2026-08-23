@@ -4,17 +4,25 @@ import type { DmlAllowlistPolicy } from './allowlist.js';
 import { DmlRuntimeError, extractSafeSalesforceErrors, toSalesforceDmlError } from './errors.js';
 import type { CreateRecordInput, SalesforceFieldValue, UpdateRecordInput } from './schemas.js';
 
+export type MutationExecutionObserver = Readonly<{
+  onMutationStarted(operation: 'CREATE' | 'UPDATE'): void;
+}>;
+
 export class DmlExecutor {
   public constructor(
     private readonly orgService: OrgService,
     private readonly allowlist: DmlAllowlistPolicy,
+    private readonly mutationObserver?: MutationExecutionObserver,
   ) {}
 
   public async create(input: CreateRecordInput): Promise<string> {
     this.allowlist.assertAllowed(input.objectApiName, 'CREATE');
     try {
       const connection = await this.getRequestConnection();
-      const result = await connection.sobject(input.objectApiName).create(copyFields(input.fields));
+      const sobject = connection.sobject(input.objectApiName);
+      // The Host observes this exact pre-dispatch boundary; local gates above remain NOT_STARTED.
+      this.mutationObserver?.onMutationStarted('CREATE');
+      const result = await sobject.create(copyFields(input.fields));
       if (!result.success) {
         throw new DmlRuntimeError(
           'MCP_SALESFORCE_DML_FAILED',
@@ -33,7 +41,10 @@ export class DmlExecutor {
     this.allowlist.assertAllowed(input.objectApiName, 'UPDATE');
     try {
       const connection = await this.getRequestConnection();
-      const result = await connection.sobject(input.objectApiName).update({
+      const sobject = connection.sobject(input.objectApiName);
+      // The Host observes this exact pre-dispatch boundary; local gates above remain NOT_STARTED.
+      this.mutationObserver?.onMutationStarted('UPDATE');
+      const result = await sobject.update({
         Id: input.recordId,
         ...copyFields(input.fields),
       });

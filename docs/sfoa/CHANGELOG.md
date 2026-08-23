@@ -2,6 +2,35 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-23 — P3-Closure HOTFIX02 request-level mutation outcome safety completed
+
+### Changed
+
+- Added one minimal `MutationRequestState` per HTTP POST and a Provider-neutral `MutationExecutionObserver`. `DmlExecutor` marks CREATE/UPDATE immediately before the public SDK dispatch, after local input, policy, identity, Connection, and SObject preparation.
+- An outer request timeout after mutation start now returns HTTP 504 JSON-RPC `MCP_DML_OUTCOME_UNKNOWN` with `retryable:false` and no-automatic-retry/read-before-another-mutation guidance. Pre-dispatch and read request timeouts remain `MCP_REQUEST_TIMEOUT`.
+- Changed defaults to `MCP_REQUEST_TIMEOUT_MS=180000` and `MCP_TOOL_TIMEOUT_MS=120000`; configuration loading and direct Host startup fail closed with `MCP_RUNTIME_CONFIGURATION_INVALID` when request timeout is less than or equal to Tool timeout.
+- Added bounded UNKNOWN logging fields for operation, outcome, mutation-start state, duration, and TOOL/REQUEST/TRANSPORT termination layer. Client disconnect after mutation start is logged without replay or cancellation claims.
+- Reverified installed `@jsforce/jsforce-node@3.10.13`: default retry methods are exactly GET, PUT, HEAD, OPTIONS, and DELETE. CREATE POST and UPDATE PATCH are absent; JSforce was not patched or forked.
+
+### Safety tests
+
+- Added deterministic outer-timeout fixtures for CREATE and UPDATE, including late success after the client receives UNKNOWN. Each operation has one invocation, one completion, and zero automatic retry.
+- Added pre-dispatch timeout, read-only timeout, allowlist denial, schema-validation, Tool-timeout, structured Salesforce rejection, and client-disconnect regressions.
+- Added source-contract evidence for pinned JSforce POST/PATCH no-retry behavior and timeout-default parity with `.env.example`.
+
+### Verification
+
+- P3 Provider tests: PASS, 17/17. P3 Host tests: PASS, 18/18. P2 tests: PASS, 18/18. All five SFoA strict TypeScript lint commands: PASS.
+- P3 live Salesforce: PASS for CREATE/UPDATE, required/validation/authorization failures, A/B identity isolation, Connection reuse 0, and exact cleanup 2/2.
+- P2 live A/B/50-request load, P1 22/22/live, P0 9/9/live, P0 HTTP 1/1, upstream compatibility, original stdio, and project-local Inspector: PASS.
+- Git Bash root build: PASS, 130.07 s. Root full tests: PASS, 519.71 s.
+- Root lint reproduced exactly 47 unchanged official code-analyzer errors / 0 warnings: `KNOWN UPSTREAM DEBT`. No SFoA path is affected.
+- Official Salesforce TypeScript modifications: 0. JSforce patches: 0. Root `package.json` and `yarn.lock` modifications: 0. Database/Redis/idempotency/retry/UPSERT/DELETE/P4 additions: 0.
+
+### Result
+
+`P3-CLOSURE HOTFIX02 = PASS`. Baseline advanced to `P3-BL-1.3`; P3 awaits final maintainer acceptance, and P4 has not started.
+
 ## 2026-08-23 — P3-Closure HOTFIX01 ambiguous mutation outcome safety completed
 
 ### Changed

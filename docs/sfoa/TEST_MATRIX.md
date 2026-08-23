@@ -324,6 +324,55 @@ Both real users, all required official Tool paths, bidirectional forgery denial,
 | Root manifest / lockfile modified | PASS | Root `package.json` and `yarn.lock` unchanged |
 | P4 scope boundary | PASS | No Describe preflight, layout/UI API, context/diagnosis, or other P4 capability added |
 
+## P3-Closure HOTFIX02 Gate Matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Default timeout relationship | PASS | Code defaults are request 180000 ms and Tool 120000 ms; `requestTimeoutMs > toolTimeoutMs` |
+| `.env.example` timeout parity | PASS | Example contains request 180000 ms and Tool 120000 ms; source contract test compares both values |
+| Invalid timeout relationship | PASS | Equal and lower request deadlines fail config loading and direct server startup with `MCP_RUNTIME_CONFIGURATION_INVALID` |
+| Request-scoped mutation state | PASS | One `MutationRequestState` is created inside each HTTP POST; no module/global mutable mutation state |
+| CREATE dispatch boundary | PASS | Observer is marked immediately before the one public SDK `create()` call, after local gates and request Connection preparation |
+| UPDATE dispatch boundary | PASS | Observer is marked immediately before the one public SDK `update()` call, after local gates and request Connection preparation |
+| Read request timeout regression | PASS | Slow read-only Tool returns HTTP 504 `MCP_REQUEST_TIMEOUT`, never DML UNKNOWN |
+| CREATE outer request timeout | PASS | Post-dispatch HTTP deadline returns JSON-RPC `MCP_DML_OUTCOME_UNKNOWN`, HTTP 504, and `retryable:false` |
+| UPDATE outer request timeout | PASS | Post-dispatch HTTP deadline returns JSON-RPC `MCP_DML_OUTCOME_UNKNOWN`, HTTP 504, and `retryable:false` |
+| Late CREATE completion | PASS | Client receives UNKNOWN before mock success; create invocation 1, completion 1, automatic retry 0 |
+| Late UPDATE completion | PASS | Client receives UNKNOWN before mock success; update invocation 1, completion 1, automatic retry 0 |
+| Timeout before mutation start | PASS | Delayed request Connection preparation returns `MCP_REQUEST_TIMEOUT`; CREATE/UPDATE invocation 0 |
+| Allowlist denial before dispatch | PASS | `MCP_DML_OBJECT_NOT_ALLOWED`; mutation state remains NOT_STARTED and invocation count is 0 |
+| Unknown/off-limits Tool before dispatch | PASS | `delete_record` and `deploy_metadata` do not mark mutation state and execute no mutation |
+| Input validation before dispatch | PASS | Invalid Tool schema returns `MCP_DML_INPUT_INVALID`; observer is not marked |
+| DML Tool-timeout regression | PASS | HOTFIX01 behavior remains `MCP_DML_OUTCOME_UNKNOWN` for CREATE and UPDATE |
+| Explicit Salesforce rejection regression | PASS | Required, validation, and authorization error fixtures remain `MCP_SALESFORCE_DML_FAILED` with bounded safe details |
+| Network/unstructured post-dispatch failure | PASS | Remains `MCP_DML_OUTCOME_UNKNOWN`; no Error-name/message guessing and no retry |
+| No automatic mutation retry | PASS | Tool timeout, request timeout, transport failure, and late completion fixtures each execute CREATE/UPDATE exactly once |
+| Pinned JSforce retry audit | PASS | Installed 3.10.13 source default is exactly GET/PUT/HEAD/OPTIONS/DELETE; POST and PATCH are absent |
+| Client disconnect after mutation start | PASS | Socket-close fixture logs UNKNOWN with `terminationLayer=TRANSPORT`; invocation/completion 1 and replay 0 |
+| Request UNKNOWN wire contract | PASS | HTTP 504, JSON-RPC -32001, stable message, `data.errorCode`, bounded correlation ID, and `retryable:false` |
+| UNKNOWN safe logging | PASS | Correlation, Tool, operation, platform user, Salesforce username, duration, outcome, start state, and layer retained; no credential/Connection output |
+| P3 Provider tests | PASS | 17/17, 0 failed, including pinned JSforce source contract |
+| P3 Host tests | PASS | 18/18, 0 failed, including request timeout, late completion, disconnect, unknown/off-limits Tool, allowlist, identity, and Tool-timeout regressions |
+| P3 live Salesforce | PASS | CREATE/UPDATE, required/validation/authorization failures, A/B isolation, Connection reuse 0, exact cleanup 2/2 |
+| P2 tests | PASS | 18/18, including read Tool/request timeout and graceful shutdown |
+| P2 live A/B/load | PASS | 50 requests; identity mismatch, cross-user leak, workspace leak, cleanup failure, Connection reuse, and error count all 0 |
+| P1 tests/live | PASS | 22/22; two live users; 20 concurrent requests; identity mismatch/leak/reuse all 0 |
+| P0 tests/live | PASS | 9/9 plus live fresh JWT, identity, direct/official SOQL, metadata, and CWD restoration |
+| Streamable HTTP | PASS | P0 POC 1/1 plus P2/P3 SDK Client initialize/list/call paths |
+| Upstream compatibility | PASS | Provider API 0.6.0, dx-core 0.10.0, nine GA Tools, `drift: []` |
+| Original Salesforce stdio | PASS | initialize, five-Tool list, and official `get_username` call |
+| MCP Inspector | PASS | Project-local Inspector 0.15.0 initialize/list/call for Users A and B |
+| Root build | PASS | Git Bash all-workspace build completed in 130.07 s |
+| Root tests | PASS | Full all-workspace test command completed in 519.71 s |
+| SFoA changed-code lint | PASS | DML Provider, Host, Identity, P0 runtime, and HTTP POC strict TypeScript lint exited 0 |
+| Repository lint | KNOWN UPSTREAM DEBT | Exactly 47 errors / 0 warnings, all under unchanged official code-analyzer; no SFoA path |
+| Official Salesforce TypeScript modified | PASS | Zero official TypeScript paths in the HOTFIX02 diff |
+| JSforce patched/forked | PASS | No installed dependency or lockfile patch; audit is read-only |
+| Root manifest / lockfile modified | PASS | Root `package.json` and `yarn.lock` unchanged |
+| Database / Redis / idempotency framework | PASS | None added; no ledger, queue, replay key, persistence, or distributed transaction |
+| UPSERT / DELETE / Bulk DML | PASS | No Tool, schema parameter, SDK production call, or hidden entry added |
+| P4 scope boundary | PASS | No DIAGNOSTIC, Describe, layout/UI API, context, field recommendation, or diagnosis capability added |
+
 ## P2 overall result
 
 `P2 = PASS / COMPLETE — MAINTAINER ACCEPTED`
@@ -341,3 +390,9 @@ P3 is a thin enterprise mutation gate over the accepted request-scoped Salesforc
 `P3-CLOSURE HOTFIX01 = PASS`
 
 The Closure changes only outcome semantics and Agent retry safety. It adds no idempotency machinery, retry, database, Redis, UPSERT, DELETE, metadata/layout/context engine, or P4 capability. P3 may be recommended for final maintainer acceptance; merge and P4 authorization remain maintainer decisions.
+
+## P3 Closure HOTFIX02 overall result
+
+`P3-CLOSURE HOTFIX02 = PASS`
+
+The request lifecycle now preserves UNKNOWN semantics across both Tool and outer HTTP deadlines after CREATE/UPDATE dispatch. Before dispatch and for reads, ordinary request timeout semantics remain unchanged. The operational timeout hierarchy is fail-closed, pinned JSforce does not retry POST/PATCH by default, and SFoA adds no retry, persistence, idempotency framework, prohibited mutation, official patch, or P4 capability. P3 may be recommended for final maintainer acceptance; merge and P4 authorization remain maintainer decisions.

@@ -183,6 +183,11 @@ function assertOutcomeLog(events: readonly RuntimeLogEvent[], toolName: string):
   assert.equal(event.toolName, toolName);
   assert.equal(event.platformUserId, TEST_PLATFORM_USER_A);
   assert.equal(event.salesforceUsername, TEST_USERNAME_A);
+  assert.equal(event.operation, toolName === 'create_record' ? 'CREATE' : 'UPDATE');
+  assert.equal(event.outcome, 'UNKNOWN');
+  assert.equal(event.mutationStarted, true);
+  assert.equal(event.terminationLayer, 'TOOL');
+  assert.equal(typeof event.durationMs, 'number');
 }
 
 function readErrorCode(value: unknown): string | undefined {

@@ -1,6 +1,6 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
 import type { DmlAllowlistPolicy, DmlOperation } from './allowlist.js';
-import { DmlExecutor } from './dml-executor.js';
+import { DmlExecutor, type MutationExecutionObserver } from './dml-executor.js';
 import { CreateRecordMcpTool } from './tools/create-record.js';
 import { UpdateRecordMcpTool } from './tools/update-record.js';
 
@@ -19,7 +19,10 @@ export function isSfoaDmlToolName(value: string): value is SfoaDmlToolName {
 }
 
 export class SfoaDmlMcpProvider extends McpProvider {
-  public constructor(private readonly allowlist: DmlAllowlistPolicy) {
+  public constructor(
+    private readonly allowlist: DmlAllowlistPolicy,
+    private readonly mutationObserver?: MutationExecutionObserver,
+  ) {
     super();
   }
 
@@ -28,7 +31,11 @@ export class SfoaDmlMcpProvider extends McpProvider {
   }
 
   public provideTools(services: Services): Promise<McpTool[]> {
-    const executor = new DmlExecutor(services.getOrgService(), this.allowlist);
+    const executor = new DmlExecutor(
+      services.getOrgService(),
+      this.allowlist,
+      this.mutationObserver,
+    );
     return Promise.resolve([
       new CreateRecordMcpTool(executor),
       new UpdateRecordMcpTool(executor),

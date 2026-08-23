@@ -32,6 +32,7 @@ export type DmlToolFacadeOptions = Readonly<{
   toolTimeoutMs: number;
   logger: RuntimeLogger;
   clientId: string;
+  mutationStarted(): boolean;
 }>;
 
 export class DmlToolFacade {
@@ -66,27 +67,47 @@ export class DmlToolFacade {
         `Tool ${this.getName()} exceeded MCP_TOOL_TIMEOUT_MS. The runtime stopped waiting; Salesforce server-side cancellation is not guaranteed.`,
         this.options.context.correlationId,
       );
-      this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), resultErrorCode(result));
+      const errorCode = resultErrorCode(result);
+      this.log(
+        result.isError === true ? 'ERROR' : 'PASS',
+        elapsed(started),
+        errorCode,
+        errorCode === 'MCP_DML_OUTCOME_UNKNOWN' ? 'TRANSPORT' : undefined,
+      );
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
         const result = dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error));
-        this.log('ERROR', elapsed(started), resultErrorCode(result));
+        this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL');
         return result;
       }
       const result = dmlExecutionErrorToolResult(error, this.operation);
-      this.log('ERROR', elapsed(started), resultErrorCode(result));
+      this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT');
       return result;
     }
   }
 
-  private log(result: 'PASS' | 'ERROR', durationMs: number, errorCode?: string): void {
+  private log(
+    result: 'PASS' | 'ERROR',
+    durationMs: number,
+    errorCode?: string,
+    terminationLayer?: 'TOOL' | 'TRANSPORT',
+  ): void {
+    const outcomeUnknown = errorCode === 'MCP_DML_OUTCOME_UNKNOWN';
     this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,
       platformUserId: this.options.context.platformUserId,
       salesforceUsername: this.options.route.salesforceUsername,
       toolName: this.getName(),
+      operation: this.operation,
+      ...(outcomeUnknown
+        ? {
+            outcome: 'UNKNOWN' as const,
+            mutationStarted: this.options.mutationStarted(),
+            ...(terminationLayer ? { terminationLayer } : {}),
+          }
+        : {}),
       durationMs,
       result,
       ...(errorCode ? { errorCode } : {}),

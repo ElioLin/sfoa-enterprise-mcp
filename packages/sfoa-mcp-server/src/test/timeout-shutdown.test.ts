@@ -20,6 +20,7 @@ import { installGracefulShutdown } from '../shutdown.js';
 import {
   createTestIdentityRuntime,
   createTestRemoteConfig,
+  mcpHeaders,
   TEST_CLIENT_TOKEN,
   TEST_PLATFORM_USER_A,
   toolResultText,
@@ -47,10 +48,14 @@ class ControlledToolSource implements RequestToolSource {
   public constructor(
     private readonly delayMs: number,
     private readonly waitForRelease = false,
+    private readonly provideDelayMs = 0,
   ) {}
 
-  public provideTools(_services: Services): Promise<McpTool[]> {
-    return Promise.resolve([new ControlledGetUsernameTool(this)]);
+  public async provideTools(_services: Services): Promise<McpTool[]> {
+    if (this.provideDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this.provideDelayMs));
+    }
+    return [new ControlledGetUsernameTool(this)];
   }
 
   public async execute(): Promise<CallToolResult> {
@@ -132,29 +137,39 @@ test('MCP_TOOL_TIMEOUT returns a stable Tool-level failure and cleans request re
 
 test('MCP_REQUEST_TIMEOUT stops waiting, returns 504, and closes the request workspace', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-request-timeout-'));
-  const toolSource = new ControlledToolSource(1_000);
+  const toolSource = new ControlledToolSource(1_000, false, 300);
   const identityRuntime = createTestIdentityRuntime(baseRoot);
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({
       enabledTools: Object.freeze(['get_username']),
       requestTimeoutMs: 500,
-      toolTimeoutMs: 2_000,
+      toolTimeoutMs: 250,
     }),
     identityRuntime,
     toolSource,
   });
-  let client: Client | undefined;
   try {
-    client = await connectClient(server);
-    await assert.rejects(
-      client.callTool({ name: 'get_username', arguments: {} }),
-      (error: unknown) => String(error).includes('504') && String(error).includes('MCP_REQUEST_TIMEOUT'),
-    );
+    const response = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: {
+        ...mcpHeaders(TEST_PLATFORM_USER_A),
+        'mcp-protocol-version': '2025-06-18',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'get_username', arguments: {} },
+      }),
+    });
+    const body = await response.text();
+    assert.equal(response.status, 504);
+    assert.match(body, /MCP_REQUEST_TIMEOUT/u);
+    assert.equal(toolSource.invocations, 1, 'the read-only Tool must have started before the request timeout');
     await waitFor(() => identityRuntime.workspaceFactory.getMetrics().active === 0);
     assert.equal(identityRuntime.workspaceFactory.getMetrics().created, identityRuntime.workspaceFactory.getMetrics().cleaned);
     assert.equal(server.getMetrics().cleanupFailures, 0);
   } finally {
-    await client?.close().catch(() => undefined);
     await server.close();
     await new Promise((resolve) => setTimeout(resolve, 1_050));
     await rm(baseRoot, { recursive: true, force: true });
@@ -168,7 +183,7 @@ test('graceful shutdown stops listening and drains an in-flight request before c
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({
       enabledTools: Object.freeze(['get_username']),
-      requestTimeoutMs: 1_000,
+      requestTimeoutMs: 1_500,
       toolTimeoutMs: 1_000,
     }),
     identityRuntime,

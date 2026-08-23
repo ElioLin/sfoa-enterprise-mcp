@@ -4,7 +4,7 @@
 
 The only Tool names are `create_record` and `update_record`. Every call is checked against an immutable Object-by-Operation policy before the official `@salesforce/core` Connection invokes `sobject().create()` or `sobject().update()`. Salesforce remains responsible for CRUD, FLS, sharing, validation, Flow, Trigger, required fields, and lookup filters.
 
-Both Tools are non-idempotent. An explicit structured Salesforce rejection returns `MCP_SALESFORCE_DML_FAILED`. A transport/SDK exception without reliable Salesforce rejection evidence returns `MCP_DML_OUTCOME_UNKNOWN`: do not automatically retry; first use an independent read-only Tool to verify Salesforce state and inform the user if the state cannot be confirmed. The Provider performs no automatic retry or post-write query.
+Both Tools are non-idempotent. An explicit structured Salesforce rejection returns `MCP_SALESFORCE_DML_FAILED`. A Tool/request timeout, transport interruption, or SDK exception without reliable Salesforce rejection evidence after dispatch returns `MCP_DML_OUTCOME_UNKNOWN`: do not automatically retry; first use an independent read-only Tool to verify Salesforce state and inform the user if the state cannot be confirmed. The Provider marks a request-local observer immediately before the public SDK CREATE/UPDATE call; it performs no automatic retry, replay, or post-write query.
 
 The remote Host loads `MCP_DML_ALLOWLIST_JSON` from the shell or ignored `.env.local`. Missing or `[]` means deny all. Example:
 

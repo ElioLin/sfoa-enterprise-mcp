@@ -6,6 +6,10 @@ export type RuntimeLogEvent = Readonly<{
   platformUserId?: string;
   salesforceUsername?: string;
   toolName?: string;
+  operation?: 'CREATE' | 'UPDATE';
+  outcome?: 'UNKNOWN';
+  mutationStarted?: boolean;
+  terminationLayer?: 'TOOL' | 'REQUEST' | 'TRANSPORT';
   durationMs?: number;
   result: RuntimeLogResult;
   errorCode?: string;

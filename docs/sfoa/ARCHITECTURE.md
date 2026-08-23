@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P3 implemented and validated; P3-Closure HOTFIX01 closes ambiguous mutation-outcome semantics while final maintainer acceptance remains pending
+Status: P3 implemented and validated; P3-Closure HOTFIX01 and HOTFIX02 close Tool- and request-level ambiguous mutation outcomes while final maintainer acceptance remains pending
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -361,8 +361,9 @@ P2 does not authorize from `X-Forwarded-For` or `X-Forwarded-Proto`. Those value
 ## Request Bounds, Timeout, and Cleanup
 
 - `MCP_MAX_BODY_BYTES` bounds streamed request bytes and returns HTTP 413 before JWT.
-- `MCP_REQUEST_TIMEOUT_MS` bounds the complete POST wait and returns HTTP 504 `MCP_REQUEST_TIMEOUT`.
+- `MCP_REQUEST_TIMEOUT_MS` bounds the complete POST wait. It returns HTTP 504 `MCP_REQUEST_TIMEOUT` before mutation dispatch and `MCP_DML_OUTCOME_UNKNOWN` after request-local CREATE/UPDATE dispatch awareness is marked.
 - `MCP_TOOL_TIMEOUT_MS` bounds the Tool wait. Official read Tool facades retain Tool-level `MCP_TOOL_TIMEOUT`; the P3 DML facade converts its timeout to structured `MCP_DML_OUTCOME_UNKNOWN` because server-side mutation cancellation is not guaranteed.
+- Defaults are request `180000` ms and Tool `120000` ms. Startup fails closed when request timeout is less than or equal to Tool timeout. The ordering is an operational guard, not the mutation safety proof.
 - Response finish/close, timeout, client disconnect, and graceful shutdown converge on idempotent transport/server/workspace cleanup.
 - SIGINT/SIGTERM stop new acceptance, drain active requests to the configured bound, close idle/all connections as needed, and set an exit code without immediate `process.exit()`.
 
@@ -431,6 +432,36 @@ or mutation Promise rejection without reliable rejection evidence
 The timeout races only the Host wait; it does not cancel or replay the underlying SDK Promise. Deterministic tests let CREATE/UPDATE resolve after the timeout and prove exactly one invocation. The client-visible result keeps the existing compact shape (`success`, `errorCode`, `message`); correlation ID remains a log-correlation value rather than an idempotency key or Salesforce commit-status token.
 
 The request log continues to record `correlationId`, `toolName`, `platformUserId`, and `salesforceUsername` with `MCP_DML_OUTCOME_UNKNOWN`. Causes, stacks, JWTs, tokens, private keys, client secrets, and Connection objects are not returned.
+
+### P3-Closure HOTFIX02 request-level mutation outcome semantics
+
+Every HTTP POST owns one minimal `MutationRequestState`. The DML Provider receives only a small `MutationExecutionObserver`; it has no dependency on the HTTP server. `DmlExecutor` marks the observer immediately before invoking the public SDK `create()` or `update()` method, after schema, Object-by-Operation, and request-identity checks have succeeded.
+
+```text
+HTTP MCP POST
+  -> request-local MutationRequestState = NOT_STARTED
+  -> authentication / identity / Provider preparation
+  -> DML schema and Object x Operation governance
+  -> request-scoped Connection and SObject handle
+  -> observer.onMutationStarted(CREATE | UPDATE)
+  -> Connection.sobject().create() / update()
+```
+
+The state deliberately contains only the first started operation; there is no global state, SETTLED ledger, replay key, or persistence layer. The outer timeout race classifies its legal JSON-RPC error from that request-owned state:
+
+```text
+NOT_STARTED + request timeout
+  -> HTTP 504 / MCP_REQUEST_TIMEOUT
+
+STARTED + request timeout
+  -> HTTP 504 / JSON-RPC -32001
+  -> error.data.errorCode = MCP_DML_OUTCOME_UNKNOWN
+  -> error.data.retryable = false
+```
+
+The UNKNOWN message says that Salesforce commit state cannot be determined, automatic retry is forbidden, server-side cancellation is not guaranteed, and an independent read must precede another mutation. Safe logs include correlation ID, Tool, operation, platform user, Salesforce username, duration, `outcome=UNKNOWN`, `mutationStarted=true`, and `terminationLayer=TOOL|REQUEST|TRANSPORT`. A disconnected client cannot receive a response, but post-start socket/response termination is logged as UNKNOWN and the Host performs no replay or retry.
+
+Pinned `@jsforce/jsforce-node@3.10.13` source keeps default retry methods at `GET`, `PUT`, `HEAD`, `OPTIONS`, and `DELETE`. Single-record CREATE `POST` and UPDATE `PATCH` are absent. SFoA does not patch or fork this transport.
 
 The independent live validator may call SDK `destroy(recordId)` only for IDs returned by that validator run. That cleanup method is not imported by the Provider, registered as a Tool, or used for query-based deletion.
 

@@ -17,6 +17,7 @@ type MutationCall = Readonly<{
 
 test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection', async () => {
   const calls: MutationCall[] = [];
+  const mutationStarts: Array<'CREATE' | 'UPDATE'> = [];
   const connection = createConnection(calls);
   const orgService = new TestOrgService(['user-a@example.test'], connection);
   const executor = new DmlExecutor(
@@ -24,6 +25,7 @@ test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection
     parseDmlAllowlistJson(JSON.stringify([
       { objectApiName: 'Lead', operations: ['CREATE', 'UPDATE'] },
     ])),
+    { onMutationStarted: (operation) => mutationStarts.push(operation) },
   );
 
   assert.equal(
@@ -40,6 +42,7 @@ test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection
   );
 
   assert.deepEqual(orgService.requestedUsernames, ['user-a@example.test', 'user-a@example.test']);
+  assert.deepEqual(mutationStarts, ['CREATE', 'UPDATE']);
   assert.deepEqual(calls, [
     {
       operation: 'CREATE',
@@ -56,10 +59,12 @@ test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection
 
 test('allowlist denial happens before a Salesforce Connection or mutation is requested', async () => {
   const calls: MutationCall[] = [];
+  const mutationStarts: Array<'CREATE' | 'UPDATE'> = [];
   const orgService = new TestOrgService(['user-a@example.test'], createConnection(calls));
   const executor = new DmlExecutor(
     orgService,
     parseDmlAllowlistJson(JSON.stringify([{ objectApiName: 'Lead', operations: ['CREATE'] }])),
+    { onMutationStarted: (operation) => mutationStarts.push(operation) },
   );
 
   await assert.rejects(
@@ -72,20 +77,24 @@ test('allowlist denial happens before a Salesforce Connection or mutation is req
   );
   assert.deepEqual(orgService.requestedUsernames, []);
   assert.deepEqual(calls, []);
+  assert.deepEqual(mutationStarts, []);
 });
 
 test('zero or multiple request identities fail closed without executing Salesforce DML', async () => {
   for (const usernames of [[], ['a@example.test', 'b@example.test']]) {
     const calls: MutationCall[] = [];
+    const mutationStarts: Array<'CREATE' | 'UPDATE'> = [];
     const executor = new DmlExecutor(
       new TestOrgService(usernames, createConnection(calls)),
       parseDmlAllowlistJson(JSON.stringify([{ objectApiName: 'Lead', operations: ['CREATE'] }])),
+      { onMutationStarted: (operation) => mutationStarts.push(operation) },
     );
     await assert.rejects(
       executor.create({ objectApiName: 'Lead', fields: { LastName: 'P3' } }),
       isDmlError('MCP_DML_IDENTITY_CONTEXT_INVALID'),
     );
     assert.deepEqual(calls, []);
+    assert.deepEqual(mutationStarts, []);
   }
 });
 

@@ -9,6 +9,10 @@ import {
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  dmlOutcomeUnknownError,
+  type DmlOperation,
+} from '@sfoa/mcp-provider-sfoa-dml';
+import {
   formatRuntimeError,
   IdentityRuntimeError,
   type IdentityRuntime,
@@ -24,7 +28,7 @@ import {
   type AuthenticatedClient,
   type ClientAuthenticator,
 } from './authenticator.js';
-import type { RemoteRuntimeConfig } from './config.js';
+import { assertValidTimeoutHierarchy, type RemoteRuntimeConfig } from './config.js';
 import {
   formatRemoteRuntimeError,
   RemoteRuntimeError,
@@ -35,6 +39,7 @@ import {
   createGovernedMcpServer,
   initializeProviderRuntime,
   type InitializedProviderRuntime,
+  MutationRequestState,
 } from './provider-runtime.js';
 import { readBoundedJsonBody } from './request-body.js';
 import { delay, withTimeout } from './timeouts.js';
@@ -84,6 +89,7 @@ type RequestObservation = {
 };
 
 export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions): Promise<RemoteMcpServer> {
+  assertValidTimeoutHierarchy(options.config.requestTimeoutMs, options.config.toolTimeoutMs);
   const initializedProvider = await initializeProviderRuntime(
     options.config.enabledTools,
     options.toolSource,
@@ -207,6 +213,30 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
   const started = performance.now();
   const observation: RequestObservation = { correlationId: parseCorrelationId(options.request) };
   const resources = new RequestResources();
+  let clientDisconnected = false;
+  let responseFinished = false;
+  let transportTerminationLogged = false;
+  const logTransportTermination = (operation: DmlOperation): void => {
+    if (transportTerminationLogged) return;
+    transportTerminationLogged = true;
+    options.logger.log({
+      correlationId: observation.correlationId,
+      ...(observation.clientId ? { clientId: observation.clientId } : {}),
+      ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
+      ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
+      toolName: dmlToolName(operation),
+      operation,
+      outcome: 'UNKNOWN',
+      mutationStarted: true,
+      terminationLayer: 'TRANSPORT',
+      durationMs: elapsed(started),
+      result: 'ERROR',
+      errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
+    });
+  };
+  const mutationRequestState = new MutationRequestState((operation) => {
+    if (clientDisconnected) logTransportTermination(operation);
+  });
   options.response.setHeader('x-correlation-id', observation.correlationId);
   const cleanup = (): void => {
     void resources.close().catch((error: unknown) =>
@@ -215,6 +245,18 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
   };
   options.response.once('finish', cleanup);
   options.response.once('close', cleanup);
+  const observeClientDisconnect = (): void => {
+    if (responseFinished) return;
+    clientDisconnected = true;
+    const operation = mutationRequestState.getOperation();
+    if (operation) logTransportTermination(operation);
+  };
+  options.response.once('close', observeClientDisconnect);
+  options.request.socket.once('close', observeClientDisconnect);
+  options.response.once('finish', () => {
+    responseFinished = true;
+    options.request.socket.off('close', observeClientDisconnect);
+  });
 
   try {
     validateHostAndOrigin(options.request, options.allowedHosts, options.allowedOrigins);
@@ -242,7 +284,13 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
     assertMethod(options.request, 'POST');
 
     const controller = new AbortController();
-    const operation = executeMcpPost(options, observation, resources, controller.signal);
+    const operation = executeMcpPost(
+      options,
+      observation,
+      resources,
+      mutationRequestState,
+      controller.signal,
+    );
     try {
       await withTimeout(
         operation,
@@ -253,22 +301,50 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       );
     } catch (error) {
       controller.abort();
+      let terminalError = error;
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_REQUEST_TIMEOUT') {
-        resources.markCancelled(withRemoteCorrelation(error, observation.correlationId));
+        const mutationOperation = mutationRequestState.getOperation();
+        if (mutationOperation) {
+          terminalError = requestLevelDmlOutcomeUnknown(
+            mutationOperation,
+            error,
+            observation.correlationId,
+          );
+        }
+        resources.markCancelled(
+          withRemoteCorrelation(terminalError as RemoteRuntimeError, observation.correlationId),
+        );
       }
-      throw error;
+      throw terminalError;
     }
   } catch (error) {
     const normalized = normalizeRequestError(error, observation.correlationId);
-    options.logger.log({
-      correlationId: observation.correlationId,
-      ...(observation.clientId ? { clientId: observation.clientId } : {}),
-      ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
-      ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
-      durationMs: elapsed(started),
-      result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
-      errorCode: normalized.code,
-    });
+    const mutationOperation = mutationRequestState.getOperation();
+    const outcomeUnknown = normalized.code === 'MCP_DML_OUTCOME_UNKNOWN';
+    if (!transportTerminationLogged) {
+      options.logger.log({
+        correlationId: observation.correlationId,
+        ...(observation.clientId ? { clientId: observation.clientId } : {}),
+        ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
+        ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
+        ...(mutationOperation
+          ? {
+              toolName: dmlToolName(mutationOperation),
+              operation: mutationOperation,
+            }
+          : {}),
+        ...(outcomeUnknown
+          ? {
+              outcome: 'UNKNOWN' as const,
+              mutationStarted: true,
+              terminationLayer: 'REQUEST' as const,
+            }
+          : {}),
+        durationMs: elapsed(started),
+        result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
+        errorCode: normalized.code,
+      });
+    }
     if (!options.response.headersSent) {
       writeNormalizedError(
         options.response,
@@ -292,6 +368,7 @@ async function executeMcpPost(
   options: HandleRemoteRequestOptions,
   observation: RequestObservation,
   resources: RequestResources,
+  mutationRequestState: MutationRequestState,
   signal: AbortSignal,
 ): Promise<void> {
   const headers = toRequestHeaders(options.request);
@@ -315,6 +392,7 @@ async function executeMcpPost(
     clientId: client.clientId,
     toolTimeoutMs: options.config.toolTimeoutMs,
     redactionSecrets: [...options.identityRuntime.redactionSecrets, options.config.clientToken ?? ''],
+    mutationRequestState,
     initializedProvider: options.initializedProvider,
   });
   await resources.attachMcpServer(created.server);
@@ -443,7 +521,11 @@ function writeNormalizedError(
     error: {
       code: -32001,
       message,
-      data: { errorCode: error.code, correlationId: error.correlationId },
+      data: {
+        errorCode: error.code,
+        correlationId: error.correlationId,
+        ...(error.code === 'MCP_DML_OUTCOME_UNKNOWN' ? { retryable: false } : {}),
+      },
     },
     id: null,
   });
@@ -466,6 +548,7 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
       return 413;
     case 'MCP_REQUEST_TIMEOUT':
     case 'MCP_TOOL_TIMEOUT':
+    case 'MCP_DML_OUTCOME_UNKNOWN':
       return 504;
     case 'MCP_RUNTIME_NOT_READY':
       return 503;
@@ -620,6 +703,22 @@ function requestAlreadyClosed(): RemoteRuntimeError {
     'MCP_REQUEST_TIMEOUT',
     'The request resource boundary was already closed before setup completed.',
   );
+}
+
+function requestLevelDmlOutcomeUnknown(
+  operation: DmlOperation,
+  cause: unknown,
+  correlationId: string,
+): RemoteRuntimeError {
+  const outcome = dmlOutcomeUnknownError(operation, cause);
+  return new RemoteRuntimeError('MCP_DML_OUTCOME_UNKNOWN', outcome.message, {
+    cause,
+    correlationId,
+  });
+}
+
+function dmlToolName(operation: DmlOperation): 'create_record' | 'update_record' {
+  return operation === 'CREATE' ? 'create_record' : 'update_record';
 }
 
 function logCleanupFailure(

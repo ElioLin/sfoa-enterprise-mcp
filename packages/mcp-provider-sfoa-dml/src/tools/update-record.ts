@@ -37,7 +37,7 @@ export class UpdateRecordMcpTool extends McpTool<InputShape, OutputShape> {
     return {
       title: 'Update Salesforce Record',
       description:
-        'Updates scalar fields on exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If the outcome is unknown or the Tool times out, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide recordId separately; fields.Id and relationship paths are rejected. This Tool does not perform SOQL, upsert, bulk update, or delete. Returns only success and the updated record ID.',
+        'Updates scalar fields on exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If a Tool/request timeout or transport interruption makes the outcome unknown, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide recordId separately; fields.Id and relationship paths are rejected. This Tool does not perform SOQL, upsert, bulk update, or delete. Returns only success and the updated record ID.',
       inputSchema: updateRecordInputSchema.shape,
       outputSchema: dmlOutputSchema.shape,
       annotations: {

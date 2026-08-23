@@ -4,6 +4,8 @@ Protocol: MCP Streamable HTTP, stateless JSON responses.
 
 Default endpoint: `POST http://127.0.0.1:8080/mcp`.
 
+Default deadlines: `MCP_TOOL_TIMEOUT_MS=120000`, `MCP_REQUEST_TIMEOUT_MS=180000`. Startup fails closed when request timeout is less than or equal to Tool timeout.
+
 ## Required headers
 
 ```http
@@ -52,6 +54,8 @@ run_soql_query
 
 `retrieve_metadata` remains available in the official composition but is disabled by default. Mutation, admin, local-development, incompatible, and unknown Tools cannot be registered in P2. A configured forbidden/unknown Tool fails process startup.
 
+P3 may additionally expose exactly `create_record` and/or `update_record` only when the exact Tool name is enabled and the strict Object-by-Operation DML policy contains a matching operation. DELETE, UPSERT, arbitrary REST, deploy, and admin Tools remain absent or startup-denied.
+
 Example SOQL call arguments:
 
 ```json
@@ -71,12 +75,34 @@ Example SOQL call arguments:
 | Unknown platform route | HTTP 403 | `MCP_IDENTITY_ROUTE_NOT_FOUND` |
 | Disallowed Host/Origin | HTTP 403 | `MCP_HOST_NOT_ALLOWED` / `MCP_ORIGIN_NOT_ALLOWED` |
 | Body exceeds bound | HTTP 413 | `MCP_REQUEST_TOO_LARGE` |
-| Whole request timeout | HTTP 504 | `MCP_REQUEST_TIMEOUT` |
-| Tool execution timeout | MCP Tool-level `isError: true` | `MCP_TOOL_TIMEOUT` |
+| Whole request timeout before mutation starts, or for a read Tool | HTTP 504 | `MCP_REQUEST_TIMEOUT` |
+| Whole request timeout after `create_record` / `update_record` starts | HTTP 504 JSON-RPC error | `MCP_DML_OUTCOME_UNKNOWN` |
+| Read Tool execution timeout | MCP Tool-level `isError: true` | `MCP_TOOL_TIMEOUT` |
+| DML Tool execution timeout | MCP Tool-level `isError: true` | `MCP_DML_OUTCOME_UNKNOWN` |
 | Runtime not ready | HTTP 503 | `MCP_RUNTIME_NOT_READY` |
 | Forbidden/unknown enabled Tool at startup | Startup failure | `MCP_TOOL_DISABLED` / `MCP_TOOL_NOT_AVAILABLE` |
 
-Errors include a correlation ID and exclude Bearer/JWT/private-key material. Tool/HTTP timeouts stop waiting and release request resources; they do not claim to cancel a Salesforce server-side operation already accepted by Salesforce.
+The request-level unknown wire shape is:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32001,
+    "message": "[MCP_DML_OUTCOME_UNKNOWN] Outcome is unknown. ...",
+    "data": {
+      "errorCode": "MCP_DML_OUTCOME_UNKNOWN",
+      "correlationId": "bounded-log-correlation-id",
+      "retryable": false
+    }
+  },
+  "id": null
+}
+```
+
+Errors exclude Bearer/JWT/private-key material. Tool/HTTP timeouts stop waiting and release request resources; they do not claim to cancel a Salesforce server-side operation already accepted by Salesforce. Never automatically retry CREATE/UPDATE after `MCP_DML_OUTCOME_UNKNOWN`; verify Salesforce state through an independent read first and tell the user when verification is impossible. Correlation ID is only for log correlation, not an idempotency key or Salesforce commit-status lookup key.
+
+If the client disconnects after mutation execution starts, no response can be delivered over the closed connection. The Host logs an unknown transport outcome and does not cancel, replay, or retry the mutation; the client must treat that interruption as unknown under the same read-before-another-mutation rule.
 
 ## Liveness
 

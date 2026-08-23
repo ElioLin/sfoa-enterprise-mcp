@@ -8,6 +8,8 @@ import {
   isSfoaDmlToolName,
   parseDmlAllowlistJson,
   type DmlAllowlistPolicy,
+  type DmlOperation,
+  type MutationExecutionObserver,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import {
   NoopRuntimeLogger,
@@ -49,8 +51,30 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   clientId: string;
   toolTimeoutMs: number;
   redactionSecrets?: readonly string[];
+  mutationRequestState: MutationRequestState;
   initializedProvider: InitializedProviderRuntime;
 }>;
+
+export class MutationRequestState implements MutationExecutionObserver {
+  // One instance is created per HTTP POST; no cross-request mutation state is retained.
+  private startedOperation: DmlOperation | undefined;
+
+  public constructor(private readonly onStarted?: (operation: DmlOperation) => void) {}
+
+  public onMutationStarted(operation: DmlOperation): void {
+    if (this.startedOperation) return;
+    this.startedOperation = operation;
+    this.onStarted?.(operation);
+  }
+
+  public hasStarted(): boolean {
+    return this.startedOperation !== undefined;
+  }
+
+  public getOperation(): DmlOperation | undefined {
+    return this.startedOperation;
+  }
+}
 
 export async function initializeProviderRuntime(
   enabledTools: readonly string[],
@@ -108,6 +132,7 @@ export async function createGovernedMcpServer(
     }
     const dmlTools = await new SfoaDmlMcpProvider(
       options.initializedProvider.dmlAllowlist,
+      options.mutationRequestState,
     ).provideTools(options.scope.services);
     for (const tool of dmlTools) {
       if (tool.getReleaseState() !== ReleaseState.GA) continue;
@@ -146,6 +171,7 @@ export async function createGovernedMcpServer(
           toolTimeoutMs: options.toolTimeoutMs,
           logger: options.logger,
           clientId: options.clientId,
+          mutationStarted: () => options.mutationRequestState.hasStarted(),
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
         registered.push(name);

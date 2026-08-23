@@ -42,6 +42,7 @@ test('P3 provider Tool surface is exactly CREATE and UPDATE with complete mutati
     assert(config.description);
     assert.match(config.description, /not idempotent/iu);
     assert.match(config.description, /Do not automatically retry/iu);
+    assert.match(config.description, /Tool\/request timeout or transport interruption/iu);
     assert.match(config.description, /read-only Tool/iu);
     assert.match(config.description, /inform the user/iu);
     assert.deepEqual(config.annotations, {
@@ -98,8 +99,14 @@ test('UPDATE keeps recordId separate and structurally excludes Id, upsert, relat
 });
 
 test('Tool-level invalid input has stable MCP_DML_INPUT_INVALID semantics', async () => {
-  const create = new CreateRecordMcpTool(executor);
-  const update = new UpdateRecordMcpTool(executor);
+  const mutationStarts: Array<'CREATE' | 'UPDATE'> = [];
+  const invalidInputExecutor = new DmlExecutor(
+    orgService,
+    parseDmlAllowlistJson(JSON.stringify([{ objectApiName: 'Lead', operations: ['CREATE', 'UPDATE'] }])),
+    { onMutationStarted: (operation) => mutationStarts.push(operation) },
+  );
+  const create = new CreateRecordMcpTool(invalidInputExecutor);
+  const update = new UpdateRecordMcpTool(invalidInputExecutor);
   const createResult = await create.exec({ objectApiName: 'Lead', fields: {} });
   const updateResult = await update.exec({
     objectApiName: 'Lead',
@@ -110,6 +117,7 @@ test('Tool-level invalid input has stable MCP_DML_INPUT_INVALID semantics', asyn
   assert.equal(updateResult.isError, true);
   assert.equal(readErrorCode(createResult.structuredContent), 'MCP_DML_INPUT_INVALID');
   assert.equal(readErrorCode(updateResult.structuredContent), 'MCP_DML_INPUT_INVALID');
+  assert.deepEqual(mutationStarts, []);
 });
 
 function readErrorCode(value: unknown): string | undefined {

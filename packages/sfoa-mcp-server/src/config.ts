@@ -16,6 +16,9 @@ import { RemoteRuntimeError } from './errors.js';
 
 export type RemoteAuthMode = 'internal_bearer' | 'disabled';
 
+export const DEFAULT_MCP_REQUEST_TIMEOUT_MS = 180_000;
+export const DEFAULT_MCP_TOOL_TIMEOUT_MS = 120_000;
+
 export type RemoteRuntimeConfig = Readonly<{
   identity: IdentityRuntimeConfig;
   bindHost: string;
@@ -51,8 +54,8 @@ const rawRemoteConfigSchema = z
     MCP_CLIENT_TOKEN: z.string().min(16).max(4096).optional(),
     MCP_PLATFORM_USER_HEADER: headerNameSchema.default('X-Platform-User-Id'),
     MCP_MAX_BODY_BYTES: z.coerce.number().int().min(1024).max(10_485_760).default(1_048_576),
-    MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(60_000),
-    MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(120_000),
+    MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_REQUEST_TIMEOUT_MS),
+    MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_TOOL_TIMEOUT_MS),
     MCP_ENABLED_TOOLS: z.string().trim().default(DEFAULT_ENABLED_TOOLS.join(',')),
     MCP_DML_ALLOWLIST_JSON: z.string().max(65_536).optional(),
     MCP_ALLOWED_HOSTS: z.string().trim().optional(),
@@ -109,6 +112,10 @@ export async function loadRemoteRuntimeConfig(
   if (parsed.data.MCP_AUTH_MODE === 'internal_bearer' && !parsed.data.MCP_CLIENT_TOKEN) {
     throw configurationError('MCP_CLIENT_TOKEN is required when MCP_AUTH_MODE=internal_bearer.');
   }
+  assertValidTimeoutHierarchy(
+    parsed.data.MCP_REQUEST_TIMEOUT_MS,
+    parsed.data.MCP_TOOL_TIMEOUT_MS,
+  );
 
   const mcpPath = normalizeMcpPath(parsed.data.MCP_PATH);
   const allowedHosts = parseHosts(parsed.data.MCP_ALLOWED_HOSTS);
@@ -152,6 +159,14 @@ export async function loadRemoteRuntimeConfig(
 
 export function isLoopbackBindHost(host: string): boolean {
   return ['127.0.0.1', 'localhost', '::1'].includes(host.toLocaleLowerCase('en-US'));
+}
+
+export function assertValidTimeoutHierarchy(requestTimeoutMs: number, toolTimeoutMs: number): void {
+  if (requestTimeoutMs <= toolTimeoutMs) {
+    throw configurationError(
+      'MCP_REQUEST_TIMEOUT_MS must be greater than MCP_TOOL_TIMEOUT_MS so a Tool deadline can normally complete within the HTTP request deadline.',
+    );
+  }
 }
 
 async function readLocalEnvironment(projectRoot: string): Promise<Record<string, string>> {
