@@ -82,7 +82,7 @@ export default function DmlPoliciesPage() {
     <PageFrame
       title="DML policies"
       description="Deny-by-default object allowlist for the two supported mutation operations. Salesforce remains authoritative for CRUD, FLS, sharing, validation, Flow, and Trigger behavior."
-      action={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Add object policy</Button>}
+      action={<Button type="primary" aria-label="Add object policy" icon={<PlusOutlined />} onClick={openCreate}>Add object policy</Button>}
     >
       <Space orientation="vertical" size="middle" className="full-width">
         <MutationError error={mutationError} />

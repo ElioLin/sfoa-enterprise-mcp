@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Environment Baseline
 
-Baseline captured: 2026-08-21/22 (Asia/Shanghai)
+Baseline captured: 2026-08-21/22; P5 local environment updated 2026-08-24 (Asia/Shanghai)
 
 Workspace: `D:\GitProject\sfoa-enterprise-mcp`
 
@@ -21,6 +21,7 @@ Workspace: `D:\GitProject\sfoa-enterprise-mcp`
 | Node.js | v24.13.0 | `D:\software\node.exe` | PASS | Meets `@salesforce/mcp` `>=20.0.0` and Upstream CI/development policy `lts/*` / current LTS. |
 | npm | 11.6.2 | `D:\software\npm.cmd` | PASS | Used only where an official globally installed CLI requires npm; project dependencies remain Yarn-managed. |
 | Yarn | 1.22.22 | `D:\software\yarn.CMD` | PASS | Activated through existing Corepack 0.34.5. Upstream has a Yarn v1 lockfile and explicitly requires Yarn v1. |
+| MySQL | 8.0.30 | Windows service `MySQL80`, `127.0.0.1:3306` | PASS | P5 application and isolated `_test` schemas were provisioned, migrated, queried, and exercised; credentials remain local-only. |
 | Salesforce CLI (current Codex process snapshot) | `@salesforce/cli/1.86.7-legacy.0`, embedded Node 18.15.0 | `D:\sfdx\bin\sf.cmd` | PARTIAL | This already-open process inherited the old PATH before Closure remediation. |
 | Salesforce CLI (persistent user PATH / new terminals) | `@salesforce/cli/2.148.3`, embedded Node 24.18.0 | `C:\Users\61979\AppData\Local\sf\client\bin\sf.cmd` | PASS | Stable v2 shim is the first persistent user-PATH entry; direct version and plugin checks pass. Open a new terminal to inherit it. |
 
@@ -69,6 +70,8 @@ During P0-Closure, repeated `yarn install --frozen-lockfile --network-timeout 60
 
 P4 final verification again ran the repository-pinned Yarn Classic frozen install. After approximately eight minutes it aborted in the Windows link stage at `packages/mcp-provider-api/node_modules/@typescript-eslint/eslint-plugin/node_modules/ignore` with `ENOENT lstat`. No source, manifest, package lock, or `yarn.lock` changed. The aborted link removed generated workspace `.bin` commands; a local mechanical repair regenerated exactly 513 missing ignored commands from the already installed packages' `package.json#bin` declarations. Original stdio, Git Bash root build, full root tests, Inspector, and targeted P0–P4 Gates subsequently passed. The install remains `KNOWN UPSTREAM DEBT`, not an SFoA code exception.
 
+P5 Closure reproduced the same nested `ignore` link debt. All new P5 dependencies were nevertheless present and resolved from the reviewed Yarn lockfile; final `yarn validate:p5` passed every changed-code, MySQL, Admin, UI, mocked-browser, and real full-stack-browser Gate in 625.83 seconds. No npm/pnpm/Yarn Berry migration or global frontend tool installation was used.
+
 ## Runtime verification
 
 ```text
@@ -81,6 +84,7 @@ yarn --version                  -> 1.22.22
 ```text
 NODE_RUNTIME = PASS
 YARN_RUNTIME = PASS
+MYSQL_RUNTIME = PASS
 SALESFORCE_CLI_V2 = PASS
 ACTIVE_PROCESS_PATH_REFRESH = PARTIAL
 ```
@@ -103,6 +107,23 @@ ACTIVE_PROCESS_PATH_REFRESH = PARTIAL
 - `.env.local`, `.env.*.local`, `*.key`, `*.pem`, `secrets/`, and `.firecrawl/` are ignored.
 - `.env.example` contains names and empty/default examples only.
 - No Salesforce access token, refresh token, JWT private key, or connected-app secret is committed.
+- MySQL passwords, Admin password hash/session secret, and MCP client bearer also remain only in ignored local configuration or process memory and are omitted from evidence.
+
+## P5 local Control Plane environment
+
+| Evidence | Result |
+| --- | --- |
+| `sfoa_enterprise_mcp` existence | PASS |
+| `sfoa_enterprise_mcp_test` existence | PASS |
+| `001_p5_control_plane` | APPLIED; repository checksum matched |
+| `002_p5_indexes` | APPLIED; repository checksum matched |
+| Required seven-table schema/index validation | PASS |
+| Non-force/idempotent bootstrap | PASS |
+| Real MySQL integration | PASS, 5/5, zero skipped |
+| Real MCP/MySQL runtime | PASS, including outage fail-closed |
+| Real Browser/Admin API/MySQL E2E | PASS, Chromium 1/1 |
+
+The configured Diagnostic Salesforce username matches one of the two enabled USER routes case-insensitively. It is therefore not an independent DIAGNOSTIC identity and is correctly rejected by bootstrap/request snapshot validation. A real `validate:p4` attempt exited 1 at this preflight before JWT/Salesforce execution. P4 live DIAGNOSTIC remains `NOT TESTED`; this environment fact forces the overall P5 result to remain `PARTIAL`.
 
 ## Existing SFoA authorization probe
 

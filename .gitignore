@@ -22,6 +22,8 @@ dist
 *unitcoverage
 .nyc_output
 coverage
+/packages/sfoa-admin-web/playwright-report/
+/packages/sfoa-admin-web/test-results/
 
 # generated docs, except the SFoA project baseline
 docs/*

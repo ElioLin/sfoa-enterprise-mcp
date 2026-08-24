@@ -81,8 +81,7 @@ test('mysql identity mode ignores environment-owned USER and DIAGNOSTIC routes w
     assert.equal(config.primaryUsername, '');
     assert.equal(config.secondaryUsername, undefined);
     assert.equal(config.diagnosticUsername, undefined);
-    assert.equal(config.testMetadataType, undefined);
-    assert.equal(config.testMetadataFullName, undefined);
+    assert.equal(config.metadataSeed, undefined);
     assert.deepEqual(buildIdentityRoutes(config), []);
   } finally {
     await rm(testRoot, { recursive: true, force: true });

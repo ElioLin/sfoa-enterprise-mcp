@@ -1,11 +1,10 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { bootstrapFromEnvironment } from '../bootstrap.js';
 import { loadControlPlaneConfig } from '../config.js';
 import { createControlPlaneDatabase } from '../database.js';
+import { resolveSfoaProjectRoot } from '../project-root.js';
 import { MySqlControlPlaneStore } from '../store.js';
 
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const projectRoot = resolveSfoaProjectRoot(import.meta.url);
 
 async function main(): Promise<void> {
   const loaded = await loadControlPlaneConfig(projectRoot, process.env, { requireDatabase: true });

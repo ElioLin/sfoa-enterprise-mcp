@@ -6,6 +6,11 @@ import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Connection } from '@salesforce/core';
+import {
+  DatabaseRuntimeLogger,
+  type AuditRepository,
+  type AuditWrite,
+} from '@sfoa/control-plane';
 import { parseDmlAllowlistJson } from '@sfoa/mcp-provider-sfoa-dml';
 import type {
   RuntimeLogEvent,
@@ -133,6 +138,65 @@ test('UPDATE timeout returns unknown and the Host invokes update exactly once', 
   }
 });
 
+test('successful CREATE remains successful when durable audit append fails', async () => {
+  const factory = new LateMutationConnectionFactory(0);
+  const audit = failingDatabaseLogger();
+  const fixture = await startFixture(factory, audit.logger);
+  let client: Client | undefined;
+  try {
+    client = await connectClient(fixture.server);
+    const result = await client.callTool({
+      name: 'create_record',
+      arguments: { objectApiName: 'Lead', fields: { LastName: 'Audit', Company: 'Failure' } },
+    });
+
+    assert.equal(result.isError, undefined);
+    assert.equal(factory.createInvocations, 1);
+    assert.equal(factory.createCompletions, 1);
+    assert.equal(factory.updateInvocations, 0);
+    const mutationAudit = audit.writes.find((event) =>
+      event.toolName === 'create_record' && event.outcome === 'SUCCESS');
+    assert(mutationAudit);
+    assert.equal(audit.logger.getHealth().status, 'DEGRADED');
+    assert.ok(audit.logger.getHealth().failureCount >= 1);
+    assert.ok(audit.fallback.events.some((event) => event.errorCode === 'MCP_AUDIT_PERSISTENCE_FAILED'));
+  } finally {
+    await client?.close().catch(() => undefined);
+    await fixture.close();
+  }
+});
+
+test('audit append failure cannot overwrite MCP_DML_OUTCOME_UNKNOWN or trigger a retry', async () => {
+  const factory = new LateMutationConnectionFactory(150);
+  const audit = failingDatabaseLogger();
+  const fixture = await startFixture(factory, audit.logger);
+  let client: Client | undefined;
+  try {
+    client = await connectClient(fixture.server);
+    const result = await client.callTool({
+      name: 'create_record',
+      arguments: { objectApiName: 'Lead', fields: { LastName: 'Unknown', Company: 'Audit Failure' } },
+    });
+
+    assert.equal(result.isError, true);
+    assert.equal(readErrorCode(result.structuredContent), 'MCP_DML_OUTCOME_UNKNOWN');
+    assert.match(toolResultText(result), /Do not automatically retry/u);
+    assert.equal(factory.createInvocations, 1);
+    const unknownAudit = audit.writes.find((event) =>
+      event.toolName === 'create_record' && event.outcome === 'UNKNOWN' &&
+      event.errorCode === 'MCP_DML_OUTCOME_UNKNOWN');
+    assert(unknownAudit);
+    assert.equal(audit.logger.getHealth().status, 'DEGRADED');
+    assert.ok(audit.fallback.events.some((event) => event.errorCode === 'MCP_AUDIT_PERSISTENCE_FAILED'));
+
+    await waitFor(() => factory.createCompletions === 1, 1_000);
+    assert.equal(factory.createInvocations, 1);
+  } finally {
+    await client?.close().catch(() => undefined);
+    await fixture.close();
+  }
+});
+
 async function startFixture(
   connectionFactory: SalesforceConnectionFactory,
   logger: RuntimeLogger,
@@ -193,6 +257,28 @@ function assertOutcomeLog(events: readonly RuntimeLogEvent[], toolName: string):
 function readErrorCode(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
   return typeof value.errorCode === 'string' ? value.errorCode : undefined;
+}
+
+function failingDatabaseLogger(): Readonly<{
+  logger: DatabaseRuntimeLogger;
+  fallback: RecordingRuntimeLogger;
+  writes: AuditWrite[];
+}> {
+  const writes: AuditWrite[] = [];
+  const audits: AuditRepository = {
+    append: async (event) => {
+      writes.push(event);
+      throw new Error('deterministic audit database failure');
+    },
+    getById: async () => undefined,
+    search: async (filter) => Object.freeze({
+      items: Object.freeze([]), limit: filter.limit, offset: filter.offset,
+      count: 0, hasMore: false, nextOffset: null,
+    }),
+    countSince: async () => Object.freeze({ total: 0, pass: 0, blocked: 0, error: 0, unknown: 0 }),
+  };
+  const fallback = new RecordingRuntimeLogger();
+  return Object.freeze({ logger: new DatabaseRuntimeLogger(audits, fallback), fallback, writes });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

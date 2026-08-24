@@ -13,7 +13,7 @@ It does not require Redis, a Salesforce Connection/token cache, Kubernetes, an O
 
 1. Back up the current database.
 2. Install the reviewed Yarn lockfile with `yarn install --frozen-lockfile`.
-3. Build and test with `yarn validate:p5` and `yarn p5:e2e` in the release environment.
+3. Build and test with `yarn validate:p5` in the release environment; it includes the mocked browser workflow and real MySQL-backed full-stack browser Gate.
 4. Run `yarn db:status`; review pending/unknown migration state.
 5. Run `yarn db:migrate` before starting the new Admin API/MCP binaries.
 6. Run `yarn db:status` again and retain its JSON output as deployment evidence.

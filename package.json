@@ -36,7 +36,9 @@
     "admin:web:dev": "yarn workspace @sfoa/admin-web dev",
     "p5:dev": "node scripts/p5-dev.mjs",
     "p5:test": "yarn workspace @sfoa/control-plane test && yarn workspace @sfoa/control-plane test:mysql && yarn workspace @sfoa/identity-runtime test && yarn workspace @sfoa/mcp-server test:p5 && yarn workspace @sfoa/admin-api test && yarn workspace @sfoa/admin-web test",
+    "p5:test:runtime:mysql": "yarn workspace @sfoa/mcp-server test:p5:mysql",
     "p5:e2e": "yarn workspace @sfoa/admin-web e2e",
+    "p5:e2e:fullstack": "yarn workspace @sfoa/control-plane build && yarn workspace @sfoa/admin-api build && yarn workspace @sfoa/admin-web build && node scripts/p5-fullstack-e2e.mjs",
     "validate:p5": "node scripts/validate-p5.mjs"
   }
 }

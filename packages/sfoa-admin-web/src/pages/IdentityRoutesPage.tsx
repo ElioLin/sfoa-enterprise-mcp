@@ -77,7 +77,7 @@ export default function IdentityRoutesPage() {
     <PageFrame
       title="Identity routing"
       description="Map authenticated platform users to server-owned Salesforce JWT identities. Multiple platform users may intentionally share one Salesforce username."
-      action={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Create route</Button>}
+      action={<Button type="primary" aria-label="Create route" icon={<PlusOutlined />} onClick={openCreate}>Create route</Button>}
     >
       <Space orientation="vertical" size="middle" className="full-width">
         <MutationError error={mutationError} />
@@ -99,7 +99,7 @@ export default function IdentityRoutesPage() {
                     title: 'Actions', fixed: 'right', width: 310,
                     render: (_value, record) => (
                       <Space wrap>
-                        <Button icon={<EditOutlined />} onClick={() => openEdit(record)}>Edit</Button>
+                        <Button aria-label="Edit" icon={<EditOutlined />} onClick={() => openEdit(record)}>Edit</Button>
                         <Button
                           icon={<SafetyCertificateOutlined />}
                           loading={verify.isPending && verify.variables?.id === record.id}

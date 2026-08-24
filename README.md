@@ -1,3 +1,21 @@
+# SFoA Enterprise MCP
+
+This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit while leaving official Salesforce Tool implementations unchanged.
+
+Current project result: `P0–P3 = FINAL ACCEPTED`, `P4 = PARTIAL` because the independent live DIAGNOSTIC account is unavailable, and `P5 = PARTIAL` with its local engineering and full-stack Gates passing. P5 still awaits Maintainer review and must not enter P6.
+
+Project documentation:
+
+- [P5 local setup](docs/sfoa/P5_LOCAL_SETUP.md)
+- [P5 deployment](docs/sfoa/P5_DEPLOYMENT.md)
+- [P5 final report](docs/sfoa/P5_FINAL_REPORT.md)
+- [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)
+- [Authoritative baseline](docs/sfoa/PROJECT_BASELINE.md)
+
+The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn validate:p5` for the repeatable local P5 Gate. Real credentials belong only in ignored local environment files or secret injection.
+
+---
+
 # mcp
 
 MCP Server for Interacting with Salesforce Orgs

@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P5-BL-1.0**
+Baseline ID: **P5-BL-1.1**
 
-Baseline date: 2026-08-23
+Baseline date: 2026-08-24
 
 Authority: This file is the single authoritative delivery-plan baseline for SFoA Enterprise MCP.
 
@@ -47,7 +47,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Backend | Node.js current LTS, strict TypeScript, Salesforce DX MCP providers, official MCP TypeScript SDK, official `@salesforce/*` packages, Yarn Classic workspaces |
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
-| Future Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
+| Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
 | Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, P0 fresh SFoA JWT/direct/official SOQL/metadata, and P1 real two-user request isolation all pass. Original stdio and both Streamable HTTP regressions pass. The P1 production path uses direct `@salesforce/core` JWT and no Salesforce CLI or database. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context, and P5 local full-stack Control Plane all pass. Original stdio and both Streamable HTTP regressions pass. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
 
 ## Upstream strategy
 
@@ -85,16 +85,20 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 - A later phase must not begin until the current phase result is reviewed.
 - Required results are `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, or `KNOWN UPSTREAM DEBT`. The last value is valid only for a reproduced, unchanged Upstream baseline and never for SFoA-owned changed code.
-- A missing external credential can yield `P0 = PARTIAL PASS` only when all independent engineering work is complete and the blocked Gates are explicit.
+- A missing external credential can yield only the phase-specific documented `PARTIAL` result when all independent engineering work is complete and the blocked Gates are explicit.
 - Build, test, lint, and integration results must be rerun after material implementation changes.
 
 ## Current phase
 
-`P5 — Admin Control Plane (IN PROGRESS)`
+`P5 — Admin Control Plane (CLOSURE IMPLEMENTED; PARTIAL)`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 IMPLEMENTATION = MAINTAINER ACCEPTED; P4 LIVE DIAGNOSTIC CLOSURE = DEFERRED; P4 recorded result = PARTIAL; P5 = IN PROGRESS`
+`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 IMPLEMENTATION = MAINTAINER ACCEPTED; P4 LIVE DIAGNOSTIC = NOT TESTED; P4 recorded result = PARTIAL; P5 = PARTIAL — AWAITING MAINTAINER REVIEW`
+
+P5-Closure HOTFIX01 provisioned and migrated the real local MySQL application/test databases, completed non-force idempotent bootstrap, removed the runtime CWD/root assumption, started the real MCP/Admin/Web stack, and passed changed-code lint, builds, unit/integration tests, MySQL runtime governance, Admin security, mocked browser workflow, and non-mocked Browser-to-Admin-API-to-MySQL E2E. Durable runtime/Admin audit, database-outage fail-closed behavior, dynamic Tool/DML changes, unknown Tool denial, and mutation-audit failure semantics have direct evidence in `TEST_MATRIX.md` and `P5_FINAL_REPORT.md`.
+
+The renewed P4 preflight found no eligible independent Diagnostic account: the environment value aliases an active USER route case-insensitively and no database Diagnostic route is configured. Real Tooling and official metadata Diagnostic execution remains `NOT TESTED`; no mock is promoted. ADR-0010 therefore requires the overall P5 result to remain `PARTIAL`. This baseline does not authorize merge or P6.
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -294,7 +298,7 @@ P4 originally could not authorize itself to enter P5. Maintainer review later ac
 - If the credential remains unavailable, P5 code may complete but the overall P5 result must be `PARTIAL`.
 - If the live attempt exposes a P4 defect, P5 Closure must fix it and rerun the affected P4/P5 Gates.
 
-## P5 scope (in progress)
+## P5 scope (implemented; live Diagnostic prerequisite pending)
 
 1. Add an SFoA-owned Control Plane split into `packages/sfoa-control-plane`, `packages/sfoa-admin-api`, and `packages/sfoa-admin-web`.
 2. Persist only SFoA governance and audit in MySQL 8.x: USER identity routes, audited Tool enabled state, Object-by-CREATE/UPDATE policy, server-owned Diagnostic configuration, allowlisted non-secret runtime settings, migrations, and durable audit.
@@ -306,6 +310,18 @@ P4 originally could not authorize itself to enter P5. Maintainer review later ac
 8. Reattempt the real P4 DIAGNOSTIC closure through the actual P4 request-scope path before P5 final acceptance. Missing credentials remain `NOT TESTED` and force P5 overall `PARTIAL`.
 
 P5 does not manage Salesforce CRUD, FLS, sharing, Profiles, Permission Sets, Validation Rules, Flow, Trigger, Page Layout/Record Type authorization, lookup filters, or business data. It adds no Salesforce permission replica, metadata warehouse, form/runtime-rule engine, DELETE/UPSERT/Bulk DML, Redis, token/Connection cache, OAuth server, SSO, multi-tenant framework, workflow engine, notification center, report builder, AI chat UI, or P6 evaluation work.
+
+## P5 result
+
+`P5 = PARTIAL — AWAITING MAINTAINER REVIEW`
+
+- Local MySQL 8.0.30 application/test provisioning, both migrations/checksums, seven-table schema, required indexes/constraints, and non-force idempotent bootstrap: PASS.
+- MCP/MySQL runtime, A/B/missing/disabled/shared routes, next-request Tool and CREATE/UPDATE governance, unknown Tool fail-closed, DELETE/UPSERT absence, durable audit, and database outage behavior: PASS.
+- Admin startup/readiness/authentication/session/CSRF/Origin/rate-limit/optimistic-lock/transaction-audit/secret safety: PASS.
+- React build/unit, explicitly mocked UI workflow, and non-mocked Browser -> Vite -> real Admin API -> test MySQL E2E: PASS.
+- P0–P4 independent regression, official stdio, Inspector, upstream drift, and zero official TypeScript modification: PASS.
+- Real fixed-DIAGNOSTIC Tooling/official metadata/bounded-context chain: NOT TESTED because no distinct Diagnostic Integration User is configured.
+- Frozen Windows Yarn Classic/nohoist reinstall: KNOWN UPSTREAM DEBT; all P5 dependencies resolve and no SFoA gate is waived.
 
 ### P1 entry criteria — satisfied (historical)
 
@@ -333,7 +349,9 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | Internal Bearer identifies a controlled MCP client, not an individual human | An untrusted client could lie in `X-Platform-User-Id` | Keep P2 internal/controlled; Dify/WorkBuddy dynamic per-user Header mapping requires client verification; a future trusted SSO gateway must overwrite the Header from authenticated claims |
 | Fresh JWT/Connection adds about 0.87 s p50 / 1.08 s p95 in the latest run | Remote Agent latency and Salesforce auth traffic | Keep fresh-per-request isolation in P2; do not add a cache without sustained production evidence and a maintainer-approved identity-keyed/expiry-aware design |
 | SDK or request timeout cannot guarantee Salesforce server-side cancellation | A P3 CREATE/UPDATE may commit after the Host stops waiting, and blind retry can duplicate non-idempotent work | P3-Closure HOTFIX01 covers Tool/SDK ambiguity; HOTFIX02 carries the same UNKNOWN/no-retry contract across the outer request boundary using request-local dispatch awareness. A disconnected client cannot receive the response, so the Host logs UNKNOWN and never replays. No retry/idempotency machinery is added. |
-| Diagnostic Integration User is not configured in this environment | Real Tooling/metadata diagnosis cannot be promoted from structural tests to live PASS | Keep diagnostic Tools disabled/fail-closed; configure and authorize `SFOA_DIAGNOSTIC_USERNAME`, then rerun `validate:p4` before requesting P4 completion review |
+| Independent Diagnostic Integration User is not configured in this environment | Real Tooling/metadata diagnosis cannot be promoted from structural tests to live PASS, forcing P5 overall PARTIAL | The current environment value aliases a USER route and is rejected; configure a case-insensitively distinct database Diagnostic route, then rerun the real Admin/P4 verification before requesting completion review |
+| Admin authentication is a configured bootstrap administrator rather than SSO/RBAC | Public exposure would exceed the accepted P5 trust boundary | Keep Admin API/Web private behind the approved HTTPS reverse proxy; a broader identity system requires a later Maintainer-authorized phase |
+| Admin Web emits a production chunk-size warning | Initial page download may be larger than ideal | Build/runtime are accepted; measure real operator performance before introducing route-level splitting |
 
 ## P4 closure questions
 
@@ -366,3 +384,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P4-BL-1.1 | 2026-08-23 | Implemented the audited three-Tool context Provider, fixed request-scoped DIAGNOSTIC boundary, official Tool adapters, REST UI API record-action facts, bounds/guidance/security tests, and complete P0–P3 regressions; USER A/B live Gates passed, but real diagnostic Tooling/metadata remained NOT TESTED without `SFOA_DIAGNOSTIC_USERNAME`, so P4 closed as PARTIAL and P5 remained unauthorized. |
 | P4-BL-1.2 | 2026-08-23 | Recorded Maintainer acceptance of the P4 implementation and an explicit Phase-Gate waiver deferring the external-credential live diagnostic closure; revalidated 10/10 Context Provider, 7/7 P4 Host, 26/26 Identity Runtime, zero upstream drift, and six-workspace changed-code lint; authorized P5 development while requiring a renewed P4 closure attempt and evidence before P5 final PASS. |
 | P5-BL-1.0 | 2026-08-23 | Fast-forwarded and pushed the accepted P4 history to `main` at `e6ae8d5`, created `feature/p5-admin-control-plane`, entered P5 with three SFoA-owned workspaces, MySQL-authoritative production mode plus default env compatibility, immutable per-request policy snapshots, durable safe audit, bounded bootstrap Admin authentication, no Salesforce permission replica/Redis/cache, and the deferred P4 live closure prerequisite. |
+| P5-BL-1.1 | 2026-08-24 | Closed all locally executable P5 engineering and full-stack Gates: real MySQL application/test provisioning, migrations/checksums/schema/bootstrap, CWD-independent root resolution, dynamic MCP governance/audit/outage behavior, Admin security/transactions, React mocked and real full-stack E2E, startup/health, P0–P4 regressions, zero official TypeScript changes, and complete acceptance evidence. Retained `P5 = PARTIAL` because the independent P4 live Diagnostic chain is NOT TESTED; no merge or P6 authorization. |

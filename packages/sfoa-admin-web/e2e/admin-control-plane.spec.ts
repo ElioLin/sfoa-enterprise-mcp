@@ -43,7 +43,7 @@ test('admin can manage the bounded control plane and logout', async ({ page }) =
   await expect(page.getByText('1/1 cleaned; 0 active')).toBeVisible();
 
   await page.getByRole('link', { name: 'Audit' }).click();
-  await page.getByLabel('Tool').fill('run_soql_query');
+  await page.getByRole('textbox', { name: 'Tool', exact: true }).fill('run_soql_query');
   await page.getByRole('button', { name: 'Search audit' }).click();
   await expect(page.getByText('correlation-e2e')).toBeVisible();
   await expect.poll(() => api.lastAuditToolFilter).toBe('run_soql_query');

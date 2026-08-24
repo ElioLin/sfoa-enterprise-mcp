@@ -113,6 +113,7 @@ export default function DiagnosticPage() {
                   <Space wrap>
                     <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={save.isPending}>Save configuration</Button>
                     <Button
+                      aria-label="Verify Diagnostic Connection"
                       icon={<SafetyCertificateOutlined />}
                       loading={verify.isPending}
                       disabled={!query.data.config?.enabled}

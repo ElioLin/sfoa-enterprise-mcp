@@ -69,6 +69,8 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       }),
       query: async (_query: string) => queryResult,
       tooling: { query: async (_query: string) => queryResult },
+      request: async (request: string | Readonly<{ url?: string }>) =>
+        uiApiResponse(typeof request === 'string' ? request : request.url ?? ''),
       sobject: (objectApiName: string) => ({
         create: async (record: Record<string, unknown>) => {
           this.dmlCalls.push({
@@ -106,6 +108,67 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public countFor(platformUserId: string): number {
     return this.creations.filter((creation) => creation.platformUserId === platformUserId).length;
   }
+}
+
+const TEST_RECORD_TYPE_ID = '012000000000000AAA';
+
+function uiApiResponse(url: string): unknown {
+  if (/\/ui-api\/object-info\/Lead\/picklist-values\//u.test(url)) {
+    return { picklistFieldValues: {} };
+  }
+  if (/\/ui-api\/object-info\/Lead(?:\?|$)/u.test(url)) {
+    return {
+      apiName: 'Lead',
+      label: 'Lead',
+      labelPlural: 'Leads',
+      defaultRecordTypeId: TEST_RECORD_TYPE_ID,
+      fields: {
+        LastName: {
+          apiName: 'LastName', label: 'Last Name', dataType: 'String', required: true,
+          createable: true, updateable: true,
+        },
+        Company: {
+          apiName: 'Company', label: 'Company', dataType: 'String', required: true,
+          createable: true, updateable: true,
+        },
+      },
+      recordTypeInfos: {
+        [TEST_RECORD_TYPE_ID]: {
+          recordTypeId: TEST_RECORD_TYPE_ID,
+          name: 'Master',
+          available: true,
+          defaultRecordTypeMapping: true,
+        },
+      },
+    };
+  }
+  if (/\/ui-api\/record-defaults\/create\/Lead/u.test(url)) {
+    return {
+      layout: {
+        sections: [{
+          heading: 'Required',
+          layoutRows: [{
+            layoutItems: [
+              {
+                editableForNew: true, editableForUpdate: true, required: true,
+                layoutComponents: [{ apiName: 'LastName', componentType: 'Field' }],
+              },
+              {
+                editableForNew: true, editableForUpdate: true, required: true,
+                layoutComponents: [{ apiName: 'Company', componentType: 'Field' }],
+              },
+            ],
+          }],
+        }],
+      },
+      record: {
+        apiName: 'Lead',
+        recordTypeId: TEST_RECORD_TYPE_ID,
+        fields: {},
+      },
+    };
+  }
+  throw new Error(`Unexpected test UI API request: ${url}`);
 }
 
 export function createTestIdentityRuntime(

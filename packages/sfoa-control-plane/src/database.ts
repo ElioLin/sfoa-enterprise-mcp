@@ -20,6 +20,7 @@ export function createControlPlaneDatabase(config: DatabaseConfig): ControlPlane
     enableKeepAlive: true,
     supportBigNumbers: true,
     bigNumberStrings: true,
+    jsonStrings: true,
     timezone: 'Z',
     ...(config.sslMode === 'disabled'
       ? {}

@@ -7,6 +7,7 @@ export * from './database.js';
 export * from './errors.js';
 export * from './migrations.js';
 export * from './mysql-repositories.js';
+export * from './project-root.js';
 export * from './repositories.js';
 export * from './runtime-logger.js';
 export * from './schema.js';

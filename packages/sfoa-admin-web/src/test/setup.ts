@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { configure } from '@testing-library/dom';
+import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 
 class ResizeObserverStub implements ResizeObserver {
@@ -32,6 +33,8 @@ Object.defineProperty(window, 'getComputedStyle', {
 });
 
 afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
   vi.unstubAllGlobals();
   vi.stubGlobal('ResizeObserver', ResizeObserverStub);
 });

@@ -1,6 +1,8 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+const adminApiProxyTarget = process.env.SFOA_ADMIN_API_PROXY_TARGET ?? 'http://127.0.0.1:8081';
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -9,7 +11,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/admin/api': {
-        target: 'http://127.0.0.1:8081',
+        target: adminApiProxyTarget,
         changeOrigin: false,
       },
     },

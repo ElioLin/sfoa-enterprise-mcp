@@ -60,7 +60,7 @@ export async function startConfiguredAdminApi(
     const healthUrl = localRuntimeUrl(remoteConfig.bindHost, remoteConfig.port, '/health');
     const system: AdminSystemRuntimeInfo = Object.freeze({
       adminVersion: '0.1.0-p5',
-      mcpServerVersion: '0.1.0-p4+p5-control-plane',
+      mcpServerVersion: '0.1.0-p5',
       salesforceApiVersion: 'LATEST_PER_FRESH_CONNECTION',
       providerVersions: Object.freeze([
         Object.freeze({ name: inventory.packageName, version: inventory.packageVersion }),
@@ -90,8 +90,8 @@ export async function startConfiguredAdminApi(
         P1: 'FINAL ACCEPTED',
         P2: 'FINAL ACCEPTED',
         P3: 'FINAL ACCEPTED',
-        P4: 'IMPLEMENTATION ACCEPTED; LIVE DIAGNOSTIC CLOSURE PENDING',
-        P5: 'IN DEVELOPMENT',
+        P4: 'IMPLEMENTATION ACCEPTED; LIVE DIAGNOSTIC NOT TESTED',
+        P5: 'PARTIAL; ENGINEERING GATES PASS, P4 LIVE DIAGNOSTIC NOT TESTED',
       }),
     });
     const server = await startAdminApiServer({

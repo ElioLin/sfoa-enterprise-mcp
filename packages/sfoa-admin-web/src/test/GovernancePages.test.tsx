@@ -164,11 +164,11 @@ function auditRecord(id: string) {
 
 function systemStatus() {
   return {
-    adminVersion: '0.1.0-p5', mcpServerVersion: '0.1.0-p4', salesforceApiVersion: '65.0', providerVersions: [{ name: 'salesforce', version: '1.2.3' }],
+    adminVersion: '0.1.0-p5', mcpServerVersion: '0.1.0-p5', salesforceApiVersion: '65.0', providerVersions: [{ name: 'salesforce', version: '1.2.3' }],
     upstreamDrift: { status: 'PASS', count: 0 }, database: { status: 'UP', version: '8.0.44', schemaVersions: ['001', '002'] },
     runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true },
     diagnostic: diagnosticConfig(), mcpHealth: 'UP', auditPersistence: { status: 'UP', failureCount: 0 }, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
-    phases: { P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'PARTIAL', P5: 'IN DEVELOPMENT' },
+    phases: { P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'PARTIAL', P5: 'PARTIAL' },
     readOnlyRuntimeSettings: { MCP_BIND_HOST: '127.0.0.1', MCP_AUTH_MODE: 'bearer' },
   };
 }

@@ -1,4 +1,4 @@
-# P0 / P1 / P2 / P3 / P4 Gate Matrix
+# P0 / P1 / P2 / P3 / P4 / P5 Gate Matrix
 
 Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
@@ -484,4 +484,90 @@ The request lifecycle now preserves UNKNOWN semantics across both Tool and outer
 
 `P4 = PARTIAL`
 
-Audit, architecture, implementation, USER live context, security/protocol, P0–P3 regressions, build/tests, changed-code lint, and upstream boundaries pass. Real fixed-DIAGNOSTIC Tooling and metadata evidence remains `NOT TESTED` because `SFOA_DIAGNOSTIC_USERNAME` is absent. P4 cannot be promoted to PASS from mock evidence, and P5 is not authorized.
+Audit, architecture, implementation, USER live context, security/protocol, P0–P3 regressions, build/tests, changed-code lint, and upstream boundaries pass. Real fixed-DIAGNOSTIC Tooling and metadata evidence remains `NOT TESTED` because an independent DIAGNOSTIC account is unavailable. P4 cannot be promoted to PASS from mock evidence. Maintainer later accepted the implementation and authorized P5 under ADR-0010 without rewriting this historical `PARTIAL` result.
+
+## P5 Acceptance Matrix
+
+Every row below uses only the Closure-authorized item results: `PASS`, `FAIL`, `NOT TESTED`, or `KNOWN UPSTREAM DEBT`. The overall phase result is stated separately because it depends on the external P4 prerequisite.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Git branch and history | PASS | Closure remained on `feature/p5-admin-control-plane`; baseline implementation commit `b2ea802` and earlier history were preserved; no reset, merge, or P6 work |
+| P5 implementation inventory | PASS | Existing Control Plane, Admin API, Admin Web, MCP integration, and Identity integration reviewed; Closure made targeted fixes only |
+| Repository-root resolution | PASS | `resolveSfoaProjectRoot(import.meta.url)` is shared by MCP, Admin API, database CLI, and bootstrap; no runtime `process.cwd()` root contract |
+| Root-resolution tests | PASS | CWD=root/MCP package/Admin package and root-only `.env.local` resolve/load the same Control Plane configuration; out-of-layout input fails closed |
+| Compiled package-CWD startup | PASS | `node dist/main.js` started both Admin API and MCP from their workspace directories while loading repository-root `.env.local` |
+| Production database provisioning | PASS | `sfoa_enterprise_mcp` exists on local MySQL 8.0.30 |
+| Integration database provisioning | PASS | `sfoa_enterprise_mcp_test` exists and is the only automated test target |
+| Database creation/table evidence | PASS | Both schemas returned by `information_schema`; seven required application tables returned from `sfoa_enterprise_mcp` |
+| Migration execution | PASS | `yarn db:migrate` and `yarn db:status`; `001_p5_control_plane` and `002_p5_indexes` both `APPLIED` |
+| Migration checksums | PASS | Applied SHA-256 values match repository SQL files; mismatch is startup-fatal |
+| Schema columns/constraints/indexes | PASS | Required schema validator passed; ten query indexes, three unique governance keys, and primary keys inspected in `information_schema` |
+| Bootstrap source import | PASS | Normal non-force import wrote two routes, two Tool controls, zero DML, zero Diagnostic, and two runtime settings from valid P0–P4 source |
+| Bootstrap administrator preservation | PASS | Second normal bootstrap wrote zero rows; no force mode used; conflicting USER/DIAGNOSTIC seed rejected before write |
+| Admin credential configuration | PASS | Local scrypt password hash and independent >=32-character random session secret configured only in ignored local environment; no plaintext committed/output |
+| Frozen dependency installation | KNOWN UPSTREAM DEBT | Yarn Classic Windows/nohoist nested `@typescript-eslint/.../ignore` ENOENT reproduced; source/manifests/lockfile unchanged; all P5 dependencies resolve and all downstream gates pass |
+| Control Plane build | PASS | `yarn workspace @sfoa/control-plane build` |
+| Admin API build | PASS | `yarn workspace @sfoa/admin-api build` |
+| Admin Web build | PASS | Vite production build completed; size warning only |
+| MCP Server build | PASS | `yarn workspace @sfoa/mcp-server build` |
+| SFoA changed-code lint | PASS | Control Plane, Admin API, Admin Web, MCP Server, and Identity Runtime strict TypeScript lint all exited 0 |
+| Control Plane unit tests | PASS | 12/12 |
+| Identity Runtime tests | PASS | 27/27 |
+| Admin API tests | PASS | 12/12 |
+| Admin Web unit tests | PASS | 8/8 |
+| MySQL integration tests | PASS | `test:mysql` connected to `sfoa_enterprise_mcp_test`: 5/5, zero skipped |
+| Real Runtime MySQL mode | PASS | Actual Streamable HTTP runtime, MCP SDK client, request snapshots, and test MySQL executed; Salesforce calls used a deterministic non-business-data seam |
+| MySQL identity A/B | PASS | Two platform users resolved through live database routes with isolated request scopes and no Connection reuse |
+| Missing/disabled route | PASS | Both denied without environment fallback |
+| Shared Salesforce account | PASS | Two platform users mapping to one Salesforce username is accepted by schema and runtime fixture |
+| Dynamic Tool governance | PASS | Safe Tool enable appears on next `tools/list`; disable disappears on next request without MCP restart |
+| Dynamic DML governance | PASS | Lead CREATE and UPDATE were independently enabled/disabled and affected the next request |
+| DELETE/UPSERT absence | PASS | Neither Tool exists in executable runtime inventory or browser control surface |
+| Unknown Tool fail-closed | PASS | Enabled `future_unknown_tool` database fixture never appeared in runtime; Admin returned `enableAllowed=false` |
+| Runtime database outage | PASS | Real unreachable MySQL endpoint returned stable Control Plane unavailable behavior; no env fallback/default allow/cached dangerous policy |
+| Runtime durable audit | PASS | Real MCP/MySQL requests persisted/queryable USER SOQL, blocked Tool, DML denial, record-context, and governed mutation fixtures |
+| Mutation audit-failure regression | PASS | CREATE success survives audit append failure; one invocation/no retry, audit `DEGRADED`, fallback log; UNKNOWN is not overwritten by audit failure |
+| Admin API startup | PASS | Real `yarn admin:api:dev` and compiled startup; health `UP`, ready `UP`, MySQL 8.0.30 schema ready |
+| Admin unauthenticated/wrong-password behavior | PASS | Protected API 401; invalid credentials rejected |
+| Admin login rate limit | PASS | Repeated bad logins reached bounded rate limit |
+| Admin session cookie | PASS | Signed expiring `HttpOnly`, `SameSite=Strict`; documented loopback development cookie has `Secure=false` |
+| Admin CSRF and Origin | PASS | Missing/invalid CSRF and invalid Origin rejected; exact allowed Origin accepted |
+| Admin expiry/logout/no-store | PASS | Expired/revoked session rejected, logout passed, API responses `Cache-Control: no-store` |
+| Admin secret response safety | PASS | API/health/system payloads contain no DB password, session secret, MCP bearer, JWT assertion/private key, or plaintext Admin password |
+| Admin optimistic locking | PASS | Row-version conflict paths covered for managed resources |
+| Admin transactional audit | PASS | Route/Tool/DML configuration writes and audit share one MySQL transaction; full-stack rows persisted/queryable |
+| Mock UI workflow E2E | PASS | Existing Playwright `admin-control-plane.spec.ts`: 1/1; explicitly classified as mocked UI/browser workflow because it uses `page.route` |
+| Full-stack browser E2E | PASS | 1/1 without `page.route`: Browser -> Vite proxy -> real Admin API -> `sfoa_enterprise_mcp_test`, including direct DB assertions |
+| Full-stack identity route flow | PASS | Browser create/edit persisted and direct database row assertions matched |
+| Full-stack Tool/DML flow | PASS | Browser Tool toggle and Lead CREATE/UPDATE policy changes persisted and were audited |
+| Full-stack audit/system flow | PASS | Browser queried Admin audit and migration/runtime state from real API/database |
+| P5 aggregate startup | PASS | `yarn p5:dev` started MCP 8080, Admin API 8081, and Admin Web 5173; graceful MCP drain released ports |
+| P5 health endpoints | PASS | MCP `/health`, Admin `/health`, Admin `/ready`, and Web `/login` all returned expected HTTP 200/UP/schema-ready responses |
+| Admin UI smoke excluding live Diagnostic | PASS | Login, Dashboard, Routes/create/edit, Tool Governance, DML Policies, Audit, System, and Logout passed on real full-stack flow; real route verification passed 2/2 through Admin backend |
+| Admin Diagnostic live verify | NOT TESTED | Diagnostic page/mock interaction pass, but no case-insensitively distinct Salesforce Diagnostic account is configured |
+| P4 live Tooling evidence | NOT TESTED | Real `validate:p4` attempt exited 1 before Salesforce with the stable distinct-from-USER preflight error; no USER route or mock promoted to live evidence |
+| P4 live official metadata/bounded-context evidence | NOT TESTED | Same external credential blocker; P4 historical result remains `PARTIAL` |
+| P4 non-Diagnostic regression | PASS | Context Provider 10/10, Host 7/7, live USER A/B record context and cleanup |
+| P3 regression | PASS | DML Provider 17/17; Host 20/20; live CREATE/UPDATE/native failures/no-retry/cleanup |
+| P2 regression | PASS | Host 18/18 plus authenticated Streamable HTTP, Host/Origin, governance, A/B 50-load, shutdown |
+| P1 regression | PASS | Identity 27/27 plus live A/B, request scope, no Connection reuse, workspace isolation |
+| P0 regression | PASS | Runtime 9/9, HTTP 1/1, fresh JWT/direct+official SOQL/official metadata/workspace cleanup |
+| Original official stdio | PASS | initialize, five-Tool `tools/list`, and official `get_username` call |
+| Project-local MCP Inspector | PASS | initialize/list/call for A/B in env compatibility mode |
+| Upstream drift | PASS | Provider API 0.6.0, dx-core 0.10.0, nine GA Tools, `drift: []` |
+| Official Salesforce TypeScript modified | PASS | Zero paths relative to audited commit `670234dbdca4d3fcdebd9d58b231e311fd34aeec` |
+| Official Tool copied | PASS | No |
+| JSforce patched | PASS | No |
+| Salesforce permission replica | PASS | No |
+| Metadata snapshot/evidence graph/runtime form engine | PASS | No |
+| Redis/token cache/Connection pool | PASS | No |
+| P5 documentation | PASS | Local/deployment runbooks updated; P5 matrix, changelog, baseline, README status, and final report completed |
+| Aggregate `validate:p5` | PASS | Final public command exited 0 in 625.83 s; five lints, unit/integration/MySQL, mocked browser, and real full-stack browser Gates all completed |
+| P6 scope boundary | PASS | No merge, Dify/WorkBuddy evaluation suite, or P6 implementation |
+
+## P5 overall result
+
+`P5 = PARTIAL — AWAITING MAINTAINER REVIEW`
+
+All locally executable P5 implementation and full-stack Gates pass. The required P4 live DIAGNOSTIC Salesforce evidence is `NOT TESTED`, so P5 cannot be promoted to PASS/COMPLETE.

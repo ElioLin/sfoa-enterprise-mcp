@@ -2,6 +2,38 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-24 — P5-Closure HOTFIX01 completed with PARTIAL result
+
+### Local database and repeatable startup
+
+- Provisioned real local MySQL 8.0.30 databases `sfoa_enterprise_mcp` and `sfoa_enterprise_mcp_test` with isolated application grants. No credential was written to Git or acceptance evidence.
+- Ran `db:create`, versioned migration, schema/checksum status, and non-force bootstrap. Both `001_p5_control_plane` and `002_p5_indexes` are applied; all seven tables and required indexes/constraints exist.
+- Proved bootstrap conflict rejection, idempotence, and administrator-state preservation. The current USER-alias Diagnostic seed was rejected case-insensitively; no invalid Diagnostic row was created.
+- Added one minimal `resolveSfoaProjectRoot(import.meta.url)` helper shared by MCP, Admin API, database CLI, and bootstrap. Root/package-CWD tests and compiled package-CWD launches prove all entry points load repository-root `.env.local` without a `process.cwd()` contract.
+- Corrected mysql2 JSON decoding by requesting JSON strings at the driver boundary, retaining strict repository parsing instead of accepting ambiguous external objects.
+
+### Runtime, Admin, and browser closure
+
+- Added a real Streamable HTTP/MySQL runtime integration Gate for database A/B routing, missing/disabled/shared routes, dynamic Tool and independent CREATE/UPDATE policy changes, DELETE/UPSERT absence, unknown Tool fail-closed behavior, durable audit, request-scoped Connections, and real database-outage fail-closed behavior.
+- Added deterministic mutation regressions proving audit append failure cannot turn a successful Salesforce CREATE into failure, trigger retry, or overwrite `MCP_DML_OUTCOME_UNKNOWN`; audit health degrades and redacted fallback logging runs.
+- Added a non-mocked Playwright Gate and standard root command `p5:e2e:fullstack`: real browser, Vite proxy, real Admin API, and `sfoa_enterprise_mcp_test`, with direct database assertions for route create/edit, Tool toggle, DML policy, Admin audit, and system/migration state.
+- Retained the existing `page.route` Playwright test and reclassified it accurately as mocked UI workflow/browser interaction E2E. Added explicit form accessibility labels and deterministic Ant Design portal cleanup.
+- Verified real Admin security: 401, invalid password, rate limit, valid signed session, `HttpOnly`, `SameSite=Strict`, loopback development `Secure=false`, CSRF, Origin, expiry, logout, no-store, and secret-free responses.
+- Started `yarn p5:dev` with MCP 8080, Admin API 8081, and Admin Web 5173; all required health/readiness/login endpoints passed and the runtime drained cleanly.
+
+### Verification and regression
+
+- Control Plane, Admin API, Admin Web, and MCP builds passed. Strict changed-code lint passed for Control Plane, Admin API, Admin Web, MCP Server, and Identity Runtime.
+- Control Plane 12/12, MySQL 5/5 with zero skip, Identity 27/27, Admin API 12/12, Admin Web 8/8, mocked browser 1/1, and real full-stack browser 1/1 passed.
+- Final `yarn validate:p5` exited 0 in 625.83 seconds and reran all of those local acceptance paths through the public aggregate command.
+- Real P0, P1, P2, P3, and P4 USER regressions, original official stdio, project-local Inspector, and upstream zero-drift validation passed. Official Salesforce TypeScript modifications remain zero.
+- Updated MCP package metadata/system phase display to P5, added final acceptance commands to `validate:p5`, and completed the P5 matrix, runbooks, root README preface, and `P5_FINAL_REPORT.md`.
+- Frozen Yarn Classic installation still reproduces the historical Windows/nohoist nested-link failure. All P5 dependencies resolve and downstream Gates pass; this remains `KNOWN UPSTREAM DEBT`, not an SFoA lint/test waiver.
+
+### Result
+
+The configured Diagnostic username aliases an active USER route case-insensitively, and the database has no independent Diagnostic Integration User. A real `validate:p4` attempt exited 1 at the distinct-from-USER preflight before any Salesforce call. Real P4 Tooling and official metadata Diagnostic verification is therefore `NOT TESTED`; no mock is promoted. Baseline advances to `P5-BL-1.1` with `P5 = PARTIAL — AWAITING MAINTAINER REVIEW`. P5 is not merged and P6 remains prohibited.
+
 ## 2026-08-23 — P5 Admin Control Plane entered
 
 ### Phase transition

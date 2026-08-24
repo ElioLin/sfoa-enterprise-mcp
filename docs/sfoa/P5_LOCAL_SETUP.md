@@ -143,11 +143,13 @@ No UI page can display access tokens, JWT assertions, private-key contents/paths
 
 ```powershell
 yarn p5:test
+yarn p5:test:runtime:mysql
 yarn p5:e2e
+yarn p5:e2e:fullstack
 yarn validate:p5
 ```
 
-`test:mysql` uses only `sfoa_enterprise_mcp_test`. If database credentials or the P4 Diagnostic identity are absent, the corresponding gate must be recorded as `NOT TESTED`, never PASS.
+`p5:e2e` is the mocked browser workflow test. `p5:e2e:fullstack` is the real React → Vite proxy → Admin API → `sfoa_enterprise_mcp_test` gate and contains no `page.route` API mock. `validate:p5` runs changed-code lint, unit/integration tests, both browser gates, and the real test-database paths. If database credentials or the P4 Diagnostic identity are absent, the corresponding gate must be recorded as `NOT TESTED`, never PASS.
 
 ## Compatibility mode
 

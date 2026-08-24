@@ -1,8 +1,9 @@
+import { resolveSfoaProjectRoot } from '@sfoa/control-plane';
 import { redactSensitiveText } from '@sfoa/identity-runtime';
 import { startConfiguredAdminApi } from './runtime.js';
 
 async function main(): Promise<void> {
-  const server = await startConfiguredAdminApi(process.cwd());
+  const server = await startConfiguredAdminApi(resolveSfoaProjectRoot(import.meta.url));
   let closing = false;
   const close = async (signal: string): Promise<void> => {
     if (closing) return;
