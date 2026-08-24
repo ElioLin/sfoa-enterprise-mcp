@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P3 final accepted; P4 diagnosis/runtime context implemented with USER live evidence and a PARTIAL Gate because the fixed DIAGNOSTIC live chain is not configured
+Status: P4 final accepted after the independent live DIAGNOSTIC evidence chain passed; P5 pass/complete and awaiting Maintainer review; P6 entry ready but implementation not started
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 

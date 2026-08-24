@@ -90,8 +90,8 @@ export async function startConfiguredAdminApi(
         P1: 'FINAL ACCEPTED',
         P2: 'FINAL ACCEPTED',
         P3: 'FINAL ACCEPTED',
-        P4: 'IMPLEMENTATION ACCEPTED; LIVE DIAGNOSTIC NOT TESTED',
-        P5: 'PARTIAL; ENGINEERING GATES PASS, P4 LIVE DIAGNOSTIC NOT TESTED',
+        P4: 'FINAL ACCEPTED',
+        P5: 'PASS / COMPLETE — AWAITING MAINTAINER REVIEW',
       }),
     });
     const server = await startAdminApiServer({

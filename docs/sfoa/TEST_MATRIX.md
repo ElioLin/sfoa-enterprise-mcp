@@ -571,3 +571,46 @@ Every row below uses only the Closure-authorized item results: `PASS`, `FAIL`, `
 `P5 = PARTIAL — AWAITING MAINTAINER REVIEW`
 
 All locally executable P5 implementation and full-stack Gates pass. The required P4 live DIAGNOSTIC Salesforce evidence is `NOT TESTED`, so P5 cannot be promoted to PASS/COMPLETE.
+
+## P4/P5 Final Live Closure Acceptance Matrix — 2026-08-24
+
+This later matrix preserves the historical P4/P5 PARTIAL evidence above and records the independent external Salesforce closure that supersedes the current status.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent Diagnostic identity | PASS | Primary USER, secondary USER, and fixed DIAGNOSTIC usernames are configured and case-insensitively distinct; exact values remain outside Git |
+| MySQL USER/Diagnostic separation | PASS | Two enabled USER routes map to the two USER identities; enabled `sfoa_diagnostic_config` matches neither route |
+| Real Admin authentication/CSRF/Origin | PASS | Real compiled Admin API login and guarded configuration mutations completed against `sfoa_enterprise_mcp` |
+| Admin Diagnostic configuration/audit | PASS | Diagnostic save and verification persisted with transactional Admin audit |
+| Fresh Diagnostic JWT and exact identity | PASS | Real `Connection.identity()` exactly matched the fixed configured DIAGNOSTIC username |
+| Diagnostic Tooling API | PASS | Official `run_soql_query` in Tooling mode returned 5 bounded ApexClass records, not truncated |
+| Official Diagnostic metadata retrieval | PASS | Official `retrieve_metadata` returned real `CustomObject` source through the P4 adapter |
+| Bounded Metadata Context | PASS | 135 total files; 40 files and 34,371 bytes returned within the 40-file/262,144-byte aggregate bounds |
+| Diagnostic CWD restoration | PASS | Live before/after process CWD matched after official metadata execution |
+| Diagnostic workspace cleanup | PASS | Admin closure `created=1/cleaned=1/active=0`; formal validator `created=3/cleaned=3/active=0` |
+| Triggering platform identity audit | PASS | Two correlated MCP audit rows retained non-empty triggering `platformUserId` values |
+| DIAGNOSTIC execution boundary audit | PASS | Both correlated rows recorded the fixed username, `executionRole=DIAGNOSTIC`, and the expected official Tool names |
+| USER Tool execution boundary | PASS | Admin catalog retained USER role for SOQL, CREATE, UPDATE, and record-action context; live A/B context also returned USER |
+| USER A/B live isolation | PASS | Both route identity/context checks passed with distinct resolved users, fresh Connections, mismatch 0, reuse 0 |
+| Formal P4 live validator | PASS | `yarn workspace @sfoa/mcp-server validate:p4`: exit 0, API 67.0, `overall=PASS` |
+| P5 aggregate rerun | PASS | `yarn validate:p5`: exit 0 in 463.41 seconds after P4 closure |
+| Admin current phase display | PASS | Real `/admin/api/system/status` returned P4 FINAL ACCEPTED, P5 PASS/COMPLETE awaiting Maintainer review, MySQL mode, database UP, and both migrations |
+| P5 changed-code lint | PASS | Control Plane, Admin API, Admin Web, MCP Server, and Identity Runtime |
+| P5 MySQL integration | PASS | 5/5 connected tests against `sfoa_enterprise_mcp_test`, zero skipped |
+| P5 runtime/Admin/frontend tests | PASS | Control Plane 12/12, Identity 27/27, MCP P5 5/5, Admin API 12/12, React 8/8/build |
+| Mock UI workflow E2E | PASS | Existing explicitly mocked Playwright workflow 1/1 |
+| Real full-stack browser E2E | PASS | Browser -> Vite -> real Admin API -> `sfoa_enterprise_mcp_test`, 1/1 |
+| Application database final state | PASS | MySQL 8.0.30, seven reviewed tables, both migrations applied in `sfoa_enterprise_mcp` |
+| Test database isolation | PASS | `sfoa_enterprise_mcp_test` is limited to automated Gates and is not a production runtime requirement |
+| Production port/exposure contract | PASS | Node listeners remain loopback 8080/8081, React is static, Vite is off, external access is HTTPS 443; 8080/8081/3306 are not public |
+| Upstream and scope boundary | PASS | No official Tool copy/TypeScript or JSforce patch, permission replica, Redis/cache/pool, P5 merge, or P6 implementation |
+
+## Current result after final live closure
+
+```text
+P4 = FINAL ACCEPTED
+P5 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW
+P6 ENTRY GATE = READY
+```
+
+Codex does not claim `P5 MAINTAINER FINAL ACCEPTED`; the feature branch remains pending Maintainer review and P6 implementation remains unstarted.

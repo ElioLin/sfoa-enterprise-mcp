@@ -125,6 +125,24 @@ ACTIVE_PROCESS_PATH_REFRESH = PARTIAL
 
 The configured Diagnostic Salesforce username matches one of the two enabled USER routes case-insensitively. It is therefore not an independent DIAGNOSTIC identity and is correctly rejected by bootstrap/request snapshot validation. A real `validate:p4` attempt exited 1 at this preflight before JWT/Salesforce execution. P4 live DIAGNOSTIC remains `NOT TESTED`; this environment fact forces the overall P5 result to remain `PARTIAL`.
 
+## P4/P5 final live closure environment update — 2026-08-24
+
+The paragraph above is preserved as the historical P5-Closure HOTFIX01 environment result. The maintainer subsequently configured three case-insensitively distinct Salesforce identities: two active USER routes and one fixed DIAGNOSTIC integration user. Exact usernames, Connected App values, JWT material, and Admin secrets remain outside Git.
+
+| Evidence | Result |
+| --- | --- |
+| USER A / USER B / DIAGNOSTIC distinctness | PASS |
+| MySQL USER-route alignment | PASS |
+| Enabled independent `sfoa_diagnostic_config` | PASS |
+| Real Admin Diagnostic JWT/identity | PASS |
+| Tooling API and official metadata retrieval | PASS |
+| Bounded context, CWD restoration, exact cleanup | PASS |
+| Correlated DIAGNOSTIC runtime/Admin audit | PASS |
+| Formal `validate:p4` | PASS, exit 0, overall PASS |
+| Final `validate:p5` rerun | PASS, exit 0 in 463.41 seconds |
+
+Final database inspection reconfirmed MySQL 8.0.30, seven reviewed tables, and both migration versions in `sfoa_enterprise_mcp`; the isolated `sfoa_enterprise_mcp_test` schema was used only by automated integration/full-stack Gates. Production runtime does not require the test schema.
+
 ## Existing SFoA authorization probe
 
 The direct v2 CLI resolved an existing local SFoA sandbox alias and its SFoA My Domain. `sf org display` reported the authorization as disconnected because both the access/refresh session and refresh token are expired. A read-only `Account` SOQL probe therefore failed during token refresh, before Salesforce executed the query. The repository intentionally records neither the discovered username nor connected-app identifier.

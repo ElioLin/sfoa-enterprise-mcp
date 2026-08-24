@@ -9,11 +9,33 @@ P5 deploys a thin Control Plane around Salesforce authority. It requires four in
 
 It does not require Redis, a Salesforce Connection/token cache, Kubernetes, an OAuth server, or a second Salesforce permission model.
 
+## Port and exposure contract
+
+Development runs three processes:
+
+```text
+MCP             127.0.0.1:8080
+Admin API       127.0.0.1:8081
+Vite Admin Web  127.0.0.1:5173
+```
+
+Production runs only the two Node listeners plus static files:
+
+```text
+MCP Node        127.0.0.1:8080
+Admin API Node  127.0.0.1:8081
+React Web       static Nginx files
+Vite 5173       NOT RUNNING
+External        HTTPS 443
+```
+
+The reverse proxy maps `/mcp` to the loopback MCP listener, `/admin/api/` to the loopback Admin API, and the Admin frontend to the static React distribution. Never expose `8080`, `8081`, or MySQL `3306` directly to the public network.
+
 ## Build and migration order
 
 1. Back up the current database.
 2. Install the reviewed Yarn lockfile with `yarn install --frozen-lockfile`.
-3. Build and test with `yarn validate:p5` in the release environment; it includes the mocked browser workflow and real MySQL-backed full-stack browser Gate.
+3. Build and test with `yarn validate:p5` in CI or an isolated release-validation environment; it includes the mocked browser workflow and real MySQL-backed full-stack browser Gate against `sfoa_enterprise_mcp_test`. The production runtime host does not require that test schema unless an operator deliberately runs these Gates there.
 4. Run `yarn db:status`; review pending/unknown migration state.
 5. Run `yarn db:migrate` before starting the new Admin API/MCP binaries.
 6. Run `yarn db:status` again and retain its JSON output as deployment evidence.
@@ -48,6 +70,17 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Origin $http_origin;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location = /mcp {
+        proxy_pass http://127.0.0.1:8080/mcp;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_set_header Host $host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header Authorization $http_authorization;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
@@ -89,6 +122,7 @@ Restrict key-file permissions to the runtime identity. Never bake secrets into t
 - Configure server-side storage encryption and log/backup access controls appropriate to audit data.
 - Monitor connection saturation, schema readiness, audit insert failures, storage growth, and backup age.
 - Never point automated integration tests at `sfoa_enterprise_mcp`; their target must resolve to `sfoa_enterprise_mcp_test`.
+- `sfoa_enterprise_mcp_test` is not required by a production deployment. Provision it only in CI or when an operator explicitly elects to run integration/full-stack tests in that deployment environment.
 
 ## Backup and restore
 

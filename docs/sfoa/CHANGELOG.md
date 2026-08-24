@@ -2,6 +2,26 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-24 — P4/P5 final live closure completed
+
+### Independent Salesforce Diagnostic closure
+
+- Configured one real DIAGNOSTIC integration user that is case-insensitively distinct from both active USER routes. The exact identifier and all authentication material remain outside Git.
+- Used the real authenticated Admin API, Origin/CSRF protections, MySQL Control Plane, P4 DIAGNOSTIC request scope, fresh JWT Connection, Tooling API, official `retrieve_metadata`, bounded metadata context, CWD restoration, and exact workspace cleanup. No mock or USER fallback was used.
+- Persisted and queried correlated runtime audit proving a triggering `platformUserId`, the fixed Diagnostic username, `executionRole=DIAGNOSTIC`, official Tooling SOQL, and official metadata execution. Admin configuration/verification audit also persisted transactionally.
+- Confirmed `run_soql_query`, `create_record`, `update_record`, and `get_record_action_context` remain USER-role Tools. Real USER A/B route verification and record-action context both passed with distinct identities and fresh Connections.
+
+### Final validation
+
+- `yarn workspace @sfoa/mcp-server validate:p4` exited 0 with `overall=PASS`: USER A/B context, identity isolation, Diagnostic Tooling, official metadata, bounds, and cleanup all passed against Salesforce API 67.0.
+- `yarn validate:p5` then exited 0 in 463.41 seconds: five changed-code lints, Control Plane 12/12, MySQL 5/5 with zero skipped, Identity 27/27, MCP P5 5/5, Admin API 12/12, React 8/8/build, mocked browser 1/1, and real full-stack browser 1/1.
+- Reconfirmed MySQL 8.0.30 application database `sfoa_enterprise_mcp`, isolated automated-test database `sfoa_enterprise_mcp_test`, seven reviewed tables, and both applied migration versions. Production does not require the test schema unless integration tests are deliberately run there.
+- Added `P5_FINAL_ACCEPTANCE_CLOSURE.md` and finalized the loopback/static-Nginx/HTTPS-443 deployment contract without rewriting the historical PARTIAL reports.
+
+### Result
+
+`P4 = FINAL ACCEPTED`; `P5 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`; `P6 ENTRY GATE = READY`. P5 is not declared Maintainer-final-accepted, is not merged, and P6 implementation has not started.
+
 ## 2026-08-24 — P5-Closure HOTFIX01 completed with PARTIAL result
 
 ### Local database and repeatable startup
