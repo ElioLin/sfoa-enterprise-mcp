@@ -22,23 +22,44 @@ export type AdminToolRecord = Readonly<{
   disabledReason: string | null;
 }>;
 
+/**
+ * 将已经审计过的 Salesforce Provider releaseState 映射为管理端状态。
+ *
+ * OFFICIAL_TOOL_CATALOG 中存在大量“已知工具名称，但尚未在 SFoA 远程运行时完成
+ * upstream contract 审计”的条目。缺少 upstreamContract 不代表 Salesforce 将该工具标记为 NON-GA，
+ * 因此必须显示 UNKNOWN，避免管理员把“尚未审计”误解为“官方非 GA”。
+ */
+function resolveReleaseState(
+  policy: (typeof OFFICIAL_TOOL_CATALOG)[number],
+): AdminToolRecord['releaseState'] {
+  if (!policy.upstreamContract) return 'UNKNOWN';
+  return policy.upstreamContract.releaseState === 'ga' ? 'GA' : 'NON_GA';
+}
+
 export function buildAdminToolCatalog(
   controls: readonly ToolControlRecord[],
   upstream: UpstreamInventoryComparison,
 ): readonly AdminToolRecord[] {
   const byName = new Map(controls.map((control) => [control.toolName, control]));
   const records: AdminToolRecord[] = [];
+
   for (const policy of OFFICIAL_TOOL_CATALOG) {
     const control = byName.get(policy.name);
     byName.delete(policy.name);
     const safeClassification = policy.classification === 'READ' || policy.classification === 'METADATA_READ';
-    const enableAllowed = upstream.status === 'PASS' && safeClassification && policy.p2RemoteCompatible && Boolean(policy.remoteContract);
+    const releaseState = resolveReleaseState(policy);
+    const enableAllowed = upstream.status === 'PASS'
+      && releaseState === 'GA'
+      && safeClassification
+      && policy.p2RemoteCompatible
+      && Boolean(policy.remoteContract);
+
     records.push(toolRecord({
       toolName: policy.name,
       classification: policy.classification,
       executionRole: 'USER',
       remoteCompatible: policy.p2RemoteCompatible,
-      releaseState: policy.upstreamContract?.releaseState === 'ga' ? 'GA' : 'NON_GA',
+      releaseState,
       control,
       dependencies: policy.needsFilesystem ? ['request workspace', 'CWD guard'] : [],
       enableAllowed,
@@ -48,23 +69,36 @@ export function buildAdminToolCatalog(
           ? `Official classification ${policy.classification} is not Agent-safe in this runtime.`
           : !policy.p2RemoteCompatible || !policy.remoteContract
             ? 'The audited Tool is not remote compatible.'
-            : null,
+            : releaseState === 'NON_GA'
+              ? 'The audited Tool is NON-GA and is not enabled in this runtime.'
+              : releaseState === 'UNKNOWN'
+                ? 'The Tool has no audited upstream release contract.'
+                : null,
     }));
   }
+
   for (const toolName of SFOA_DML_TOOL_NAMES) {
     const control = byName.get(toolName);
     byName.delete(toolName);
     records.push(toolRecord({
-      toolName, classification: 'MUTATION', executionRole: 'USER', remoteCompatible: true,
-      releaseState: 'GA', control, dependencies: ['Object × CREATE/UPDATE policy'], enableAllowed: true,
+      toolName,
+      classification: 'MUTATION',
+      executionRole: 'USER',
+      remoteCompatible: true,
+      releaseState: 'GA',
+      control,
+      dependencies: ['Object × CREATE/UPDATE policy'],
+      enableAllowed: true,
       disabledReason: null,
     }));
   }
+
   for (const toolName of SFOA_CONTEXT_TOOL_NAMES) {
     const control = byName.get(toolName);
     byName.delete(toolName);
     const diagnostic = SFOA_CONTEXT_TOOL_ROLES[toolName] === 'DIAGNOSTIC';
     const enableAllowed = !diagnostic || upstream.status === 'PASS';
+
     records.push(toolRecord({
       toolName,
       classification: toolName === 'get_metadata_component_context' ? 'METADATA_READ' : 'READ',
@@ -77,18 +111,31 @@ export function buildAdminToolCatalog(
       disabledReason: enableAllowed ? null : 'Upstream contract drift requires Maintainer review.',
     }));
   }
+
   for (const control of byName.values()) {
     records.push(Object.freeze({
-      toolName: control.toolName, classification: 'UNKNOWN', executionRole: 'USER', remoteCompatible: false,
-      releaseState: 'UNKNOWN', enabled: control.enabled, rowVersion: control.rowVersion, remark: control.remark,
-      dependencies: Object.freeze([]), status: 'UNKNOWN', enableAllowed: false,
+      toolName: control.toolName,
+      classification: 'UNKNOWN',
+      executionRole: 'USER',
+      remoteCompatible: false,
+      releaseState: 'UNKNOWN',
+      enabled: control.enabled,
+      rowVersion: control.rowVersion,
+      remark: control.remark,
+      dependencies: Object.freeze([]),
+      status: 'UNKNOWN',
+      enableAllowed: false,
       disabledReason: 'Database Tool name is absent from the audited executable catalog.',
     }));
   }
+
   return Object.freeze(records.sort((left, right) => left.toolName.localeCompare(right.toolName)));
 }
 
-export function canEnableAdminTool(toolName: string, upstream: UpstreamInventoryComparison): Readonly<{ allowed: boolean; reason?: string }> {
+export function canEnableAdminTool(
+  toolName: string,
+  upstream: UpstreamInventoryComparison,
+): Readonly<{ allowed: boolean; reason?: string }> {
   const record = buildAdminToolCatalog([], upstream).find((tool) => tool.toolName === toolName);
   return record?.enableAllowed
     ? Object.freeze({ allowed: true })
@@ -100,13 +147,14 @@ function toolRecord(input: Readonly<{
   classification: ToolClassification;
   executionRole: 'USER' | 'DIAGNOSTIC';
   remoteCompatible: boolean;
-  releaseState: 'GA' | 'NON_GA';
+  releaseState: AdminToolRecord['releaseState'];
   control?: ToolControlRecord;
   dependencies: readonly string[];
   enableAllowed: boolean;
   disabledReason: string | null;
 }>): AdminToolRecord {
   const invalidEnabled = input.control?.enabled === true && !input.enableAllowed;
+
   return Object.freeze({
     toolName: input.toolName,
     classification: input.classification,
