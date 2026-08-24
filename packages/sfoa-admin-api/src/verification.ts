@@ -38,6 +38,7 @@ export async function verifyIdentityRoute(
       identityMatched,
       salesforceUsername: actual || null,
       durationMs: Math.round(performance.now() - started),
+      correlationId,
       error: identityMatched
         ? null
         : Object.freeze({
@@ -51,6 +52,7 @@ export async function verifyIdentityRoute(
       identityMatched: false,
       salesforceUsername: null,
       durationMs: Math.round(performance.now() - started),
+      correlationId,
       error: safeVerificationError(error, runtime.redactionSecrets),
     });
   } finally {

@@ -3,12 +3,14 @@ import {
   normalizeSalesforceUsername,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type RuntimeSettingKey,
   type RuntimeSettingRecord,
   type ToolControlRecord,
 } from './contracts.js';
 import { ControlPlaneError } from './errors.js';
+import { IdentityCredentialCipher } from './identity-credential.js';
 import type {
   ControlPlaneRepositories,
   DiagnosticConfigWriteInput,
@@ -21,35 +23,76 @@ import type {
 import type { TransactionalControlPlaneStore } from './store.js';
 
 export type ToolEnableDecision = Readonly<{ allowed: boolean; reason?: string }>;
+export type IdentityCredentialAccess = Readonly<{
+  route: IdentityRouteRecord;
+  credential: IdentityCredentialRecord;
+  token: string;
+}>;
+export type IdentityCredentialRead = Readonly<{
+  route: IdentityRouteRecord;
+  credential: IdentityCredentialRecord | null;
+  token: string | null;
+}>;
+export type IdentityRouteCreation = IdentityCredentialAccess;
+export type IdentityCredentialRegenerateInput = Readonly<{
+  credentialId: string | null;
+  credentialRowVersion: string | null;
+  routeRowVersion: string;
+}>;
 
 export class ControlPlaneAdminService {
   public constructor(
     private readonly store: TransactionalControlPlaneStore,
     private readonly canEnableTool: (toolName: string) => ToolEnableDecision,
+    private readonly credentialCipher: IdentityCredentialCipher,
   ) {}
 
-  public async createIdentityRoute(input: IdentityRouteCreateInput, actorAdmin: string): Promise<IdentityRouteRecord> {
+  public async createIdentityRoute(input: IdentityRouteCreateInput, actorAdmin: string): Promise<IdentityRouteCreation> {
     return this.store.transaction(async (repositories) => {
       await assertUserDistinctFromDiagnostic(repositories.diagnostic.get(), input.salesforceUsername, input.enabled);
       const created = await repositories.identityRoutes.create(input);
+      const generated = this.credentialCipher.generate(created.id);
+      const credential = await repositories.identityCredentials.create({
+        identityRouteId: created.id,
+        credentialType: 'USER_BOUND',
+        tokenHash: generated.tokenHash,
+        tokenCiphertext: generated.tokenCiphertext,
+        tokenLast4: generated.tokenLast4,
+        generatedAt: generated.generatedAt,
+      });
       await appendAdminAudit(repositories, actorAdmin, 'CREATE_IDENTITY_ROUTE', created.id, {
         platformUserId: created.platformUserId,
         salesforceUsername: created.salesforceUsername,
         enabled: created.enabled,
+        credentialCreated: true,
+        credentialId: credential.id,
+        tokenLast4: credential.tokenLast4,
+      }, {
+        platformUserId: created.platformUserId,
+        salesforceUsername: created.salesforceUsername,
+        identityCredentialId: credential.id,
       });
-      return created;
+      return Object.freeze({ route: created, credential, token: generated.token });
     });
   }
 
   public async updateIdentityRoute(id: string, input: IdentityRouteUpdateInput, actorAdmin: string): Promise<IdentityRouteRecord> {
     return this.store.transaction(async (repositories) => {
       await assertUserDistinctFromDiagnostic(repositories.diagnostic.get(), input.salesforceUsername, input.enabled);
+      const current = await repositories.identityRoutes.getById(id);
+      if (!current) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Identity route was not found.');
       const updated = await repositories.identityRoutes.update(id, input);
-      await appendAdminAudit(repositories, actorAdmin, 'UPDATE_IDENTITY_ROUTE', id, {
+      const operation = !current.enabled && updated.enabled
+        ? 'ENABLE_IDENTITY_ROUTE'
+        : current.enabled && !updated.enabled ? 'DISABLE_IDENTITY_ROUTE' : 'UPDATE_IDENTITY_ROUTE';
+      await appendAdminAudit(repositories, actorAdmin, operation, id, {
         platformUserId: updated.platformUserId,
         salesforceUsername: updated.salesforceUsername,
         enabled: updated.enabled,
         rowVersion: updated.rowVersion,
+      }, {
+        platformUserId: updated.platformUserId,
+        salesforceUsername: updated.salesforceUsername,
       });
       return updated;
     });
@@ -63,8 +106,91 @@ export class ControlPlaneAdminService {
         salesforceUsername: updated.salesforceUsername,
         enabled: false,
         rowVersion: updated.rowVersion,
+      }, {
+        platformUserId: updated.platformUserId,
+        salesforceUsername: updated.salesforceUsername,
       });
       return updated;
+    });
+  }
+
+  public async readIdentityCredential(identityRouteId: string): Promise<IdentityCredentialRead> {
+    return this.store.transaction(async (repositories) => {
+      const route = await repositories.identityRoutes.getById(identityRouteId);
+      if (!route) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Identity route was not found.');
+      const credential = await repositories.identityCredentials.getActiveByRouteId(identityRouteId);
+      if (!credential) return Object.freeze({ route, credential: null, token: null });
+      return Object.freeze({ route, credential, token: this.credentialCipher.decrypt(credential) });
+    });
+  }
+
+  public async regenerateIdentityCredential(
+    identityRouteId: string,
+    input: IdentityCredentialRegenerateInput,
+    actorAdmin: string,
+  ): Promise<IdentityCredentialAccess> {
+    return this.store.transaction(async (repositories) => {
+      const route = await repositories.identityRoutes.getById(identityRouteId);
+      if (!route) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Identity route was not found.');
+      assertVersion(route.rowVersion, input.routeRowVersion);
+      const current = await repositories.identityCredentials.getActiveByRouteId(identityRouteId);
+      if (current) {
+        if (input.credentialId !== current.id || input.credentialRowVersion !== current.rowVersion) {
+          throw concurrentModification();
+        }
+        await repositories.identityCredentials.revoke(current.id, current.rowVersion, new Date());
+      } else if (input.credentialId !== null || input.credentialRowVersion !== null) {
+        throw concurrentModification();
+      }
+      const generated = this.credentialCipher.generate(identityRouteId);
+      const credential = await repositories.identityCredentials.create({
+        identityRouteId,
+        credentialType: 'USER_BOUND',
+        tokenHash: generated.tokenHash,
+        tokenCiphertext: generated.tokenCiphertext,
+        tokenLast4: generated.tokenLast4,
+        generatedAt: generated.generatedAt,
+      });
+      await appendAdminAudit(repositories, actorAdmin, 'REGENERATE_USER_BOUND_CREDENTIAL', identityRouteId, {
+        routeId: identityRouteId,
+        previousCredentialId: current?.id ?? null,
+        credentialId: credential.id,
+        tokenLast4: credential.tokenLast4,
+      }, {
+        platformUserId: route.platformUserId,
+        salesforceUsername: route.salesforceUsername,
+        identityCredentialId: credential.id,
+      });
+      return Object.freeze({ route, credential, token: generated.token });
+    });
+  }
+
+  public async deleteIdentityRoute(id: string, rowVersion: string, actorAdmin: string): Promise<void> {
+    await this.store.transaction(async (repositories) => {
+      const route = await repositories.identityRoutes.getById(id);
+      if (!route) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Identity route was not found.');
+      assertVersion(route.rowVersion, rowVersion);
+      if (route.enabled) {
+        throw new ControlPlaneError(
+          'MCP_IDENTITY_ROUTE_DELETE_REQUIRES_DISABLED',
+          'Identity route must be disabled before permanent deletion.',
+        );
+      }
+      const credentials = await repositories.identityCredentials.listByRouteId(id);
+      const active = credentials.find((credential) => credential.status === 'ACTIVE');
+      if (active) await repositories.identityCredentials.revoke(active.id, active.rowVersion, new Date());
+      await repositories.identityCredentials.deleteByRouteId(id);
+      await repositories.identityRoutes.delete(id, rowVersion);
+      await appendAdminAudit(repositories, actorAdmin, 'DELETE_IDENTITY_ROUTE', id, {
+        routeId: id,
+        platformUserId: route.platformUserId,
+        salesforceUsername: route.salesforceUsername,
+        credentialIds: credentials.map((credential) => credential.id),
+      }, {
+        platformUserId: route.platformUserId,
+        salesforceUsername: route.salesforceUsername,
+        ...(active ? { identityCredentialId: active.id } : {}),
+      });
     });
   }
 
@@ -203,6 +329,11 @@ async function appendAdminAudit(
   operation: string,
   recordId: string,
   summary: unknown,
+  context: Readonly<{
+    platformUserId?: string;
+    salesforceUsername?: string;
+    identityCredentialId?: string;
+  }> = {},
 ): Promise<void> {
   try {
     await repositories.audits.append({
@@ -210,6 +341,9 @@ async function appendAdminAudit(
       correlationId: randomUUID(),
       channel: 'ADMIN',
       actorAdmin,
+      ...(context.platformUserId ? { platformUserId: context.platformUserId } : {}),
+      ...(context.salesforceUsername ? { salesforceUsername: context.salesforceUsername } : {}),
+      ...(context.identityCredentialId ? { identityCredentialId: context.identityCredentialId } : {}),
       operation,
       recordId,
       result: 'PASS',
@@ -223,6 +357,17 @@ async function appendAdminAudit(
       { cause: error },
     );
   }
+}
+
+function assertVersion(actual: string, expected: string): void {
+  if (actual !== expected) throw concurrentModification();
+}
+
+function concurrentModification(): ControlPlaneError {
+  return new ControlPlaneError(
+    'MCP_ADMIN_CONCURRENT_MODIFICATION',
+    'The configuration changed since it was loaded. Refresh and retry with the current rowVersion.',
+  );
 }
 
 function assertMeaningfulDml(input: Pick<DmlPolicyCreateInput, 'allowCreate' | 'allowUpdate' | 'enabled'>): void {

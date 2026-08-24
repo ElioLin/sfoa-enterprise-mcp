@@ -271,6 +271,46 @@ div.surface-card:not(.ant-card) {
   text-align: right;
 }
 
+.route-search-card {
+  display: grid;
+  grid-template-columns: minmax(280px, 720px) auto auto;
+  align-items: center;
+  justify-content: start;
+  gap: 10px;
+}
+
+.route-form-notice {
+  margin-bottom: 18px;
+}
+
+.route-confirm-list {
+  margin: 10px 0 0;
+}
+
+.credential-drawer .ant-divider {
+  margin-block: 8px 0;
+}
+
+.credential-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  align-items: end;
+}
+
+.credential-field > .ant-typography {
+  grid-column: 1 / -1;
+}
+
+.credential-field .ant-input {
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.credential-json {
+  max-height: 340px;
+}
+
 .clickable-row {
   cursor: pointer;
 }
@@ -534,6 +574,16 @@ div.surface-card:not(.ant-card) {
   .filter-grid,
   .phase-grid {
     grid-template-columns: 1fr;
+  }
+
+  .route-search-card,
+  .credential-field {
+    grid-template-columns: 1fr;
+  }
+
+  .route-search-card .ant-btn,
+  .credential-field .ant-btn {
+    width: 100%;
   }
 
   div.surface-card:not(.ant-card) {

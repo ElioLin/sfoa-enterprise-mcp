@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { bootstrapFromEnvironment, ControlPlaneAdminService, ControlPlaneError } from '../index.js';
+import {
+  bootstrapFromEnvironment,
+  ControlPlaneAdminService,
+  ControlPlaneError,
+  IdentityCredentialCipher,
+} from '../index.js';
 import { InMemoryControlPlaneStore } from './in-memory-store.js';
 
 test('bootstrap is idempotent, imports current governance, and permits shared USER usernames', async () => {
@@ -64,7 +69,7 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
   const service = new ControlPlaneAdminService(store, (toolName) => ({
     allowed: toolName === 'run_soql_query',
     ...(toolName === 'run_soql_query' ? {} : { reason: 'Unknown Tool cannot be enabled.' }),
-  }));
+  }), testCredentialCipher());
   const first = await service.createIdentityRoute({
     platformUserId: 'platform-a', salesforceUsername: 'shared@example.invalid', enabled: true, remark: null,
   }, 'admin');
@@ -72,9 +77,9 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
     platformUserId: 'platform-b', salesforceUsername: 'shared@example.invalid', enabled: true, remark: null,
   }, 'admin');
   await assert.rejects(
-    service.updateIdentityRoute(first.id, {
-      platformUserId: first.platformUserId,
-      salesforceUsername: first.salesforceUsername,
+    service.updateIdentityRoute(first.route.id, {
+      platformUserId: first.route.platformUserId,
+      salesforceUsername: first.route.salesforceUsername,
       enabled: true,
       remark: null,
       rowVersion: '999',
@@ -103,7 +108,7 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
 
 test('Diagnostic identity remains distinct from every active USER route', async () => {
   const store = new InMemoryControlPlaneStore();
-  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }));
+  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
   await service.createIdentityRoute({
     platformUserId: 'platform-a', salesforceUsername: 'user@example.invalid', enabled: true, remark: null,
   }, 'admin');
@@ -115,3 +120,7 @@ test('Diagnostic identity remains distinct from every active USER route', async 
     (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_CONTROL_PLANE_CONFLICT',
   );
 });
+
+function testCredentialCipher(): IdentityCredentialCipher {
+  return new IdentityCredentialCipher(Buffer.alloc(32, 7));
+}

@@ -3,9 +3,11 @@ import {
   ControlPlaneAdminService,
   createControlPlaneDatabase,
   DatabaseRuntimeLogger,
+  loadIdentityCredentialCipher,
   loadControlPlaneConfig,
   MySqlControlPlaneStore,
   MySqlIdentityRepository,
+  type McpPublicEndpointDto,
 } from '@sfoa/control-plane';
 import {
   createIdentityRuntime,
@@ -15,6 +17,7 @@ import {
 import {
   compareOfficialProviderInventory,
   inspectOfficialDxCoreInventory,
+  isLoopbackBindHost,
   loadRemoteRuntimeConfig,
 } from '@sfoa/mcp-server';
 import { loadAdminApiConfig } from './config.js';
@@ -32,11 +35,12 @@ export async function startConfiguredAdminApi(
   projectRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<ConfiguredAdminApi> {
-  const [adminConfig, controlPlaneConfig, remoteConfig, identityConfig] = await Promise.all([
+  const [adminConfig, controlPlaneConfig, remoteConfig, identityConfig, credentialCipher] = await Promise.all([
     loadAdminApiConfig(projectRoot, environment),
     loadControlPlaneConfig(projectRoot, environment, { requireDatabase: true }),
     loadRemoteRuntimeConfig(projectRoot, environment),
     loadIdentityRuntimeConfig(projectRoot, environment, { routesFromDatabase: true }),
+    loadIdentityCredentialCipher(projectRoot, environment),
   ]);
   const databaseConfig = controlPlaneConfig.database;
   if (!databaseConfig) throw new Error('Admin API requires explicit MySQL configuration.');
@@ -56,8 +60,10 @@ export async function startConfiguredAdminApi(
     const adminService = new ControlPlaneAdminService(
       store,
       (toolName) => canEnableAdminTool(toolName, upstream),
+      credentialCipher,
     );
     const healthUrl = localRuntimeUrl(remoteConfig.bindHost, remoteConfig.port, '/health');
+    const mcpPublicEndpoint = publicMcpEndpoint(remoteConfig);
     const system: AdminSystemRuntimeInfo = Object.freeze({
       adminVersion: '0.1.0-p5',
       mcpServerVersion: '0.1.0-p5',
@@ -72,11 +78,14 @@ export async function startConfiguredAdminApi(
       connectedAppConfigured: identityConfig.clientId.length > 0,
       jwtPrivateKeyConfigured: identityConfig.privateKeyPath.length > 0,
       mcpClientTokenConfigured: Boolean(remoteConfig.clientToken),
+      identityCredentialEncryptionKeyConfigured: true,
       mcpEndpoint: localRuntimeUrl(remoteConfig.bindHost, remoteConfig.port, remoteConfig.mcpPath).href,
+      mcpPublicEndpoint,
       readOnlyRuntimeSettings: Object.freeze({
         MCP_BIND_HOST: remoteConfig.bindHost,
         MCP_PORT: remoteConfig.port,
         MCP_PATH: remoteConfig.mcpPath,
+        MCP_PUBLIC_URL: remoteConfig.publicUrl ?? null,
         MCP_AUTH_MODE: remoteConfig.authMode,
         MCP_ALLOWED_HOSTS: remoteConfig.allowedHosts,
         MCP_ALLOWED_ORIGINS: remoteConfig.allowedOrigins,
@@ -121,6 +130,26 @@ export async function startConfiguredAdminApi(
     await store.close().catch(() => undefined);
     throw error;
   }
+}
+
+function publicMcpEndpoint(
+  config: Readonly<{ bindHost: string; port: number; mcpPath: string; publicUrl?: string }>,
+): McpPublicEndpointDto {
+  if (config.publicUrl) {
+    return Object.freeze({ url: config.publicUrl, source: 'CONFIGURED', warning: null });
+  }
+  if (isLoopbackBindHost(config.bindHost)) {
+    return Object.freeze({
+      url: localRuntimeUrl(config.bindHost, config.port, config.mcpPath).href,
+      source: 'LOOPBACK_FALLBACK',
+      warning: '当前地址仅适用于本机 MCP Client。如需 WorkBuddy / Dify 外部访问，请配置 MCP_PUBLIC_URL。',
+    });
+  }
+  return Object.freeze({
+    url: null,
+    source: 'UNAVAILABLE',
+    warning: '请配置 MCP_PUBLIC_URL 后再复制外部 MCP 配置。',
+  });
 }
 
 async function probeMcpHealth(url: URL): Promise<McpHealthProbeResult> {

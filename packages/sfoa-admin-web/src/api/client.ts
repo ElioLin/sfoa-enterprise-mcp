@@ -6,6 +6,8 @@ import type {
   AdminDmlPolicyUpdateInput,
   AdminIdentityRouteCreateInput,
   AdminIdentityRouteUpdateInput,
+  AdminIdentityCredentialResponse,
+  AdminIdentityRouteDto,
   AdminRoutesResponse,
   AdminSessionDto,
   AdminToolControlUpdateInput,
@@ -16,7 +18,6 @@ import type {
   DiagnosticPageDto,
   DiagnosticVerificationDto,
   DmlPolicyRecord,
-  IdentityRouteRecord,
   RouteVerificationDto,
   RuntimeSettingKey,
   RuntimeSettingRecord,
@@ -70,10 +71,26 @@ export const adminApi = Object.freeze({
     return session;
   },
   dashboard: () => request<DashboardDto>('/dashboard'),
-  routes: (limit: number, offset: number) => request<AdminRoutesResponse>(`/routes?limit=${limit}&offset=${offset}`),
-  createRoute: (input: AdminIdentityRouteCreateInput) => request<IdentityRouteRecord>('/routes', { method: 'POST', body: input }),
-  updateRoute: (id: string, input: AdminIdentityRouteUpdateInput) => request<IdentityRouteRecord>(`/routes/${encodeURIComponent(id)}`, { method: 'PUT', body: input }),
-  disableRoute: (id: string, rowVersion: string) => request<IdentityRouteRecord>(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE', body: { rowVersion } }),
+  routes: (limit: number, offset: number, keyword?: string) => {
+    const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (keyword) query.set('keyword', keyword);
+    return request<AdminRoutesResponse>(`/routes?${query}`);
+  },
+  createRoute: (input: AdminIdentityRouteCreateInput) => request<AdminIdentityCredentialResponse>('/routes', { method: 'POST', body: input }),
+  updateRoute: (id: string, input: AdminIdentityRouteUpdateInput) => request<AdminIdentityRouteDto>(`/routes/${encodeURIComponent(id)}`, { method: 'PUT', body: input }),
+  disableRoute: (id: string, rowVersion: string) => request<AdminIdentityRouteDto>(
+    `/routes/${encodeURIComponent(id)}/disable`,
+    { method: 'POST', body: { rowVersion } },
+  ),
+  deleteRoute: (id: string, rowVersion: string) => request<Readonly<{ status: 'DELETED'; routeId: string }>>(
+    `/routes/${encodeURIComponent(id)}`,
+    { method: 'DELETE', body: { rowVersion } },
+  ),
+  routeCredential: (id: string) => request<AdminIdentityCredentialResponse>(`/routes/${encodeURIComponent(id)}/credential`),
+  regenerateRouteCredential: (
+    id: string,
+    input: Readonly<{ credentialId: string | null; credentialRowVersion: string | null; routeRowVersion: string }>,
+  ) => request<AdminIdentityCredentialResponse>(`/routes/${encodeURIComponent(id)}/credential/regenerate`, { method: 'POST', body: input }),
   verifyRoute: (id: string) => request<RouteVerificationDto>(`/routes/${encodeURIComponent(id)}/verify`, { method: 'POST' }),
   tools: () => request<AdminToolsResponse>('/tools'),
   updateTool: (toolName: string, input: AdminToolControlUpdateInput) => request<ToolControlRecord>(

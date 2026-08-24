@@ -15,6 +15,23 @@ export interface IdentityRouteTable {
   updated_at: GeneratedTimestamp;
 }
 
+export interface IdentityCredentialTable {
+  id: Generated<string>;
+  identity_route_id: string;
+  credential_type: string;
+  token_hash: string;
+  token_ciphertext: string | null;
+  token_last4: string;
+  status: string;
+  generated_at: Timestamp;
+  last_used_at: Timestamp | null;
+  revoked_at: Timestamp | null;
+  active_identity_route_id: Generated<string | null>;
+  row_version: Generated<string>;
+  created_at: GeneratedTimestamp;
+  updated_at: GeneratedTimestamp;
+}
+
 export interface ToolControlTable {
   id: Generated<string>;
   tool_name: string;
@@ -69,6 +86,8 @@ export interface AuditLogTable {
   platform_user_id: string | null;
   salesforce_username: string | null;
   execution_role: string | null;
+  identity_source: string | null;
+  identity_credential_id: string | null;
   tool_name: string | null;
   operation: string | null;
   object_api_name: string | null;
@@ -90,6 +109,7 @@ export interface SchemaMigrationTable {
 
 export interface ControlPlaneDatabase {
   sfoa_identity_route: IdentityRouteTable;
+  sfoa_identity_credential: IdentityCredentialTable;
   sfoa_tool_control: ToolControlTable;
   sfoa_dml_policy: DmlPolicyTable;
   sfoa_diagnostic_config: DiagnosticConfigTable;

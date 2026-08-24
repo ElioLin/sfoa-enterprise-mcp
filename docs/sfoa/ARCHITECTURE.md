@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6-Entry OPT01 authorized and in progress; P6 Real-Agent Evaluation remains unstarted pending the P6-Entry Gate
+Status: P0–P5 and P6-Entry OPT01 final accepted; P6-ID-01 USER_BOUND identity enhancement is implemented and under final validation; P6 Real-Agent Evaluation remains unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -542,7 +542,7 @@ The runtime and Admin API are separate processes and authentication domains. Bro
 flowchart LR
   Browser[Admin browser] -->|signed HttpOnly session + Origin + CSRF| Admin[Admin API :8081]
   Admin -->|transactional config + admin audit| MySQL[(MySQL 8)]
-  Client[Authenticated MCP client] -->|Bearer + platformUserId| MCP[MCP runtime :8080]
+  Client[Authenticated MCP client] -->|internal Bearer + Header, or USER_BOUND Bearer| MCP[MCP runtime :8080]
   MCP -->|one REPEATABLE READ snapshot per POST| MySQL
   MCP -->|fresh JWT / fresh Connection| SF[Salesforce authority]
   MCP -->|safe durable runtime audit| MySQL
@@ -556,11 +556,40 @@ MySQL stores only SFoA governance and safe audit. Executable-code facts still de
 
 Configuration updates use optimistic `row_version` checks and include their Admin audit insertion in the same transaction. Runtime audit failure is deliberately different: it degrades audit health and falls back to the existing logger, but never changes or retries an already determined Salesforce mutation outcome.
 
+## P6-ID-01 unified identity and USER_BOUND credentials
+
+ADR-0012 extends the HTTP identity-acquisition edge without changing the P1-P5 path after an effective platform user is known.
+
+```mermaid
+flowchart TD
+  Auth[Authorization Bearer] --> Provider[Unified IdentityProvider]
+  Header[X-Platform-User-Id] --> Internal[Internal-service authenticator]
+  Provider --> Internal
+  Provider --> Bound[USER_BOUND credential authenticator]
+  Future[Future BUNTU_TOKEN provider<br/>not implemented] -.-> Provider
+  Internal --> Principal[AuthenticatedPrincipal<br/>identitySource + platformUserId]
+  Bound --> Hash[SHA-256 indexed credential lookup]
+  Hash --> RouteState[ACTIVE credential + enabled current route]
+  RouteState --> Principal
+  Principal --> Snapshot[immutable request policy snapshot]
+  Snapshot --> Resolver[existing Identity Route resolver]
+  Resolver --> Fresh[fresh JWT / request Connection]
+  Fresh --> Salesforce[Salesforce authorization]
+```
+
+The internal branch keeps `MCP_CLIENT_TOKEN` plus the trusted Header. The USER_BOUND branch accepts `sfoa_ub1_...` without a Header, binds the credential to the route ID, and derives the route's current `platformUserId`. A supplied conflicting Header is rejected and can never override the token.
+
+Credential lookup happens before the policy snapshot and never loads all tokens into request policy. MySQL stores a unique SHA-256 hash for lookup, authenticated AES-256-GCM ciphertext for repeated Admin copy, and last four characters for list display. `MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY` remains server-owned. One active credential per route is enforced by schema; regeneration uses optimistic concurrency and has no grace period.
+
+Disabling a route makes its active token unusable on the next request; re-enabling restores it. Regeneration permanently revokes the old token. Only disabled routes can be transactionally deleted with their credentials, while non-secret Admin audit remains. Successful USER_BOUND authentication records `identitySource=USER_BOUND_TOKEN`, a safe credential ID, and best-effort last-used time.
+
+`MCP_PUBLIC_URL` is presentation/configuration input only. It never changes Runtime binding or network policy. WorkBuddy JSON contains Authorization only. `BUNTU_TOKEN` is a future provider slot, not an implemented external integration.
+
 ## Data, cache, and security baseline
 
 - P0, P0-Closure, P1, P2, P3, and P4 use no database. P5 introduces MySQL only for durable SFoA governance and audit.
 - P1 proves request-scoped identity routing with an in-memory repository. P5 supplies `MySqlIdentityRepository` behind the same authority boundary while env mode retains the historical repository.
 - A bounded MySQL connection pool is allowed. Redis, Salesforce token cache, and Salesforce Connection pool remain absent; every Salesforce request retains a fresh JWT/Connection.
-- Secrets remain outside Git; logs must redact tokens and private-key material.
+- Secrets remain outside Git; logs must redact tokens, USER_BOUND credentials, encryption keys, and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.
 - DELETE is absent from the initial mutation design.

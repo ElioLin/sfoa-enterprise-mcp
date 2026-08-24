@@ -33,7 +33,9 @@ export function mapAdminError(error: unknown, secrets: readonly string[]): Admin
   if (error instanceof ControlPlaneError) {
     const status = error.code === 'MCP_CONTROL_PLANE_NOT_FOUND'
       ? 404
-      : error.code === 'MCP_ADMIN_CONCURRENT_MODIFICATION' || error.code === 'MCP_CONTROL_PLANE_CONFLICT'
+      : error.code === 'MCP_ADMIN_CONCURRENT_MODIFICATION'
+          || error.code === 'MCP_CONTROL_PLANE_CONFLICT'
+          || error.code === 'MCP_IDENTITY_ROUTE_DELETE_REQUIRES_DISABLED'
         ? 409
         : error.code === 'MCP_ADMIN_INPUT_INVALID' || error.code === 'MCP_CONTROL_PLANE_CONFIGURATION_INVALID'
           ? 400

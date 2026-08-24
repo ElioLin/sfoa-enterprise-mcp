@@ -14,7 +14,9 @@ import {
   adminDmlPolicyCreateSchema,
   adminDmlPolicyUpdateSchema,
   adminIdPathSchema,
+  adminIdentityCredentialRegenerateSchema,
   adminIdentityRouteCreateSchema,
+  adminIdentityRouteListQuerySchema,
   adminIdentityRouteUpdateSchema,
   adminLoginInputSchema,
   adminPaginationQuerySchema,
@@ -25,12 +27,17 @@ import {
   adminToolNamePathSchema,
   ControlPlaneAdminService,
   ControlPlaneError,
+  type AdminIdentityCredentialResponse,
+  type AdminIdentityRouteDto,
   type AuditPersistenceHealth,
   type ControlPlaneRepositories,
   type DashboardDto,
   type DiagnosticPageDto,
   type DiagnosticVerificationDto,
+  type IdentityCredentialRecord,
+  type IdentityRouteRecord,
   type MigrationStatus,
+  type McpPublicEndpointDto,
   type ProviderVersionDto,
   type SystemStatusDto,
 } from '@sfoa/control-plane';
@@ -61,7 +68,9 @@ export type AdminSystemRuntimeInfo = Readonly<{
   connectedAppConfigured: boolean;
   jwtPrivateKeyConfigured: boolean;
   mcpClientTokenConfigured: boolean;
+  identityCredentialEncryptionKeyConfigured: boolean;
   mcpEndpoint: string;
+  mcpPublicEndpoint: McpPublicEndpointDto;
   readOnlyRuntimeSettings: Readonly<Record<string, string | number | boolean | readonly string[] | null>>;
   phases: SystemStatusDto['phases'];
 }>;
@@ -77,6 +86,9 @@ export type StartAdminApiServerOptions = Readonly<{
     | 'createIdentityRoute'
     | 'updateIdentityRoute'
     | 'disableIdentityRoute'
+    | 'readIdentityCredential'
+    | 'regenerateIdentityCredential'
+    | 'deleteIdentityRoute'
     | 'updateTool'
     | 'createDmlPolicy'
     | 'updateDmlPolicy'
@@ -314,20 +326,47 @@ async function dispatchAuthenticated(
 
   if (path === `${ADMIN_API_PREFIX}/routes`) {
     if (request.method === 'GET') {
-      const paging = parseWithSchema(adminPaginationQuerySchema, queryObject(url));
-      writeJson(response, 200, await options.store.repositories.identityRoutes.list({
-        limit: paging.limit ?? 25,
-        offset: paging.offset ?? 0,
+      const query = parseWithSchema(adminIdentityRouteListQuerySchema, queryObject(url));
+      const page = await options.store.repositories.identityRoutes.list({
+        ...(query.keyword ? { keyword: query.keyword } : {}),
+        limit: query.limit ?? 25,
+        offset: query.offset ?? 0,
+      });
+      const credentials = await options.store.repositories.identityCredentials.listActiveByRouteIds(
+        page.items.map((route) => route.id),
+      );
+      const credentialsByRoute = new Map(credentials.map((credential) => [credential.identityRouteId, credential]));
+      writeJson(response, 200, Object.freeze({
+        ...page,
+        items: Object.freeze(page.items.map((route) => toAdminIdentityRoute(route, credentialsByRoute.get(route.id)))),
       }));
       return;
     }
     assertMethod(request, 'POST');
     assertNoQuery(url);
     const input = parseWithSchema(adminIdentityRouteCreateSchema, await readJsonBody(request));
-    writeJson(response, 201, await options.adminService.createIdentityRoute({
+    const created = await options.adminService.createIdentityRoute({
       ...input,
       remark: input.remark ?? null,
-    }, session.username));
+    }, session.username);
+    writeJson(response, 201, toCredentialResponse(created, options.system.mcpPublicEndpoint));
+    return;
+  }
+
+  const credentialMatch = matchRouteCredentialPath(path);
+  if (credentialMatch) {
+    const id = parseWithSchema(adminIdPathSchema, credentialMatch.identifier);
+    assertNoQuery(url);
+    if (credentialMatch.action === 'read') {
+      assertMethod(request, 'GET');
+      const credential = await options.adminService.readIdentityCredential(id);
+      writeJson(response, 200, toCredentialResponse(credential, options.system.mcpPublicEndpoint));
+      return;
+    }
+    assertMethod(request, 'POST');
+    const input = parseWithSchema(adminIdentityCredentialRegenerateSchema, await readJsonBody(request));
+    const regenerated = await options.adminService.regenerateIdentityCredential(id, input, session.username);
+    writeJson(response, 200, toCredentialResponse(regenerated, options.system.mcpPublicEndpoint));
     return;
   }
 
@@ -361,18 +400,29 @@ async function dispatchAuthenticated(
       writeJson(response, 200, verification);
       return;
     }
+    if (routeMatch.action === 'disable') {
+      assertMethod(request, 'POST');
+      const input = parseWithSchema(adminSoftDisableSchema, await readJsonBody(request));
+      const disabled = await options.adminService.disableIdentityRoute(id, input.rowVersion, session.username);
+      const credential = await options.store.repositories.identityCredentials.getActiveByRouteId(id);
+      writeJson(response, 200, toAdminIdentityRoute(disabled, credential));
+      return;
+    }
     if (routeMatch.action !== null) throw notFound();
     if (request.method === 'PUT') {
       const input = parseWithSchema(adminIdentityRouteUpdateSchema, await readJsonBody(request));
-      writeJson(response, 200, await options.adminService.updateIdentityRoute(id, {
+      const updated = await options.adminService.updateIdentityRoute(id, {
         ...input,
         remark: input.remark ?? null,
-      }, session.username));
+      }, session.username);
+      const credential = await options.store.repositories.identityCredentials.getActiveByRouteId(id);
+      writeJson(response, 200, toAdminIdentityRoute(updated, credential));
       return;
     }
     assertMethod(request, 'DELETE');
     const input = parseWithSchema(adminSoftDisableSchema, await readJsonBody(request));
-    writeJson(response, 200, await options.adminService.disableIdentityRoute(id, input.rowVersion, session.username));
+    await options.adminService.deleteIdentityRoute(id, input.rowVersion, session.username);
+    writeJson(response, 200, { status: 'DELETED', routeId: id });
     return;
   }
 
@@ -589,6 +639,7 @@ async function buildSystemStatus(options: StartAdminApiServerOptions): Promise<S
       connectedApp: options.system.connectedAppConfigured,
       jwtPrivateKey: options.system.jwtPrivateKeyConfigured,
       mcpClientToken: options.system.mcpClientTokenConfigured,
+      identityCredentialEncryptionKey: options.system.identityCredentialEncryptionKeyConfigured,
     }),
     diagnostic: diagnosticResult.status === 'fulfilled' ? diagnosticResult.value ?? null : null,
     mcpHealth: mcp.status,
@@ -643,6 +694,58 @@ async function appendAdminEvent(
       { cause: error },
     );
   }
+}
+
+function toAdminIdentityRoute(
+  route: IdentityRouteRecord,
+  credential: IdentityCredentialRecord | undefined,
+): AdminIdentityRouteDto {
+  return Object.freeze({
+    ...route,
+    credential: credential
+      ? Object.freeze({
+          id: credential.id,
+          status: credential.status,
+          tokenLast4: credential.tokenLast4,
+          generatedAt: credential.generatedAt,
+          lastUsedAt: credential.lastUsedAt,
+          rowVersion: credential.rowVersion,
+        })
+      : null,
+  });
+}
+
+function toCredentialResponse(
+  access: Awaited<ReturnType<ControlPlaneAdminService['readIdentityCredential']>>,
+  endpoint: McpPublicEndpointDto,
+): AdminIdentityCredentialResponse {
+  const credential = access.credential && access.token
+    ? Object.freeze({
+        id: access.credential.id,
+        status: 'ACTIVE' as const,
+        token: access.token,
+        authorization: `Bearer ${access.token}`,
+        tokenLast4: access.credential.tokenLast4,
+        generatedAt: access.credential.generatedAt,
+        lastUsedAt: access.credential.lastUsedAt,
+        rowVersion: access.credential.rowVersion,
+        workBuddyJson: endpoint.url ? workBuddyJson(endpoint.url, access.token) : null,
+      })
+    : null;
+  return Object.freeze({ route: access.route, credential, mcpEndpoint: endpoint });
+}
+
+function workBuddyJson(url: string, token: string): string {
+  return JSON.stringify({
+    mcpServers: {
+      'enterprise-salesforce': {
+        type: 'http',
+        url,
+        headers: { Authorization: `Bearer ${token}` },
+        disabled: false,
+      },
+    },
+  }, null, 2);
 }
 
 function parseWithSchema<T>(schema: ZodType<T>, value: unknown): T {
@@ -704,6 +807,26 @@ function matchResourcePath(
     return Object.freeze({
       identifier: decodeURIComponent(parts[0]),
       action: parts[1] ? decodeURIComponent(parts[1]) : null,
+    });
+  } catch {
+    throw new AdminHttpError('MCP_ADMIN_REQUEST_INVALID', 'Path identifier encoding is invalid.', 400);
+  }
+}
+
+function matchRouteCredentialPath(
+  path: string,
+): Readonly<{ identifier: string; action: 'read' | 'regenerate' }> | undefined {
+  const prefix = `${ADMIN_API_PREFIX}/routes/`;
+  if (!path.startsWith(prefix)) return undefined;
+  const parts = path.slice(prefix.length).split('/');
+  if (parts[1] !== 'credential' || (parts.length !== 2 && !(parts.length === 3 && parts[2] === 'regenerate'))) {
+    return undefined;
+  }
+  if (!parts[0]) throw notFound();
+  try {
+    return Object.freeze({
+      identifier: decodeURIComponent(parts[0]),
+      action: parts.length === 3 ? 'regenerate' : 'read',
     });
   } catch {
     throw new AdminHttpError('MCP_ADMIN_REQUEST_INVALID', 'Path identifier encoding is invalid.', 400);

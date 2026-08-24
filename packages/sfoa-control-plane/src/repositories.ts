@@ -4,14 +4,17 @@ import type {
   DiagnosticConfigRecord,
   DiagnosticVerificationStatus,
   DmlPolicyRecord,
+  IdentityCredentialRecord,
   IdentityRouteRecord,
   Page,
   RuntimeSettingKey,
   RuntimeSettingRecord,
   ToolControlRecord,
+  TotalPage,
 } from './contracts.js';
 
 export type ListOptions = Readonly<{ limit: number; offset: number }>;
+export type IdentityRouteListOptions = ListOptions & Readonly<{ keyword?: string }>;
 
 export type IdentityRouteCreateInput = Readonly<{
   platformUserId: string;
@@ -22,7 +25,7 @@ export type IdentityRouteCreateInput = Readonly<{
 export type IdentityRouteUpdateInput = IdentityRouteCreateInput & Readonly<{ rowVersion: string }>;
 
 export interface IdentityRouteRepository {
-  list(options: ListOptions): Promise<Page<IdentityRouteRecord>>;
+  list(options: IdentityRouteListOptions): Promise<TotalPage<IdentityRouteRecord>>;
   countActive(): Promise<number>;
   getById(id: string): Promise<IdentityRouteRecord | undefined>;
   getByPlatformUserId(platformUserId: string): Promise<IdentityRouteRecord | undefined>;
@@ -31,6 +34,28 @@ export interface IdentityRouteRepository {
   create(input: IdentityRouteCreateInput): Promise<IdentityRouteRecord>;
   update(id: string, input: IdentityRouteUpdateInput): Promise<IdentityRouteRecord>;
   disable(id: string, rowVersion: string): Promise<IdentityRouteRecord>;
+  delete(id: string, rowVersion: string): Promise<void>;
+}
+
+export type IdentityCredentialCreateInput = Readonly<{
+  identityRouteId: string;
+  credentialType: 'USER_BOUND';
+  tokenHash: string;
+  tokenCiphertext: string;
+  tokenLast4: string;
+  generatedAt: Date;
+}>;
+
+export interface IdentityCredentialRepository {
+  getById(id: string): Promise<IdentityCredentialRecord | undefined>;
+  getByTokenHash(tokenHash: string): Promise<IdentityCredentialRecord | undefined>;
+  getActiveByRouteId(identityRouteId: string): Promise<IdentityCredentialRecord | undefined>;
+  listActiveByRouteIds(identityRouteIds: readonly string[]): Promise<readonly IdentityCredentialRecord[]>;
+  listByRouteId(identityRouteId: string): Promise<readonly IdentityCredentialRecord[]>;
+  create(input: IdentityCredentialCreateInput): Promise<IdentityCredentialRecord>;
+  revoke(id: string, rowVersion: string, revokedAt: Date): Promise<IdentityCredentialRecord>;
+  markLastUsed(id: string, usedAt: Date): Promise<void>;
+  deleteByRouteId(identityRouteId: string): Promise<void>;
 }
 
 export type ToolControlWriteInput = Readonly<{
@@ -102,6 +127,8 @@ export type AuditWrite = Readonly<{
   platformUserId?: string;
   salesforceUsername?: string;
   executionRole?: 'USER' | 'DIAGNOSTIC';
+  identitySource?: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
+  identityCredentialId?: string;
   toolName?: string;
   operation?: string;
   objectApiName?: string;
@@ -136,6 +163,7 @@ export interface AuditRepository {
 
 export type ControlPlaneRepositories = Readonly<{
   identityRoutes: IdentityRouteRepository;
+  identityCredentials: IdentityCredentialRepository;
   tools: ToolControlRepository;
   dmlPolicies: DmlPolicyRepository;
   diagnostic: DiagnosticConfigRepository;

@@ -60,9 +60,11 @@ SFOA_ADMIN_COOKIE_SECURE=false
 
 MCP_AUTH_MODE=internal_bearer
 MCP_CLIENT_TOKEN=<independent-local-token>
+MCP_PUBLIC_URL=http://127.0.0.1:8080/mcp
+MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY=<independent-32-byte-base64url-key>
 ```
 
-`MCP_CLIENT_TOKEN`, the Admin session secret, the Admin password, the database password, and Salesforce material must all be independent values. In mysql mode, routes, Tool enablement, DML policy, and Diagnostic identity come only from MySQL. Missing/unavailable data denies the request; there is no environment fallback.
+`MCP_CLIENT_TOKEN`, the identity-credential encryption key, the Admin session secret, the Admin password, the database password, and Salesforce material must all be independent values. `MCP_PUBLIC_URL` is only the connector-facing URL; it does not change the listener. In mysql mode, routes, Tool enablement, DML policy, and Diagnostic identity come only from MySQL. Missing/unavailable data denies the request; there is no environment fallback.
 
 Generate an Admin password hash using an ephemeral shell value:
 
@@ -75,7 +77,7 @@ try { yarn admin:hash-password } finally {
 }
 ```
 
-Copy only the emitted `scrypt$...` hash into `.env.local`. Generate a session secret with `node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))"`; store the output only in `.env.local`.
+Copy only the emitted `scrypt$...` hash into `.env.local`. Generate a session secret with `node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))"`. Generate the independent AES key with `node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"`. Store both outputs only in `.env.local`.
 
 ## 3. Migrate and inspect the schema
 
@@ -158,14 +160,14 @@ Invoke-WebRequest http://127.0.0.1:5173/admin/api/ready -UseBasicParsing
 
 After login:
 
-1. Create and verify Platform User → Salesforce username routes. Shared Salesforce usernames are allowed; the enabled Diagnostic username must remain distinct.
+1. Create and verify Platform User → Salesforce username routes. Creation atomically generates one USER_BOUND credential and opens its copy-ready configuration. Shared Salesforce usernames are allowed; the enabled Diagnostic username must remain distinct.
 2. Enable only Tools whose executable-catalog status allows it. An unknown, unsafe, unsupported, non-remote, or drifted Tool cannot be promoted by a database row.
 3. Add object policy using only the CREATE and UPDATE toggles. Missing policy denies DML.
 4. Configure the server-owned Diagnostic Salesforce username and an optional bounded metadata seed.
 5. Run **验证 Diagnostic Connection**. This uses a fresh JWT and the real P4 DIAGNOSTIC request scope: exact identity, Tooling query, official metadata retrieval, bounded context, and cleanup.
 6. Inspect durable MCP/Admin evidence under **调用审计**, then check migration/provider/configured-state under **系统状态**.
 
-No UI page can display access tokens, JWT assertions, private-key contents/paths, database passwords, or the MCP client token.
+Only the authenticated **用户身份路由 → 接入配置** Drawer can retrieve and display a current USER_BOUND token. No Dashboard, Audit, System, other UI page, or list response can display it. JWT assertions, private-key contents/paths, database passwords, `MCP_CLIENT_TOKEN`, and the encryption key are never displayed.
 
 ## 7. Local gates
 
@@ -195,21 +197,21 @@ For a deliberate private-LAN test, review and set the following values in the ig
 MCP_BIND_HOST=0.0.0.0
 MCP_ALLOWED_HOSTS=<YOUR_LAN_IP>:8080
 MCP_AUTH_MODE=internal_bearer
+MCP_PUBLIC_URL=http://<YOUR_LAN_IP>:8080/mcp
 ```
 
 Use `http://<YOUR_LAN_IP>:8080/mcp` only from a network-reachable client. The applicable Windows/Linux Firewall must allow TCP 8080 from the intended source. `0.0.0.0` listens on all local interfaces; it does not automatically create a route, firewall rule, security-group rule, reverse proxy, DNS record, or internet access. This guide never changes the firewall or `.env.local` automatically.
 
-In **智能体接入**, enter a reachable external MCP URL only to generate temporary connection examples. The value is not persisted and is not Runtime authority. Configure the connector with placeholders replaced outside the browser:
+For WorkBuddy, configure `MCP_PUBLIC_URL`, then create a route under **用户身份路由**. Saving creates its route-bound token and opens **接入配置**. Copy the generated WorkBuddy JSON; it requires only:
 
 ```text
-Authorization: Bearer <YOUR_MCP_CLIENT_TOKEN>
-X-Platform-User-Id: <PLATFORM_USER_ID>
+Authorization: Bearer <USER_BOUND_TOKEN>
 Transport: Streamable HTTP
 ```
 
-For Dify, add the MCP URL and headers, load only the currently exposed Tools, copy the deterministic Admin-generated Agent Instruction, and then run the P6 dataset. For WorkBuddy, configure the Connector, add the concise System Prompt from `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`, install `.codebuddy/skills/sfoa-salesforce-assistant/`, and perform a read-only Test Run first.
+Do not add `X-Platform-User-Id`, Salesforce Username, or an identity Tool parameter to that WorkBuddy connector. Add the concise System Prompt from `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`, install `.codebuddy/skills/sfoa-salesforce-assistant/`, and perform a read-only Test Run first.
 
-One fixed `X-Platform-User-Id` on a controlled P6 connector represents one controlled route. It is not per-end-user dynamic identity. A future multi-user edge must derive `platformUserId` from a trusted authenticated claim and overwrite the inbound Header. For production TLS/reverse-proxy access, follow `docs/sfoa/P2_REVERSE_PROXY.md`, `docs/sfoa/P5_DEPLOYMENT.md`, and `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md`.
+Inspector, regressions, and controlled internal/Dify test connectors may continue using `MCP_CLIENT_TOKEN` plus one trusted `X-Platform-User-Id`. A future Buntu-authenticated Dify provider is only an extension point and is not implemented. For production TLS/reverse-proxy access and complete credential lifecycle guidance, follow `docs/sfoa/P2_REVERSE_PROXY.md`, `docs/sfoa/P5_DEPLOYMENT.md`, `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md`, and `docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`.
 
 ## Compatibility mode
 

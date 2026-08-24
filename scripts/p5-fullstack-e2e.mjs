@@ -6,9 +6,11 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
   assertAllMigrationsApplied,
+  ControlPlaneAdminService,
   createControlPlaneDatabase,
   createDatabaseIfMissing,
   databaseNameForTest,
+  IdentityCredentialCipher,
   loadControlPlaneConfig,
   migrateDatabase,
   MySqlControlPlaneStore,
@@ -23,6 +25,8 @@ const webOrigin = `http://127.0.0.1:${webPort}`;
 const adminUsername = 'p5-fullstack-admin';
 const adminPassword = randomBytes(36).toString('base64url');
 const sessionSecret = randomBytes(48).toString('base64url');
+const identityCredentialEncryptionKeyBytes = randomBytes(32);
+const identityCredentialEncryptionKey = identityCredentialEncryptionKeyBytes.toString('base64url');
 const adminPasswordHash = await hashAdminPassword(adminPassword);
 const loaded = await loadControlPlaneConfig(projectRoot, process.env, { requireDatabase: true });
 if (!loaded.database) throw new Error('P5 full-stack E2E requires configured MySQL credentials.');
@@ -31,7 +35,7 @@ assert.match(testDatabaseName, /^sfoa_enterprise_mcp(?:_[A-Za-z0-9]+)*_test$/u);
 const testDatabaseConfig = Object.freeze({ ...loaded.database, database: testDatabaseName });
 await createDatabaseIfMissing(testDatabaseConfig);
 const store = new MySqlControlPlaneStore(createControlPlaneDatabase(testDatabaseConfig));
-const secrets = [adminPassword, sessionSecret, loaded.database.password].filter(Boolean);
+const secrets = [adminPassword, sessionSecret, identityCredentialEncryptionKey, loaded.database.password].filter(Boolean);
 let adminProcess;
 let viteProcess;
 let adminSecurityEvidence = {};
@@ -39,6 +43,7 @@ let adminSecurityEvidence = {};
 try {
   await migrateDatabase(store.database);
   await cleanTestDatabase(store);
+  await seedPaginationRoutes(store, new IdentityCredentialCipher(identityCredentialEncryptionKeyBytes));
   await store.repositories.tools.createIfAbsent(
     'future_unknown_tool',
     true,
@@ -59,6 +64,8 @@ try {
     SFOA_ADMIN_COOKIE_SECURE: 'false',
     SFOA_ADMIN_LOGIN_MAX_ATTEMPTS: '3',
     SFOA_ADMIN_LOGIN_WINDOW_MS: '10000',
+    MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY: identityCredentialEncryptionKey,
+    MCP_PUBLIC_URL: 'http://127.0.0.1:18080/mcp',
   };
 
   adminProcess = startService('Admin API security gate', process.execPath, [
@@ -118,8 +125,26 @@ async function cleanTestDatabase(controlPlaneStore) {
     await transaction.deleteFrom('sfoa_diagnostic_config').execute();
     await transaction.deleteFrom('sfoa_dml_policy').execute();
     await transaction.deleteFrom('sfoa_tool_control').execute();
+    await transaction.deleteFrom('sfoa_identity_credential').execute();
     await transaction.deleteFrom('sfoa_identity_route').execute();
   });
+}
+
+async function seedPaginationRoutes(controlPlaneStore, cipher) {
+  const adminService = new ControlPlaneAdminService(
+    controlPlaneStore,
+    () => ({ allowed: true }),
+    cipher,
+  );
+  for (let index = 1; index <= 25; index += 1) {
+    const suffix = String(index).padStart(3, '0');
+    await adminService.createIdentityRoute({
+      platformUserId: `p6-page-${suffix}`,
+      salesforceUsername: `p6-page-${suffix}@example.invalid`,
+      enabled: true,
+      remark: 'P6-ID-01 pagination fixture',
+    }, 'p6-id-fullstack-fixture');
+  }
 }
 
 async function verifyAdminSecurity(environment) {
@@ -218,9 +243,8 @@ function createExpiredCookie(secret) {
 }
 
 async function assertPersistedBrowserEvidence(controlPlaneStore) {
-  const route = await controlPlaneStore.repositories.identityRoutes.getByPlatformUserId('p5-fullstack-user');
-  assert.equal(route?.salesforceUsername, 'p5-fullstack@example.invalid');
-  assert.equal(route?.remark, 'updated through real browser and API');
+  const route = await controlPlaneStore.repositories.identityRoutes.getByPlatformUserId('p6-id-fullstack-user');
+  assert.equal(route, undefined);
   const tool = await controlPlaneStore.repositories.tools.getByName('get_record_action_context');
   assert.equal(tool?.enabled, true);
   const policy = await controlPlaneStore.repositories.dmlPolicies.getByObjectApiName('Lead');
@@ -232,11 +256,18 @@ async function assertPersistedBrowserEvidence(controlPlaneStore) {
   const operations = new Set(audits.items.map((entry) => entry.operation));
   for (const operation of [
     'ADMIN_LOGIN', 'CREATE_IDENTITY_ROUTE', 'UPDATE_IDENTITY_ROUTE',
+    'DISABLE_IDENTITY_ROUTE', 'DELETE_IDENTITY_ROUTE',
     'UPDATE_TOOL_CONTROL', 'CREATE_DML_POLICY', 'UPDATE_DML_POLICY',
   ]) assert.equal(operations.has(operation), true, `Missing full-stack audit operation: ${operation}`);
+  const deleteAudit = audits.items.find((entry) =>
+    entry.operation === 'DELETE_IDENTITY_ROUTE' && entry.platformUserId === 'p6-id-fullstack-user');
+  assert.ok(deleteAudit?.identityCredentialId);
+  assert.equal(await controlPlaneStore.repositories.identityCredentials.getById(deleteAudit.identityCredentialId), undefined);
+  assert.equal(JSON.stringify(audits.items).includes('sfoa_ub1_'), false);
   return Object.freeze({
     migrationVersions: migrations.map((entry) => entry.version),
-    identityRoutePersisted: true,
+    identityRouteDeleted: true,
+    identityCredentialDeleted: true,
     toolControlPersisted: true,
     dmlPolicyPersisted: true,
     adminAuditRows: audits.items.length,

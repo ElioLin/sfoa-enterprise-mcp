@@ -10,6 +10,13 @@ import {
   MySqlControlPlaneStore,
   MySqlIdentityRepository,
 } from '@sfoa/control-plane';
+import {
+  DisabledLoopbackCredentialAuthenticator,
+  InternalServiceCredentialAuthenticator,
+  UnifiedIdentityProvider,
+  UserBoundCredentialAuthenticator,
+  type CredentialAuthenticator,
+} from './authenticator.js';
 import { loadRemoteRuntimeConfig } from './config.js';
 import { startRemoteMcpServer, type RemoteMcpServer } from './http-server.js';
 import { MySqlRuntimePolicySnapshotSource } from './policy-snapshot.js';
@@ -41,6 +48,14 @@ export async function startConfiguredRemoteRuntime(
       config,
       identityRuntime,
       policySnapshotSource: new MySqlRuntimePolicySnapshotSource(database),
+      identityProvider: new UnifiedIdentityProvider([
+        new UserBoundCredentialAuthenticator(
+          store.repositories.identityCredentials,
+          store.repositories.identityRoutes,
+          databaseLogger,
+        ),
+        createInternalCredentialAuthenticator(config.authMode, config.clientToken),
+      ]),
     });
     let closed = false;
     return Object.freeze({
@@ -58,4 +73,13 @@ export async function startConfiguredRemoteRuntime(
     await store.close().catch(() => undefined);
     throw error;
   }
+}
+
+function createInternalCredentialAuthenticator(
+  authMode: 'internal_bearer' | 'disabled',
+  clientToken: string | undefined,
+): CredentialAuthenticator {
+  return authMode === 'disabled'
+    ? new DisabledLoopbackCredentialAuthenticator()
+    : new InternalServiceCredentialAuthenticator(clientToken ?? '');
 }

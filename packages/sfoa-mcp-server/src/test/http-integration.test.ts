@@ -6,6 +6,19 @@ import path from 'node:path';
 import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {
+  hashUserBoundToken,
+  type IdentityCredentialRecord,
+  type IdentityCredentialRepository,
+  type IdentityRouteRecord,
+  type IdentityRouteRepository,
+} from '@sfoa/control-plane';
+import type { RuntimeLogEvent, RuntimeLogger } from '@sfoa/identity-runtime';
+import {
+  InternalServiceCredentialAuthenticator,
+  UnifiedIdentityProvider,
+  UserBoundCredentialAuthenticator,
+} from '../authenticator.js';
 import { startRemoteMcpServer, type RemoteMcpServer } from '../http-server.js';
 import {
   createTestIdentityRuntime,
@@ -21,6 +34,10 @@ import {
   toolResultText,
   waitFor,
 } from './helpers.js';
+
+const USER_BOUND_TOKEN_A = `sfoa_ub1_${'a'.repeat(43)}`;
+const USER_BOUND_TOKEN_B = `sfoa_ub1_${'b'.repeat(43)}`;
+const USER_BOUND_TOKEN_A2 = `sfoa_ub1_${'c'.repeat(43)}`;
 
 test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and isolates 50 A/B calls', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-http-'));
@@ -181,6 +198,75 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
   }
 });
 
+test('HTTP runtime accepts USER_BOUND A/B without a platform header and applies lifecycle changes on the next request', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-user-bound-http-'));
+  const connectionFactory = new RecordingConnectionFactory();
+  const logger = new RecordingLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, connectionFactory, logger);
+  const fixture = createMutableCredentialRepositories();
+  fixture.routes.set('1', identityRoute('1', TEST_PLATFORM_USER_A, true));
+  fixture.routes.set('2', identityRoute('2', TEST_PLATFORM_USER_B, true));
+  fixture.credentials.set('11', identityCredential('11', '1', USER_BOUND_TOKEN_A));
+  fixture.credentials.set('22', identityCredential('22', '2', USER_BOUND_TOKEN_B));
+  const identityProvider = new UnifiedIdentityProvider([
+    new UserBoundCredentialAuthenticator(fixture.credentialRepository, fixture.routeRepository, logger),
+    new InternalServiceCredentialAuthenticator(TEST_CLIENT_TOKEN),
+  ]);
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig(),
+    identityRuntime,
+    identityProvider,
+  });
+  const clients: Client[] = [];
+  try {
+    const forged = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: mcpHeaders(TEST_PLATFORM_USER_B, USER_BOUND_TOKEN_A),
+      body: initializeBody(),
+    });
+    assert.equal(forged.status, 403);
+    assert.equal(await responseErrorCode(forged), 'MCP_IDENTITY_CONTEXT_MISMATCH');
+    assert.equal(connectionFactory.creations.length, 0, 'forged header denial must precede Salesforce JWT creation');
+
+    const clientA = await connectUserBoundClient(server, USER_BOUND_TOKEN_A, 'user-bound-a');
+    const clientB = await connectUserBoundClient(server, USER_BOUND_TOKEN_B, 'user-bound-b');
+    clients.push(clientA, clientB);
+    const [usernameA, usernameB] = await Promise.all([
+      clientA.callTool({ name: 'get_username', arguments: {} }),
+      clientB.callTool({ name: 'get_username', arguments: {} }),
+    ]);
+    assert.match(toolResultText(usernameA), new RegExp(TEST_USERNAME_A.replace('.', '\\.')));
+    assert.match(toolResultText(usernameB), new RegExp(TEST_USERNAME_B.replace('.', '\\.')));
+    assert.equal(logger.events.some((event) => event.platformUserId === TEST_PLATFORM_USER_A
+      && event.identitySource === 'USER_BOUND_TOKEN' && event.identityCredentialId === '11'), true);
+
+    fixture.routes.set('1', identityRoute('1', TEST_PLATFORM_USER_A, false));
+    const beforeDisabled = connectionFactory.creations.length;
+    const disabled = await rawUserBoundInitialize(server, USER_BOUND_TOKEN_A);
+    assert.equal(disabled.status, 403);
+    assert.equal(await responseErrorCode(disabled), 'MCP_IDENTITY_ROUTE_DISABLED');
+    assert.equal(connectionFactory.creations.length, beforeDisabled);
+
+    fixture.routes.set('1', identityRoute('1', TEST_PLATFORM_USER_A, true));
+    assert.equal((await rawUserBoundInitialize(server, USER_BOUND_TOKEN_A)).status, 200);
+    fixture.credentials.set('11', identityCredential('11', '1', USER_BOUND_TOKEN_A, 'REVOKED'));
+    fixture.credentials.set('12', identityCredential('12', '1', USER_BOUND_TOKEN_A2));
+    const revoked = await rawUserBoundInitialize(server, USER_BOUND_TOKEN_A);
+    assert.equal(revoked.status, 401);
+    assert.equal(await responseErrorCode(revoked), 'MCP_IDENTITY_CREDENTIAL_REVOKED');
+    assert.equal((await rawUserBoundInitialize(server, USER_BOUND_TOKEN_A2)).status, 200);
+
+    fixture.routes.delete('1');
+    const deleted = await rawUserBoundInitialize(server, USER_BOUND_TOKEN_A2);
+    assert.equal(deleted.status, 401);
+    assert.equal(await responseErrorCode(deleted), 'MCP_IDENTITY_CREDENTIAL_INVALID');
+  } finally {
+    await Promise.allSettled(clients.map((client) => client.close()));
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
 async function connectClient(server: RemoteMcpServer, platformUserId: string): Promise<Client> {
   const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
     requestInit: {
@@ -193,6 +279,23 @@ async function connectClient(server: RemoteMcpServer, platformUserId: string): P
   const client = new Client({ name: `p2-${platformUserId}`, version: '1.0.0' });
   await client.connect(transport);
   return client;
+}
+
+async function connectUserBoundClient(server: RemoteMcpServer, token: string, name: string): Promise<Client> {
+  const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
+    requestInit: { headers: { authorization: `Bearer ${token}` } },
+  });
+  const client = new Client({ name, version: '1.0.0' });
+  await client.connect(transport);
+  return client;
+}
+
+function rawUserBoundInitialize(server: RemoteMcpServer, token: string): Promise<Response> {
+  return fetch(server.mcpUrl, {
+    method: 'POST',
+    headers: mcpHeaders(undefined, token),
+    body: initializeBody(),
+  });
 }
 
 async function responseErrorCode(response: Response): Promise<string | undefined> {
@@ -245,4 +348,92 @@ async function withStage<T>(stage: string, operation: Promise<T>): Promise<T> {
   } catch (error) {
     throw new Error(`P2 HTTP integration failed during ${stage}: ${String(error)}`, { cause: error });
   }
+}
+
+class RecordingLogger implements RuntimeLogger {
+  public readonly events: RuntimeLogEvent[] = [];
+  public log(event: RuntimeLogEvent): void { this.events.push(event); }
+}
+
+function createMutableCredentialRepositories(): Readonly<{
+  routes: Map<string, IdentityRouteRecord>;
+  credentials: Map<string, IdentityCredentialRecord>;
+  routeRepository: IdentityRouteRepository;
+  credentialRepository: IdentityCredentialRepository;
+}> {
+  const routes = new Map<string, IdentityRouteRecord>();
+  const credentials = new Map<string, IdentityCredentialRecord>();
+  const routeRepository: IdentityRouteRepository = {
+    list: async ({ limit, offset }) => {
+      const items = Object.freeze([...routes.values()].slice(offset, offset + limit));
+      return Object.freeze({
+        items, total: routes.size, limit, offset, count: items.length,
+        hasMore: offset + items.length < routes.size,
+        nextOffset: offset + items.length < routes.size ? offset + items.length : null,
+      });
+    },
+    countActive: async () => [...routes.values()].filter((route) => route.enabled).length,
+    getById: async (id) => routes.get(id),
+    getByPlatformUserId: async (platformUserId) => [...routes.values()].find((route) => route.platformUserId === platformUserId),
+    findActiveByPlatformUserId: async (platformUserId) => [...routes.values()].find((route) => route.enabled && route.platformUserId === platformUserId),
+    listActiveSalesforceUsernames: async () => Object.freeze([...routes.values()].filter((route) => route.enabled).map((route) => route.salesforceUsername)),
+    create: async () => { throw new Error('not used by HTTP identity test'); },
+    update: async () => { throw new Error('not used by HTTP identity test'); },
+    disable: async () => { throw new Error('not used by HTTP identity test'); },
+    delete: async () => { throw new Error('not used by HTTP identity test'); },
+  };
+  const credentialRepository: IdentityCredentialRepository = {
+    getById: async (id) => credentials.get(id),
+    getByTokenHash: async (tokenHash) => [...credentials.values()].find((credential) => credential.tokenHash === tokenHash),
+    getActiveByRouteId: async (identityRouteId) => [...credentials.values()].find(
+      (credential) => credential.identityRouteId === identityRouteId && credential.status === 'ACTIVE',
+    ),
+    listActiveByRouteIds: async (routeIds) => Object.freeze([...credentials.values()].filter(
+      (credential) => routeIds.includes(credential.identityRouteId) && credential.status === 'ACTIVE',
+    )),
+    listByRouteId: async (identityRouteId) => Object.freeze([...credentials.values()].filter(
+      (credential) => credential.identityRouteId === identityRouteId,
+    )),
+    create: async () => { throw new Error('not used by HTTP identity test'); },
+    revoke: async () => { throw new Error('not used by HTTP identity test'); },
+    markLastUsed: async () => undefined,
+    deleteByRouteId: async () => { throw new Error('not used by HTTP identity test'); },
+  };
+  return Object.freeze({ routes, credentials, routeRepository, credentialRepository });
+}
+
+function identityRoute(id: string, platformUserId: string, enabled: boolean): IdentityRouteRecord {
+  return Object.freeze({
+    id,
+    platformUserId,
+    salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B,
+    enabled,
+    remark: null,
+    rowVersion: '1',
+    createdAt: '2026-08-24T00:00:00.000Z',
+    updatedAt: '2026-08-24T00:00:00.000Z',
+  });
+}
+
+function identityCredential(
+  id: string,
+  identityRouteId: string,
+  token: string,
+  status: 'ACTIVE' | 'REVOKED' = 'ACTIVE',
+): IdentityCredentialRecord {
+  return Object.freeze({
+    id,
+    identityRouteId,
+    credentialType: 'USER_BOUND',
+    tokenHash: hashUserBoundToken(token),
+    tokenCiphertext: status === 'ACTIVE' ? 'v1.test.test.test' : null,
+    tokenLast4: token.slice(-4),
+    status,
+    generatedAt: '2026-08-24T00:00:00.000Z',
+    lastUsedAt: null,
+    revokedAt: status === 'REVOKED' ? '2026-08-24T00:00:00.000Z' : null,
+    rowVersion: '1',
+    createdAt: '2026-08-24T00:00:00.000Z',
+    updatedAt: '2026-08-24T00:00:00.000Z',
+  });
 }

@@ -139,6 +139,10 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
   sfoa_identity_route: Object.freeze([
     'id', 'platform_user_id', 'salesforce_username', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
+  sfoa_identity_credential: Object.freeze([
+    'id', 'identity_route_id', 'credential_type', 'token_hash', 'token_ciphertext', 'token_last4', 'status',
+    'generated_at', 'last_used_at', 'revoked_at', 'active_identity_route_id', 'row_version', 'created_at', 'updated_at',
+  ]),
   sfoa_tool_control: Object.freeze([
     'id', 'tool_name', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
@@ -152,7 +156,7 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
   sfoa_runtime_setting: Object.freeze(['setting_key', 'setting_value_json', 'row_version', 'updated_at']),
   sfoa_audit_log: Object.freeze([
     'id', 'occurred_at', 'correlation_id', 'channel', 'client_id', 'actor_admin', 'platform_user_id',
-    'salesforce_username', 'execution_role', 'tool_name', 'operation', 'object_api_name', 'record_id',
+    'salesforce_username', 'execution_role', 'identity_source', 'identity_credential_id', 'tool_name', 'operation', 'object_api_name', 'record_id',
     'result', 'outcome', 'error_code', 'duration_ms', 'request_summary_json', 'response_summary_json', 'created_at',
   ]),
 });
@@ -160,6 +164,9 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
 const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; columns: readonly string[]; unique: boolean }>>> = Object.freeze({
   uq_sfoa_identity_route_platform_user: Object.freeze({ tableName: 'sfoa_identity_route', columns: Object.freeze(['platform_user_id']), unique: true }),
   idx_sfoa_identity_enabled_username: Object.freeze({ tableName: 'sfoa_identity_route', columns: Object.freeze(['enabled', 'salesforce_username']), unique: false }),
+  uq_sfoa_identity_credential_hash: Object.freeze({ tableName: 'sfoa_identity_credential', columns: Object.freeze(['token_hash']), unique: true }),
+  uq_sfoa_identity_credential_active_route: Object.freeze({ tableName: 'sfoa_identity_credential', columns: Object.freeze(['active_identity_route_id']), unique: true }),
+  idx_sfoa_identity_credential_route_status: Object.freeze({ tableName: 'sfoa_identity_credential', columns: Object.freeze(['identity_route_id', 'status', 'id']), unique: false }),
   uq_sfoa_tool_control_name: Object.freeze({ tableName: 'sfoa_tool_control', columns: Object.freeze(['tool_name']), unique: true }),
   idx_sfoa_tool_enabled: Object.freeze({ tableName: 'sfoa_tool_control', columns: Object.freeze(['enabled', 'tool_name']), unique: false }),
   uq_sfoa_dml_policy_object: Object.freeze({ tableName: 'sfoa_dml_policy', columns: Object.freeze(['object_api_name']), unique: true }),
@@ -171,6 +178,7 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   idx_sfoa_audit_tool: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['tool_name', 'occurred_at']), unique: false }),
   idx_sfoa_audit_result: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['result', 'occurred_at']), unique: false }),
   idx_sfoa_audit_error: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['error_code', 'occurred_at']), unique: false }),
+  idx_sfoa_audit_identity_credential: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['identity_credential_id', 'occurred_at']), unique: false }),
 });
 
 export async function validateRequiredSchemaObjects(database: ControlPlaneDatabaseClient): Promise<void> {

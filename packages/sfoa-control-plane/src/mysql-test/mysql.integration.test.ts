@@ -10,6 +10,7 @@ import {
   createDatabaseIfMissing,
   databaseHealth,
   databaseNameForTest,
+  IdentityCredentialCipher,
   loadControlPlaneConfig,
   loadMySqlRequestPolicySnapshot,
   migrateDatabase,
@@ -34,7 +35,11 @@ if (!setup) {
     const health = await databaseHealth(store.database);
     assert.match(health.version, /^8\./u);
     const migrations = await assertAllMigrationsApplied(store.database);
-    assert.deepEqual(migrations.map((entry) => entry.version), ['001_p5_control_plane', '002_p5_indexes']);
+    assert.deepEqual(migrations.map((entry) => entry.version), [
+      '001_p5_control_plane',
+      '002_p5_indexes',
+      '003_p6_identity_credential',
+    ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
 
@@ -77,7 +82,7 @@ if (!setup) {
   });
 
   test('Admin transaction persists its audit and optimistic conflicts return the stable code', async () => {
-    const service = new ControlPlaneAdminService(store, () => ({ allowed: true }));
+    const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
     const created = await service.createIdentityRoute({
       platformUserId: 'admin-user', salesforceUsername: 'admin-user@example.invalid', enabled: true, remark: null,
     }, 'bootstrap-admin');
@@ -85,9 +90,9 @@ if (!setup) {
     assert.equal(audits.items[0]?.operation, 'CREATE_IDENTITY_ROUTE');
     assert.equal(audits.items[0]?.actorAdmin, 'bootstrap-admin');
     await assert.rejects(
-      service.updateIdentityRoute(created.id, {
-        platformUserId: created.platformUserId,
-        salesforceUsername: created.salesforceUsername,
+      service.updateIdentityRoute(created.route.id, {
+        platformUserId: created.route.platformUserId,
+        salesforceUsername: created.route.salesforceUsername,
         enabled: true,
         remark: null,
         rowVersion: '999',
@@ -97,7 +102,7 @@ if (!setup) {
   });
 
   test('Diagnostic/USER collision is rejected and also detected fail-closed in a request snapshot', async () => {
-    const service = new ControlPlaneAdminService(store, () => ({ allowed: true }));
+    const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
     await service.createIdentityRoute({
       platformUserId: 'collision-user', salesforceUsername: 'collision@example.invalid', enabled: true, remark: null,
     }, 'bootstrap-admin');
@@ -125,12 +130,17 @@ async function loadTestConfig(): Promise<Readonly<{ config: DatabaseConfig }> | 
 }
 
 async function cleanTestData(store: MySqlControlPlaneStore): Promise<void> {
-  await store.database.transaction().execute(async (transaction) => {
+    await store.database.transaction().execute(async (transaction) => {
     await transaction.deleteFrom('sfoa_audit_log').execute();
+    await transaction.deleteFrom('sfoa_identity_credential').execute();
     await transaction.deleteFrom('sfoa_runtime_setting').execute();
     await transaction.deleteFrom('sfoa_diagnostic_config').execute();
     await transaction.deleteFrom('sfoa_dml_policy').execute();
     await transaction.deleteFrom('sfoa_tool_control').execute();
     await transaction.deleteFrom('sfoa_identity_route').execute();
   });
+}
+
+function testCredentialCipher(): IdentityCredentialCipher {
+  return new IdentityCredentialCipher(Buffer.alloc(32, 7));
 }

@@ -204,14 +204,25 @@ export async function runP1LiveValidation(config: IdentityRuntimeConfig): Promis
     await waitFor(() => runtime.workspaceFactory.getMetrics().active === 0, 30_000);
     const rootsRemoved = (await Promise.all(metadataRoots.map((root) => pathIsAbsent(root)))).every(Boolean);
     const cwdMetrics = runtime.cwdGuard.getMetrics();
+    const exclusiveDelta = cwdMetrics.exclusiveExecutions - exclusiveBefore;
+    const cwdRestored = process.cwd() === cwdBeforeMetadata;
+    const metadataErrorSummary = [metadataA1, metadataA2]
+      .filter((result) => result.isError === true)
+      .map((result, index) => `tool${index + 1}=${compactDiagnostic(textContent(result))}`)
+      .join('; ');
     metadataCwd =
       metadataA1.isError !== true &&
       metadataA2.isError !== true &&
-      cwdMetrics.exclusiveExecutions - exclusiveBefore === 2 &&
+      exclusiveDelta === 2 &&
       cwdMetrics.maxConcurrentExclusive === 1 &&
-      process.cwd() === cwdBeforeMetadata
+      cwdRestored
         ? pass()
-        : fail('Official metadata execution failed, overlapped, or left CWD changed.');
+        : fail(
+            'Official metadata execution failed, overlapped, or left CWD changed. ' +
+              `toolErrors=${String(metadataA1.isError === true)}/${String(metadataA2.isError === true)}, ` +
+              `exclusiveDelta=${exclusiveDelta}, maxConcurrentExclusive=${cwdMetrics.maxConcurrentExclusive}, ` +
+              `cwdRestored=${String(cwdRestored)}. ${metadataErrorSummary}`,
+          );
     workspaceIsolation =
       metadataRoots.length === 2 && new Set(metadataRoots).size === 2 && rootsRemoved
         ? pass()
@@ -412,6 +423,11 @@ function textContent(result: CallToolResult): string {
     .filter((block): block is Extract<(typeof result.content)[number], { type: 'text' }> => block.type === 'text')
     .map((block) => block.text)
     .join('\n');
+}
+
+function compactDiagnostic(value: string): string {
+  const compact = value.replace(/\s+/gu, ' ').trim();
+  return compact.length > 500 ? `${compact.slice(0, 500)}...` : compact;
 }
 
 function pass(): ValidationGate {

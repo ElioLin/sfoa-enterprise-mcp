@@ -70,6 +70,7 @@ export default function SystemPage() {
                   <Descriptions.Item label="Connected App 已配置"><Configured configured={status.data.configured.connectedApp} /></Descriptions.Item>
                   <Descriptions.Item label="JWT key 已配置"><Configured configured={status.data.configured.jwtPrivateKey} /></Descriptions.Item>
                   <Descriptions.Item label="MCP client token 已配置"><Configured configured={status.data.configured.mcpClientToken} /></Descriptions.Item>
+                  <Descriptions.Item label="身份凭据加密 key 已配置"><Configured configured={status.data.configured.identityCredentialEncryptionKey} /></Descriptions.Item>
                   <Descriptions.Item label="Diagnostic 状态"><StatusTag label={status.data.diagnostic?.verificationStatus ?? 'NOT_CONFIGURED'} /></Descriptions.Item>
                 </Descriptions>
                 <Typography.Paragraph type="secondary" className="credential-note">

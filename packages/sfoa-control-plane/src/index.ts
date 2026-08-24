@@ -5,6 +5,7 @@ export * from './config.js';
 export * from './contracts.js';
 export * from './database.js';
 export * from './errors.js';
+export * from './identity-credential.js';
 export * from './migrations.js';
 export * from './mysql-repositories.js';
 export * from './project-root.js';

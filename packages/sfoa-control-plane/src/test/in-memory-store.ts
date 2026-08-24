@@ -3,6 +3,7 @@ import {
   type AuditRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type Page,
   type RuntimeSettingKey,
@@ -26,6 +27,7 @@ const TEST_TIME = '2026-01-01T00:00:00.000Z';
 
 export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore {
   private routes = new Map<string, IdentityRouteRecord>();
+  private credentials = new Map<string, IdentityCredentialRecord>();
   private tools = new Map<string, ToolControlRecord>();
   private dmlPolicies = new Map<string, DmlPolicyRecord>();
   private diagnostic: DiagnosticConfigRecord | undefined;
@@ -40,7 +42,13 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   public constructor() {
     this.repositories = Object.freeze({
       identityRoutes: {
-        list: async (options) => makePage([...this.routes.values()].sort((a, b) => a.platformUserId.localeCompare(b.platformUserId)), options),
+        list: async (options) => {
+          const keyword = options.keyword?.trim().toLocaleLowerCase('en-US');
+          const routes = [...this.routes.values()].filter((record) => !keyword
+            || record.platformUserId.toLocaleLowerCase('en-US').includes(keyword)
+            || record.salesforceUsername.toLocaleLowerCase('en-US').includes(keyword));
+          return makeTotalPage(routes.sort((a, b) => a.platformUserId.localeCompare(b.platformUserId)), options);
+        },
         countActive: async () => [...this.routes.values()].filter((record) => record.enabled).length,
         getById: async (id) => this.routes.get(id),
         getByPlatformUserId: async (platformUserId) => [...this.routes.values()].find((record) => record.platformUserId === platformUserId),
@@ -55,6 +63,72 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
         disable: async (id, rowVersion) => {
           const current = this.required(this.routes.get(id), 'Identity route');
           return this.updateRoute(id, { ...current, enabled: false, rowVersion });
+        },
+        delete: async (id, rowVersion) => {
+          const current = this.required(this.routes.get(id), 'Identity route');
+          this.assertVersion(current.rowVersion, rowVersion);
+          this.routes.delete(id);
+        },
+      },
+      identityCredentials: {
+        getById: async (id) => this.credentials.get(id),
+        getByTokenHash: async (tokenHash) => [...this.credentials.values()].find((record) => record.tokenHash === tokenHash),
+        getActiveByRouteId: async (identityRouteId) => [...this.credentials.values()].find(
+          (record) => record.identityRouteId === identityRouteId && record.status === 'ACTIVE',
+        ),
+        listActiveByRouteIds: async (identityRouteIds) => Object.freeze([...this.credentials.values()].filter(
+          (record) => identityRouteIds.includes(record.identityRouteId) && record.status === 'ACTIVE',
+        )),
+        listByRouteId: async (identityRouteId) => Object.freeze([...this.credentials.values()].filter(
+          (record) => record.identityRouteId === identityRouteId,
+        )),
+        create: async (input) => {
+          if ([...this.credentials.values()].some(
+            (record) => record.tokenHash === input.tokenHash
+              || (record.identityRouteId === input.identityRouteId && record.status === 'ACTIVE'),
+          )) throw conflict();
+          const record = Object.freeze({
+            id: this.entityId(),
+            identityRouteId: input.identityRouteId,
+            credentialType: input.credentialType,
+            tokenHash: input.tokenHash,
+            tokenCiphertext: input.tokenCiphertext,
+            tokenLast4: input.tokenLast4,
+            status: 'ACTIVE' as const,
+            generatedAt: input.generatedAt.toISOString(),
+            lastUsedAt: null,
+            revokedAt: null,
+            rowVersion: '1',
+            createdAt: TEST_TIME,
+            updatedAt: TEST_TIME,
+          });
+          this.credentials.set(record.id, record);
+          return record;
+        },
+        revoke: async (id, rowVersion, revokedAt) => {
+          const current = this.required(this.credentials.get(id), 'Identity credential');
+          this.assertVersion(current.rowVersion, rowVersion);
+          if (current.status !== 'ACTIVE') this.assertVersion(current.rowVersion, '__revoked__');
+          const updated = Object.freeze({
+            ...current,
+            status: 'REVOKED' as const,
+            tokenCiphertext: null,
+            revokedAt: revokedAt.toISOString(),
+            rowVersion: incrementVersion(current.rowVersion),
+            updatedAt: TEST_TIME,
+          });
+          this.credentials.set(id, updated);
+          return updated;
+        },
+        markLastUsed: async (id, usedAt) => {
+          const current = this.credentials.get(id);
+          if (!current || current.status !== 'ACTIVE') return;
+          this.credentials.set(id, Object.freeze({ ...current, lastUsedAt: usedAt.toISOString(), updatedAt: TEST_TIME }));
+        },
+        deleteByRouteId: async (identityRouteId) => {
+          for (const [id, credential] of this.credentials) {
+            if (credential.identityRouteId === identityRouteId) this.credentials.delete(id);
+          }
         },
       },
       tools: {
@@ -152,6 +226,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   public async transaction<T>(work: (repositories: ControlPlaneRepositories) => Promise<T>): Promise<T> {
     const snapshot = {
       routes: new Map(this.routes),
+      credentials: new Map(this.credentials),
       tools: new Map(this.tools),
       dmlPolicies: new Map(this.dmlPolicies),
       diagnostic: this.diagnostic,
@@ -164,6 +239,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       return await work(this.repositories);
     } catch (error) {
       this.routes = snapshot.routes;
+      this.credentials = snapshot.credentials;
       this.tools = snapshot.tools;
       this.dmlPolicies = snapshot.dmlPolicies;
       this.diagnostic = snapshot.diagnostic;
@@ -254,6 +330,8 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       platformUserId: event.platformUserId ?? null,
       salesforceUsername: event.salesforceUsername ?? null,
       executionRole: event.executionRole ?? null,
+      identitySource: event.identitySource ?? null,
+      identityCredentialId: event.identityCredentialId ?? null,
       toolName: event.toolName ?? null,
       operation: event.operation ?? null,
       objectApiName: event.objectApiName ?? null,
@@ -298,6 +376,10 @@ function makePage<T>(records: readonly T[], options: ListOptions): Page<T> {
     hasMore,
     nextOffset: hasMore ? options.offset + items.length : null,
   });
+}
+
+function makeTotalPage<T>(records: readonly T[], options: ListOptions): Page<T> & Readonly<{ total: number }> {
+  return Object.freeze({ ...makePage(records, options), total: records.length });
 }
 
 function incrementVersion(value: string): string {

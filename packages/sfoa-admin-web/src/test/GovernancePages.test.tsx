@@ -13,15 +13,20 @@ const NOW = '2026-08-23T12:00:00.000Z';
 
 describe('Admin governance pages', () => {
   it('creates an identity route through the shared API client', async () => {
+    const clipboardWrite = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
     const fetchMock = asFetchMock((url, init) => {
-      if (url.pathname.endsWith('/routes') && init.method === 'POST') return jsonResponse(routeRecord());
+      if (url.pathname.endsWith('/system/settings')) return jsonResponse([]);
+      if (url.pathname.endsWith('/routes') && init.method === 'POST') return jsonResponse(credentialResponse());
+      if (url.pathname.endsWith('/credential/regenerate') && init.method === 'POST') return jsonResponse(credentialResponse('b'));
+      if (url.pathname.endsWith('/routes/1/credential')) return jsonResponse(credentialResponse());
       return jsonResponse(page([]));
     });
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: clipboardWrite } });
     renderAdmin(<IdentityRoutesPage />);
 
-    await user.click(await screen.findByRole('button', { name: '新建路由' }));
+    await user.click(await screen.findByRole('button', { name: '新建身份路由' }));
     await user.type(screen.getByLabelText('平台用户 ID'), 'platform-a');
     await user.type(screen.getByLabelText('Salesforce Username'), 'sf-user@example.com');
     await user.type(screen.getByLabelText('备注'), 'production route');
@@ -30,6 +35,66 @@ describe('Admin governance pages', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/routes') && init?.method === 'POST')).toBe(true));
     const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/routes') && init?.method === 'POST');
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ platformUserId: 'platform-a', salesforceUsername: 'sf-user@example.com', enabled: true });
+    expect(await screen.findByText('MCP 接入配置')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /复制 Token/u }));
+    await user.click(screen.getByRole('button', { name: /复制 Authorization/u }));
+    await user.click(screen.getByRole('button', { name: /复制 WorkBuddy MCP JSON/u }));
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledTimes(3));
+    expect(clipboardWrite.mock.calls[2]?.[0]).not.toContain('X-Platform-User-Id');
+    await user.click(screen.getByRole('button', { name: /重新生成 Token/u }));
+    await user.click(await screen.findByRole('button', { name: '确定重新生成' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/credential/regenerate') && init?.method === 'POST')).toBe(true));
+  });
+
+  it('uses the runtime page size, true total, and resets to page one for explicit keyword search', async () => {
+    const fetchMock = asFetchMock((url) => {
+      if (url.pathname.endsWith('/system/settings')) return jsonResponse([{ settingKey: 'adminDefaultPageSize', settingValue: 20, rowVersion: '1', updatedAt: NOW }]);
+      const offset = Number(url.searchParams.get('offset') ?? '0');
+      const limit = Number(url.searchParams.get('limit') ?? '25');
+      return jsonResponse({ ...page([routeRecord()]), limit, offset, total: 45, hasMore: offset + 1 < 45, nextOffset: offset + 1 < 45 ? offset + 1 : null });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<IdentityRoutesPage />);
+
+    await screen.findByText('platform-a');
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => new URL(String(url), 'http://test').searchParams.get('limit') === '20')).toBe(true));
+    expect(screen.getByText(/共 45 条/u)).toBeInTheDocument();
+    await user.click(screen.getByTitle('下一页'));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => new URL(String(url), 'http://test').searchParams.get('offset') === '20')).toBe(true));
+    await user.type(screen.getByLabelText('搜索平台用户或 Salesforce Username'), '  sf-user@example.com  ');
+    await user.click(screen.getByRole('button', { name: /搜索$/u }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => {
+      const parsed = new URL(String(url), 'http://test');
+      return parsed.searchParams.get('keyword') === 'sf-user@example.com' && parsed.searchParams.get('offset') === '0';
+    })).toBe(true));
+  });
+
+  it('keeps stop and permanent delete behind explicit confirmations and exposes delete only for disabled routes', async () => {
+    const enabled = routeRecord();
+    const disabled = routeRecord({ id: '2', platformUserId: 'platform-b', enabled: false });
+    const fetchMock = asFetchMock((url, init) => {
+      if (url.pathname.endsWith('/system/settings')) return jsonResponse([]);
+      if (url.pathname.endsWith('/routes/2') && init.method === 'DELETE') return jsonResponse({ status: 'DELETED', routeId: '2' });
+      return jsonResponse(page([enabled, disabled]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<IdentityRoutesPage />);
+
+    await screen.findByText('platform-a');
+    await user.click(screen.getByRole('button', { name: '更多操作 platform-a' }));
+    expect(await screen.findByText('停用路由')).toBeInTheDocument();
+    expect(screen.queryByText('删除路由')).not.toBeInTheDocument();
+    await user.click(screen.getByText('停用路由'));
+    expect(await screen.findByText('USER_BOUND Token 将立即不可使用。')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /取\s*消/u }));
+
+    await user.click(screen.getByRole('button', { name: '更多操作 platform-b' }));
+    await user.click(await screen.findByText('删除路由'));
+    expect(await screen.findByText('此操作不可撤销。')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '永久删除' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/routes/2') && init?.method === 'DELETE')).toBe(true));
   });
 
   it('renders an unknown executable control as impossible to enable', async () => {
@@ -102,13 +167,14 @@ describe('Admin governance pages', () => {
   it('turns HTTP 409 into actionable version-conflict feedback', async () => {
     const fetchMock = asFetchMock((url, init) => {
       if (/\/routes\/1$/u.test(url.pathname) && init.method === 'PUT') return apiError(409, 'MCP_ADMIN_CONCURRENT_MODIFICATION', 'Conflict.');
+      if (url.pathname.endsWith('/system/settings')) return jsonResponse([]);
       return jsonResponse(page([routeRecord()]));
     });
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
     renderAdmin(<IdentityRoutesPage />);
 
-    await user.click(await screen.findByRole('button', { name: '编辑' }));
+    await user.click(await screen.findByRole('button', { name: /编辑 platform-a/u }));
     await user.click(screen.getByRole('button', { name: '保存路由' }));
     expect(await screen.findByText('配置已变更')).toBeInTheDocument();
     expect(screen.getByText('其他管理员已修改该配置，请刷新最新版本后重新确认。')).toBeInTheDocument();
@@ -118,22 +184,39 @@ describe('Admin governance pages', () => {
     const secret = 'SHOULD_NEVER_RENDER_PRIVATE_KEY';
     const fetchMock = asFetchMock((url) => url.pathname.endsWith('/system/settings')
       ? jsonResponse([])
-      : jsonResponse({ ...systemStatus(), unexpectedSecret: secret, configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true, raw: secret } }));
+      : jsonResponse({ ...systemStatus(), unexpectedSecret: secret, configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true, identityCredentialEncryptionKey: true, raw: secret } }));
     vi.stubGlobal('fetch', fetchMock);
     const rendered = renderAdmin(<SystemPage />);
 
     await screen.findByText('数据库与凭据就绪状态');
     expect(rendered.container).not.toHaveTextContent(secret);
-    expect(screen.getAllByText('已配置')).toHaveLength(3);
+    expect(screen.getAllByText('已配置')).toHaveLength(4);
   });
 });
 
 function page<T>(items: readonly T[]) {
-  return { items, limit: 25, offset: 0, count: items.length, hasMore: false, nextOffset: null };
+  return { items, total: items.length, limit: 25, offset: 0, count: items.length, hasMore: false, nextOffset: null };
 }
 
-function routeRecord() {
-  return { id: '1', platformUserId: 'platform-a', salesforceUsername: 'sf-user@example.com', enabled: true, remark: 'production route', rowVersion: '1', createdAt: NOW, updatedAt: NOW };
+function routeRecord(overrides: Readonly<Partial<{ id: string; platformUserId: string; enabled: boolean }>> = {}) {
+  return {
+    id: overrides.id ?? '1', platformUserId: overrides.platformUserId ?? 'platform-a', salesforceUsername: 'sf-user@example.com', enabled: overrides.enabled ?? true,
+    remark: 'production route', rowVersion: '1', createdAt: NOW, updatedAt: NOW,
+    credential: { id: '10', status: 'ACTIVE', tokenLast4: 'aaaa', generatedAt: NOW, lastUsedAt: null, rowVersion: '1' },
+  };
+}
+
+function credentialResponse(tokenMarker = 'a') {
+  const route = routeRecord();
+  const token = `sfoa_ub1_${tokenMarker.repeat(43)}`;
+  const workBuddyJson = JSON.stringify({ mcpServers: { 'enterprise-salesforce': {
+    type: 'http', url: 'http://127.0.0.1:8080/mcp', headers: { Authorization: `Bearer ${token}` }, disabled: false,
+  } } }, null, 2);
+  return {
+    route,
+    credential: { ...route.credential, token, authorization: `Bearer ${token}`, workBuddyJson },
+    mcpEndpoint: { url: 'http://127.0.0.1:8080/mcp', source: 'LOOPBACK_FALLBACK', warning: '当前地址仅适用于本机 MCP Client。' },
+  };
 }
 
 function policyRecord() {
@@ -166,7 +249,7 @@ function systemStatus() {
   return {
     adminVersion: '0.1.0-p5', mcpServerVersion: '0.1.0-p5', salesforceApiVersion: '65.0', providerVersions: [{ name: 'salesforce', version: '1.2.3' }],
     upstreamDrift: { status: 'PASS', count: 0 }, database: { status: 'UP', version: '8.0.44', schemaVersions: ['001', '002'] },
-    runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true },
+    runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true, identityCredentialEncryptionKey: true },
     diagnostic: diagnosticConfig(), mcpHealth: 'UP', auditPersistence: { status: 'UP', failureCount: 0 }, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
     phases: { P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'FINAL ACCEPTED', P5: 'FINAL ACCEPTED' },
     readOnlyRuntimeSettings: { MCP_BIND_HOST: '127.0.0.1', MCP_PATH: '/mcp', MCP_AUTH_MODE: 'internal_bearer' },

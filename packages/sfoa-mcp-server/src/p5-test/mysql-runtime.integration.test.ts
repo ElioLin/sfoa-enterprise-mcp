@@ -8,10 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {
+  ControlPlaneAdminService,
   createControlPlaneDatabase,
   createDatabaseIfMissing,
   ControlPlaneError,
   databaseNameForTest,
+  IdentityCredentialCipher,
   loadControlPlaneConfig,
   migrateDatabase,
   MySqlControlPlaneStore,
@@ -60,18 +62,25 @@ if (!configured) {
     try {
       await migrateDatabase(store.database);
       await cleanTestData(store);
-      const routeA = await store.repositories.identityRoutes.create({
+      const adminService = new ControlPlaneAdminService(
+        store,
+        () => ({ allowed: true }),
+        new IdentityCredentialCipher(Buffer.alloc(32, 19)),
+      );
+      const createdA = await adminService.createIdentityRoute({
         platformUserId: TEST_PLATFORM_USER_A,
         salesforceUsername: TEST_USERNAME_A,
         enabled: true,
         remark: 'real mysql runtime A',
-      });
-      const routeB = await store.repositories.identityRoutes.create({
+      }, 'p6-id-mysql-gate');
+      const createdB = await adminService.createIdentityRoute({
         platformUserId: TEST_PLATFORM_USER_B,
         salesforceUsername: TEST_USERNAME_B,
         enabled: true,
         remark: 'real mysql runtime B',
-      });
+      }, 'p6-id-mysql-gate');
+      const routeA = createdA.route;
+      const routeB = createdB.route;
       await store.repositories.identityRoutes.create({
         platformUserId: 'p5-disabled-user',
         salesforceUsername: 'disabled@example.test',
@@ -97,8 +106,13 @@ if (!configured) {
         JWT_PRIVATE_KEY_PATH: keyPath,
         MCP_BIND_HOST: '127.0.0.1',
         MCP_PORT: String(port),
+        MCP_PATH: '/mcp',
         MCP_AUTH_MODE: 'internal_bearer',
         MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN,
+        MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
+        MCP_ALLOWED_HOSTS: '',
+        MCP_ALLOWED_ORIGINS: '',
+        MCP_PUBLIC_URL: '',
         MCP_REQUEST_TIMEOUT_MS: '10000',
         MCP_TOOL_TIMEOUT_MS: '5000',
       }, {
@@ -136,6 +150,22 @@ if (!configured) {
       await Promise.all([clientA.close(), clientB.close()]);
       clients.length = 0;
 
+      const userBoundA = await connectUserBoundClient(runtime, createdA.token, 'a');
+      const userBoundB = await connectUserBoundClient(runtime, createdB.token, 'b');
+      clients.push(userBoundA, userBoundB);
+      const [boundUsernameA, boundUsernameB] = await Promise.all([
+        userBoundA.callTool({ name: 'get_username', arguments: {} }),
+        userBoundB.callTool({ name: 'get_username', arguments: {} }),
+      ]);
+      assert.match(toolResultText(boundUsernameA), /user-a@example\.test/u);
+      assert.match(toolResultText(boundUsernameB), /user-b@example\.test/u);
+      await Promise.all([userBoundA.close(), userBoundB.close()]);
+      clients.length = 0;
+      assert.ok((await store.repositories.identityCredentials.getById(createdA.credential.id))?.lastUsedAt);
+      const forgedHeader = await rawUserBoundInitialize(runtime, createdA.token, TEST_PLATFORM_USER_B);
+      assert.equal(forgedHeader.status, 403);
+      assert.equal(await responseErrorCode(forgedHeader), 'MCP_IDENTITY_CONTEXT_MISMATCH');
+
       const missing = await rawInitialize(runtime, 'p5-unknown-user');
       assert.equal(missing.status, 403);
       assert.equal(await responseErrorCode(missing), 'MCP_IDENTITY_ROUTE_NOT_FOUND');
@@ -154,6 +184,14 @@ if (!configured) {
       clients.push(sharedB);
       assert.match(toolResultText(await sharedB.callTool({ name: 'get_username', arguments: {} })), /user-a@example\.test/u);
       await sharedB.close();
+      clients.length = 0;
+      const sharedUserBoundB = await connectUserBoundClient(runtime, createdB.token, 'b-shared');
+      clients.push(sharedUserBoundB);
+      assert.match(
+        toolResultText(await sharedUserBoundB.callTool({ name: 'get_username', arguments: {} })),
+        /user-a@example\.test/u,
+      );
+      await sharedUserBoundB.close();
       clients.length = 0;
 
       await setTool(store, 'get_username', false);
@@ -236,6 +274,50 @@ if (!configured) {
       clients.length = 0;
 
       assert.deepEqual(connectionFactory.dmlCalls.map((call) => call.operation), ['CREATE', 'UPDATE']);
+
+      const connectionsBeforeDisable = connectionFactory.creations.length;
+      const disabledA = await adminService.disableIdentityRoute(
+        routeA.id,
+        (await store.repositories.identityRoutes.getById(routeA.id))?.rowVersion ?? routeA.rowVersion,
+        'p6-id-mysql-gate',
+      );
+      const deniedWhileDisabled = await rawUserBoundInitialize(runtime, createdA.token);
+      assert.equal(await responseErrorCode(deniedWhileDisabled), 'MCP_IDENTITY_ROUTE_DISABLED');
+      assert.equal(connectionFactory.creations.length, connectionsBeforeDisable);
+
+      const enabledA = await adminService.updateIdentityRoute(routeA.id, {
+        platformUserId: disabledA.platformUserId,
+        salesforceUsername: disabledA.salesforceUsername,
+        enabled: true,
+        remark: disabledA.remark,
+        rowVersion: disabledA.rowVersion,
+      }, 'p6-id-mysql-gate');
+      await assertSuccessfulInitialize(rawUserBoundInitialize(runtime, createdA.token));
+
+      const regeneratedA = await adminService.regenerateIdentityCredential(routeA.id, {
+        credentialId: createdA.credential.id,
+        credentialRowVersion: createdA.credential.rowVersion,
+        routeRowVersion: enabledA.rowVersion,
+      }, 'p6-id-mysql-gate');
+      assert.equal(
+        await responseErrorCode(await rawUserBoundInitialize(runtime, createdA.token)),
+        'MCP_IDENTITY_CREDENTIAL_REVOKED',
+      );
+      await assertSuccessfulInitialize(rawUserBoundInitialize(runtime, regeneratedA.token));
+
+      const disabledForDelete = await adminService.disableIdentityRoute(
+        routeA.id,
+        regeneratedA.route.rowVersion,
+        'p6-id-mysql-gate',
+      );
+      await adminService.deleteIdentityRoute(routeA.id, disabledForDelete.rowVersion, 'p6-id-mysql-gate');
+      const creationsBeforeDeletedCredential = connectionFactory.creations.length;
+      assert.equal(
+        await responseErrorCode(await rawUserBoundInitialize(runtime, regeneratedA.token)),
+        'MCP_IDENTITY_CREDENTIAL_INVALID',
+      );
+      assert.equal(connectionFactory.creations.length, creationsBeforeDeletedCredential);
+
       assert.equal(
         new Set(connectionFactory.creations.map((entry) => entry.connection)).size,
         connectionFactory.creations.length,
@@ -249,10 +331,18 @@ if (!configured) {
       assertAudit(audits.items, 'create_record', 'PASS');
       assertAudit(audits.items, 'create_record', 'ERROR', 'MCP_DML_OBJECT_NOT_ALLOWED');
       assertAudit(audits.items, 'update_record', 'PASS');
+      assert.ok(audits.items.some((audit) =>
+        audit.identitySource === 'USER_BOUND_TOKEN' &&
+        audit.identityCredentialId === createdB.credential.id &&
+        audit.platformUserId === TEST_PLATFORM_USER_B));
+      assert.ok(audits.items.some((audit) => audit.identitySource === 'INTERNAL_SERVICE_HEADER'));
       const auditJson = JSON.stringify(audits.items);
       for (const forbidden of [
         'P5-REAL-MYSQL-PII', 'P5-REAL-MYSQL-COMPANY', 'P5-DENIED-PII', 'P5-REAL-MYSQL-UPDATED',
       ]) assert.equal(auditJson.includes(forbidden), false);
+      assert.equal(auditJson.includes(createdA.token), false);
+      assert.equal(auditJson.includes(createdB.token), false);
+      assert.equal(auditJson.includes(regeneratedA.token), false);
 
       await verifyRealDriverOutageFailsClosed(configured, baseRoot, connectionFactory.creations.length);
     } finally {
@@ -289,6 +379,7 @@ async function loadTestDatabaseConfig(): Promise<DatabaseConfig | undefined> {
 async function cleanTestData(store: MySqlControlPlaneStore): Promise<void> {
   await store.database.transaction().execute(async (transaction) => {
     await transaction.deleteFrom('sfoa_audit_log').execute();
+    await transaction.deleteFrom('sfoa_identity_credential').execute();
     await transaction.deleteFrom('sfoa_runtime_setting').execute();
     await transaction.deleteFrom('sfoa_diagnostic_config').execute();
     await transaction.deleteFrom('sfoa_dml_policy').execute();
@@ -325,10 +416,36 @@ async function connectClient(server: RemoteMcpServer, platformUserId: string): P
   return client;
 }
 
+async function connectUserBoundClient(server: RemoteMcpServer, token: string, suffix: string): Promise<Client> {
+  const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
+    requestInit: { headers: { authorization: `Bearer ${token}` } },
+  });
+  const client = new Client({ name: `p6-id-real-mysql-${suffix}`, version: '1.0.0' });
+  await client.connect(transport);
+  return client;
+}
+
 function rawInitialize(server: RemoteMcpServer, platformUserId: string): Promise<Response> {
   return fetch(server.mcpUrl, {
     method: 'POST',
     headers: mcpHeaders(platformUserId),
+    body: initializeBody(),
+  });
+}
+
+function rawUserBoundInitialize(
+  server: RemoteMcpServer,
+  token: string,
+  platformUserId?: string,
+): Promise<Response> {
+  return fetch(server.mcpUrl, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...(platformUserId ? { 'x-platform-user-id': platformUserId } : {}),
+    },
     body: initializeBody(),
   });
 }
@@ -338,6 +455,12 @@ async function responseErrorCode(response: Response): Promise<string | undefined
   const error = readRecord(body).error;
   const data = readRecord(readRecord(error).data);
   return typeof data.errorCode === 'string' ? data.errorCode : undefined;
+}
+
+async function assertSuccessfulInitialize(responsePromise: Promise<Response>): Promise<void> {
+  const response = await responsePromise;
+  assert.equal(response.status, 200);
+  await response.arrayBuffer();
 }
 
 async function reservePort(): Promise<number> {

@@ -1,6 +1,8 @@
 # P6-Entry Agent Enablement
 
-Status: `P6-ENTRY OPT01 = PASS`; `P6 REAL-AGENT EVALUATION = READY`
+Status: `P6-ENTRY OPT01 = PASS`; P6-ID-01 USER_BOUND enhancement implemented and under final validation; `P6 REAL-AGENT EVALUATION` remains unstarted
+
+> P6-ID-01 supersedes the OPT01 connector identity guidance below: WorkBuddy now uses a route-bound USER_BOUND bearer without `X-Platform-User-Id`. Legacy internal connectors retain the shared bearer plus trusted Header. See `P6_ID_01_USER_BOUND_CREDENTIAL.md`.
 
 ## Purpose and boundary
 
@@ -64,17 +66,16 @@ Do not expose port 8080 directly to the public network. Follow `docs/sfoa/P2_REV
 
 ## Connector configuration
 
-Use placeholders in generated examples:
+For WorkBuddy, create an Identity Route and copy its generated configuration:
 
 ```text
-Authorization: Bearer <YOUR_MCP_CLIENT_TOKEN>
-X-Platform-User-Id: <PLATFORM_USER_ID>
+Authorization: Bearer <USER_BOUND_TOKEN>
 Transport: Streamable HTTP
 ```
 
-The Admin browser receives only whether `MCP_CLIENT_TOKEN` is configured. It never receives the token value.
+The WorkBuddy JSON contains no platform Header. The USER_BOUND token resolves the current route's platform identity, and the authenticated credential Drawer can retrieve it repeatedly. Dashboard, Audit, System, and route-list responses do not receive the raw token.
 
-`X-Platform-User-Id` is currently the authoritative Salesforce identity-routing input after controlled-client Bearer authentication. One controlled connector may use one fixed platform user during P6 tests. That is not equivalent to dynamic Salesforce identity for every Dify/WorkBuddy end user. A future multi-user edge must use a trusted gateway/authenticated claim to derive `platformUserId` and overwrite any inbound Header; that gateway is outside OPT01.
+`MCP_CLIENT_TOKEN` plus `X-Platform-User-Id` remains authoritative for Inspector, regressions, and trusted internal/gateway connectors. It is not required by WorkBuddy. A future `BUNTU_TOKEN` provider may authenticate Dify into the same principal boundary, but no Buntu API is implemented in this phase.
 
 ## Deterministic Dify instructions
 
@@ -93,10 +94,10 @@ The static baseline is `docs/agent/DIFY_AGENT_INSTRUCTION.md`; the Admin-generat
 
 Recommended setup:
 
-1. Create a custom MCP Connector.
-2. Configure the reachable Streamable HTTP Endpoint.
-3. Configure the Bearer Authorization Header.
-4. Configure the controlled `X-Platform-User-Id` value.
+1. Configure a reachable `MCP_PUBLIC_URL`.
+2. In **用户身份路由**, create the platform route; its USER_BOUND token is generated transactionally.
+3. In the automatically opened **接入配置** Drawer, select **复制 WorkBuddy MCP JSON**.
+4. Paste the JSON into a custom MCP Connector and save; add no identity Header.
 5. Create or configure the Agent.
 6. Add `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md` as the concise global System Prompt.
 7. Install/enable `.codebuddy/skills/sfoa-salesforce-assistant/`.
@@ -104,6 +105,6 @@ Recommended setup:
 
 The Connector supplies network/authentication/Tools. The System Prompt supplies global behavior. The Skill supplies Salesforce Tool workflows and safety boundaries. Connector configuration alone does not teach the Agent these workflows.
 
-## Gate result
+## Historical OPT01 Gate result
 
-The Admin Web production build, 32/32 unit/content tests, 12/12 Admin API tests, 18/18 MCP Server tests, mocked Chromium workflow, real MySQL full-stack Chromium workflow, and final `yarn validate:p5` all passed. No MCP Tool/schema, database migration, Salesforce API, identity lifecycle, Diagnostic role, or MCP Runtime behavior changed. See `docs/sfoa/P6_ENTRY_OPT01_REPORT.md` for the complete evidence.
+The original OPT01 Admin Web production build, 32/32 unit/content tests, 12/12 Admin API tests, 18/18 MCP Server tests, mocked Chromium workflow, real MySQL full-stack Chromium workflow, and `yarn validate:p5` all passed. At that historical OPT01 Gate no MCP Tool/schema, database migration, Salesforce API, identity lifecycle, Diagnostic role, or MCP Runtime behavior changed. P6-ID-01 subsequently adds the documented credential migration and identity-acquisition behavior without changing Salesforce Tool or Connection semantics. See `docs/sfoa/P6_ENTRY_OPT01_REPORT.md` and `docs/sfoa/P6_ID_01_REPORT.md`.

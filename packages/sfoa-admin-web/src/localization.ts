@@ -44,6 +44,11 @@ const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
 });
 const ERROR_EXPLANATIONS: Readonly<Record<string, string>> = Object.freeze({
   MCP_IDENTITY_ROUTE_NOT_FOUND: '未找到该平台用户对应的 Salesforce 身份路由。',
+  MCP_IDENTITY_CREDENTIAL_INVALID: 'MCP 用户凭证无效，请重新复制当前 Token 或 WorkBuddy 配置。',
+  MCP_IDENTITY_CREDENTIAL_REVOKED: 'MCP 用户凭证已失效，请使用管理员重新生成的新 Token。',
+  MCP_IDENTITY_ROUTE_DISABLED: '该用户身份路由已停用，当前 Token 暂不可用。',
+  MCP_IDENTITY_CONTEXT_MISMATCH: '请求身份与 Token 绑定的平台用户不一致。',
+  MCP_IDENTITY_ROUTE_DELETE_REQUIRES_DISABLED: '必须先停用用户身份路由，才能永久删除。',
   MCP_DML_OBJECT_NOT_ALLOWED: '当前对象未启用对应的 DML 操作权限。',
   MCP_DML_OUTCOME_UNKNOWN: '无法确认 Salesforce 最终是否已提交本次操作，请勿直接重试。',
   MCP_ADMIN_AUTH_INVALID: '管理员用户名或密码不正确。',

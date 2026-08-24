@@ -75,7 +75,7 @@ function status(readOnlyRuntimeSettings: SystemStatusDto['readOnlyRuntimeSetting
     database: Object.freeze({ status: 'UP', version: '8.0', schemaVersions: Object.freeze([]) }),
     runtimeMode: 'mysql',
     salesforceInstanceHost: 'example.my.salesforce.com',
-    configured: Object.freeze({ connectedApp: true, jwtPrivateKey: true, mcpClientToken: true }),
+    configured: Object.freeze({ connectedApp: true, jwtPrivateKey: true, mcpClientToken: true, identityCredentialEncryptionKey: true }),
     diagnostic: null,
     mcpHealth: 'UP',
     auditPersistence: Object.freeze({ status: 'UP', failureCount: 0 }),

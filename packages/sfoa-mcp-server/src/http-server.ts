@@ -23,6 +23,7 @@ import {
   type IdentityRuntime,
   type RequestHeaders,
   type RequestScope,
+  type RuntimeLogEvent,
   type RuntimeLogger,
   type TrustedRequestIdentity,
 } from '@sfoa/identity-runtime';
@@ -30,8 +31,10 @@ import { z } from 'zod';
 import {
   DisabledLoopbackAuthenticator,
   InternalBearerAuthenticator,
-  type AuthenticatedClient,
+  LegacyHeaderIdentityProvider,
+  type AuthenticatedPrincipal,
   type ClientAuthenticator,
+  type IdentityProvider,
 } from './authenticator.js';
 import { assertValidTimeoutHierarchy, type RemoteRuntimeConfig } from './config.js';
 import {
@@ -57,12 +60,6 @@ import { readBoundedJsonBody } from './request-body.js';
 import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
 
-const platformUserIdSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(128)
-  .refine((value) => !/[\u0000-\u001F\u007F]/u.test(value), 'must not contain control characters');
 const correlationIdSchema = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u);
 
 export type RemoteMcpServerMetrics = Readonly<{
@@ -90,6 +87,8 @@ export type StartRemoteMcpServerOptions = Readonly<{
   identityRuntime: IdentityRuntime;
   toolSource?: RequestToolSource;
   inventoryToolSource?: RequestToolSource;
+  identityProvider?: IdentityProvider;
+  /** @deprecated Supply identityProvider for new integrations. */
   authenticator?: ClientAuthenticator;
   policySnapshotSource?: RuntimePolicySnapshotSource;
 }>;
@@ -99,6 +98,8 @@ type RequestObservation = {
   clientId?: string;
   platformUserId?: string;
   salesforceUsername?: string;
+  identitySource?: AuthenticatedPrincipal['identitySource'];
+  identityCredentialId?: string;
 };
 
 export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions): Promise<RemoteMcpServer> {
@@ -109,7 +110,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
     options.inventoryToolSource,
     options.config.dmlAllowlist,
   );
-  const authenticator = options.authenticator ?? createAuthenticator(options.config);
+  const identityProvider = options.identityProvider ?? createIdentityProvider(options.config, options.authenticator);
   const activeRequests = new Set<Promise<void>>();
   let totalRequests = 0;
   let cleanupFailures = 0;
@@ -128,7 +129,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       identityRuntime: options.identityRuntime,
       initializedProvider,
       policySnapshotSource: options.policySnapshotSource,
-      authenticator,
+      identityProvider,
       allowedHosts,
       allowedOrigins,
       logger: options.identityRuntime.logger,
@@ -216,7 +217,7 @@ type HandleRemoteRequestOptions = Readonly<{
   identityRuntime: IdentityRuntime;
   initializedProvider: InitializedProviderRuntime;
   policySnapshotSource?: RuntimePolicySnapshotSource;
-  authenticator: ClientAuthenticator;
+  identityProvider: IdentityProvider;
   allowedHosts: readonly string[];
   allowedOrigins: readonly string[];
   logger: RuntimeLogger;
@@ -239,6 +240,8 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       ...(observation.clientId ? { clientId: observation.clientId } : {}),
       ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
       ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
+      ...(observation.identitySource ? { identitySource: observation.identitySource } : {}),
+      ...(observation.identityCredentialId ? { identityCredentialId: observation.identityCredentialId } : {}),
       toolName: dmlToolName(operation),
       operation,
       outcome: 'UNKNOWN',
@@ -346,6 +349,8 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         ...(observation.clientId ? { clientId: observation.clientId } : {}),
         ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
         ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
+        ...(observation.identitySource ? { identitySource: observation.identitySource } : {}),
+        ...(observation.identityCredentialId ? { identityCredentialId: observation.identityCredentialId } : {}),
         ...(mutationOperation
           ? {
               toolName: dmlToolName(mutationOperation),
@@ -395,10 +400,19 @@ async function executeMcpPost(
   signal: AbortSignal,
 ): Promise<void> {
   const headers = toRequestHeaders(options.request);
-  const client = options.authenticator.authenticate(headers);
-  observation.clientId = client.clientId;
-  const identity = parseAuthenticatedIdentity(headers, options.config.platformUserHeader, observation.correlationId);
-  observation.platformUserId = identity.platformUserId;
+  const principal = await options.identityProvider.authenticate(
+    headers,
+    options.config.platformUserHeader,
+    observation.correlationId,
+  );
+  observation.clientId = principal.clientId;
+  observation.platformUserId = principal.platformUserId;
+  observation.identitySource = principal.identitySource;
+  observation.identityCredentialId = principal.credentialId;
+  const identity: TrustedRequestIdentity = Object.freeze({
+    platformUserId: principal.platformUserId,
+    correlationId: principal.correlationId,
+  });
   assertContentType(options.request);
   const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
   resources.assertAvailable(signal);
@@ -421,7 +435,7 @@ async function executeMcpPost(
       snapshot.enabledTools,
       snapshotDmlAllowlist(snapshot),
     );
-    await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, identity, client, options.logger);
+    await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, principal, options.logger);
     const requestedRole = getRequestedExecutionRole(parsedBody, initializedProvider.enabledTools);
     if (requestedRole === 'DIAGNOSTIC') {
       const diagnosticRoute = snapshotDiagnosticRoute(snapshot, identity.platformUserId);
@@ -449,8 +463,8 @@ async function executeMcpPost(
   const created = await createGovernedMcpServer({
     scope,
     cwdGuard: options.identityRuntime.cwdGuard,
-    logger: options.logger,
-    clientId: client.clientId,
+    logger: bindPrincipalLogger(options.logger, principal),
+    clientId: principal.clientId,
     toolTimeoutMs: options.config.toolTimeoutMs,
     redactionSecrets: [
       ...options.identityRuntime.redactionSecrets,
@@ -640,10 +654,13 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
   switch (normalized.code) {
     case 'MCP_CLIENT_AUTH_REQUIRED':
     case 'MCP_CLIENT_AUTH_INVALID':
+    case 'MCP_IDENTITY_CREDENTIAL_INVALID':
+    case 'MCP_IDENTITY_CREDENTIAL_REVOKED':
     case 'MCP_PLATFORM_USER_REQUIRED':
       return 401;
     case 'MCP_IDENTITY_ROUTE_NOT_FOUND':
     case 'MCP_IDENTITY_CONTEXT_MISMATCH':
+    case 'MCP_IDENTITY_ROUTE_DISABLED':
     case 'MCP_CONNECTION_ROLE_NOT_AVAILABLE':
     case 'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED':
     case 'MCP_HOST_NOT_ALLOWED':
@@ -672,6 +689,9 @@ function isBlocked(code: string): boolean {
   return [
     'MCP_CLIENT_AUTH_REQUIRED',
     'MCP_CLIENT_AUTH_INVALID',
+    'MCP_IDENTITY_CREDENTIAL_INVALID',
+    'MCP_IDENTITY_CREDENTIAL_REVOKED',
+    'MCP_IDENTITY_ROUTE_DISABLED',
     'MCP_PLATFORM_USER_REQUIRED',
     'MCP_IDENTITY_ROUTE_NOT_FOUND',
     'MCP_IDENTITY_CONTEXT_MISMATCH',
@@ -682,30 +702,6 @@ function isBlocked(code: string): boolean {
     'MCP_TOOL_DISABLED',
     'MCP_TOOL_NOT_AVAILABLE',
   ].includes(code);
-}
-
-function parseAuthenticatedIdentity(
-  headers: RequestHeaders,
-  platformHeaderName: string,
-  correlationId: string,
-): TrustedRequestIdentity {
-  const value = getSingleHeader(headers, platformHeaderName.toLocaleLowerCase('en-US'));
-  if (value === undefined || value.trim().length === 0) {
-    throw new IdentityRuntimeError(
-      'MCP_PLATFORM_USER_REQUIRED',
-      `${platformHeaderName} is required after MCP client authentication.`,
-      { correlationId },
-    );
-  }
-  const parsed = platformUserIdSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new IdentityRuntimeError(
-      'MCP_REQUEST_SCOPE_FAILED',
-      `${platformHeaderName} must contain 1-128 printable characters.`,
-      { correlationId },
-    );
-  }
-  return Object.freeze({ platformUserId: parsed.data, correlationId });
 }
 
 function validateHostAndOrigin(
@@ -746,13 +742,6 @@ function parseCorrelationId(request: IncomingMessage): string {
 
 function toRequestHeaders(request: IncomingMessage): RequestHeaders {
   return Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name, value]));
-}
-
-function getSingleHeader(headers: RequestHeaders, targetName: string): string | undefined {
-  const entry = Object.entries(headers).find(([name]) => name.toLocaleLowerCase('en-US') === targetName);
-  const value = entry?.[1];
-  if (typeof value === 'string' || value === undefined) return value;
-  return value.length === 1 ? value[0] : undefined;
 }
 
 function createAuthenticator(config: RemoteRuntimeConfig): ClientAuthenticator {
@@ -846,9 +835,15 @@ function logCleanupFailure(
     ...(observation.clientId ? { clientId: observation.clientId } : {}),
     ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
     ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
+    ...(observation.identitySource ? { identitySource: observation.identitySource } : {}),
+    ...(observation.identityCredentialId ? { identityCredentialId: observation.identityCredentialId } : {}),
     result: 'ERROR',
     errorCode: runtimeError.code,
   })).catch(() => undefined);
+}
+
+function createIdentityProvider(config: RemoteRuntimeConfig, authenticator?: ClientAuthenticator): IdentityProvider {
+  return new LegacyHeaderIdentityProvider(authenticator ?? createAuthenticator(config));
 }
 
 function readAuditPersistenceHealth(
@@ -894,23 +889,36 @@ function assertDiagnosticSnapshotValid(
 async function auditDisabledToolAttempt(
   body: unknown,
   enabledTools: readonly string[],
-  identity: TrustedRequestIdentity,
-  client: AuthenticatedClient,
+  principal: AuthenticatedPrincipal,
   logger: RuntimeLogger,
 ): Promise<void> {
   if (!isRecord(body) || body.method !== 'tools/call' || !isRecord(body.params)) return;
   const name = body.params.name;
   if (typeof name !== 'string' || enabledTools.includes(name)) return;
   await Promise.resolve(logger.log({
-    correlationId: identity.correlationId,
-    clientId: client.clientId,
-    platformUserId: identity.platformUserId,
+    correlationId: principal.correlationId,
+    clientId: principal.clientId,
+    platformUserId: principal.platformUserId,
+    identitySource: principal.identitySource,
+    ...(principal.credentialId ? { identityCredentialId: principal.credentialId } : {}),
     toolName: name.slice(0, 128),
     result: 'BLOCKED',
     outcome: 'DENIED',
     errorCode: 'MCP_TOOL_DISABLED',
     requestSummary: { toolName: name.slice(0, 128) },
   })).catch(() => undefined);
+}
+
+function bindPrincipalLogger(logger: RuntimeLogger, principal: AuthenticatedPrincipal): RuntimeLogger {
+  return Object.freeze({
+    log: (event: RuntimeLogEvent) => logger.log({
+      ...event,
+      clientId: principal.clientId,
+      platformUserId: principal.platformUserId,
+      identitySource: principal.identitySource,
+      ...(principal.credentialId ? { identityCredentialId: principal.credentialId } : {}),
+    }),
+  });
 }
 
 function elapsed(started: number): number {

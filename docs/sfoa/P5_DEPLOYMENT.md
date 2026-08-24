@@ -38,7 +38,7 @@ The reverse proxy maps `/mcp` to the loopback MCP listener, `/admin/api/` to the
 3. Build and test with `yarn validate:p5` in CI or an isolated release-validation environment; it includes the mocked browser workflow and real MySQL-backed full-stack browser Gate against `sfoa_enterprise_mcp_test`. The production runtime host does not require that test schema unless an operator deliberately runs these Gates there.
 4. Run `yarn db:status`; review pending/unknown migration state.
 5. Run `yarn db:migrate` before starting the new Admin API/MCP binaries.
-6. Run `yarn db:status` again and retain its JSON output as deployment evidence.
+6. Confirm `003_p6_identity_credential` is `APPLIED`, then run `yarn db:status` again and retain its JSON output as deployment evidence.
 7. Build the static UI with `yarn workspace @sfoa/admin-web build`.
 8. Restart the Admin API, then MCP runtime; verify readiness/health before shifting traffic.
 
@@ -50,6 +50,8 @@ Application startup validates migrations and schema. It does not silently mutate
 - Keep both Node listeners on loopback or a private service network; expose them only through the approved reverse proxy.
 - Set `SFOA_CONTROL_PLANE_MODE=mysql` in production. A database outage intentionally makes governance unavailable/fail-closed.
 - Never share `MCP_CLIENT_TOKEN` with `SFOA_ADMIN_SESSION_SECRET` or use it as Admin authentication.
+- Supply `MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY` through the deployment secret store as an independent stable 32-byte base64url value. Do not replace it casually; restored credential ciphertext requires the matching key.
+- Set `MCP_PUBLIC_URL` to the externally reachable credential-free HTTPS MCP URL. It is configuration output only and never opens a listener, firewall, or route.
 - Do not mount Salesforce CLI auth caches into either process. Production Salesforce access is direct JWT/OAuth through `@salesforce/core`.
 - Give the runtime write access only to its bounded disposable workspaces and configured private-key read access. Do not grant broad filesystem access.
 
@@ -116,20 +118,22 @@ Use the exposure model that matches the client location:
 
 `0.0.0.0` means listening on every local interface. It does not make the service internet-reachable by itself. Route, firewall, security group, reverse proxy, and DNS remain separate operator-owned controls. Production should not publish Node port 8080 directly; keep the Runtime on loopback or a private service network behind TLS as documented above and in `docs/sfoa/P2_REVERSE_PROXY.md`.
 
-Both Dify and WorkBuddy connectors use Streamable HTTP and the controlled headers:
+WorkBuddy uses a USER_BOUND credential created with its Identity Route:
+
+```text
+Authorization: Bearer <USER_BOUND_TOKEN>
+```
+
+Open **用户身份路由 → 接入配置** and copy the generated WorkBuddy JSON. It intentionally omits `X-Platform-User-Id`; the token binds to the current Identity Route. Route disable blocks the next request, re-enable restores the same token, regeneration permanently replaces it, and only a disabled route can be deleted.
+
+Inspector, regressions, trusted gateways, and controlled internal/Dify tests retain the legacy headers:
 
 ```text
 Authorization: Bearer <YOUR_MCP_CLIENT_TOKEN>
 X-Platform-User-Id: <PLATFORM_USER_ID>
 ```
 
-Do not put a real token into Admin Web input, documentation, Vite configuration, or a client-visible prompt. The Admin Web reports only configured/not-configured state and generates placeholder examples.
-
-Recommended Dify sequence: add the reachable MCP URL, configure the bearer and controlled platform user Header, load the currently allowed Tools, copy the deterministic instruction from **智能体接入 → Dify 指令**, then execute the P6 dataset.
-
-Recommended WorkBuddy sequence: create the custom MCP Connector, configure Endpoint/Authorization/platform user Header, create the Agent, add `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`, install `.codebuddy/skills/sfoa-salesforce-assistant/`, and run a read-only test before DML.
-
-A static Connector Header is not dynamic Salesforce identity for every end user. True multi-user mapping requires a trusted gateway or authenticated claim that derives `platformUserId` and overwrites untrusted inbound values; that gateway is not implemented by P6-Entry OPT01. See `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md` for the complete client-enablement boundary.
+Do not put real credentials into general Admin inputs, documentation, Vite configuration, client-visible prompts, logs, or support bundles. The authenticated route-credential endpoint is the only Admin surface that returns a USER_BOUND plaintext. A future Buntu-authenticated Dify provider remains unimplemented. See `docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`.
 
 ## Secret handling
 
@@ -138,9 +142,10 @@ Use the deployment platform's secret store or protected environment injection fo
 - MySQL password;
 - Salesforce Connected App client ID and JWT private key;
 - MCP client token;
+- USER_BOUND credential encryption key and connector tokens;
 - Admin password hash and independent session-signing secret.
 
-Restrict key-file permissions to the runtime identity. Never bake secrets into the Vite build, container image, Git, logs, health payloads, support bundles, or browser storage. The Admin API exposes only masked host/configured-state facts.
+Restrict key-file permissions to the runtime identity. Never bake secrets into the Vite build, container image, Git, logs, health payloads, support bundles, or browser storage. Apart from the authenticated current route-credential retrieval API, Admin responses expose only masked/configured-state facts.
 
 ## MySQL
 
@@ -153,7 +158,7 @@ Restrict key-file permissions to the runtime identity. Never bake secrets into t
 
 ## Backup and restore
 
-Back up schema, configuration, migration history, and audit together. A representative protected command is:
+Back up schema, configuration, migration history, credential ciphertext, and audit together. Preserve the matching `MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY` separately in the protected deployment secret backup. A representative protected command is:
 
 ```powershell
 mysqldump --single-transaction --routines=false --triggers=false --set-gtid-purged=OFF sfoa_enterprise_mcp > sfoa-enterprise-mcp.sql

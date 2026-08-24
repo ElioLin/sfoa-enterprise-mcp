@@ -91,6 +91,7 @@ test('P2 config uses safe defaults and refuses disabled auth away from loopback'
     assert.equal(config.bindHost, '127.0.0.1');
     assert.equal(config.port, 8080);
     assert.equal(config.mcpPath, '/mcp');
+    assert.equal(config.publicUrl, undefined);
     assert.equal(config.authMode, 'internal_bearer');
     assert.deepEqual(config.enabledTools, ['get_username', 'run_soql_query']);
     assert.equal(config.useLoopbackHostDefaults, true);
@@ -102,6 +103,24 @@ test('P2 config uses safe defaults and refuses disabled auth away from loopback'
         MCP_AUTH_MODE: 'disabled',
         MCP_CLIENT_TOKEN: undefined,
         MCP_ALLOWED_HOSTS: 'example.test:8080',
+      }),
+      (error: unknown) =>
+        error instanceof RemoteRuntimeError && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID',
+    );
+
+    const publicUrlConfig = await loadRemoteRuntimeConfig(projectRoot, {
+      ...baseEnvironment,
+      MCP_PUBLIC_URL: 'https://mcp.example.test/enterprise/mcp',
+    });
+    assert.equal(publicUrlConfig.publicUrl, 'https://mcp.example.test/enterprise/mcp');
+    assert.equal(publicUrlConfig.bindHost, '127.0.0.1');
+    assert.equal(publicUrlConfig.port, 8080);
+    assert.equal(publicUrlConfig.mcpPath, '/mcp');
+
+    await assert.rejects(
+      loadRemoteRuntimeConfig(projectRoot, {
+        ...baseEnvironment,
+        MCP_PUBLIC_URL: 'https://embedded-secret@mcp.example.test/mcp',
       }),
       (error: unknown) =>
         error instanceof RemoteRuntimeError && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID',

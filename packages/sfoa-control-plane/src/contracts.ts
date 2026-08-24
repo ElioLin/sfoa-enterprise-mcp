@@ -3,6 +3,14 @@ import { z } from 'zod';
 export const controlPlaneModeSchema = z.enum(['env', 'mysql']);
 export type ControlPlaneMode = z.infer<typeof controlPlaneModeSchema>;
 
+export const IDENTITY_SOURCES = ['INTERNAL_SERVICE_HEADER', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN'] as const;
+export type IdentitySource = (typeof IDENTITY_SOURCES)[number];
+
+export const IDENTITY_CREDENTIAL_TYPES = ['USER_BOUND'] as const;
+export type IdentityCredentialType = (typeof IDENTITY_CREDENTIAL_TYPES)[number];
+export const IDENTITY_CREDENTIAL_STATUSES = ['ACTIVE', 'REVOKED'] as const;
+export type IdentityCredentialStatus = (typeof IDENTITY_CREDENTIAL_STATUSES)[number];
+
 export const platformUserIdSchema = z
   .string()
   .trim()
@@ -27,6 +35,22 @@ export type IdentityRouteRecord = Readonly<{
   salesforceUsername: string;
   enabled: boolean;
   remark: string | null;
+  rowVersion: string;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type IdentityCredentialRecord = Readonly<{
+  id: string;
+  identityRouteId: string;
+  credentialType: IdentityCredentialType;
+  tokenHash: string;
+  tokenCiphertext: string | null;
+  tokenLast4: string;
+  status: IdentityCredentialStatus;
+  generatedAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
   rowVersion: string;
   createdAt: string;
   updatedAt: string;
@@ -96,6 +120,8 @@ export type AuditRecord = Readonly<{
   platformUserId: string | null;
   salesforceUsername: string | null;
   executionRole: 'USER' | 'DIAGNOSTIC' | null;
+  identitySource: IdentitySource | null;
+  identityCredentialId: string | null;
   toolName: string | null;
   operation: string | null;
   objectApiName: string | null;
@@ -117,6 +143,8 @@ export type Page<T> = Readonly<{
   hasMore: boolean;
   nextOffset: number | null;
 }>;
+
+export type TotalPage<T> = Page<T> & Readonly<{ total: number }>;
 
 export type RequestPolicySnapshot = Readonly<{
   mode: ControlPlaneMode;

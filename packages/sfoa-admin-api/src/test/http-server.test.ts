@@ -7,9 +7,12 @@ import {
   type ControlPlaneRepositories,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type IdentityCredentialRecord,
   type IdentityRouteRecord,
+  type IdentityRouteListOptions,
   type Page,
   type RuntimeSettingRecord,
+  type TotalPage,
   type ToolControlRecord,
 } from '@sfoa/control-plane';
 import type { IdentityRuntime } from '@sfoa/identity-runtime';
@@ -23,6 +26,7 @@ const ADMIN = 'bootstrap-admin';
 const PASSWORD = 'correct horse battery staple';
 const SECRET_MARKERS = ['db-super-secret', 'mcp-super-secret', 'private-key-secret'];
 const now = '2026-01-01T00:00:00.000Z';
+const TEST_USER_BOUND_TOKEN = `sfoa_ub1_${'a'.repeat(43)}`;
 
 test('Admin liveness stays UP while database readiness fails with 503', async (context) => {
   const passwordHash = await hashAdminPassword(PASSWORD);
@@ -133,6 +137,73 @@ test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, 
   assert.equal(afterLogout.status, 401);
 });
 
+test('identity route APIs expose filtered totals and copy-ready credentials only to an authenticated CSRF-protected Admin', async (context) => {
+  const listCalls: IdentityRouteListOptions[] = [];
+  const repositories = createRepositories(async (options) => {
+    listCalls.push(options);
+    return Object.freeze({ ...page([routeRecord({ ...routeInput(), id: '1', rowVersion: '1' })], options.limit, options.offset), total: 7 });
+  });
+  const passwordHash = await hashAdminPassword(PASSWORD);
+  const server = await startAdminApiServer(createOptions(passwordHash, repositories));
+  context.after(() => server.close());
+  const root = server.baseUrl.href.replace(/\/$/u, '');
+  const login = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
+  const cookie = login.headers.get('set-cookie');
+  assert.ok(cookie);
+  const session = await login.json() as Readonly<{ csrfToken: string }>;
+
+  const list = await fetch(`${root}/routes?keyword=%20platform-a%20&limit=20&offset=0`, { headers: { Cookie: cookie } });
+  assert.equal(list.status, 200);
+  const listed = await list.json() as Readonly<{ total: number; items: readonly Readonly<{ credential: unknown }>[] }>;
+  assert.equal(listed.total, 7);
+  assert.equal(listed.items.length, 1);
+  assert.ok(listed.items[0]?.credential);
+  assert.equal(listCalls[0]?.keyword, 'platform-a');
+  assert.equal(listCalls[0]?.limit, 20);
+
+  const created = await postJson(`${root}/routes`, routeInput(), ORIGIN, cookie, session.csrfToken);
+  assert.equal(created.status, 201);
+  assert.equal(created.headers.get('cache-control'), 'no-store');
+  const creation = await created.json() as Readonly<{
+    credential: Readonly<{ token: string; authorization: string; workBuddyJson: string }>;
+    mcpEndpoint: Readonly<{ source: string }>;
+  }>;
+  assert.equal(creation.credential.token, TEST_USER_BOUND_TOKEN);
+  assert.equal(creation.credential.authorization, `Bearer ${TEST_USER_BOUND_TOKEN}`);
+  assert.equal(creation.mcpEndpoint.source, 'LOOPBACK_FALLBACK');
+  const workBuddy = JSON.parse(creation.credential.workBuddyJson) as Readonly<{ mcpServers: Readonly<Record<string, unknown>> }>;
+  assert.deepEqual(workBuddy, {
+    mcpServers: {
+      'enterprise-salesforce': {
+        type: 'http',
+        url: 'http://127.0.0.1:8080/mcp',
+        headers: { Authorization: `Bearer ${TEST_USER_BOUND_TOKEN}` },
+        disabled: false,
+      },
+    },
+  });
+  assert.equal(creation.credential.workBuddyJson.includes('X-Platform-User-Id'), false);
+
+  const credential = await fetch(`${root}/routes/1/credential`, { headers: { Cookie: cookie } });
+  assert.equal(credential.status, 200);
+  assert.equal((await credential.text()).includes(TEST_USER_BOUND_TOKEN), true);
+  const deniedCredential = await fetch(`${root}/routes/1/credential`);
+  assert.equal(deniedCredential.status, 401);
+
+  const regenerated = await postJson(`${root}/routes/1/credential/regenerate`, {
+    credentialId: '1', credentialRowVersion: '1', routeRowVersion: '1',
+  }, ORIGIN, cookie, session.csrfToken);
+  assert.equal(regenerated.status, 200);
+  const disabled = await postJson(`${root}/routes/1/disable`, { rowVersion: '1' }, ORIGIN, cookie, session.csrfToken);
+  assert.equal(disabled.status, 200);
+  const deleted = await fetch(`${root}/routes/1`, {
+    method: 'DELETE',
+    headers: mutationHeaders(cookie, session.csrfToken),
+    body: JSON.stringify({ rowVersion: '2' }),
+  });
+  assert.equal(deleted.status, 200);
+});
+
 function createOptions(passwordHash: string, repositories: ControlPlaneRepositories): StartAdminApiServerOptions {
   const config: AdminApiConfig = Object.freeze({
     bindHost: '127.0.0.1', port: 0, allowedOrigin: ORIGIN, username: ADMIN, passwordHash,
@@ -150,7 +221,11 @@ function createOptions(passwordHash: string, repositories: ControlPlaneRepositor
     }),
   ]);
   const adminService: StartAdminApiServerOptions['adminService'] = {
-    createIdentityRoute: async (input) => routeRecord({ ...input, id: '1', rowVersion: '1' }),
+    createIdentityRoute: async (input) => Object.freeze({
+      route: routeRecord({ ...input, id: '1', rowVersion: '1' }),
+      credential: credentialRecord(),
+      token: TEST_USER_BOUND_TOKEN,
+    }),
     updateIdentityRoute: async (id, input) => {
       if (input.rowVersion === '99') {
         throw new ControlPlaneError('MCP_ADMIN_CONCURRENT_MODIFICATION', 'Refresh and retry.');
@@ -158,6 +233,17 @@ function createOptions(passwordHash: string, repositories: ControlPlaneRepositor
       return routeRecord({ ...input, id, rowVersion: '2' });
     },
     disableIdentityRoute: async (id) => routeRecord({ ...routeInput(), id, enabled: false, rowVersion: '2' }),
+    readIdentityCredential: async (id) => Object.freeze({
+      route: routeRecord({ ...routeInput(), id, rowVersion: '1' }),
+      credential: credentialRecord(id),
+      token: TEST_USER_BOUND_TOKEN,
+    }),
+    regenerateIdentityCredential: async (id) => Object.freeze({
+      route: routeRecord({ ...routeInput(), id, rowVersion: '1' }),
+      credential: credentialRecord(id),
+      token: TEST_USER_BOUND_TOKEN,
+    }),
+    deleteIdentityRoute: async () => undefined,
     updateTool: async () => {
       throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Unknown Tool cannot be enabled.');
     },
@@ -182,6 +268,8 @@ function createOptions(passwordHash: string, repositories: ControlPlaneRepositor
       providerVersions: Object.freeze([{ name: '@salesforce/mcp-provider-dx-core', version: '0.10.0' }]),
       runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', connectedAppConfigured: true,
       jwtPrivateKeyConfigured: true, mcpClientTokenConfigured: true, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
+      identityCredentialEncryptionKeyConfigured: true,
+      mcpPublicEndpoint: Object.freeze({ url: 'http://127.0.0.1:8080/mcp', source: 'LOOPBACK_FALLBACK', warning: '仅限本机' }),
       readOnlyRuntimeSettings: Object.freeze({ CONNECTED_APP_CLIENT_ID_CONFIGURED: true }),
       phases: Object.freeze({ P0: 'PASS', P1: 'PASS', P2: 'PASS', P3: 'PASS', P4: 'PARTIAL', P5: 'PARTIAL' }),
     }),
@@ -190,11 +278,13 @@ function createOptions(passwordHash: string, repositories: ControlPlaneRepositor
   });
 }
 
-function createRepositories(): ControlPlaneRepositories {
+function createRepositories(
+  routeList?: (options: IdentityRouteListOptions) => Promise<TotalPage<IdentityRouteRecord>>,
+): ControlPlaneRepositories {
   let auditId = 0;
   return Object.freeze({
     identityRoutes: {
-      list: async ({ limit, offset }) => page([], limit, offset),
+      list: routeList ?? (async ({ limit, offset }) => totalPage([], limit, offset)),
       countActive: async () => 0,
       getById: async () => undefined,
       getByPlatformUserId: async () => undefined,
@@ -203,6 +293,20 @@ function createRepositories(): ControlPlaneRepositories {
       create: async (input) => routeRecord({ ...input, id: '1', rowVersion: '1' }),
       update: async (id, input) => routeRecord({ ...input, id, rowVersion: '2' }),
       disable: async (id) => routeRecord({ ...routeInput(), id, enabled: false, rowVersion: '2' }),
+      delete: async () => undefined,
+    },
+    identityCredentials: {
+      getById: async () => credentialRecord(),
+      getByTokenHash: async () => credentialRecord(),
+      getActiveByRouteId: async (identityRouteId) => credentialRecord(identityRouteId),
+      listActiveByRouteIds: async (identityRouteIds) => Object.freeze(
+        identityRouteIds.map((identityRouteId) => credentialRecord(identityRouteId)),
+      ),
+      listByRouteId: async (identityRouteId) => Object.freeze([credentialRecord(identityRouteId)]),
+      create: async (input) => credentialRecord(input.identityRouteId),
+      revoke: async (id) => Object.freeze({ ...credentialRecord(), id, status: 'REVOKED' as const, tokenCiphertext: null, revokedAt: now }),
+      markLastUsed: async () => undefined,
+      deleteByRouteId: async () => undefined,
     },
     tools: {
       list: async ({ limit, offset }) => page<ToolControlRecord>([], limit, offset),
@@ -277,6 +381,7 @@ function auditRecord(id: string, event: AuditWrite): AuditRecord {
     id, occurredAt: event.occurredAt.toISOString(), correlationId: event.correlationId, channel: event.channel,
     clientId: event.clientId ?? null, actorAdmin: event.actorAdmin ?? null, platformUserId: event.platformUserId ?? null,
     salesforceUsername: event.salesforceUsername ?? null, executionRole: event.executionRole ?? null,
+    identitySource: event.identitySource ?? null, identityCredentialId: event.identityCredentialId ?? null,
     toolName: event.toolName ?? null, operation: event.operation ?? null, objectApiName: event.objectApiName ?? null,
     recordId: event.recordId ?? null, result: event.result, outcome: event.outcome ?? null, errorCode: event.errorCode ?? null,
     durationMs: event.durationMs ?? null, requestSummary: event.requestSummary ?? null,
@@ -286,6 +391,18 @@ function auditRecord(id: string, event: AuditWrite): AuditRecord {
 
 function page<T>(items: readonly T[], limit: number, offset: number): Page<T> {
   return Object.freeze({ items: Object.freeze([...items]), limit, offset, count: items.length, hasMore: false, nextOffset: null });
+}
+
+function totalPage<T>(items: readonly T[], limit: number, offset: number): Page<T> & Readonly<{ total: number }> {
+  return Object.freeze({ ...page(items, limit, offset), total: items.length });
+}
+
+function credentialRecord(identityRouteId = '1'): IdentityCredentialRecord {
+  return Object.freeze({
+    id: '1', identityRouteId, credentialType: 'USER_BOUND', tokenHash: 'a'.repeat(64),
+    tokenCiphertext: 'v1.test.test.test', tokenLast4: 'aaaa', status: 'ACTIVE', generatedAt: now,
+    lastUsedAt: null, revokedAt: null, rowVersion: '1', createdAt: now, updatedAt: now,
+  });
 }
 
 function mutationHeaders(cookie: string, csrf: string): Record<string, string> {

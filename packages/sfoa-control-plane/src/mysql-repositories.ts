@@ -8,17 +8,20 @@ import {
 import {
   diagnosticVerificationStatusSchema,
   freezeSnapshot,
+  IDENTITY_SOURCES,
   normalizeSalesforceUsername,
   RUNTIME_SETTING_KEYS,
   type AuditRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type Page,
   type RequestPolicySnapshot,
   type RuntimeSettingKey,
   type RuntimeSettingRecord,
   type ToolControlRecord,
+  type TotalPage,
 } from './contracts.js';
 import { ControlPlaneError, toControlPlaneError } from './errors.js';
 import type {
@@ -32,8 +35,11 @@ import type {
   DmlPolicyRepository,
   DmlPolicyUpdateInput,
   IdentityRouteCreateInput,
+  IdentityCredentialCreateInput,
+  IdentityCredentialRepository,
   IdentityRouteRepository,
   IdentityRouteUpdateInput,
+  IdentityRouteListOptions,
   ListOptions,
   RuntimeSettingRepository,
   ToolControlRepository,
@@ -45,6 +51,7 @@ import type {
   DiagnosticConfigTable,
   DmlPolicyTable,
   IdentityRouteTable,
+  IdentityCredentialTable,
   RuntimeSettingTable,
   ToolControlTable,
 } from './schema.js';
@@ -54,10 +61,31 @@ type Executor = Kysely<ControlPlaneDatabase> | Transaction<ControlPlaneDatabase>
 export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
   public constructor(private readonly database: Executor) {}
 
-  public async list(options: ListOptions): Promise<Page<IdentityRouteRecord>> {
-    const rows = await this.database.selectFrom('sfoa_identity_route').selectAll()
-      .orderBy('platform_user_id').limit(options.limit + 1).offset(options.offset).execute();
-    return page(rows.map(mapIdentityRoute), options);
+  public async list(options: IdentityRouteListOptions): Promise<TotalPage<IdentityRouteRecord>> {
+    const keyword = options.keyword?.trim();
+    const condition = keyword ? identityRouteKeywordCondition(keyword) : undefined;
+    let rowsQuery = this.database.selectFrom('sfoa_identity_route').selectAll();
+    let countQuery = this.database.selectFrom('sfoa_identity_route').select(sql<string>`COUNT(*)`.as('count'));
+    if (condition) {
+      rowsQuery = rowsQuery.where(condition);
+      countQuery = countQuery.where(condition);
+    }
+    const [rows, count] = await Promise.all([
+      rowsQuery.orderBy('platform_user_id').orderBy('id').limit(options.limit).offset(options.offset).execute(),
+      countQuery.executeTakeFirstOrThrow(),
+    ]);
+    const items = Object.freeze(rows.map(mapIdentityRoute));
+    const total = Number(count.count);
+    const hasMore = options.offset + items.length < total;
+    return Object.freeze({
+      items,
+      total,
+      limit: options.limit,
+      offset: options.offset,
+      count: items.length,
+      hasMore,
+      nextOffset: hasMore ? options.offset + items.length : null,
+    });
   }
 
   public async countActive(): Promise<number> {
@@ -132,6 +160,101 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
       remark: current.remark,
       rowVersion,
     });
+  }
+
+  public async delete(id: string, rowVersion: string): Promise<void> {
+    const result = await this.database.deleteFrom('sfoa_identity_route')
+      .where('id', '=', id).where('row_version', '=', rowVersion).executeTakeFirst();
+    if (result.numDeletedRows > 0n) return;
+    if (!(await this.getById(id))) throw notFound('Identity route');
+    throw concurrentModification();
+  }
+}
+
+export class MySqlIdentityCredentialRepository implements IdentityCredentialRepository {
+  public constructor(private readonly database: Executor) {}
+
+  public async getById(id: string): Promise<IdentityCredentialRecord | undefined> {
+    const row = await this.database.selectFrom('sfoa_identity_credential').selectAll().where('id', '=', id).executeTakeFirst();
+    return row ? mapIdentityCredential(row) : undefined;
+  }
+
+  public async getByTokenHash(tokenHash: string): Promise<IdentityCredentialRecord | undefined> {
+    const row = await this.database.selectFrom('sfoa_identity_credential').selectAll()
+      .where('token_hash', '=', tokenHash).executeTakeFirst();
+    return row ? mapIdentityCredential(row) : undefined;
+  }
+
+  public async getActiveByRouteId(identityRouteId: string): Promise<IdentityCredentialRecord | undefined> {
+    const rows = await this.database.selectFrom('sfoa_identity_credential').selectAll()
+      .where('identity_route_id', '=', identityRouteId).where('status', '=', 'ACTIVE').limit(2).execute();
+    if (rows.length > 1) {
+      throw new ControlPlaneError(
+        'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+        'An identity route has more than one active USER_BOUND credential.',
+      );
+    }
+    return rows[0] ? mapIdentityCredential(rows[0]) : undefined;
+  }
+
+  public async listActiveByRouteIds(identityRouteIds: readonly string[]): Promise<readonly IdentityCredentialRecord[]> {
+    if (identityRouteIds.length === 0) return Object.freeze([]);
+    const rows = await this.database.selectFrom('sfoa_identity_credential').selectAll()
+      .where('identity_route_id', 'in', [...identityRouteIds]).where('status', '=', 'ACTIVE')
+      .orderBy('identity_route_id').execute();
+    return Object.freeze(rows.map(mapIdentityCredential));
+  }
+
+  public async listByRouteId(identityRouteId: string): Promise<readonly IdentityCredentialRecord[]> {
+    const rows = await this.database.selectFrom('sfoa_identity_credential').selectAll()
+      .where('identity_route_id', '=', identityRouteId).orderBy('id', 'desc').execute();
+    return Object.freeze(rows.map(mapIdentityCredential));
+  }
+
+  public async create(input: IdentityCredentialCreateInput): Promise<IdentityCredentialRecord> {
+    try {
+      const inserted = await this.database.insertInto('sfoa_identity_credential').values({
+        identity_route_id: input.identityRouteId,
+        credential_type: input.credentialType,
+        token_hash: input.tokenHash,
+        token_ciphertext: input.tokenCiphertext,
+        token_last4: input.tokenLast4,
+        status: 'ACTIVE',
+        generated_at: input.generatedAt,
+        last_used_at: null,
+        revoked_at: null,
+      }).executeTakeFirstOrThrow();
+      if (inserted.insertId === undefined) {
+        throw new ControlPlaneError('MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE', 'Credential persistence returned no identifier.');
+      }
+      return (await this.getById(inserted.insertId.toString())) as IdentityCredentialRecord;
+    } catch (error) {
+      throw mapWriteError(error, 'An active USER_BOUND credential already exists for this identity route.');
+    }
+  }
+
+  public async revoke(id: string, rowVersion: string, revokedAt: Date): Promise<IdentityCredentialRecord> {
+    const result = await this.database.updateTable('sfoa_identity_credential').set({
+      status: 'REVOKED',
+      token_ciphertext: null,
+      revoked_at: revokedAt,
+      row_version: sql`row_version + 1`,
+    }).where('id', '=', id).where('row_version', '=', rowVersion).where('status', '=', 'ACTIVE').executeTakeFirst();
+    if (result.numUpdatedRows === 0n) {
+      if (!(await this.getById(id))) throw notFound('Identity credential');
+      throw concurrentModification();
+    }
+    return (await this.getById(id)) as IdentityCredentialRecord;
+  }
+
+  public async markLastUsed(id: string, usedAt: Date): Promise<void> {
+    await this.database.updateTable('sfoa_identity_credential')
+      .set({ last_used_at: usedAt })
+      .where('id', '=', id).where('status', '=', 'ACTIVE').executeTakeFirst();
+  }
+
+  public async deleteByRouteId(identityRouteId: string): Promise<void> {
+    await this.database.deleteFrom('sfoa_identity_credential').where('identity_route_id', '=', identityRouteId).executeTakeFirst();
   }
 }
 
@@ -380,6 +503,8 @@ export class MySqlAuditRepository implements AuditRepository {
       platform_user_id: event.platformUserId ?? null,
       salesforce_username: event.salesforceUsername ?? null,
       execution_role: event.executionRole ?? null,
+      identity_source: event.identitySource ?? null,
+      identity_credential_id: event.identityCredentialId ?? null,
       tool_name: event.toolName ?? null,
       operation: event.operation ?? null,
       object_api_name: event.objectApiName ?? null,
@@ -443,6 +568,7 @@ export class MySqlAuditRepository implements AuditRepository {
 export function createMySqlRepositories(database: Executor): ControlPlaneRepositories {
   return Object.freeze({
     identityRoutes: new MySqlIdentityRouteRepository(database),
+    identityCredentials: new MySqlIdentityCredentialRepository(database),
     tools: new MySqlToolControlRepository(database),
     dmlPolicies: new MySqlDmlPolicyRepository(database),
     diagnostic: new MySqlDiagnosticConfigRepository(database),
@@ -499,6 +625,27 @@ function mapIdentityRoute(row: Selectable<IdentityRouteTable>): IdentityRouteRec
   });
 }
 
+function mapIdentityCredential(row: Selectable<IdentityCredentialTable>): IdentityCredentialRecord {
+  if (row.credential_type !== 'USER_BOUND' || (row.status !== 'ACTIVE' && row.status !== 'REVOKED')) {
+    throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFIGURATION_INVALID', 'Stored identity credential type or status is invalid.');
+  }
+  return Object.freeze({
+    id: String(row.id),
+    identityRouteId: String(row.identity_route_id),
+    credentialType: row.credential_type,
+    tokenHash: row.token_hash,
+    tokenCiphertext: row.token_ciphertext,
+    tokenLast4: row.token_last4,
+    status: row.status,
+    generatedAt: toIso(row.generated_at),
+    lastUsedAt: row.last_used_at ? toIso(row.last_used_at) : null,
+    revokedAt: row.revoked_at ? toIso(row.revoked_at) : null,
+    rowVersion: String(row.row_version),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  });
+}
+
 function mapTool(row: Selectable<ToolControlTable>): ToolControlRecord {
   return Object.freeze({
     id: String(row.id), toolName: row.tool_name, enabled: Boolean(row.enabled), remark: row.remark,
@@ -537,6 +684,8 @@ function mapAudit(row: Selectable<AuditLogTable>): AuditRecord {
     channel: row.channel === 'ADMIN' ? 'ADMIN' : 'MCP', clientId: row.client_id, actorAdmin: row.actor_admin,
     platformUserId: row.platform_user_id, salesforceUsername: row.salesforce_username,
     executionRole: row.execution_role === 'USER' || row.execution_role === 'DIAGNOSTIC' ? row.execution_role : null,
+    identitySource: IDENTITY_SOURCES.find((source) => source === row.identity_source) ?? null,
+    identityCredentialId: row.identity_credential_id === null ? null : String(row.identity_credential_id),
     toolName: row.tool_name, operation: row.operation, objectApiName: row.object_api_name, recordId: row.record_id,
     result: row.result === 'PASS' || row.result === 'BLOCKED' ? row.result : 'ERROR',
     outcome: row.outcome === 'SUCCESS' || row.outcome === 'FAILED' || row.outcome === 'DENIED' || row.outcome === 'UNKNOWN' ? row.outcome : null,
@@ -553,6 +702,15 @@ function page<T>(rows: readonly T[], options: ListOptions): Page<T> {
     items, limit: options.limit, offset: options.offset, count: items.length, hasMore,
     nextOffset: hasMore ? options.offset + items.length : null,
   });
+}
+
+function identityRouteKeywordCondition(keyword: string) {
+  const escaped = keyword.toLocaleLowerCase('en-US').replace(/[!%_]/gu, (value) => `!${value}`);
+  const pattern = `%${escaped}%`;
+  return sql<boolean>`(
+    LOWER(platform_user_id) LIKE ${pattern} ESCAPE '!'
+    OR LOWER(salesforce_username) LIKE ${pattern} ESCAPE '!'
+  )`;
 }
 
 async function assertOptimisticResult(

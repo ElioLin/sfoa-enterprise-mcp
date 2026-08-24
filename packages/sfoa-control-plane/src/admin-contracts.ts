@@ -12,6 +12,7 @@ import {
   type DmlPolicyRecord,
   type IdentityRouteRecord,
   type Page,
+  type TotalPage,
   type RuntimeSettingRecord,
 } from './contracts.js';
 
@@ -27,6 +28,12 @@ export const adminIdPathSchema = idSchema;
 export const adminToolNamePathSchema = toolNameSchema;
 
 export const adminPaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+}).strict();
+
+export const adminIdentityRouteListQuerySchema = z.object({
+  keyword: z.string().trim().max(320).optional().transform((value) => value || undefined),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 }).strict();
@@ -51,6 +58,20 @@ export const adminIdentityRouteUpdateSchema = z.object({
 export const adminSoftDisableSchema = z.object({
   rowVersion: rowVersionSchema,
 }).strict();
+
+export const adminIdentityCredentialRegenerateSchema = z.object({
+  credentialId: idSchema.nullable(),
+  credentialRowVersion: rowVersionSchema.nullable(),
+  routeRowVersion: rowVersionSchema,
+}).strict().superRefine((value, context) => {
+  if (Boolean(value.credentialId) !== Boolean(value.credentialRowVersion)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['credentialId'],
+      message: 'credentialId and credentialRowVersion must both be supplied or both be null.',
+    });
+  }
+});
 
 export const adminToolControlUpdateSchema = z.object({
   enabled: z.boolean(),
@@ -169,6 +190,42 @@ export type RouteVerificationDto = Readonly<{
   salesforceUsername: string | null;
   durationMs: number;
   error: Readonly<{ code: string; message: string }> | null;
+  correlationId: string;
+}>;
+
+export type AdminIdentityCredentialSummaryDto = Readonly<{
+  id: string;
+  status: 'ACTIVE' | 'REVOKED';
+  tokenLast4: string;
+  generatedAt: string;
+  lastUsedAt: string | null;
+  rowVersion: string;
+}>;
+
+export type AdminIdentityRouteDto = IdentityRouteRecord & Readonly<{
+  credential: AdminIdentityCredentialSummaryDto | null;
+}>;
+
+export type McpPublicEndpointDto = Readonly<{
+  url: string | null;
+  source: 'CONFIGURED' | 'LOOPBACK_FALLBACK' | 'UNAVAILABLE';
+  warning: string | null;
+}>;
+
+export type AdminIdentityCredentialResponse = Readonly<{
+  route: IdentityRouteRecord;
+  credential: Readonly<{
+    id: string;
+    status: 'ACTIVE';
+    token: string;
+    authorization: string;
+    tokenLast4: string;
+    generatedAt: string;
+    lastUsedAt: string | null;
+    rowVersion: string;
+    workBuddyJson: string | null;
+  }> | null;
+  mcpEndpoint: McpPublicEndpointDto;
 }>;
 
 export type AdminToolRecordDto = Readonly<{
@@ -245,6 +302,7 @@ export type SystemStatusDto = Readonly<{
     connectedApp: boolean;
     jwtPrivateKey: boolean;
     mcpClientToken: boolean;
+    identityCredentialEncryptionKey: boolean;
   }>;
   diagnostic: DiagnosticConfigRecord | null;
   mcpHealth: 'UP' | 'DOWN' | 'UNKNOWN';
@@ -254,7 +312,7 @@ export type SystemStatusDto = Readonly<{
   readOnlyRuntimeSettings: Readonly<Record<string, string | number | boolean | readonly string[] | null>>;
 }>;
 
-export type AdminRoutesResponse = Page<IdentityRouteRecord>;
+export type AdminRoutesResponse = TotalPage<AdminIdentityRouteDto>;
 export type AdminToolsResponse = Readonly<{
   items: readonly AdminToolRecordDto[];
   controlsTruncated: boolean;
