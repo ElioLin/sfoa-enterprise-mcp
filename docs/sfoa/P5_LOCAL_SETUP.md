@@ -103,7 +103,7 @@ Read the warning and use `--force` only against the intended local project datab
 
 ## 5. Start the services
 
-Use three terminals for the clearest logs:
+Choose one startup mode. Use three terminals for independent watch-style logs:
 
 ```powershell
 yarn workspace @sfoa/mcp-server start
@@ -117,6 +117,10 @@ Or start all three with:
 yarn p5:dev
 ```
 
+Before using the bundled command, stop any MCP, Admin API, or Admin Web instance started in another terminal. `p5:dev` requires exclusive access to `8080`, `8081`, and `5173`; it fails before starting peers when a port is occupied.
+
+On Windows, the bundled launcher compiles the two backend workspaces sequentially with their project-local TypeScript compilers. It then starts MCP and Admin API, waits for their real health/readiness endpoints, and only then starts Vite with the resolved Admin API proxy target. This avoids overlapping Yarn/Corepack/Vite process trees and prevents a reachable login page from masking an unavailable Admin API. `Ctrl+C` stops the complete spawned process trees.
+
 Check process and readiness separately:
 
 ```text
@@ -125,6 +129,30 @@ http://127.0.0.1:8081/admin/api/ready   — MySQL schema ready
 http://127.0.0.1:8080/health            — MCP runtime health
 http://127.0.0.1:5173/login             — Admin Console
 ```
+
+Open the console with the exact configured origin, `http://127.0.0.1:5173/login`, rather than changing the host to `localhost`. Sign in with `SFOA_ADMIN_USERNAME` and the original plaintext password used to generate `SFOA_ADMIN_PASSWORD_HASH`. The `scrypt$...` hash itself is never a login password.
+
+### Startup and sign-in troubleshooting
+
+Inspect only the three project ports:
+
+```powershell
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+  Where-Object { $_.LocalPort -in @(8080, 8081, 5173) } |
+  Select-Object LocalAddress, LocalPort, OwningProcess
+```
+
+Prefer `Ctrl+C` in the terminal that owns a stale process. After the ports are clear, start one mode and verify:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8080/health -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:8081/admin/api/ready -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:5173/admin/api/ready -UseBasicParsing
+```
+
+- `MCP_ADMIN_AUTH_INVALID` means the browser reached the real Admin API but the submitted username/plaintext password did not match. Regenerate the hash using section 2 if the plaintext is unknown, update only ignored `.env.local`, and restart the Admin API.
+- “The browser could not reach the Admin API” or “no structured response” means the API/proxy path is unavailable or a stale partial stack is running. Clear the project ports, restart once, and confirm both direct and Vite-proxied readiness.
+- `cannot bind ... (EADDRINUSE)` identifies the occupied service and exits nonzero without stopping the process that already owns the port.
 
 ## 6. Configure the Control Plane
 

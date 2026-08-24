@@ -615,6 +615,21 @@ P6 ENTRY GATE = READY
 
 Codex does not claim `P5 MAINTAINER FINAL ACCEPTED`; the feature branch remains pending Maintainer review and P6 implementation remains unstarted.
 
+## P5 local startup reliability follow-up — 2026-08-24
+
+This follow-up does not rewrite the accepted P4/P5 evidence above. It records the targeted local-development correction made after reproducing a VS Code PowerShell startup failure.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Windows bundled launcher | PASS | `yarn p5:dev` used sequential project-local TypeScript builds and started MCP `8080`, Admin API `8081`, and Vite `5173` without the reproduced overlapping-process `Access is denied` / `spawn EPERM` failure |
+| Occupied-port preflight | PASS | An already occupied MCP port produced an actionable `EADDRINUSE` error and process exit 1 before new service peers were started; the existing service remained available |
+| Startup dependency order | PASS | MCP `/health` and Admin `/admin/api/ready` reached HTTP 200 before Vite was started; the launcher then reached `/login` before announcing the stack ready |
+| Real Vite-to-Admin proxy | PASS | `http://127.0.0.1:5173/admin/api/ready` returned HTTP 200 through Vite to the real Admin API |
+| Login error contract | PASS | Wrong credentials through the real Vite proxy returned HTTP 401 with structured `MCP_ADMIN_AUTH_INVALID`; an empty 502 fixture renders an actionable API-readiness message instead of the generic safe-failure text |
+| Login regression tests | PASS | Admin Web unit suite passed 10/10, including structured-authentication and empty-proxy cases |
+| Windows shutdown cleanup | PASS | `Ctrl+C` stopped spawned service trees and released `5173`, `8080`, and `8081` |
+| Scope boundary | PASS | No MCP Tool, Admin security policy, MySQL schema, Salesforce identity/authorization behavior, official Salesforce TypeScript, accepted P5 status, or P6 implementation changed |
+
 ## Maintainer Acceptance Status Sync — 2026-08-24
 
 This status record supersedes only the current phase label; it does not alter any historical P0–P5 Gate evidence above.

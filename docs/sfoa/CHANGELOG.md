@@ -18,6 +18,14 @@ This changelog records SFoA baseline and architecture changes. Salesforce Upstre
 - Authorized only P6-Entry OPT01: Admin zh-CN presentation, MCP connectivity guidance, deterministic Dify instructions, and the WorkBuddy Salesforce Skill.
 - Kept P6 Real-Agent Evaluation unstarted until the OPT01 Gate passes. No P0–P5 evidence, Salesforce Runtime behavior, MCP Tool contract, database schema, or historical report was rewritten.
 
+## 2026-08-24 — P5 local startup and sign-in reliability follow-up
+
+- Reproduced the Windows `yarn p5:dev` failure as intermittent `Access is denied` / `spawn EPERM` while Yarn/Corepack, TypeScript, Vite, and esbuild process trees overlapped. The standalone services themselves remained healthy when started separately.
+- Changed only the SFoA local launcher: backend compilation is sequential through each workspace's project-local TypeScript compiler; MCP and Admin API must become healthy/ready before Vite starts; the Vite proxy target comes from the resolved Admin configuration.
+- Added fail-fast checks for occupied `8080`, `8081`, and `5173`, preserved nonzero startup failures, and added Windows child-process-tree cleanup so a failed peer cannot leave a misleading partial stack.
+- Confirmed direct and Vite-proxied Admin readiness and a structured `MCP_ADMIN_AUTH_INVALID` response through the real API. The React login page now distinguishes an authentication rejection from an unreachable/empty development proxy response and gives an actionable readiness message.
+- Added regression coverage for both structured invalid credentials and an empty proxy failure. No authentication rule, MCP Tool contract, database schema, Salesforce execution boundary, P5 acceptance status, or P6 scope changed.
+
 ## 2026-08-24 — P4/P5 final live closure completed
 
 ### Independent Salesforce Diagnostic closure
