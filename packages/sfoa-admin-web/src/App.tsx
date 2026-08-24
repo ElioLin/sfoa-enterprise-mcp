@@ -5,6 +5,7 @@ import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react
 import { adminApi, ApiError, UNAUTHORIZED_EVENT } from './api/client.js';
 import { AdminShell } from './components/AdminShell.js';
 import { LoadingState } from './components/QueryState.js';
+import { ADMIN_ANT_LOCALE } from './localization.js';
 import { LoginPage } from './pages/LoginPage.js';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage.js'));
@@ -14,11 +15,13 @@ const DmlPoliciesPage = lazy(() => import('./pages/DmlPoliciesPage.js'));
 const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
 const SystemPage = lazy(() => import('./pages/SystemPage.js'));
+const AgentIntegrationPage = lazy(() => import('./pages/AgentIntegrationPage.js'));
 
 export function App() {
   const [dark, setDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
   return (
     <ConfigProvider
+      locale={ADMIN_ANT_LOCALE}
       theme={{
         algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
@@ -28,7 +31,7 @@ export function App() {
           colorError: '#dc2626',
           borderRadius: 8,
           controlHeight: 44,
-          fontFamily: '"Segoe UI", "Fira Sans", system-ui, sans-serif',
+          fontFamily: '"Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", "Segoe UI", system-ui, sans-serif',
         },
       }}
     >
@@ -44,9 +47,10 @@ export function App() {
               <Route path="/diagnostic" element={<DiagnosticPage />} />
               <Route path="/audit" element={<AuditPage />} />
               <Route path="/system" element={<SystemPage />} />
+              <Route path="/agent-integration" element={<AgentIntegrationPage />} />
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Result status="404" title="Page not found" subTitle="This Control Plane route does not exist." />} />
+            <Route path="*" element={<Result status="404" title="页面不存在" subTitle="该控制平面路由不存在。" />} />
           </Routes>
         </div>
       </AntApp>
@@ -71,7 +75,7 @@ function ProtectedShell({ dark, onToggleTheme }: Readonly<{ dark: boolean; onTog
   if (session.isPending) return <div className="full-page-state"><LoadingState rows={3} /></div>;
   if (session.error instanceof ApiError && session.error.status === 401) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (session.isError) {
-    return <Result status="500" title="Admin API unavailable" subTitle="Check /admin/api/ready and retry." extra={<Button onClick={() => void session.refetch()}>Retry</Button>} />;
+    return <Result status="500" title="Admin API 不可用" subTitle="请检查 /admin/api/ready 后重试。" extra={<Button onClick={() => void session.refetch()}>重试</Button>} />;
   }
   return (
     <AdminShell session={session.data} dark={dark} onToggleTheme={onToggleTheme}>

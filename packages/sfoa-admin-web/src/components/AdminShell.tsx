@@ -8,6 +8,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   MoonOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   SunOutlined,
   TeamOutlined,
@@ -23,14 +24,15 @@ import { StatusTag } from './StatusTag.js';
 
 const { Header, Sider, Content } = Layout;
 
-const NAVIGATION = [
-  { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/identity-routes', icon: <TeamOutlined />, label: 'Identity routes' },
-  { key: '/tool-governance', icon: <ToolOutlined />, label: 'Tool governance' },
-  { key: '/dml-policies', icon: <SafetyCertificateOutlined />, label: 'DML policies' },
-  { key: '/diagnostic', icon: <ExperimentOutlined />, label: 'Diagnostic' },
-  { key: '/audit', icon: <AuditOutlined />, label: 'Audit' },
-  { key: '/system', icon: <DatabaseOutlined />, label: 'System' },
+export const ADMIN_NAVIGATION = [
+  { key: '/dashboard', icon: <DashboardOutlined />, label: '运行概览' },
+  { key: '/identity-routes', icon: <TeamOutlined />, label: '用户身份路由' },
+  { key: '/tool-governance', icon: <ToolOutlined />, label: '工具治理' },
+  { key: '/dml-policies', icon: <SafetyCertificateOutlined />, label: 'DML 操作策略' },
+  { key: '/diagnostic', icon: <ExperimentOutlined />, label: '系统诊断' },
+  { key: '/audit', icon: <AuditOutlined />, label: '调用审计' },
+  { key: '/system', icon: <DatabaseOutlined />, label: '系统状态' },
+  { key: '/agent-integration', icon: <RobotOutlined />, label: '智能体接入' },
 ] as const;
 
 export function AdminShell({
@@ -48,9 +50,9 @@ export function AdminShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const selected = NAVIGATION.find((entry) => location.pathname.startsWith(entry.key))?.key ?? '/dashboard';
-  const title = NAVIGATION.find((entry) => entry.key === selected)?.label ?? 'Control Plane';
-  const menuItems = useMemo(() => NAVIGATION.map((entry) => ({
+  const selected = ADMIN_NAVIGATION.find((entry) => location.pathname.startsWith(entry.key))?.key ?? '/dashboard';
+  const title = ADMIN_NAVIGATION.find((entry) => entry.key === selected)?.label ?? '控制平面';
+  const menuItems = useMemo(() => ADMIN_NAVIGATION.map((entry) => ({
     ...entry,
     label: <Link to={entry.key} onClick={() => setMobileOpen(false)}>{entry.label}</Link>,
   })), []);
@@ -60,17 +62,17 @@ export function AdminShell({
       queryClient.clear();
       await navigate('/login', { replace: true });
     },
-    onError: () => void message.error('Logout failed safely. Retry before closing this browser.'),
+    onError: () => void message.error('安全退出失败，请重试后再关闭浏览器。'),
   });
 
   useEffect(() => {
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
-  const navigation = <Menu mode="inline" selectedKeys={[selected]} items={menuItems} aria-label="Primary navigation" />;
+  const navigation = <Menu mode="inline" selectedKeys={[selected]} items={menuItems} aria-label="主导航" />;
   return (
     <Layout className="admin-layout">
-      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <a className="skip-link" href="#main-content">跳转到主内容</a>
       {desktop ? (
         <Sider
           className="admin-sider"
@@ -78,7 +80,7 @@ export function AdminShell({
           collapsedWidth={80}
           collapsed={collapsed}
           trigger={null}
-          aria-label="SFoA navigation"
+          aria-label="SFoA 导航"
         >
           <Brand compact={collapsed} />
           {navigation}
@@ -100,20 +102,20 @@ export function AdminShell({
           <Space size="middle">
             <Button
               type="text"
-              aria-label={desktop ? (collapsed ? 'Expand navigation' : 'Collapse navigation') : 'Open navigation'}
+              aria-label={desktop ? (collapsed ? '展开导航' : '收起导航') : '打开导航'}
               icon={desktop ? (collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />) : <MenuUnfoldOutlined />}
               onClick={() => desktop ? setCollapsed((value) => !value) : setMobileOpen(true)}
             />
             <div className="header-context">
-              <Typography.Text type="secondary">SFoA governance</Typography.Text>
+              <Typography.Text type="secondary">SFoA 治理</Typography.Text>
               <Typography.Title level={4}>{title}</Typography.Title>
             </div>
           </Space>
           <Space size="small">
-            <StatusTag label="MYSQL" tone="processing" />
+            <StatusTag label="MySQL" tone="processing" />
             <Button
               type="text"
-              aria-label={dark ? 'Use light theme' : 'Use dark theme'}
+              aria-label={dark ? '使用浅色主题' : '使用深色主题'}
               icon={dark ? <SunOutlined /> : <MoonOutlined />}
               onClick={onToggleTheme}
             />
@@ -123,12 +125,12 @@ export function AdminShell({
               loading={logout.isPending}
               onClick={() => logout.mutate()}
             >
-              Logout
+              退出登录
             </Button>
           </Space>
         </Header>
         <Content className="admin-content">
-          <Breadcrumb items={[{ title: 'Control Plane' }, { title }]} />
+          <Breadcrumb items={[{ title: '控制平面' }, { title }]} />
           <main id="main-content" ref={mainRef} tabIndex={-1}>{children}</main>
         </Content>
       </Layout>
@@ -138,9 +140,9 @@ export function AdminShell({
 
 function Brand({ compact = false }: Readonly<{ compact?: boolean }>) {
   return (
-    <div className={compact ? 'brand brand-compact' : 'brand'} aria-label="SFoA Control Plane">
+    <div className={compact ? 'brand brand-compact' : 'brand'} aria-label="SFoA 控制平面">
       <span className="brand-mark" aria-hidden="true"><ApiOutlined /></span>
-      {compact ? null : <span><strong>SFoA</strong><small>Control Plane</small></span>}
+      {compact ? null : <span><strong>SFoA</strong><small>控制平面</small></span>}
     </div>
   );
 }

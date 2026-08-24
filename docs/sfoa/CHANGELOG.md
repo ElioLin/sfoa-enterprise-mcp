@@ -2,6 +2,16 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-24 — P6-Entry OPT01 completed
+
+- Converted all ordinary Admin Console navigation, page, form, state, validation, feedback, empty/loading, and error presentation to Simplified Chinese while preserving Salesforce/SFoA/MCP/API/Tool names, Error Codes, raw enums, JSON, REST, database, and MCP contracts. Applied the official Ant Design `zh_CN` locale and `zh-CN` date formatting.
+- Added the presentation-only **智能体接入** route with safe Runtime configuration state, same-host/LAN/TLS guidance, temporary external URL examples, controlled `X-Platform-User-Id` warnings, Dify/WorkBuddy connector steps, and no secret or URL persistence.
+- Added a deterministic Dify instruction generator driven by the current executable Tool catalog, database Tool state, DML object policy, and verified Diagnostic state. Unknown Tools are ignored and every exposed mutation Tool retains the `MCP_DML_OUTCOME_UNKNOWN` no-retry rule.
+- Added the static Dify baseline, concise WorkBuddy System Prompt, and progressive-disclosure `.codebuddy/skills/sfoa-salesforce-assistant/` Skill with workflow/safety references. No prompt/Skill MCP Tool was added.
+- Removed nested Yarn/Corepack calls from SFoA Gate scripts and made `validate:p5` invoke only project-local toolchain entry points; production code and dependencies are unchanged.
+- Final evidence: Admin Web build and 32/32 tests, Admin API build and 12/12 tests, MCP Server build and 18/18 tests, mocked browser 1/1, real MySQL full-stack browser 1/1, and `yarn validate:p5` exit 0 in 709.65 seconds.
+- Result: `P6-ENTRY OPT01 = PASS`; `P6 REAL-AGENT EVALUATION = READY`. Database migration, MCP protocol rename, Salesforce/MCP Runtime behavior change, and exposed secrets are all zero/none.
+
 ## 2026-08-24 — P5 Maintainer final acceptance and P6-Entry OPT01 authorization
 
 - Recorded Maintainer final acceptance of the completed P5 Control Plane and its independent live Diagnostic closure.

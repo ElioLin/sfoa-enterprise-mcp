@@ -7,49 +7,59 @@ test('admin can manage the bounded control plane and logout', async ({ page }) =
   await page.route('**/admin/api/**', (route) => api.handle(route));
 
   await page.goto('/login');
-  await page.getByLabel('Admin username').fill('bootstrap-admin');
-  await page.getByLabel('Password').fill('test-only-password');
-  await page.getByRole('button', { name: 'Sign in securely' }).click();
-  await expect(page.getByRole('heading', { name: 'Operational overview' })).toBeVisible();
+  await page.getByLabel('管理员用户名').fill('bootstrap-admin');
+  await page.getByLabel('密码').fill('test-only-password');
+  await page.getByRole('button', { name: '安全登录' }).click();
+  await expect(page.getByRole('heading', { name: '运行概览' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Identity routes' }).click();
-  await page.getByRole('button', { name: 'Create route' }).click();
-  await page.getByLabel('Platform user ID').fill('platform-e2e');
-  await page.getByLabel('Salesforce username').fill('user-e2e@example.com');
-  await page.getByLabel('Remark').fill('created by browser test');
-  await page.getByRole('button', { name: 'Save route' }).click();
+  await page.getByRole('link', { name: '用户身份路由' }).click();
+  await page.getByRole('button', { name: '新建路由' }).click();
+  await page.getByLabel('平台用户 ID').fill('platform-e2e');
+  await page.getByLabel('Salesforce Username').fill('user-e2e@example.com');
+  await page.getByLabel('备注').fill('created by browser test');
+  await page.getByRole('button', { name: '保存路由' }).click();
   await expect(page.getByText('platform-e2e')).toBeVisible();
-  await page.getByRole('button', { name: 'Edit' }).click();
-  await page.getByLabel('Remark').fill('updated by browser test');
-  await page.getByRole('button', { name: 'Save route' }).click();
+  await page.getByRole('button', { name: '编辑' }).click();
+  await page.getByLabel('备注').fill('updated by browser test');
+  await page.getByRole('button', { name: '保存路由' }).click();
   await expect(page.getByText('updated by browser test')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Tool governance' }).click();
-  await page.getByRole('switch', { name: 'Enable get_record_context' }).click();
-  await expect(page.getByRole('switch', { name: 'Disable get_record_context' })).toBeChecked();
+  await page.getByRole('link', { name: '工具治理' }).click();
+  await page.getByRole('switch', { name: '启用 get_record_action_context' }).click();
+  await expect(page.getByRole('switch', { name: '停用 get_record_action_context' })).toBeChecked();
 
-  await page.getByRole('link', { name: 'DML policies' }).click();
-  await page.getByRole('button', { name: 'Add object policy' }).click();
-  await page.getByLabel('Object API name').fill('Lead');
+  await page.getByRole('link', { name: 'DML 操作策略' }).click();
+  await page.getByRole('button', { name: '添加对象策略' }).click();
+  await page.getByLabel('对象 API 名称').fill('Lead');
   const policyDialog = page.getByRole('dialog');
   await policyDialog.getByRole('switch').nth(0).click();
-  await page.getByRole('button', { name: 'Save policy' }).click();
+  await page.getByRole('button', { name: '保存策略' }).click();
   await expect(page.getByText('Lead')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'ALLOWED' }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: '已允许' }).first()).toBeVisible();
 
-  await page.getByRole('link', { name: 'Diagnostic' }).click();
-  await page.getByRole('button', { name: 'Verify Diagnostic Connection' }).click();
-  await expect(page.getByText('Latest verification evidence')).toBeVisible();
-  await expect(page.getByText('1/1 cleaned; 0 active')).toBeVisible();
+  await page.getByRole('link', { name: '系统诊断' }).click();
+  await page.getByRole('button', { name: '验证 Diagnostic Connection' }).click();
+  await expect(page.getByText('最新验证证据')).toBeVisible();
+  await expect(page.getByText('1/1 已清理；0 个活动')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Audit' }).click();
+  await page.getByRole('link', { name: '调用审计' }).click();
   await page.getByRole('textbox', { name: 'Tool', exact: true }).fill('run_soql_query');
-  await page.getByRole('button', { name: 'Search audit' }).click();
+  await page.getByRole('button', { name: '搜索审计' }).click();
   await expect(page.getByText('correlation-e2e')).toBeVisible();
   await expect.poll(() => api.lastAuditToolFilter).toBe('run_soql_query');
 
-  await page.getByRole('button', { name: 'Logout' }).click();
-  await expect(page.getByRole('heading', { name: 'Administrator sign in' })).toBeVisible();
+  await page.getByRole('link', { name: '智能体接入' }).click();
+  await expect(page.getByRole('heading', { level: 2, name: '智能体接入' })).toBeVisible();
+  await expect(page.getByText('MCP_BIND_HOST', { exact: true })).toBeVisible();
+  await page.getByLabel('外部 MCP 地址').fill('https://mcp.company.com/mcp');
+  await expect(page.locator('pre').filter({ hasText: 'URL:\nhttps://mcp.company.com/mcp' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Dify 指令' }).click();
+  await expect(page.locator('pre').filter({ hasText: '你是企业 Salesforce 助手。' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Skill' }).click();
+  await expect(page.getByText('.codebuddy/skills/sfoa-salesforce-assistant/', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: '退出登录' }).click();
+  await expect(page.getByRole('heading', { name: '管理员登录' })).toBeVisible();
 });
 
 class StatefulAdminApi {
@@ -88,6 +98,10 @@ class StatefulAdminApi {
       await respond(route, dashboard());
       return;
     }
+    if (path === '/system/status') {
+      await respond(route, systemStatus());
+      return;
+    }
     if (path === '/routes' && method === 'GET') {
       await respond(route, pageOf(this.route ? [this.route] : []));
       return;
@@ -107,9 +121,9 @@ class StatefulAdminApi {
       await respond(route, { items: [toolRecord(this.toolEnabled)], controlsTruncated: false });
       return;
     }
-    if (path === '/tools/get_record_context' && method === 'PUT') {
+    if (path === '/tools/get_record_action_context' && method === 'PUT') {
       this.toolEnabled = Boolean((request.postDataJSON() as Record<string, unknown>).enabled);
-      await respond(route, { id: '1', toolName: 'get_record_context', enabled: this.toolEnabled, remark: null, rowVersion: '2', createdAt: NOW, updatedAt: NOW });
+      await respond(route, { id: '1', toolName: 'get_record_action_context', enabled: this.toolEnabled, remark: null, rowVersion: '2', createdAt: NOW, updatedAt: NOW });
       return;
     }
     if (path === '/dml-policies' && method === 'GET') {
@@ -163,9 +177,25 @@ function dashboard() {
   };
 }
 
+function systemStatus() {
+  return {
+    adminVersion: '0.1.0-p5', mcpServerVersion: '0.1.0-p5', salesforceApiVersion: '65.0',
+    providerVersions: [{ name: 'salesforce', version: '1.0.0' }], upstreamDrift: { status: 'PASS', count: 0 },
+    database: { status: 'UP', version: '8.0', schemaVersions: ['001_p5_control_plane', '002_p5_indexes'] },
+    runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com',
+    configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true }, diagnostic: diagnosticConfig(),
+    mcpHealth: 'UP', auditPersistence: { status: 'UP', failureCount: 0 }, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
+    phases: { P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'FINAL ACCEPTED', P5: 'FINAL ACCEPTED' },
+    readOnlyRuntimeSettings: {
+      MCP_BIND_HOST: '127.0.0.1', MCP_PORT: 8080, MCP_PATH: '/mcp', MCP_AUTH_MODE: 'internal_bearer',
+      MCP_ALLOWED_HOSTS: ['127.0.0.1:8080'], MCP_ALLOWED_ORIGINS: ['http://127.0.0.1:5173'],
+    },
+  };
+}
+
 function toolRecord(enabled: boolean) {
   return {
-    toolName: 'get_record_context', classification: 'READ', executionRole: 'USER', remoteCompatible: true, releaseState: 'GA',
+    toolName: 'get_record_action_context', classification: 'READ', executionRole: 'USER', remoteCompatible: true, releaseState: 'GA',
     enabled, rowVersion: '1', remark: null, dependencies: [], status: enabled ? 'AVAILABLE' : 'DISABLED', enableAllowed: true, disabledReason: null,
   };
 }

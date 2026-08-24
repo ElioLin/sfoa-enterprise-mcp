@@ -81,6 +81,7 @@ export const adminApi = Object.freeze({
     { method: 'PUT', body: input },
   ),
   dmlPolicies: (limit: number, offset: number) => request<AdminDmlPoliciesResponse>(`/dml-policies?limit=${limit}&offset=${offset}`),
+  allDmlPolicies: () => loadAllDmlPolicies(),
   createDmlPolicy: (input: AdminDmlPolicyCreateInput) => request<DmlPolicyRecord>('/dml-policies', { method: 'POST', body: input }),
   updateDmlPolicy: (id: string, input: AdminDmlPolicyUpdateInput) => request<DmlPolicyRecord>(
     `/dml-policies/${encodeURIComponent(id)}`,
@@ -149,7 +150,11 @@ function parseApiError(value: unknown): Readonly<{
   issues: readonly Readonly<{ path: string; message: string }>[];
 }> {
   if (!isRecord(value) || !isRecord(value.error)) {
-    return Object.freeze({ code: 'MCP_ADMIN_REQUEST_FAILED', message: 'The Admin request failed safely.', issues: Object.freeze([]) });
+    return Object.freeze({
+      code: 'MCP_ADMIN_REQUEST_FAILED',
+      message: 'The Admin API returned no structured response. Verify /admin/api/ready and restart the P5 services after stopping stale processes.',
+      issues: Object.freeze([]),
+    });
   }
   const code = typeof value.error.code === 'string' ? value.error.code : 'MCP_ADMIN_REQUEST_FAILED';
   const message = typeof value.error.message === 'string' ? value.error.message : 'The Admin request failed safely.';
@@ -174,4 +179,19 @@ function auditSearch(filters: AuditFilters): string {
     if (value !== undefined && value !== '') params.set(key, String(value));
   }
   return params.toString();
+}
+
+async function loadAllDmlPolicies(): Promise<readonly DmlPolicyRecord[]> {
+  const items: DmlPolicyRecord[] = [];
+  let offset = 0;
+  for (let page = 0; page < 100; page += 1) {
+    const response = await request<AdminDmlPoliciesResponse>(`/dml-policies?limit=100&offset=${offset}`);
+    items.push(...response.items);
+    if (!response.hasMore) return Object.freeze(items);
+    if (response.nextOffset === null || response.nextOffset <= offset) {
+      throw new ApiError(500, 'MCP_ADMIN_RESPONSE_INVALID', 'The Admin API returned an invalid DML policy cursor.');
+    }
+    offset = response.nextOffset;
+  }
+  throw new ApiError(500, 'MCP_ADMIN_REQUEST_FAILED', 'The DML policy catalog exceeded the bounded Admin instruction-generator limit.');
 }

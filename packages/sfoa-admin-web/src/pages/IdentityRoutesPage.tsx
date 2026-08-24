@@ -7,6 +7,7 @@ import { adminApi } from '../api/client.js';
 import { EmptyState, ErrorState, LoadingState, MutationError } from '../components/QueryState.js';
 import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
+import { formatDateTime } from '../localization.js';
 
 const PAGE_SIZE = 25;
 type RouteForm = Readonly<{ platformUserId: string; salesforceUsername: string; enabled: boolean; remark: string | null }>;
@@ -30,14 +31,14 @@ export default function IdentityRoutesPage() {
       await invalidateRoutes(queryClient);
       setEditing(null);
       form.resetFields();
-      void message.success('Identity route saved. New MCP requests will load the latest route.');
+      void message.success('用户身份路由已保存，新 MCP 请求将加载最新路由。');
     },
   });
   const disable = useMutation({
     mutationFn: (record: IdentityRouteRecord) => adminApi.disableRoute(record.id, record.rowVersion),
     onSuccess: async () => {
       await invalidateRoutes(queryClient);
-      void message.success('Identity route disabled.');
+      void message.success('用户身份路由已停用。');
     },
   });
   const enable = useMutation({
@@ -50,7 +51,7 @@ export default function IdentityRoutesPage() {
     }),
     onSuccess: async () => {
       await invalidateRoutes(queryClient);
-      void message.success('Identity route enabled.');
+      void message.success('用户身份路由已启用。');
     },
   });
   const verify = useMutation({
@@ -75,46 +76,46 @@ export default function IdentityRoutesPage() {
 
   return (
     <PageFrame
-      title="Identity routing"
-      description="Map authenticated platform users to server-owned Salesforce JWT identities. Multiple platform users may intentionally share one Salesforce username."
-      action={<Button type="primary" aria-label="Create route" icon={<PlusOutlined />} onClick={openCreate}>Create route</Button>}
+      title="用户身份路由"
+      description="将已认证的平台用户映射到服务端管理的 Salesforce JWT 身份。多个平台用户可以有意共用同一个 Salesforce Username。"
+      action={<Button type="primary" aria-label="新建路由" icon={<PlusOutlined />} onClick={openCreate}>新建路由</Button>}
     >
       <Space orientation="vertical" size="middle" className="full-width">
         <MutationError error={mutationError} />
         {query.isPending ? <LoadingState /> : query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : (
           <div className="surface-card">
-            {query.data.items.length === 0 ? <EmptyState description="No identity routes are configured." action={<Button onClick={openCreate}>Create the first route</Button>} /> : (
+            {query.data.items.length === 0 ? <EmptyState description="尚未配置用户身份路由。" action={<Button onClick={openCreate}>新建第一条路由</Button>} /> : (
               <Table<IdentityRouteRecord>
                 rowKey="id"
                 pagination={false}
                 dataSource={[...query.data.items]}
                 scroll={{ x: 980 }}
                 columns={[
-                  { title: 'Platform user', dataIndex: 'platformUserId', render: (value: string) => <code>{value}</code> },
-                  { title: 'Salesforce username', dataIndex: 'salesforceUsername', render: (value: string) => <span className="wrap-value">{value}</span> },
-                  { title: 'Status', dataIndex: 'enabled', render: (value: boolean) => <StatusTag label={value ? 'ENABLED' : 'DISABLED'} /> },
-                  { title: 'Last updated', dataIndex: 'updatedAt', render: formatDate },
-                  { title: 'Remark', dataIndex: 'remark', render: (value: string | null) => value ?? '—' },
+                  { title: '平台用户', dataIndex: 'platformUserId', render: (value: string) => <code>{value}</code> },
+                  { title: 'Salesforce Username', dataIndex: 'salesforceUsername', render: (value: string) => <span className="wrap-value">{value}</span> },
+                  { title: '状态', dataIndex: 'enabled', render: (value: boolean) => <StatusTag label={value ? 'ENABLED' : 'DISABLED'} /> },
+                  { title: '最后更新', dataIndex: 'updatedAt', render: formatDateTime },
+                  { title: '备注', dataIndex: 'remark', render: (value: string | null) => value ?? '—' },
                   {
-                    title: 'Actions', fixed: 'right', width: 310,
+                    title: '操作', fixed: 'right', width: 310,
                     render: (_value, record) => (
                       <Space wrap>
-                        <Button aria-label="Edit" icon={<EditOutlined />} onClick={() => openEdit(record)}>Edit</Button>
+                        <Button aria-label="编辑" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
                         <Button
                           icon={<SafetyCertificateOutlined />}
                           loading={verify.isPending && verify.variables?.id === record.id}
                           onClick={() => verify.mutate(record)}
-                        >Verify</Button>
+                        >验证</Button>
                         {record.enabled ? (
                           <Popconfirm
-                            title="Disable this route?"
-                            description="New MCP requests for this platform user will be denied."
+                            title="停用该路由？"
+                            description="该平台用户的新 MCP 请求将被拒绝。"
                             onConfirm={() => disable.mutate(record)}
                           >
-                            <Button danger icon={<StopOutlined />}>Disable</Button>
+                            <Button danger icon={<StopOutlined />}>停用</Button>
                           </Popconfirm>
                         ) : (
-                          <Button icon={<CheckCircleOutlined />} loading={enable.isPending} onClick={() => enable.mutate(record)}>Enable</Button>
+                          <Button icon={<CheckCircleOutlined />} loading={enable.isPending} onClick={() => enable.mutate(record)}>启用</Button>
                         )}
                       </Space>
                     ),
@@ -137,8 +138,8 @@ export default function IdentityRoutesPage() {
 
       <Modal
         open={editing !== null}
-        title={editing === 'create' ? 'Create identity route' : 'Edit identity route'}
-        okText="Save route"
+        title={editing === 'create' ? '新建用户身份路由' : '编辑用户身份路由'}
+        okText="保存路由"
         confirmLoading={save.isPending}
         onCancel={() => { setEditing(null); save.reset(); }}
         onOk={() => void form.submit()}
@@ -147,42 +148,38 @@ export default function IdentityRoutesPage() {
         <Form<RouteForm> form={form} layout="vertical" onFinish={(values) => save.mutate({ ...values, remark: values.remark || null })}>
           <Form.Item
             name="platformUserId"
-            label="Platform user ID"
-            extra="Unique authenticated platform identity; never supplied as a Tool argument."
-            rules={[{ required: true, whitespace: true, message: 'Enter a platform user ID.' }, { max: 128 }]}
+            label="平台用户 ID"
+            extra="唯一的已认证平台身份；永不作为 Tool 参数传入。"
+            rules={[{ required: true, whitespace: true, message: '请输入平台用户 ID。' }, { max: 128 }]}
           >
             <Input autoComplete="off" />
           </Form.Item>
           <Form.Item
             name="salesforceUsername"
-            label="Salesforce username"
-            extra="May be shared by multiple platform users, but must differ from the enabled Diagnostic username."
-            rules={[{ required: true, whitespace: true, message: 'Enter a Salesforce username.' }, { type: 'email', message: 'Use a complete Salesforce username.' }]}
+            label="Salesforce Username"
+            extra="可由多个平台用户共用，但必须与已启用的 Diagnostic Username 不同。"
+            rules={[{ required: true, whitespace: true, message: '请输入 Salesforce Username。' }, { type: 'email', message: '请使用完整的 Salesforce Username。' }]}
           >
             <Input autoComplete="off" />
           </Form.Item>
-          <Form.Item name="enabled" label="Route status" valuePropName="checked"><Switch checkedChildren="Enabled" unCheckedChildren="Disabled" /></Form.Item>
-          <Form.Item name="remark" label="Remark" rules={[{ max: 512 }]}><Input.TextArea rows={3} showCount maxLength={512} /></Form.Item>
+          <Form.Item name="enabled" label="路由状态" valuePropName="checked"><Switch checkedChildren="已启用" unCheckedChildren="已停用" /></Form.Item>
+          <Form.Item name="remark" label="备注" rules={[{ max: 512 }]}><Input.TextArea rows={3} showCount maxLength={512} /></Form.Item>
         </Form>
       </Modal>
 
-      <Modal open={verification !== null} title="Route verification" footer={<Button onClick={() => setVerification(null)}>Close</Button>} onCancel={() => setVerification(null)}>
+      <Modal open={verification !== null} title="路由验证" footer={<Button onClick={() => setVerification(null)}>关闭</Button>} onCancel={() => setVerification(null)}>
         {verification ? (
           <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Authentication"><StatusTag label={verification.status} /></Descriptions.Item>
-            <Descriptions.Item label="Identity matched">{verification.identityMatched ? 'YES' : 'NO'}</Descriptions.Item>
-            <Descriptions.Item label="Salesforce username">{verification.salesforceUsername ?? 'Not returned'}</Descriptions.Item>
-            <Descriptions.Item label="Duration">{verification.durationMs} ms</Descriptions.Item>
-            {verification.error ? <Descriptions.Item label="Safe error"><Tooltip title={verification.error.code}>{verification.error.message}</Tooltip></Descriptions.Item> : null}
+            <Descriptions.Item label="认证"><StatusTag label={verification.status} /></Descriptions.Item>
+            <Descriptions.Item label="身份匹配">{verification.identityMatched ? '是' : '否'}</Descriptions.Item>
+            <Descriptions.Item label="Salesforce Username">{verification.salesforceUsername ?? '未返回'}</Descriptions.Item>
+            <Descriptions.Item label="耗时">{verification.durationMs} ms</Descriptions.Item>
+            {verification.error ? <Descriptions.Item label="安全错误"><Tooltip title={`Error Code：${verification.error.code}`}>{verification.error.message}</Tooltip></Descriptions.Item> : null}
           </Descriptions>
         ) : null}
       </Modal>
     </PageFrame>
   );
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
 async function invalidateRoutes(queryClient: ReturnType<typeof useQueryClient>): Promise<void> {

@@ -21,11 +21,11 @@ describe('Admin governance pages', () => {
     const user = userEvent.setup();
     renderAdmin(<IdentityRoutesPage />);
 
-    await user.click(await screen.findByRole('button', { name: 'Create route' }));
-    await user.type(screen.getByLabelText('Platform user ID'), 'platform-a');
-    await user.type(screen.getByLabelText('Salesforce username'), 'sf-user@example.com');
-    await user.type(screen.getByLabelText('Remark'), 'production route');
-    await user.click(screen.getByRole('button', { name: 'Save route' }));
+    await user.click(await screen.findByRole('button', { name: '新建路由' }));
+    await user.type(screen.getByLabelText('平台用户 ID'), 'platform-a');
+    await user.type(screen.getByLabelText('Salesforce Username'), 'sf-user@example.com');
+    await user.type(screen.getByLabelText('备注'), 'production route');
+    await user.click(screen.getByRole('button', { name: '保存路由' }));
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/routes') && init?.method === 'POST')).toBe(true));
     const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/routes') && init?.method === 'POST');
@@ -43,9 +43,9 @@ describe('Admin governance pages', () => {
     })));
     renderAdmin(<ToolGovernancePage />);
 
-    const toggle = await screen.findByRole('switch', { name: 'Enable future_unknown_tool' });
+    const toggle = await screen.findByRole('switch', { name: '启用 future_unknown_tool' });
     expect(toggle).toBeDisabled();
-    expect(screen.getByText('Unknown executable catalog entry.')).toBeInTheDocument();
+    expect(screen.getByText('未知的可执行目录项。')).toBeInTheDocument();
   });
 
   it('saves independent CREATE and UPDATE policy toggles', async () => {
@@ -57,13 +57,13 @@ describe('Admin governance pages', () => {
     const user = userEvent.setup();
     renderAdmin(<DmlPoliciesPage />);
 
-    await user.click(await screen.findByRole('button', { name: 'Add object policy' }));
-    await user.type(screen.getByLabelText('Object API name'), 'Lead');
+    await user.click(await screen.findByRole('button', { name: '添加对象策略' }));
+    await user.type(screen.getByLabelText('对象 API 名称'), 'Lead');
     const dialog = screen.getByRole('dialog');
     const toggles = within(dialog).getAllByRole('switch');
     expect(toggles).toHaveLength(3);
     await user.click(toggles[0]!);
-    await user.click(screen.getByRole('button', { name: 'Save policy' }));
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/dml-policies') && init?.method === 'POST')).toBe(true));
     const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/dml-policies') && init?.method === 'POST');
@@ -78,10 +78,10 @@ describe('Admin governance pages', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderAdmin(<DiagnosticPage />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Verify Diagnostic Connection' }));
-    expect(await screen.findByText('Latest verification evidence')).toBeInTheDocument();
-    expect(screen.getByText('2 of 2')).toBeInTheDocument();
-    expect(screen.getByText('1/1 cleaned; 0 active')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '验证 Diagnostic Connection' }));
+    expect(await screen.findByText('最新验证证据')).toBeInTheDocument();
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(screen.getByText('1/1 已清理；0 个活动')).toBeInTheDocument();
   });
 
   it('requests the next bounded audit page from the server', async () => {
@@ -94,7 +94,7 @@ describe('Admin governance pages', () => {
     renderAdmin(<AuditPage />);
 
     await screen.findByText('correlation-1');
-    fireEvent.click(screen.getByTitle('Next Page'));
+    fireEvent.click(screen.getByTitle('下一页'));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('offset=25'))).toBe(true));
     expect(await screen.findByText('correlation-26')).toBeInTheDocument();
   });
@@ -108,10 +108,10 @@ describe('Admin governance pages', () => {
     const user = userEvent.setup();
     renderAdmin(<IdentityRoutesPage />);
 
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
-    await user.click(screen.getByRole('button', { name: 'Save route' }));
-    expect(await screen.findByText('Configuration changed')).toBeInTheDocument();
-    expect(screen.getByText(/Another administrator changed this row/u)).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: '编辑' }));
+    await user.click(screen.getByRole('button', { name: '保存路由' }));
+    expect(await screen.findByText('配置已变更')).toBeInTheDocument();
+    expect(screen.getByText('其他管理员已修改该配置，请刷新最新版本后重新确认。')).toBeInTheDocument();
   });
 
   it('renders only configured state even when an unexpected secret-shaped field exists', async () => {
@@ -122,9 +122,9 @@ describe('Admin governance pages', () => {
     vi.stubGlobal('fetch', fetchMock);
     const rendered = renderAdmin(<SystemPage />);
 
-    await screen.findByText('Credential readiness', { exact: false });
+    await screen.findByText('数据库与凭据就绪状态');
     expect(rendered.container).not.toHaveTextContent(secret);
-    expect(screen.getAllByText('CONFIGURED')).toHaveLength(3);
+    expect(screen.getAllByText('已配置')).toHaveLength(3);
   });
 });
 
@@ -168,7 +168,7 @@ function systemStatus() {
     upstreamDrift: { status: 'PASS', count: 0 }, database: { status: 'UP', version: '8.0.44', schemaVersions: ['001', '002'] },
     runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', configured: { connectedApp: true, jwtPrivateKey: true, mcpClientToken: true },
     diagnostic: diagnosticConfig(), mcpHealth: 'UP', auditPersistence: { status: 'UP', failureCount: 0 }, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
-    phases: { P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'PARTIAL', P5: 'PARTIAL' },
-    readOnlyRuntimeSettings: { MCP_BIND_HOST: '127.0.0.1', MCP_AUTH_MODE: 'bearer' },
+    phases: { P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'FINAL ACCEPTED', P5: 'FINAL ACCEPTED' },
+    readOnlyRuntimeSettings: { MCP_BIND_HOST: '127.0.0.1', MCP_PATH: '/mcp', MCP_AUTH_MODE: 'internal_bearer' },
   };
 }

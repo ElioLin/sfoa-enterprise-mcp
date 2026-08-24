@@ -76,6 +76,7 @@ export async function startConfiguredAdminApi(
       readOnlyRuntimeSettings: Object.freeze({
         MCP_BIND_HOST: remoteConfig.bindHost,
         MCP_PORT: remoteConfig.port,
+        MCP_PATH: remoteConfig.mcpPath,
         MCP_AUTH_MODE: remoteConfig.authMode,
         MCP_ALLOWED_HOSTS: remoteConfig.allowedHosts,
         MCP_ALLOWED_ORIGINS: remoteConfig.allowedOrigins,
@@ -91,7 +92,7 @@ export async function startConfiguredAdminApi(
         P2: 'FINAL ACCEPTED',
         P3: 'FINAL ACCEPTED',
         P4: 'FINAL ACCEPTED',
-        P5: 'PASS / COMPLETE — AWAITING MAINTAINER REVIEW',
+        P5: 'FINAL ACCEPTED',
       }),
     });
     const server = await startAdminApiServer({

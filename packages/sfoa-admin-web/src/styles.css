@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: "Segoe UI", "Fira Sans", system-ui, sans-serif;
+  font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --sfoa-primary: #1e40af;
@@ -302,6 +302,61 @@ div.surface-card:not(.ant-card) {
 .credential-note {
   margin: 18px 0 0 !important;
   line-height: 1.55;
+}
+
+.technical-error-details {
+  max-width: 760px;
+  padding: 8px 10px;
+  border: 1px solid var(--sfoa-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--sfoa-canvas) 88%, var(--sfoa-surface));
+}
+
+.technical-error-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.technical-error-details .ant-typography {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.input-error-copy {
+  display: block;
+  margin-top: 6px;
+}
+
+.relation-card {
+  border: 1px solid var(--sfoa-border) !important;
+  border-top: 3px solid var(--sfoa-primary) !important;
+  box-shadow: var(--sfoa-shadow);
+}
+
+.integration-code-block {
+  max-height: 260px;
+  min-height: 92px;
+}
+
+.integration-code-block-tall {
+  max-height: 640px;
+}
+
+.guidance-list {
+  margin: 0;
+  padding-left: 24px;
+  line-height: 1.8;
+}
+
+.guidance-list li + li {
+  margin-top: 4px;
+}
+
+.page-frame > .ant-tabs .ant-tabs-tab-btn {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .phase-grid {

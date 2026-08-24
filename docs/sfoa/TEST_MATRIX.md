@@ -629,3 +629,37 @@ P5 = FINAL ACCEPTED
 P6-ENTRY OPT01 = AUTHORIZED / IN PROGRESS
 P6 REAL-AGENT EVALUATION = NOT STARTED
 ```
+
+## P6-Entry OPT01 Acceptance Matrix — 2026-08-24
+
+This matrix advances only the current P6-Entry status. Historical P0–P5 results above remain unchanged.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Admin visible locale | PASS | All eight existing page surfaces plus `/agent-integration` use ordinary-admin Simplified Chinese; document language and date formatter are `zh-CN` |
+| Ant Design locale | PASS | Root `ConfigProvider` uses official `zh_CN`; Pagination, Modal, Table, Empty, and Form locale regression passed |
+| Navigation/page/button/status localization | PASS | Static and rendered regressions cover all navigation labels, primary page titles, login, buttons, and raw-enum-to-Chinese status mapping |
+| Protocol/contract preservation | PASS | Tool names, Error Codes, REST paths, JSON properties, database columns/enums, and MCP schemas were not renamed or translated |
+| Error UX | PASS | Common Error Codes map to Chinese explanations; expandable technical detail preserves Error Code, safe raw message, and Correlation ID |
+| Safe Runtime configuration | PASS | Agent Integration displays only bind host, port, path, auth mode, allowed Hosts/Origins, Endpoint, and token configured state; secret-shaped fixture never renders |
+| Same-host/LAN guidance | PASS | Unit/browser coverage proves 127.0.0.1 same-host wording, 0.0.0.0 allowed-Host/firewall warning, and supplied external URL examples |
+| Production TLS guidance | PASS | UI and runbooks retain loopback Node listener behind Nginx/TLS and prohibit direct public 8080 guidance |
+| Platform identity guidance | PASS | UI/docs distinguish one controlled fixed Header from per-end-user dynamic identity and defer trusted gateway/claim derivation |
+| Dify deterministic generator | PASS | 12 generator regressions cover READ, CREATE, UPDATE, Context on/off, Diagnostic on/off, policy/tool disable, UNKNOWN safety, unknown Tool rejection, secret exclusion, and deterministic object policy |
+| Dify baseline document | PASS | `docs/agent/DIFY_AGENT_INSTRUCTION.md` marks itself as baseline and defers current capability to the Admin-generated version |
+| WorkBuddy System Prompt | PASS | Concise role/authority/MCP/identity/Skill/high-risk-DML prompt exists without duplicating the full Skill |
+| WorkBuddy/CodeBuddy Skill | PASS | Valid name/description frontmatter, concise `SKILL.md`, two progressive-disclosure references, required Tool/UNKNOWN content, and no guessed `allowed-tools` |
+| Database migration | PASS (`NO`) | No migration, table, column, or persistence for the temporary external URL was added |
+| MCP/Salesforce Runtime behavior | PASS (`NO CHANGE`) | No MCP runtime source, Tool, Salesforce API, Connection lifecycle, identity route, or Diagnostic role changed |
+| Admin Web build/tests | PASS | Standard workspace build passed; Vitest 6 files / 32 tests passed |
+| Admin API build/tests | PASS | Standard workspace build passed; Node tests 12/12 passed |
+| MCP Server build/tests | PASS | Standard workspace build passed; complete Node tests 18/18 passed |
+| Mock browser E2E | PASS | Chromium 1/1; includes login/governance/audit, Agent Integration URL example, generated Dify instruction, Skill tab, and logout |
+| Real full-stack browser E2E | PASS | Chromium 1/1 through React → Vite proxy → real Admin API → `sfoa_enterprise_mcp_test`; seven Admin audit rows verified |
+| Aggregate `validate:p5` | PASS | Public `yarn validate:p5` exited 0 in 709.65 s with five lints, all unit/MySQL/P5 tests, both Admin browser Gates, and full-stack prerequisites |
+| Secrets exposed | PASS (`0`) | Generator, network, System, browser, and Skill tests render placeholders/configured-state only; no token, password, JWT key, or session secret appears |
+
+```text
+P6-ENTRY OPT01 = PASS
+P6 REAL-AGENT EVALUATION = READY
+```

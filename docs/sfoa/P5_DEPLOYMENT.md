@@ -104,6 +104,33 @@ SFOA_ADMIN_COOKIE_SECURE=true
 
 Production sessions then use the `__Host-` cookie prefix with `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`. Terminate only trusted HTTPS, configure HSTS at the edge, and do not make the Admin API reachable over public plaintext HTTP.
 
+## MCP client reachability and Agent connectors
+
+Use the exposure model that matches the client location:
+
+| Client location | MCP URL | Required controls |
+| --- | --- | --- |
+| Same host | `http://127.0.0.1:8080/mcp` | Loopback listener and controlled local client |
+| Deliberate private-LAN test | `http://<YOUR_LAN_IP>:8080/mcp` | Explicit `0.0.0.0` bind, allowed Host, restricted firewall/security group, routable private network |
+| Production Dify/WorkBuddy | `https://mcp.example.com/mcp` | DNS, TLS reverse proxy, approved Host/Origin policy, bearer authentication, network policy |
+
+`0.0.0.0` means listening on every local interface. It does not make the service internet-reachable by itself. Route, firewall, security group, reverse proxy, and DNS remain separate operator-owned controls. Production should not publish Node port 8080 directly; keep the Runtime on loopback or a private service network behind TLS as documented above and in `docs/sfoa/P2_REVERSE_PROXY.md`.
+
+Both Dify and WorkBuddy connectors use Streamable HTTP and the controlled headers:
+
+```text
+Authorization: Bearer <YOUR_MCP_CLIENT_TOKEN>
+X-Platform-User-Id: <PLATFORM_USER_ID>
+```
+
+Do not put a real token into Admin Web input, documentation, Vite configuration, or a client-visible prompt. The Admin Web reports only configured/not-configured state and generates placeholder examples.
+
+Recommended Dify sequence: add the reachable MCP URL, configure the bearer and controlled platform user Header, load the currently allowed Tools, copy the deterministic instruction from **智能体接入 → Dify 指令**, then execute the P6 dataset.
+
+Recommended WorkBuddy sequence: create the custom MCP Connector, configure Endpoint/Authorization/platform user Header, create the Agent, add `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`, install `.codebuddy/skills/sfoa-salesforce-assistant/`, and run a read-only test before DML.
+
+A static Connector Header is not dynamic Salesforce identity for every end user. True multi-user mapping requires a trusted gateway or authenticated claim that derives `platformUserId` and overwrites untrusted inbound values; that gateway is not implemented by P6-Entry OPT01. See `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md` for the complete client-enablement boundary.
+
 ## Secret handling
 
 Use the deployment platform's secret store or protected environment injection for:

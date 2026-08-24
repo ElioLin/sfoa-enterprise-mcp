@@ -134,8 +134,8 @@ After login:
 2. Enable only Tools whose executable-catalog status allows it. An unknown, unsafe, unsupported, non-remote, or drifted Tool cannot be promoted by a database row.
 3. Add object policy using only the CREATE and UPDATE toggles. Missing policy denies DML.
 4. Configure the server-owned Diagnostic Salesforce username and an optional bounded metadata seed.
-5. Run **Verify Diagnostic Connection**. This uses a fresh JWT and the real P4 DIAGNOSTIC request scope: exact identity, Tooling query, official metadata retrieval, bounded context, and cleanup.
-6. Inspect durable MCP/Admin evidence under **Audit**, then check migration/provider/configured-state under **System**.
+5. Run **验证 Diagnostic Connection**. This uses a fresh JWT and the real P4 DIAGNOSTIC request scope: exact identity, Tooling query, official metadata retrieval, bounded context, and cleanup.
+6. Inspect durable MCP/Admin evidence under **调用审计**, then check migration/provider/configured-state under **系统状态**.
 
 No UI page can display access tokens, JWT assertions, private-key contents/paths, database passwords, or the MCP client token.
 
@@ -150,6 +150,38 @@ yarn validate:p5
 ```
 
 `p5:e2e` is the mocked browser workflow test. `p5:e2e:fullstack` is the real React → Vite proxy → Admin API → `sfoa_enterprise_mcp_test` gate and contains no `page.route` API mock. `validate:p5` runs changed-code lint, unit/integration tests, both browser gates, and the real test-database paths. If database credentials or the P4 Diagnostic identity are absent, the corresponding gate must be recorded as `NOT TESTED`, never PASS.
+
+## 8. Local, LAN, Dify, and WorkBuddy access
+
+The default Streamable HTTP Endpoint is:
+
+```text
+http://127.0.0.1:8080/mcp
+```
+
+`127.0.0.1` is same-host only. A Dify or WorkBuddy Runtime on another machine cannot use its own `127.0.0.1` to reach this MCP process.
+
+For a deliberate private-LAN test, review and set the following values in the ignored local environment file, then restart the Runtime yourself:
+
+```dotenv
+MCP_BIND_HOST=0.0.0.0
+MCP_ALLOWED_HOSTS=<YOUR_LAN_IP>:8080
+MCP_AUTH_MODE=internal_bearer
+```
+
+Use `http://<YOUR_LAN_IP>:8080/mcp` only from a network-reachable client. The applicable Windows/Linux Firewall must allow TCP 8080 from the intended source. `0.0.0.0` listens on all local interfaces; it does not automatically create a route, firewall rule, security-group rule, reverse proxy, DNS record, or internet access. This guide never changes the firewall or `.env.local` automatically.
+
+In **智能体接入**, enter a reachable external MCP URL only to generate temporary connection examples. The value is not persisted and is not Runtime authority. Configure the connector with placeholders replaced outside the browser:
+
+```text
+Authorization: Bearer <YOUR_MCP_CLIENT_TOKEN>
+X-Platform-User-Id: <PLATFORM_USER_ID>
+Transport: Streamable HTTP
+```
+
+For Dify, add the MCP URL and headers, load only the currently exposed Tools, copy the deterministic Admin-generated Agent Instruction, and then run the P6 dataset. For WorkBuddy, configure the Connector, add the concise System Prompt from `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`, install `.codebuddy/skills/sfoa-salesforce-assistant/`, and perform a read-only Test Run first.
+
+One fixed `X-Platform-User-Id` on a controlled P6 connector represents one controlled route. It is not per-end-user dynamic identity. A future multi-user edge must derive `platformUserId` from a trusted authenticated claim and overwrite the inbound Header. For production TLS/reverse-proxy access, follow `docs/sfoa/P2_REVERSE_PROXY.md`, `docs/sfoa/P5_DEPLOYMENT.md`, and `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md`.
 
 ## Compatibility mode
 

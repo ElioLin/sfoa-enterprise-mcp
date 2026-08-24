@@ -37,14 +37,14 @@ export default function DmlPoliciesPage() {
       await invalidatePolicies(queryClient);
       setEditing(null);
       form.resetFields();
-      void message.success('DML policy saved. New MCP requests will use the latest snapshot.');
+      void message.success('DML 操作策略已保存，新 MCP 请求将使用最新快照。');
     },
   });
   const disable = useMutation({
     mutationFn: (record: DmlPolicyRecord) => adminApi.disableDmlPolicy(record.id, record.rowVersion),
     onSuccess: async () => {
       await invalidatePolicies(queryClient);
-      void message.success('DML policy disabled.');
+      void message.success('DML 操作策略已停用。');
     },
   });
   const enable = useMutation({
@@ -58,7 +58,7 @@ export default function DmlPoliciesPage() {
     }),
     onSuccess: async () => {
       await invalidatePolicies(queryClient);
-      void message.success('DML policy enabled.');
+      void message.success('DML 操作策略已启用。');
     },
   });
   const mutationError = save.error ?? disable.error ?? enable.error;
@@ -80,16 +80,16 @@ export default function DmlPoliciesPage() {
 
   return (
     <PageFrame
-      title="DML policies"
-      description="Deny-by-default object allowlist for the two supported mutation operations. Salesforce remains authoritative for CRUD, FLS, sharing, validation, Flow, and Trigger behavior."
-      action={<Button type="primary" aria-label="Add object policy" icon={<PlusOutlined />} onClick={openCreate}>Add object policy</Button>}
+      title="DML 操作策略"
+      description="为两种已支持的 DML 操作提供默认拒绝的对象允许列表。Salesforce 仍是 CRUD、FLS、Sharing、Validation Rule、Flow 与 Trigger 行为的权威来源。"
+      action={<Button type="primary" aria-label="添加对象策略" icon={<PlusOutlined />} onClick={openCreate}>添加对象策略</Button>}
     >
       <Space orientation="vertical" size="middle" className="full-width">
         <MutationError error={mutationError} />
         {query.isPending ? <LoadingState /> : query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : (
           <div className="surface-card">
             {query.data.items.length === 0 ? (
-              <EmptyState description="No object policies are configured; all DML is denied." action={<Button onClick={openCreate}>Add the first policy</Button>} />
+              <EmptyState description="尚未配置对象策略；所有 DML 均被拒绝。" action={<Button onClick={openCreate}>添加第一条策略</Button>} />
             ) : (
               <Table<DmlPolicyRecord>
                 rowKey="id"
@@ -97,22 +97,22 @@ export default function DmlPoliciesPage() {
                 dataSource={[...query.data.items]}
                 scroll={{ x: 860 }}
                 columns={[
-                  { title: 'Object API name', dataIndex: 'objectApiName', render: (value: string) => <code>{value}</code> },
+                  { title: '对象 API 名称', dataIndex: 'objectApiName', render: (value: string) => <code>{value}</code> },
                   { title: 'CREATE', dataIndex: 'allowCreate', render: (value: boolean) => <StatusTag label={value ? 'ALLOWED' : 'DENIED'} tone={value ? 'success' : 'neutral'} /> },
                   { title: 'UPDATE', dataIndex: 'allowUpdate', render: (value: boolean) => <StatusTag label={value ? 'ALLOWED' : 'DENIED'} tone={value ? 'success' : 'neutral'} /> },
-                  { title: 'Status', dataIndex: 'enabled', render: (value: boolean) => <StatusTag label={value ? 'ENABLED' : 'DISABLED'} /> },
-                  { title: 'Remark', dataIndex: 'remark', render: (value: string | null) => value ?? '—' },
+                  { title: '状态', dataIndex: 'enabled', render: (value: boolean) => <StatusTag label={value ? 'ENABLED' : 'DISABLED'} /> },
+                  { title: '备注', dataIndex: 'remark', render: (value: string | null) => value ?? '—' },
                   {
-                    title: 'Actions', width: 240,
+                    title: '操作', width: 240,
                     render: (_value, record) => (
                       <Space wrap>
-                        <Button icon={<EditOutlined />} onClick={() => openEdit(record)}>Edit</Button>
+                        <Button icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
                         {record.enabled ? (
-                          <Popconfirm title="Disable this policy?" description="New requests for this object will be denied." onConfirm={() => disable.mutate(record)}>
-                            <Button danger icon={<StopOutlined />}>Disable</Button>
+                          <Popconfirm title="停用该策略？" description="该对象的新请求将被拒绝。" onConfirm={() => disable.mutate(record)}>
+                            <Button danger icon={<StopOutlined />}>停用</Button>
                           </Popconfirm>
                         ) : (
-                          <Button icon={<CheckCircleOutlined />} loading={enable.isPending} onClick={() => enable.mutate(record)}>Enable</Button>
+                          <Button icon={<CheckCircleOutlined />} loading={enable.isPending} onClick={() => enable.mutate(record)}>启用</Button>
                         )}
                       </Space>
                     ),
@@ -135,8 +135,8 @@ export default function DmlPoliciesPage() {
 
       <Modal
         open={editing !== null}
-        title={editing === 'create' ? 'Add object policy' : 'Edit object policy'}
-        okText="Save policy"
+        title={editing === 'create' ? '添加对象策略' : '编辑对象策略'}
+        okText="保存策略"
         confirmLoading={save.isPending}
         onCancel={() => { setEditing(null); save.reset(); }}
         onOk={() => void form.submit()}
@@ -149,11 +149,11 @@ export default function DmlPoliciesPage() {
         >
           <Form.Item
             name="objectApiName"
-            label="Object API name"
-            extra="Stored as data and never interpolated as a SQL identifier."
+            label="对象 API 名称"
+            extra="仅作为数据存储，永不插值为 SQL 标识符。"
             rules={[
-              { required: true, whitespace: true, message: 'Enter an object API name.' },
-              { pattern: /^[A-Za-z][A-Za-z0-9_]{0,127}$/u, message: 'Use a valid Salesforce object API name.' },
+              { required: true, whitespace: true, message: '请输入对象 API 名称。' },
+              { pattern: /^[A-Za-z][A-Za-z0-9_]{0,127}$/u, message: '请使用有效的 Salesforce 对象 API 名称。' },
             ]}
           >
             <Input autoComplete="off" disabled={editing !== 'create'} />
@@ -168,15 +168,15 @@ export default function DmlPoliciesPage() {
                 ({ getFieldValue }) => ({
                   validator: async (_rule, value: boolean) => {
                     if (!getFieldValue('enabled') || value || getFieldValue('allowUpdate')) return;
-                    throw new Error('Allow CREATE, UPDATE, or both before enabling this policy.');
+                    throw new Error('启用策略前，请允许 CREATE、UPDATE 或两者。');
                   },
                 }),
               ]}
             ><Switch /></Form.Item>
             <Form.Item name="allowUpdate" label="UPDATE" valuePropName="checked"><Switch /></Form.Item>
-            <Form.Item name="enabled" label="Policy status" valuePropName="checked"><Switch checkedChildren="Enabled" unCheckedChildren="Disabled" /></Form.Item>
+            <Form.Item name="enabled" label="策略状态" valuePropName="checked"><Switch checkedChildren="已启用" unCheckedChildren="已停用" /></Form.Item>
           </Space>
-          <Form.Item name="remark" label="Remark" rules={[{ max: 512 }]}><Input.TextArea rows={3} maxLength={512} showCount /></Form.Item>
+          <Form.Item name="remark" label="备注" rules={[{ max: 512 }]}><Input.TextArea rows={3} maxLength={512} showCount /></Form.Item>
         </Form>
       </Modal>
     </PageFrame>

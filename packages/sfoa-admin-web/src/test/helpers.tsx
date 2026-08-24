@@ -4,6 +4,7 @@ import { render, type RenderResult } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { vi } from 'vitest';
+import { ADMIN_ANT_LOCALE } from '../localization.js';
 
 export function renderAdmin(ui: ReactElement, initialPath = '/'): RenderResult {
   const queryClient = new QueryClient({
@@ -13,7 +14,7 @@ export function renderAdmin(ui: ReactElement, initialPath = '/'): RenderResult {
     },
   });
   return render(
-    <ConfigProvider theme={{ token: { controlHeight: 44 } }}>
+    <ConfigProvider locale={ADMIN_ANT_LOCALE} theme={{ token: { controlHeight: 44 } }}>
       <AntApp>
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={[initialPath]}>{ui}</MemoryRouter>

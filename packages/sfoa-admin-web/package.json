@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
-    "build": "yarn lint && node ./node_modules/vite/bin/vite.js build",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit && node ./node_modules/vite/bin/vite.js build",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "clean-all": "yarn clean",
     "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",

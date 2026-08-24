@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Alert, Button, Empty, Skeleton } from 'antd';
+import { Alert, Button, Empty, Skeleton, Space, Typography } from 'antd';
 import { ApiError } from '../api/client.js';
+import { localizeErrorCode } from '../localization.js';
 
 export function LoadingState({ rows = 5 }: Readonly<{ rows?: number }>) {
-  return <div className="surface-card" aria-busy="true" aria-label="Loading"><Skeleton active paragraph={{ rows }} /></div>;
+  return <div className="surface-card" aria-busy="true" aria-label="正在加载"><Skeleton active paragraph={{ rows }} /></div>;
 }
 
 export function ErrorState({ error, onRetry }: Readonly<{ error: unknown; onRetry?: () => void }>) {
@@ -14,8 +15,8 @@ export function ErrorState({ error, onRetry }: Readonly<{ error: unknown; onRetr
       showIcon
       role="alert"
       title={detail.title}
-      description={<span>{detail.description}{detail.correlationId ? <> Correlation: <code>{detail.correlationId}</code>.</> : null}</span>}
-      action={onRetry ? <Button onClick={onRetry}>Retry</Button> : undefined}
+      description={<ErrorDetailContent detail={detail} />}
+      action={onRetry ? <Button onClick={onRetry}>重试</Button> : undefined}
     />
   );
 }
@@ -34,20 +35,46 @@ export function MutationError({ error }: Readonly<{ error: unknown }>) {
       type={error instanceof ApiError && error.status === 409 ? 'warning' : 'error'}
       role="alert"
       title={detail.title}
-      description={detail.description}
+      description={<ErrorDetailContent detail={detail} />}
     />
   );
 }
 
-export function errorDetails(error: unknown): Readonly<{ title: string; description: string; correlationId?: string }> {
+export type LocalizedErrorDetail = Readonly<{
+  title: string;
+  description: string;
+  errorCode?: string;
+  safeRawMessage?: string;
+  correlationId?: string;
+}>;
+
+export function errorDetails(error: unknown): LocalizedErrorDetail {
   if (error instanceof ApiError) {
+    const localized = localizeErrorCode(error.code, error.status);
     return Object.freeze({
-      title: error.status === 409 ? 'Configuration changed' : error.code,
-      description: error.status === 409
-        ? 'Another administrator changed this row. Refresh the latest version, review it, and retry.'
-        : error.message,
+      title: localized.title,
+      description: localized.explanation,
+      errorCode: error.code,
+      safeRawMessage: error.message,
       ...(error.correlationId ? { correlationId: error.correlationId } : {}),
     });
   }
-  return Object.freeze({ title: 'Request failed', description: 'The operation failed safely. Retry or inspect Admin API health.' });
+  return Object.freeze({ title: '请求失败', description: '操作已安全失败，请重试或检查 Admin API 健康状态。' });
+}
+
+export function ErrorDetailContent({ detail }: Readonly<{ detail: LocalizedErrorDetail }>) {
+  const technical = detail.errorCode || detail.safeRawMessage || detail.correlationId;
+  return (
+    <Space orientation="vertical" size={8}>
+      <span>{detail.description}</span>
+      {technical ? (
+        <details className="technical-error-details">
+          <summary>查看技术详情</summary>
+          {detail.errorCode ? <Typography.Text><strong>Error Code：</strong><code>{detail.errorCode}</code></Typography.Text> : null}
+          {detail.safeRawMessage ? <Typography.Text><strong>Safe raw message：</strong>{detail.safeRawMessage}</Typography.Text> : null}
+          {detail.correlationId ? <Typography.Text><strong>Correlation ID：</strong><code>{detail.correlationId}</code></Typography.Text> : null}
+        </details>
+      ) : null}
+    </Space>
+  );
 }
