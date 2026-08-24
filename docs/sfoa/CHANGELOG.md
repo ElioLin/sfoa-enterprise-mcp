@@ -2,6 +2,12 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-24 — P5 Maintainer final acceptance and P6-Entry OPT01 authorization
+
+- Recorded Maintainer final acceptance of the completed P5 Control Plane and its independent live Diagnostic closure.
+- Authorized only P6-Entry OPT01: Admin zh-CN presentation, MCP connectivity guidance, deterministic Dify instructions, and the WorkBuddy Salesforce Skill.
+- Kept P6 Real-Agent Evaluation unstarted until the OPT01 Gate passes. No P0–P5 evidence, Salesforce Runtime behavior, MCP Tool contract, database schema, or historical report was rewritten.
+
 ## 2026-08-24 — P4/P5 final live closure completed
 
 ### Independent Salesforce Diagnostic closure

@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P5-BL-1.2**
+Baseline ID: **P6E-BL-1.0**
 
 Baseline date: 2026-08-24
 
@@ -90,11 +90,13 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P5 — Admin Control Plane (PASS / COMPLETE — AWAITING MAINTAINER REVIEW); P6 ENTRY GATE READY`
+`P6-Entry — Chinese Admin UX, MCP Connectivity Guidance & Agent Enablement (AUTHORIZED / IN PROGRESS); P6 REAL-AGENT EVALUATION = NOT STARTED`
 
 ## Current status
 
-`P0 = PASS / COMPLETE — MAINTAINER ACCEPTED; P1 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2 = PASS / COMPLETE — MAINTAINER ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P6 ENTRY GATE = READY`
+`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6-ENTRY OPT01 = AUTHORIZED / IN PROGRESS; P6 REAL-AGENT EVALUATION = NOT STARTED`
+
+Maintainer authorization on 2026-08-24 accepted the completed P5 closure and authorized only P6-Entry OPT01. This status sync does not rewrite historical P0–P5 evidence, merge the feature branch, start the P6 Real-Agent Evaluation, or authorize P7 work.
 
 P5-Closure HOTFIX01 provisioned and migrated the real local MySQL application/test databases, completed non-force idempotent bootstrap, removed the runtime CWD/root assumption, started the real MCP/Admin/Web stack, and passed changed-code lint, builds, unit/integration tests, MySQL runtime governance, Admin security, mocked browser workflow, and non-mocked Browser-to-Admin-API-to-MySQL E2E. Durable runtime/Admin audit, database-outage fail-closed behavior, dynamic Tool/DML changes, unknown Tool denial, and mutation-audit failure semantics have direct evidence in `TEST_MATRIX.md` and `P5_FINAL_REPORT.md`.
 
@@ -313,7 +315,7 @@ P5 does not manage Salesforce CRUD, FLS, sharing, Profiles, Permission Sets, Val
 
 ## P5 result
 
-`P5 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`
+`P5 = PASS / COMPLETE — MAINTAINER FINAL ACCEPTED`
 
 - Local MySQL 8.0.30 application/test provisioning, both migrations/checksums, seven-table schema, required indexes/constraints, and non-force idempotent bootstrap: PASS.
 - MCP/MySQL runtime, A/B/missing/disabled/shared routes, next-request Tool and CREATE/UPDATE governance, unknown Tool fail-closed, DELETE/UPSERT absence, durable audit, and database outage behavior: PASS.
@@ -384,3 +386,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P5-BL-1.0 | 2026-08-23 | Fast-forwarded and pushed the accepted P4 history to `main` at `e6ae8d5`, created `feature/p5-admin-control-plane`, entered P5 with three SFoA-owned workspaces, MySQL-authoritative production mode plus default env compatibility, immutable per-request policy snapshots, durable safe audit, bounded bootstrap Admin authentication, no Salesforce permission replica/Redis/cache, and the deferred P4 live closure prerequisite. |
 | P5-BL-1.1 | 2026-08-24 | Closed all locally executable P5 engineering and full-stack Gates: real MySQL application/test provisioning, migrations/checksums/schema/bootstrap, CWD-independent root resolution, dynamic MCP governance/audit/outage behavior, Admin security/transactions, React mocked and real full-stack E2E, startup/health, P0–P4 regressions, zero official TypeScript changes, and complete acceptance evidence. Retained `P5 = PARTIAL` because the independent P4 live Diagnostic chain is NOT TESTED; no merge or P6 authorization. |
 | P5-BL-1.2 | 2026-08-24 | Closed the deferred external Gate with one real independent Diagnostic account: real Admin/P4 fresh JWT identity, Tooling API, official metadata, bounds, CWD restoration, exact cleanup, execution-boundary audit, formal `validate:p4` overall PASS, and a subsequent complete `validate:p5` PASS. Advanced current status to P4 FINAL ACCEPTED, P5 PASS/COMPLETE awaiting Maintainer review, and P6 entry ready without merging P5 or starting P6. |
+| P6E-BL-1.0 | 2026-08-24 | Recorded Maintainer final acceptance of the completed P5 closure and authorized only P6-Entry OPT01 for Chinese Admin UX, MCP connectivity guidance, deterministic Dify instructions, and the WorkBuddy Salesforce Skill. P6 Real-Agent Evaluation remains unstarted until the OPT01 Gate passes; P0–P5 evidence is unchanged. |

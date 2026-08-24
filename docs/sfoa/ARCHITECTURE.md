@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P4 final accepted after the independent live DIAGNOSTIC evidence chain passed; P5 pass/complete and awaiting Maintainer review; P6 entry ready but implementation not started
+Status: P0–P5 final accepted; P6-Entry OPT01 authorized and in progress; P6 Real-Agent Evaluation remains unstarted pending the P6-Entry Gate
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 

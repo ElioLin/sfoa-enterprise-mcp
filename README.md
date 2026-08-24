@@ -2,7 +2,7 @@
 
 This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit while leaving official Salesforce Tool implementations unchanged.
 
-Current project result: `P0–P4 = FINAL ACCEPTED`, `P5 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW`, and `P6 ENTRY GATE = READY`. The independent live DIAGNOSTIC chain and the complete P5 regression now pass; P5 is not self-declared Maintainer-final-accepted, and P6 implementation has not started.
+Current project result: `P0–P5 = FINAL ACCEPTED` and `P6-ENTRY OPT01 = AUTHORIZED / IN PROGRESS`. The independent live DIAGNOSTIC chain and complete P5 regression passed before Maintainer acceptance. P6 Real-Agent Evaluation remains unstarted until the P6-Entry OPT01 Gate passes.
 
 Project documentation:
 

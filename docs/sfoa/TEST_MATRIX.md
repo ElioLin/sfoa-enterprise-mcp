@@ -614,3 +614,18 @@ P6 ENTRY GATE = READY
 ```
 
 Codex does not claim `P5 MAINTAINER FINAL ACCEPTED`; the feature branch remains pending Maintainer review and P6 implementation remains unstarted.
+
+## Maintainer Acceptance Status Sync — 2026-08-24
+
+This status record supersedes only the current phase label; it does not alter any historical P0–P5 Gate evidence above.
+
+```text
+P0 = FINAL ACCEPTED
+P1 = FINAL ACCEPTED
+P2 = FINAL ACCEPTED
+P3 = FINAL ACCEPTED
+P4 = FINAL ACCEPTED
+P5 = FINAL ACCEPTED
+P6-ENTRY OPT01 = AUTHORIZED / IN PROGRESS
+P6 REAL-AGENT EVALUATION = NOT STARTED
+```
