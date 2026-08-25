@@ -202,7 +202,7 @@ Transport: Streamable HTTP
 
 Do not add `X-Platform-User-Id`, Salesforce Username, or an identity Tool parameter to that WorkBuddy connector. Add the concise System Prompt from `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`, install `.codebuddy/skills/sfoa-salesforce-assistant/`, and perform a read-only Test Run first.
 
-Inspector, regressions, and controlled internal/Dify test connectors may continue using `MCP_CLIENT_TOKEN` plus one trusted `X-Platform-User-Id`. A future Buntu-authenticated Dify provider is only an extension point and is not implemented. For production TLS/reverse-proxy access and complete credential lifecycle guidance, follow `docs/sfoa/P2_REVERSE_PROXY.md`, `docs/sfoa/P5_DEPLOYMENT.md`, `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md`, and `docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`.
+Inspector, regressions, and controlled internal connectors may continue using `MCP_CLIENT_TOKEN` plus one trusted `X-Platform-User-Id`. The implemented 小犇/Dify route instead sends only `Authorization: Bearer <CURRENT_USER_TOKEN>` and derives platform identity from the validated Buntu `data.userId`; it must not configure the platform Header. For production TLS/reverse-proxy access and complete credential lifecycle guidance, follow `docs/sfoa/P2_REVERSE_PROXY.md`, `docs/sfoa/P5_DEPLOYMENT.md`, `docs/sfoa/P6_ENTRY_AGENT_ENABLEMENT.md`, `docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`, and `docs/agent/DIFY_SETUP.md`.
 
 ## Compatibility mode
 

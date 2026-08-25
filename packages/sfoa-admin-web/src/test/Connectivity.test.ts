@@ -3,6 +3,7 @@ import type { SystemStatusDto } from '@sfoa/control-plane';
 import {
   bindHostGuidance,
   buildDifyConnectionExample,
+  buildInternalConnectionExample,
   buildWorkBuddyConnectionExample,
   deriveMcpConnectivity,
   lanMcpUrl,
@@ -35,11 +36,20 @@ describe('MCP network guidance', () => {
 
     const dify = buildDifyConnectionExample(validation.url);
     const workBuddy = buildWorkBuddyConnectionExample(validation.url);
+    const internal = buildInternalConnectionExample(validation.url);
     expect(dify).toContain('https://mcp.company.com/mcp');
     expect(workBuddy).toContain('https://mcp.company.com/mcp');
-    expect(dify).toContain('Bearer <YOUR_MCP_CLIENT_TOKEN>');
-    expect(workBuddy).toContain('X-Platform-User-Id = <PLATFORM_USER_ID>');
+    expect(dify).toContain('Bearer <CURRENT_USER_TOKEN>');
+    expect(dify).toContain('Identity Source = BUNTU_TOKEN');
+    expect(dify).toContain('X-Platform-User-Id = NOT_CONFIGURED');
+    expect(workBuddy).toContain('Bearer <USER_BOUND_TOKEN>');
+    expect(workBuddy).toContain('Identity Source = USER_BOUND_TOKEN');
+    expect(workBuddy).toContain('X-Platform-User-Id = NOT_CONFIGURED');
     expect(workBuddy).toContain('Transport = Streamable HTTP');
+    expect(internal).toContain('Bearer <MCP_CLIENT_TOKEN>');
+    expect(internal).toContain('X-Platform-User-Id = <PLATFORM_USER_ID>');
+    expect(internal).toContain('INTERNAL_SERVICE_HEADER');
+    expect(`${dify}\n${workBuddy}`).not.toContain('<PLATFORM_USER_ID>');
   });
 
   it('rejects credentials, query parameters, and non-HTTP schemes', () => {

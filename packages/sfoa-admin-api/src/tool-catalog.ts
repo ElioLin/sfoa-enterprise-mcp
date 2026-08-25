@@ -1,4 +1,5 @@
 import type { ToolControlRecord } from '@sfoa/control-plane';
+import { AGENT_INFRASTRUCTURE_TOOL_NAMES } from '@sfoa/agent-playbook';
 import { SFOA_CONTEXT_TOOL_NAMES, SFOA_CONTEXT_TOOL_ROLES } from '@sfoa/mcp-provider-sfoa-context';
 import { SFOA_DML_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-dml';
 import {
@@ -109,6 +110,24 @@ export function buildAdminToolCatalog(
       dependencies: diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'],
       enableAllowed,
       disabledReason: enableAllowed ? null : 'Upstream contract drift requires Maintainer review.',
+    }));
+  }
+
+  for (const toolName of AGENT_INFRASTRUCTURE_TOOL_NAMES) {
+    const control = byName.get(toolName);
+    byName.delete(toolName);
+    records.push(toolRecord({
+      toolName,
+      classification: 'READ',
+      executionRole: 'USER',
+      remoteCompatible: true,
+      releaseState: 'GA',
+      control,
+      dependencies: toolName === 'get_record_links'
+        ? ['request-scoped Salesforce Connection instance origin']
+        : ['canonical Agent Playbook'],
+      enableAllowed: true,
+      disabledReason: null,
     }));
   }
 

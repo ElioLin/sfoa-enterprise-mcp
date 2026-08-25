@@ -4,8 +4,13 @@ import {
   type ToolClassification,
 } from './official-tool-catalog.js';
 import { RemoteRuntimeError } from './errors.js';
+import { AGENT_INFRASTRUCTURE_TOOL_NAMES } from '@sfoa/agent-playbook';
 
 export const DEFAULT_ENABLED_TOOLS = Object.freeze(['get_username', 'run_soql_query'] as const);
+export const DEFAULT_RUNTIME_ENABLED_TOOLS = Object.freeze([
+  ...DEFAULT_ENABLED_TOOLS,
+  ...AGENT_INFRASTRUCTURE_TOOL_NAMES,
+] as const);
 export const P2_ALLOWED_CLASSIFICATIONS = Object.freeze(['READ', 'METADATA_READ'] as const);
 
 export class ToolGovernancePolicy {

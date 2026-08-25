@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P6E-BL-1.1**
+Baseline ID: **P6A-BL-1.0**
 
-Baseline date: 2026-08-24
+Baseline date: 2026-08-26
 
 Authority: This file is the single authoritative delivery-plan baseline for SFoA Enterprise MCP.
 
@@ -18,6 +18,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 - Support stdio for local development and Streamable HTTP for remote agents.
 - Provide explicit Tool governance and a minimal CREATE/UPDATE allowlist in later phases.
 - Make architecture, tests, phase Gates, and Upstream divergence auditable by humans and AI agents.
+- Publish one versioned Salesforce Agent operating contract through MCP-native and generated client surfaces without turning guidance into authorization.
 
 ## Non-goals
 
@@ -48,6 +49,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
+| Agent guidance (P6) | Pure strict TypeScript canonical Playbook; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts |
 | Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
@@ -56,7 +58,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context plus the independent live DIAGNOSTIC chain, and the P5 full-stack Control Plane all pass. Original stdio and both Streamable HTTP regressions pass. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context plus the independent live DIAGNOSTIC chain, and the P5 full-stack Control Plane all pass. P6 USER_BOUND and Buntu identity acquisition are implemented, and Playbook `1.0.0` is distributed through MCP-native and deterministic Dify/WorkBuddy surfaces. Original stdio and Streamable HTTP regressions remain required. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn frozen-reinstall debt remain explicitly isolated.
 
 ## Upstream strategy
 
@@ -77,7 +79,7 @@ Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 
 | P3 | Minimal generic DML and object allowlist | Generic CREATE/UPDATE provider, absent config DENY, CRUD/FLS remains Salesforce-enforced, DELETE unavailable |
 | P4 | Diagnosis and runtime context | Reuse official SOQL/metadata/Apex/code-analysis; only minimal new deterministic context capabilities |
 | P5 | React Admin Console | Admin app for routing, allowlists, Tool control, audit, and system configuration; no Salesforce permission replica |
-| P6 | Dify/WorkBuddy real-agent evaluation | Real client interoperability and stable, read-only multi-step evaluation suite pass |
+| P6 | Client identity, canonical Agent Playbook, and Dify/WorkBuddy real-agent evaluation | USER_BOUND/Buntu/Internal identity remains authoritative; versioned MCP-native behavior contract passes protocol/isolation/drift Gates; later real-client interoperability and stable multi-step evaluation suite pass |
 
 Phase order may change only with a same-change update to this file, `CHANGELOG.md`, and an ADR when architectural.
 
@@ -90,17 +92,19 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P6-Entry OPT01 = PASS; P6 REAL-AGENT EVALUATION = READY`
+`P6-Agent-01 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P6 REAL-AGENT EVALUATION = READY / NOT STARTED`
 
 ## Current status
 
-`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6-ENTRY OPT01 = PASS; P6 REAL-AGENT EVALUATION = READY`
+`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6-ENTRY OPT01 = PASS; P6-ID-01 = COMPLETE; P6-ID-02 = COMPLETE; P6-Agent-01 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW; P6 REAL-AGENT EVALUATION = READY / NOT STARTED`
 
-Maintainer authorization on 2026-08-24 accepted the completed P5 closure and authorized only P6-Entry OPT01. OPT01 completed with zh-CN Admin presentation, safe MCP connectivity guidance, deterministic Dify instructions, and the WorkBuddy/CodeBuddy Salesforce Skill. Historical P0–P5 evidence remains unchanged; P6 Real-Agent Evaluation is ready but has not been executed, and P7 is not authorized.
+Maintainer direction subsequently completed P6-ID-01 USER_BOUND credentials and P6-ID-02 Buntu identity, then authorized P6-Agent-01 on a dedicated branch. P6-Agent-01 replaces duplicated Agent copy with pure Playbook `1.0.0`, MCP Instructions/Resources/Prompt, governed Tool fallback and record links, deterministic Dify/WorkBuddy generation, and Admin distribution status. Historical P0–P5 evidence remains unchanged; P6 Real-Agent Evaluation has not been executed, P7 is not authorized, and this feature branch must not merge to `main` before Maintainer review.
+
+P6-Agent-01 adds no business-object workflow, prompt database/editor/history, permission replica, Dynamic Forms evaluator, runtime form engine, DELETE, cache, or identity override. Dynamic Forms evidence is `NOT_AVAILABLE`. `get_record_links` accepts no host and makes no Salesforce API call; it uses only the current request Connection's trusted instance origin. `MCP_DML_OUTCOME_UNKNOWN` remains non-auto-retry across every distribution surface.
 
 P5-Closure HOTFIX01 provisioned and migrated the real local MySQL application/test databases, completed non-force idempotent bootstrap, removed the runtime CWD/root assumption, started the real MCP/Admin/Web stack, and passed changed-code lint, builds, unit/integration tests, MySQL runtime governance, Admin security, mocked browser workflow, and non-mocked Browser-to-Admin-API-to-MySQL E2E. Durable runtime/Admin audit, database-outage fail-closed behavior, dynamic Tool/DML changes, unknown Tool denial, and mutation-audit failure semantics have direct evidence in `TEST_MATRIX.md` and `P5_FINAL_REPORT.md`.
 
-The later final live closure configured a real independent Diagnostic account without committing its identifier or credentials. Real Admin verification and the formal P4 validator passed fresh JWT identity, Tooling API, official metadata retrieval, bounded context, CWD restoration, exact cleanup, USER/DIAGNOSTIC execution boundaries, and durable audit. The complete P5 aggregate Gate then passed again. `P5_FINAL_ACCEPTANCE_CLOSURE.md` supersedes the current status while preserving the historical PARTIAL reports and ADR waiver record. This baseline does not authorize merge or P6 implementation before Maintainer review.
+The later final live closure configured a real independent Diagnostic account without committing its identifier or credentials. Real Admin verification and the formal P4 validator passed fresh JWT identity, Tooling API, official metadata retrieval, bounded context, CWD restoration, exact cleanup, USER/DIAGNOSTIC execution boundaries, and durable audit. The complete P5 aggregate Gate then passed again. `P5_FINAL_ACCEPTANCE_CLOSURE.md` supersedes the historical PARTIAL reports and ADR waiver record. This baseline records the explicitly authorized P6-Agent-01 implementation; it does not authorize merging this feature branch or starting the later real-agent evaluation before Maintainer review.
 
 The repeatable Closure Harness completed Fresh JWT, direct `@salesforce/core` identity, Direct SOQL, official `run_soql_query`, official `retrieve_metadata` for one real CustomObject, temporary workspace cleanup, and CWD restoration. CLI v2 JWT/query cross-check also passed. The maintainer accepted P0-Closure and authorized P1 on 2026-08-22. P0 commits `32469cd`, `d90163f`, and `e80d9fd` were fast-forwarded to `main` without squashing before `feature/p1-request-scoped-identity` was created.
 
@@ -389,3 +393,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P5-BL-1.3 | 2026-08-24 | Corrected the Windows local `p5:dev` orchestration after reproducing overlapping Yarn/Corepack/Vite process-tree access failures: sequential project-local backend builds, port preflight, backend readiness before Vite, resolved proxy targeting, truthful nonzero failure, complete child-tree shutdown, and actionable login transport errors. P5 acceptance status and the P6 review boundary are unchanged. |
 | P6E-BL-1.0 | 2026-08-24 | Recorded Maintainer final acceptance of the completed P5 closure and authorized only P6-Entry OPT01 for Chinese Admin UX, MCP connectivity guidance, deterministic Dify instructions, and the WorkBuddy Salesforce Skill. P6 Real-Agent Evaluation remains unstarted until the OPT01 Gate passes; P0–P5 evidence is unchanged. |
 | P6E-BL-1.1 | 2026-08-24 | Completed P6-Entry OPT01 with Admin-visible zh-CN and Ant locale, safe same-host/LAN/TLS connector guidance, a deterministic current Tool/policy/Diagnostic-driven Dify instruction generator, baseline Agent prompts, and the progressive-disclosure WorkBuddy/CodeBuddy Salesforce Skill. Final package and aggregate P5 regressions passed with no MCP protocol rename, database migration, Salesforce/MCP Runtime behavior change, or secret exposure; P6 Real-Agent Evaluation is READY but not started. |
+| P6A-BL-1.0 | 2026-08-26 | Completed P6-Agent-01 with one pure Playbook `1.0.0` source, deterministic multi-client renderers and drift Gate, request-scoped MCP Instructions/Resources/Prompt, governed Tool fallback and trusted record links, current Buntu/USER_BOUND/Internal setup, and focused identity/governance regressions. Dynamic Forms evidence remains NOT AVAILABLE; no Runtime Form Engine, object-specific rule, prompt table, permission replica, SDK upgrade, official Salesforce TypeScript change, or whole-P6 completion is claimed. |

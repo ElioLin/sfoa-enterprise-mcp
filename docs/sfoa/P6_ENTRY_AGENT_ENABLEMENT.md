@@ -1,8 +1,8 @@
 # P6-Entry Agent Enablement
 
-Status: `P6-ENTRY OPT01 = PASS`; P6-ID-01 USER_BOUND enhancement implemented and under final validation; `P6 REAL-AGENT EVALUATION` remains unstarted
+Status: `P6-ENTRY OPT01 = PASS`; P6-ID-01 USER_BOUND and P6-ID-02 BUNTU identity are complete; P6-Agent-01 canonical Playbook is implemented; `P6 REAL-AGENT EVALUATION` remains a later Gate
 
-> P6-ID-01 supersedes the OPT01 connector identity guidance below: WorkBuddy now uses a route-bound USER_BOUND bearer without `X-Platform-User-Id`. Legacy internal connectors retain the shared bearer plus trusted Header. See `P6_ID_01_USER_BOUND_CREDENTIAL.md`.
+> P6-Agent-01 supersedes the duplicated OPT01 guidance below. WorkBuddy uses a route-bound USER_BOUND bearer, 小犇/Dify uses the current Buntu bearer, and only legacy internal/Inspector clients retain the shared bearer plus trusted Header. Canonical behavior is versioned in `@sfoa/agent-playbook`; see `P6_AGENT_01_AGENT_PLAYBOOK.md`.
 
 ## Purpose and boundary
 
@@ -75,7 +75,13 @@ Transport: Streamable HTTP
 
 The WorkBuddy JSON contains no platform Header. The USER_BOUND token resolves the current route's platform identity, and the authenticated credential Drawer can retrieve it repeatedly. Dashboard, Audit, System, and route-list responses do not receive the raw token.
 
-`MCP_CLIENT_TOKEN` plus `X-Platform-User-Id` remains authoritative for Inspector, regressions, and trusted internal/gateway connectors. It is not required by WorkBuddy. A future `BUNTU_TOKEN` provider may authenticate Dify into the same principal boundary, but no Buntu API is implemented in this phase.
+`MCP_CLIENT_TOKEN` plus `X-Platform-User-Id` remains authoritative for Inspector, regressions, and trusted internal/gateway connectors. It is not required by WorkBuddy or Dify. 小犇/Dify sends only the current user's Buntu bearer; the implemented Buntu validator returns the authoritative `data.userId` platform identity.
+
+## P6-Agent-01 supersession
+
+The OPT01 static sources are now generated from Playbook `1.0.0`. MCP-native clients receive initialize Instructions, the full and capability Resources, and the workflow Prompt. Older clients may call enabled `get_agent_playbook`; enabled `get_record_links` derives trusted Lightning links from the request Connection. Current Admin Tool/DML/Diagnostic facts are adapted into the canonical renderers instead of authored as another rule set.
+
+Use `yarn agent:sync` and `yarn agent:check`; do not hand-edit generated Dify/WorkBuddy/Skill files. See `docs/agent/DIFY_SETUP.md` and `docs/agent/WORKBUDDY_SETUP.md`.
 
 ## Deterministic Dify instructions
 

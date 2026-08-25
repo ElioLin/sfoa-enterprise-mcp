@@ -28,6 +28,7 @@ export const REMOTE_RUNTIME_ERROR_CODES = [
   'MCP_ORIGIN_NOT_ALLOWED',
   'MCP_REQUEST_INVALID',
   'MCP_REQUEST_CLEANUP_FAILED',
+  'MCP_TRUSTED_INSTANCE_URL_INVALID',
 ] as const;
 
 export type RemoteRuntimeErrorCode = (typeof REMOTE_RUNTIME_ERROR_CODES)[number];

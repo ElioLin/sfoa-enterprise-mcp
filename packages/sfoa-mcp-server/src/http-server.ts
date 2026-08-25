@@ -436,6 +436,7 @@ async function executeMcpPost(
   resources.assertAvailable(signal);
 
   let initializedProvider = options.initializedProvider;
+  let diagnosticReady = false;
   let scope: RequestScope;
   if (options.policySnapshotSource) {
     const snapshot = await options.policySnapshotSource.load(identity.platformUserId);
@@ -453,6 +454,10 @@ async function executeMcpPost(
       snapshot.enabledTools,
       snapshotDmlAllowlist(snapshot),
     );
+    diagnosticReady = snapshot.diagnostic?.enabled === true
+      && snapshot.diagnostic.verificationStatus === 'PASS'
+      && snapshot.enabledTools.includes('run_diagnostic_tooling_query')
+      && snapshot.enabledTools.includes('get_metadata_component_context');
     await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, principal, options.logger);
     const requestedRole = getRequestedExecutionRole(parsedBody, initializedProvider.enabledTools);
     if (requestedRole === 'DIAGNOSTIC') {
@@ -469,6 +474,9 @@ async function executeMcpPost(
       scope = await options.identityRuntime.scopeFactory.createForRoute(identity, userRoute);
     }
   } else {
+    diagnosticReady = options.identityRuntime.diagnosticScopeFactory !== undefined
+      && options.config.enabledTools.includes('run_diagnostic_tooling_query')
+      && options.config.enabledTools.includes('get_metadata_component_context');
     const requestedRole = getRequestedExecutionRole(parsedBody, options.config.enabledTools);
     scope = requestedRole === 'DIAGNOSTIC'
       ? await createDiagnosticScope(options.identityRuntime, identity)
@@ -492,6 +500,7 @@ async function executeMcpPost(
     ],
     mutationRequestState,
     initializedProvider,
+    diagnosticReady,
   });
   await resources.attachMcpServer(created.server);
   resources.assertAvailable(signal);

@@ -1,4 +1,5 @@
 export * from './authenticator.js';
+export * from './agent-guidance.js';
 export * from './config.js';
 export * from './context-tool-facade.js';
 export * from './diagnostic-context-adapters.js';

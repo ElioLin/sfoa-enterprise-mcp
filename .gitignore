@@ -25,10 +25,12 @@ coverage
 /packages/sfoa-admin-web/playwright-report/
 /packages/sfoa-admin-web/test-results/
 
-# generated docs, except the SFoA project baseline
+# generated docs, except authoritative SFoA and Agent distribution docs
 docs/*
 !docs/sfoa/
 !docs/sfoa/**
+!docs/agent/
+!docs/agent/**
 
 
 npm-shrinkwrap.json

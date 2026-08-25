@@ -1,5 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  isAgentInfrastructureToolName,
+} from '@sfoa/agent-playbook';
+import {
   type McpTool,
   ReleaseState,
 } from '@salesforce/mcp-provider-api';
@@ -26,6 +29,11 @@ import {
   type RuntimeLogger,
 } from '@sfoa/identity-runtime';
 import { RemoteRuntimeError, toRemoteRuntimeError } from './errors.js';
+import {
+  createRuntimeAgentCapabilities,
+  registerAgentGuidance,
+  serverInstructions,
+} from './agent-guidance.js';
 import { ContextToolFacade } from './context-tool-facade.js';
 import {
   OfficialDiagnosticToolingQueryExecutor,
@@ -63,6 +71,7 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   redactionSecrets?: readonly string[];
   mutationRequestState: MutationRequestState;
   initializedProvider: InitializedProviderRuntime;
+  diagnosticReady: boolean;
 }>;
 
 export class MutationRequestState implements MutationExecutionObserver {
@@ -120,7 +129,7 @@ export function configureProviderRuntime(
   dmlAllowlist: DmlAllowlistPolicy,
 ): InitializedProviderRuntime {
   const officialEnabledTools = enabledTools.filter(
-    (name) => !isSfoaDmlToolName(name) && !isSfoaContextToolName(name),
+    (name) => !isSfoaDmlToolName(name) && !isSfoaContextToolName(name) && !isAgentInfrastructureToolName(name),
   );
   const dmlEnabledTools = enabledTools.filter(isSfoaDmlToolName);
   const officialContextDependencies = [
@@ -146,7 +155,15 @@ export function configureProviderRuntime(
 export async function createGovernedMcpServer(
   options: CreateGovernedMcpServerOptions,
 ): Promise<{ server: McpServer; registeredTools: readonly string[] }> {
-  const server = new McpServer({ name: 'sfoa-mcp-server', version: '0.1.0-p4' });
+  const agentCapabilities = createRuntimeAgentCapabilities(
+    options.initializedProvider.enabledTools,
+    options.initializedProvider.dmlAllowlist,
+    options.diagnosticReady,
+  );
+  const server = new McpServer(
+    { name: 'sfoa-mcp-server', version: '0.1.0-p6-agent' },
+    { instructions: serverInstructions(agentCapabilities) },
+  );
   try {
     const providerTools = await options.initializedProvider.toolSource.provideTools(options.scope.services);
     const toolsByName = new Map<string, McpTool>();
@@ -175,7 +192,14 @@ export async function createGovernedMcpServer(
       toolsByName.set(tool.getName(), tool);
     }
 
-    const registered: string[] = [];
+    const registered: string[] = [...registerAgentGuidance(server, {
+      scope: options.scope,
+      logger: options.logger,
+      clientId: options.clientId,
+      capabilities: agentCapabilities,
+      enabledTools: options.initializedProvider.enabledTools,
+      redactionSecrets: options.redactionSecrets,
+    })];
     const adapter = new RequestScopedToolExecutionAdapter(
       options.scope.context,
       options.scope.route,
@@ -237,6 +261,7 @@ export async function createGovernedMcpServer(
     }
 
     for (const name of options.initializedProvider.enabledTools) {
+      if (isAgentInfrastructureToolName(name)) continue;
       const tool = toolsByName.get(name);
       if (!tool) {
         throw new RemoteRuntimeError(

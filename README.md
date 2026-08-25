@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP
 
-This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit while leaving official Salesforce Tool implementations unchanged.
+This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity acquisition and a canonical MCP-native Salesforce Agent Playbook while leaving official Salesforce Tool implementations unchanged.
 
-Current project result: `P0–P5 = FINAL ACCEPTED` and `P6-ENTRY OPT01 = AUTHORIZED / IN PROGRESS`. The independent live DIAGNOSTIC chain and complete P5 regression passed before Maintainer acceptance. P6 Real-Agent Evaluation remains unstarted until the P6-Entry OPT01 Gate passes.
+Current project result: `P0–P5 = FINAL ACCEPTED`; `P6-ENTRY OPT01`, `P6-ID-01`, and `P6-ID-02` are complete; `P6-Agent-01` is implemented on `feature/p6-agent-playbook` and awaiting final Maintainer review. P6 Real-Agent Evaluation remains a separate later Gate.
 
 Project documentation:
 
@@ -10,10 +10,15 @@ Project documentation:
 - [P5 deployment](docs/sfoa/P5_DEPLOYMENT.md)
 - [P5 final report](docs/sfoa/P5_FINAL_REPORT.md)
 - [P4/P5 final acceptance closure](docs/sfoa/P5_FINAL_ACCEPTANCE_CLOSURE.md)
+- [P6 Agent Playbook design](docs/sfoa/P6_AGENT_01_DESIGN.md)
+- [P6 Agent Playbook architecture and implementation](docs/sfoa/P6_AGENT_01_AGENT_PLAYBOOK.md)
+- [P6 Agent Playbook final report](docs/sfoa/P6_AGENT_01_REPORT.md)
+- [Dify setup](docs/agent/DIFY_SETUP.md)
+- [WorkBuddy setup](docs/agent/WORKBUDDY_SETUP.md)
 - [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)
 - [Authoritative baseline](docs/sfoa/PROJECT_BASELINE.md)
 
-The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn validate:p5` for the repeatable local P5 Gate. Real credentials belong only in ignored local environment files or secret injection.
+The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` to regenerate Dify/WorkBuddy artifacts and `yarn agent:check` to reject drift. Run `yarn validate:p5` for the repeatable P5 regression Gate. Real credentials belong only in ignored local environment files or secret injection.
 
 ---
 

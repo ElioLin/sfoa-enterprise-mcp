@@ -133,7 +133,7 @@ Authorization: Bearer <YOUR_MCP_CLIENT_TOKEN>
 X-Platform-User-Id: <PLATFORM_USER_ID>
 ```
 
-Do not put real credentials into general Admin inputs, documentation, Vite configuration, client-visible prompts, logs, or support bundles. The authenticated route-credential endpoint is the only Admin surface that returns a USER_BOUND plaintext. A future Buntu-authenticated Dify provider remains unimplemented. See `docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`.
+Do not put real credentials into general Admin inputs, documentation, Vite configuration, client-visible prompts, logs, or support bundles. The authenticated route-credential endpoint is the only Admin surface that returns a USER_BOUND plaintext. The implemented 小犇/Dify provider validates the current-user Buntu bearer per request and derives only `data.userId`; it does not use the USER_BOUND credential endpoint or a platform Header. See `docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`, `docs/sfoa/P6_ID_02_BUNTU_TOKEN_IDENTITY.md`, and `docs/agent/DIFY_SETUP.md`.
 
 ## Secret handling
 

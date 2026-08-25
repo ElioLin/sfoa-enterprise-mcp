@@ -1,11 +1,19 @@
 import {
   ApiOutlined,
-  CheckCircleOutlined,
+  BookOutlined,
+  CloudServerOutlined,
   CopyOutlined,
   LinkOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
+import {
+  AGENT_PLAYBOOK_VERSION,
+  renderFullPlaybook,
+  renderServerInstructions,
+  renderWorkBuddySystemPrompt,
+} from '@sfoa/agent-playbook';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -23,11 +31,11 @@ import {
 } from 'antd';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import skillMarkdown from '../../../../.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md?raw';
-import workBuddySystemPrompt from '../../../../docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md?raw';
 import { adminApi } from '../api/client.js';
 import {
   bindHostGuidance,
   buildDifyConnectionExample,
+  buildInternalConnectionExample,
   buildWorkBuddyConnectionExample,
   deriveMcpConnectivity,
   lanMcpUrl,
@@ -56,6 +64,10 @@ export default function AgentIntegrationPage() {
     dmlPolicies: policies.data,
     diagnostic: status.data.diagnostic,
   }) : null, [policies.data, status.data, tools.data]);
+  const facts = useMemo(
+    () => generatorInput ? deriveDifyInstructionFacts(generatorInput) : null,
+    [generatorInput],
+  );
 
   useEffect(() => {
     if (!status.data || externalUrlTouched) return;
@@ -83,15 +95,15 @@ export default function AgentIntegrationPage() {
   return (
     <PageFrame
       title="智能体接入"
-      description="为 Dify 与 WorkBuddy 生成安全的 MCP 连接示例、当前 Tool/策略驱动的 Agent 指令，以及 Salesforce 专项 Skill 安装指引。"
+      description={`Playbook ${AGENT_PLAYBOOK_VERSION} 统一分发 MCP 原生指引、小犇/Dify 指令与 WorkBuddy Skill；运行时能力来自当前 Tool、DML 策略和诊断状态。`}
       action={<Button icon={<ReloadOutlined />} loading={status.isFetching || tools.isFetching || policies.isFetching} onClick={() => void refresh()}>刷新当前状态</Button>}
     >
-      {pending ? <LoadingState rows={8} /> : error ? <ErrorState error={error} onRetry={() => void refresh()} /> : status.data && tools.data && policies.data && generatorInput ? (
+      {pending ? <LoadingState rows={8} /> : error ? <ErrorState error={error} onRetry={() => void refresh()} /> : status.data && facts && generatorInput ? (
         <Tabs
           destroyOnHidden={false}
           items={[
             {
-              key: 'mcp',
+              key: 'mcp-access',
               label: 'MCP 接入',
               children: (
                 <McpAccessTab
@@ -103,29 +115,54 @@ export default function AgentIntegrationPage() {
               ),
             },
             {
+              key: 'agent-playbook',
+              label: 'Agent Playbook',
+              children: (
+                <AgentPlaybookTab
+                  facts={facts}
+                  playbook={renderFullPlaybook(facts.capabilities)}
+                  onCopy={copy}
+                />
+              ),
+            },
+            {
               key: 'dify',
-              label: 'Dify 指令',
+              label: '小犇 / Dify',
               children: (
                 <DifyTab
+                  externalUrl={externalUrl}
                   instruction={instruction}
-                  facts={deriveDifyInstructionFacts(generatorInput)}
+                  facts={facts}
                   onGenerate={() => {
                     setInstruction(generateDifyAgentInstruction(generatorInput));
                     void message.success('已根据当前 Tool、DML 策略与 Diagnostic verification 重新生成。');
                   }}
-                  onCopy={() => copy(instruction, '已复制 Dify Agent 指令。')}
+                  onCopy={copy}
                 />
               ),
             },
             {
               key: 'workbuddy',
               label: 'WorkBuddy',
-              children: <WorkBuddyTab externalUrl={externalUrl} systemPrompt={workBuddySystemPrompt} onCopy={copy} />,
+              children: (
+                <WorkBuddyTab
+                  externalUrl={externalUrl}
+                  systemPrompt={renderWorkBuddySystemPrompt(facts.capabilities)}
+                  onCopy={copy}
+                />
+              ),
             },
             {
-              key: 'skill',
-              label: 'Skill',
-              children: <SkillTab onCopy={() => copy(skillMarkdown, '已复制 SKILL.md。')} />,
+              key: 'mcp-native',
+              label: 'MCP 原生指引',
+              children: (
+                <McpNativeTab
+                  instructions={renderServerInstructions(facts.capabilities)}
+                  playbookToolEnabled={facts.availableTools.includes('get_agent_playbook')}
+                  recordLinksEnabled={facts.availableTools.includes('get_record_links')}
+                  onCopy={copy}
+                />
+              ),
             },
           ]}
         />
@@ -147,8 +184,23 @@ function McpAccessTab({
 }>) {
   const validation = validateExternalMcpUrl(externalUrl);
   const exampleUrl = validation.valid ? validation.url : externalUrl.trim();
-  const difyExample = buildDifyConnectionExample(exampleUrl);
-  const workBuddyExample = buildWorkBuddyConnectionExample(exampleUrl);
+  const examples = [
+    {
+      title: '小犇 / Dify（BUNTU_TOKEN）',
+      value: buildDifyConnectionExample(exampleUrl),
+      success: '已复制小犇 / Dify 连接示例。',
+    },
+    {
+      title: 'WorkBuddy（USER_BOUND_TOKEN）',
+      value: buildWorkBuddyConnectionExample(exampleUrl),
+      success: '已复制 WorkBuddy 连接示例。',
+    },
+    {
+      title: 'Internal / Inspector',
+      value: buildInternalConnectionExample(exampleUrl),
+      success: '已复制 Internal / Inspector 连接示例。',
+    },
+  ] as const;
   return (
     <Space orientation="vertical" size="large" className="full-width">
       <Card title="当前 Runtime 安全配置" className="surface-card">
@@ -163,7 +215,7 @@ function McpAccessTab({
           <Descriptions.Item label="Runtime Endpoint"><code>{config.runtimeEndpoint}</code></Descriptions.Item>
         </Descriptions>
         <Typography.Paragraph type="secondary" className="credential-note">
-          此页仅显示安全配置与“已配置 / 未配置”状态，不返回 MCP_CLIENT_TOKEN、数据库密码、JWT private key、access token 或 Admin session secret。
+          此页只显示安全状态和 placeholder，不返回 MCP token、Buntu token、USER_BOUND token、数据库密码、JWT private key 或 Admin session secret。
         </Typography.Paragraph>
       </Card>
 
@@ -171,39 +223,32 @@ function McpAccessTab({
       <Row gutter={[16, 16]}>
         <GuidanceCard title="本机接入" icon={<ApiOutlined />}>
           <CodeBlock value={loopbackMcpUrl(config)} />
-          <Typography.Paragraph>该地址仅适用于与 MCP Runtime 位于同一台主机的客户端。外部 Dify / WorkBuddy 无法通过它们自己的 127.0.0.1 访问本机 MCP。</Typography.Paragraph>
+          <Typography.Paragraph>仅适用于与 MCP Runtime 位于同一台主机的客户端。</Typography.Paragraph>
         </GuidanceCard>
         <GuidanceCard title="LAN 测试" icon={<LinkOutlined />}>
           <CodeBlock value={[
             'MCP_BIND_HOST=0.0.0.0',
             `MCP_ALLOWED_HOSTS=<YOUR_LAN_IP>:${config.port}`,
-            'MCP_AUTH_MODE=internal_bearer',
             '',
             `Endpoint: ${lanMcpUrl(config)}`,
           ].join('\n')} />
-          <Typography.Paragraph>需要 Windows/Linux Firewall 放通 TCP {config.port}。只有与该 IP 网络可达的 Dify/WorkBuddy Runtime 才能连接。本页不会自动修改 firewall、.env.local 或开启 0.0.0.0。</Typography.Paragraph>
+          <Typography.Paragraph>还需要 route 与 firewall 放通 TCP {config.port}；本页不修改部署配置。</Typography.Paragraph>
         </GuidanceCard>
         <GuidanceCard title="生产 HTTPS" icon={<SafetyCertificateOutlined />}>
-          <CodeBlock value={'https://mcp.example.com/mcp\n        ↓\nNginx/TLS\n        ↓\nhttp://127.0.0.1:8080/mcp'} />
-          <Typography.Paragraph>生产不建议直接公开 8080。请按 <code>docs/sfoa/P2_REVERSE_PROXY.md</code> 与 <code>docs/sfoa/P5_DEPLOYMENT.md</code> 配置 reverse proxy 与 TLS；本任务不会自动部署 Nginx。</Typography.Paragraph>
+          <CodeBlock value={'https://mcp.example.com/mcp\n        ↓\nReverse proxy / TLS\n        ↓\nhttp://127.0.0.1:8080/mcp'} />
+          <Typography.Paragraph>按 P2 reverse proxy 与 P5 deployment 文档配置 TLS、DNS、Host 和 Origin 策略。</Typography.Paragraph>
         </GuidanceCard>
       </Row>
 
       <Alert
         type="warning"
         showIcon
-        title="0.0.0.0 不等于互联网可访问"
-        description="127.0.0.1 = 本机；0.0.0.0 = 监听所有本机网络接口。实际访问仍取决于 route、firewall、security group、reverse proxy 与 DNS。"
-      />
-      <Alert
-        type="warning"
-        showIcon
-        title="X-Platform-User-Id 是当前 authoritative input"
-        description="P6 内部测试可以由一个受控 connector 使用一个固定 platformUserId，但这不等于 WorkBuddy/Dify 每个终端用户的动态 Salesforce 身份。未来需要 trusted gateway / authenticated claim 派生 platformUserId 并覆盖入站 Header；本任务不实现该 Gateway。"
+        title="三种身份来源不可混用"
+        description="小犇/Dify 使用 Buntu 当前用户 Token；WorkBuddy 使用 Identity Route 绑定的 USER_BOUND Token；只有受控 Internal/Inspector 客户端使用 MCP_CLIENT_TOKEN + X-Platform-User-Id。客户端不得通过 Tool 参数选择 Salesforce Username。"
       />
 
-      <Card title="外部地址测试输入" className="surface-card">
-        <Typography.Paragraph type="secondary">仅用于在浏览器中生成连接配置示例；默认不持久化，也不作为 Runtime Authority。</Typography.Paragraph>
+      <Card title="外部 MCP 地址" className="surface-card">
+        <Typography.Paragraph type="secondary">仅用于生成浏览器内连接示例；不持久化，也不作为 Runtime Authority。</Typography.Paragraph>
         <Input
           aria-label="外部 MCP 地址"
           value={externalUrl}
@@ -216,31 +261,107 @@ function McpAccessTab({
       </Card>
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} xl={12}>
-          <ConnectionExample title="Dify 连接示例" value={difyExample} disabled={!validation.valid} onCopy={() => onCopy(difyExample, '已复制 Dify 连接示例。')} />
-        </Col>
-        <Col xs={24} xl={12}>
-          <ConnectionExample title="WorkBuddy 连接示例" value={workBuddyExample} disabled={!validation.valid} onCopy={() => onCopy(workBuddyExample, '已复制 WorkBuddy 连接示例。')} />
-        </Col>
+        {examples.map((example) => (
+          <Col xs={24} xl={8} key={example.title}>
+            <ConnectionExample
+              title={example.title}
+              value={example.value}
+              disabled={!validation.valid}
+              onCopy={() => onCopy(example.value, example.success)}
+            />
+          </Col>
+        ))}
       </Row>
     </Space>
   );
 }
 
+function AgentPlaybookTab({
+  facts,
+  playbook,
+  onCopy,
+}: Readonly<{
+  facts: ReturnType<typeof deriveDifyInstructionFacts>;
+  playbook: string;
+  onCopy(value: string, successMessage: string): Promise<void>;
+}>) {
+  return (
+    <Space orientation="vertical" size="large" className="full-width">
+      <Alert
+        type="success"
+        showIcon
+        title={`Canonical Agent Playbook ${AGENT_PLAYBOOK_VERSION}`}
+        description="规则由 @sfoa/agent-playbook 单一维护；MCP、Dify、WorkBuddy 与 checked-in 生成物使用同一版本。"
+      />
+      <Row gutter={[16, 16]}>
+        <RelationCard title="Canonical Source" description="纯 TypeScript 定义与 renderer；不读取网络、数据库、Connection 或 secret。" />
+        <RelationCard title="Runtime Facts" description="当前可用 Tool、CREATE/UPDATE 对象策略、Diagnostic readiness；按请求隔离。" />
+        <RelationCard title="Deterministic Artifacts" description="yarn agent:sync 生成，yarn agent:check 检测手工修改与版本漂移。" />
+      </Row>
+      <Card title="当前分发状态" className="surface-card">
+        <Space wrap>
+          <StatusTag label="ENABLED" /><span>MCP Instructions</span>
+          <StatusTag label="ENABLED" /><span>Playbook Resource</span>
+          <StatusTag label="ENABLED" /><span>Capabilities Resource</span>
+          <StatusTag label="ENABLED" /><span>MCP Prompt</span>
+          <StatusTag label={facts.availableTools.includes('get_agent_playbook') ? 'ENABLED' : 'DISABLED'} /><span>Tool fallback</span>
+          <StatusTag label={facts.availableTools.includes('get_record_links') ? 'ENABLED' : 'DISABLED'} /><span>Record links</span>
+          <StatusTag label="SYNCED" tone="success" /><span>WorkBuddy Skill</span>
+          <StatusTag label="GENERATED" tone="success" /><span>Dify Instruction</span>
+          <StatusTag label="NOT_AVAILABLE" /><span>Dynamic Forms evidence</span>
+        </Space>
+      </Card>
+      <Card title="当前能力事实" className="surface-card">
+        <Space wrap>
+          {facts.availableTools.map((name) => <Tag key={name}><code>{name}</code></Tag>)}
+          {facts.availableTools.length === 0 ? <Tag>无可用 Tool</Tag> : null}
+          <Tag>CREATE 对象 {facts.createObjects.length}</Tag>
+          <Tag>UPDATE 对象 {facts.updateObjects.length}</Tag>
+          <StatusTag label={facts.diagnosticReady ? 'READY' : facts.diagnosticEnabledButUnverified ? 'NOT_VERIFIED' : 'DISABLED'} />
+        </Space>
+      </Card>
+      <Space wrap>
+        <Button icon={<BookOutlined />} href="#agent-playbook-full">查看完整规范</Button>
+        <Button type="primary" icon={<CopyOutlined />} onClick={() => void onCopy(playbook, '已复制当前 Agent Playbook。')}>复制当前 Playbook</Button>
+        <Button icon={<CopyOutlined />} onClick={() => void onCopy(skillMarkdown, '已复制生成的 SKILL.md。')}>复制 WorkBuddy Skill</Button>
+      </Space>
+      <CodeBlock id="agent-playbook-full" value={playbook} tall />
+    </Space>
+  );
+}
+
 function DifyTab({
+  externalUrl,
   instruction,
   facts,
   onGenerate,
   onCopy,
 }: Readonly<{
+  externalUrl: string;
   instruction: string;
   facts: ReturnType<typeof deriveDifyInstructionFacts>;
   onGenerate(): void;
-  onCopy(): Promise<void>;
+  onCopy(value: string, successMessage: string): Promise<void>;
 }>) {
+  const validation = validateExternalMcpUrl(externalUrl);
+  const example = buildDifyConnectionExample(validation.valid ? validation.url : externalUrl.trim());
   return (
     <Space orientation="vertical" size="large" className="full-width">
-      <Alert type="info" showIcon title="确定性生成" description="指令仅由当前可执行 Tool 目录、数据库 Tool enabled state、DML 操作策略与 Diagnostic verification 生成，不调用 LLM。" />
+      <Alert
+        type="info"
+        showIcon
+        title="小犇当前用户 Token → BUNTU_TOKEN"
+        description="Dify 只传当前用户 bearer。MCP 每次调用 Buntu validate-token 获取 platformUserId，再经过 Identity Route；不要配置 X-Platform-User-Id。"
+      />
+      <ConnectionExample title="小犇 / Dify MCP 连接示例" value={example} disabled={!validation.valid} onCopy={() => onCopy(example, '已复制小犇 / Dify 连接示例。')} />
+      <Recommendation title="小犇 / Dify 推荐步骤" items={[
+        '添加 Streamable HTTP MCP Connector 并填写可达的 MCP URL。',
+        'Authorization 使用当前登录用户的 Buntu Token：Bearer <CURRENT_USER_TOKEN>。',
+        '不要配置 X-Platform-User-Id，也不要把 platformUserId 或 Salesforce Username 放入 Tool 参数。',
+        '加载 MCP Instructions、Resources、Prompt 和当前允许的 Tools。',
+        '将下面由当前能力事实生成的指令复制到 Agent 指令。',
+        '先执行只读与身份测试，再执行允许的 DML Test Dataset。',
+      ]} />
       <Card title="当前生成依据" className="surface-card">
         <Space wrap>
           {facts.availableTools.map((name) => <Tag key={name}><code>{name}</code></Tag>)}
@@ -250,19 +371,10 @@ function DifyTab({
         </Space>
       </Card>
       <Space wrap>
-        <Button type="primary" icon={<ReloadOutlined />} onClick={onGenerate}>生成指令</Button>
-        <Button icon={<CopyOutlined />} disabled={!instruction} onClick={() => void onCopy()}>复制指令</Button>
+        <Button type="primary" icon={<ReloadOutlined />} onClick={onGenerate}>重新生成指令</Button>
+        <Button icon={<CopyOutlined />} disabled={!instruction} onClick={() => void onCopy(instruction, '已复制小犇 / Dify Agent 指令。')}>复制指令</Button>
       </Space>
       <CodeBlock value={instruction} tall />
-      <Recommendation title="Dify 推荐步骤" items={[
-        '添加 MCP。',
-        '填写可达的 MCP URL。',
-        '配置 Bearer token。',
-        '配置 platformUserId。',
-        '加载当前允许的 MCP Tools。',
-        '将生成的 Dify Agent Instruction 复制到 Agent 指令。',
-        '执行 P6 Test Dataset。',
-      ]} />
     </Space>
   );
 }
@@ -280,49 +392,85 @@ function WorkBuddyTab({
   const example = buildWorkBuddyConnectionExample(validation.valid ? validation.url : externalUrl.trim());
   return (
     <Space orientation="vertical" size="large" className="full-width">
+      <Alert
+        type="info"
+        showIcon
+        title="USER_BOUND Token 已绑定 Identity Route"
+        description="WorkBuddy Connector 只配置 USER_BOUND bearer；不要配置 X-Platform-User-Id。路由停用、重映射或 Token 重生成会在下一次请求生效。"
+      />
       <Row gutter={[16, 16]}>
-        <RelationCard title="Connector" description="负责网络连接、认证与 MCP Tool 发现。" />
-        <RelationCard title="System Prompt" description="定义 Agent 全局行为与高风险 DML 安全原则。" />
-        <RelationCard title="Skill" description="提供 Salesforce 专项 Tool 工作流与安全边界。" />
+        <RelationCard title="Connector" description="负责 Streamable HTTP、USER_BOUND 认证与 MCP 能力发现。" />
+        <RelationCard title="System Prompt" description={`使用当前能力事实渲染 Playbook ${AGENT_PLAYBOOK_VERSION}。`} />
+        <RelationCard title="Skill" description="生成的 Salesforce 专项工作流与安全边界，支持 progressive disclosure。" />
       </Row>
-      <Alert type="warning" showIcon title="Connector 不会自动教会业务流程" description="配置 Connector 后仍需要精简 System Prompt 与 sfoa-salesforce-assistant Skill。静态 Connector Header 也不等于每个 WorkBuddy 终端用户的动态 Salesforce 身份。" />
       <Recommendation title="WorkBuddy 推荐步骤" items={[
-        '创建自定义 MCP Connector。',
-        '配置 Streamable HTTP Endpoint。',
-        '配置 Authorization。',
-        '配置 X-Platform-User-Id。',
-        '创建或配置 Agent。',
-        '添加精简 System Prompt。',
-        '安装并启用 sfoa-salesforce-assistant Skill。',
-        '执行 Test Run。',
+        '创建自定义 Streamable HTTP MCP Connector。',
+        '配置 Authorization: Bearer <USER_BOUND_TOKEN>。',
+        '不要配置 X-Platform-User-Id。',
+        '创建 Agent 并添加下面的精简 System Prompt。',
+        `导入完整目录 ${SKILL_REPO_PATH}，保留 references/。`,
+        '先执行只读 Test Run，再进入允许的 CREATE/UPDATE 测试。',
       ]} />
       <ConnectionExample title="WorkBuddy Connector 示例" value={example} disabled={!validation.valid} onCopy={() => onCopy(example, '已复制 WorkBuddy Connector 示例。')} />
       <Card title="精简 System Prompt" className="surface-card" extra={<Button icon={<CopyOutlined />} onClick={() => void onCopy(systemPrompt, '已复制 WorkBuddy System Prompt。')}>复制 System Prompt</Button>}>
         <CodeBlock value={systemPrompt} tall />
       </Card>
+      <Card title="生成的 sfoa-salesforce-assistant Skill" className="surface-card" extra={<Button icon={<CopyOutlined />} onClick={() => void onCopy(skillMarkdown, '已复制 SKILL.md。')}>复制 SKILL.md</Button>}>
+        <Descriptions bordered size="small" column={1}>
+          <Descriptions.Item label="Playbook 版本"><code>{AGENT_PLAYBOOK_VERSION}</code></Descriptions.Item>
+          <Descriptions.Item label="Repo 路径"><code>{SKILL_REPO_PATH}</code></Descriptions.Item>
+          <Descriptions.Item label="同步命令"><code>yarn agent:sync</code></Descriptions.Item>
+          <Descriptions.Item label="漂移检查"><code>yarn agent:check</code></Descriptions.Item>
+        </Descriptions>
+      </Card>
     </Space>
   );
 }
 
-function SkillTab({ onCopy }: Readonly<{ onCopy(): Promise<void> }>) {
+function McpNativeTab({
+  instructions,
+  playbookToolEnabled,
+  recordLinksEnabled,
+  onCopy,
+}: Readonly<{
+  instructions: string;
+  playbookToolEnabled: boolean;
+  recordLinksEnabled: boolean;
+  onCopy(value: string, successMessage: string): Promise<void>;
+}>) {
   return (
     <Space orientation="vertical" size="large" className="full-width">
-      <Card title="sfoa-salesforce-assistant" className="surface-card">
-        <Descriptions bordered size="small" column={1}>
-          <Descriptions.Item label="Skill 名称"><code>sfoa-salesforce-assistant</code></Descriptions.Item>
-          <Descriptions.Item label="用途">通过企业 SFoA MCP 查询、创建、更新或诊断 Salesforce/SFoA 数据与配置。</Descriptions.Item>
-          <Descriptions.Item label="SKILL.md 摘要">路由 READ / CREATE / UPDATE / DIAGNOSIS 工作流，并强制身份、Salesforce 规则与 UNKNOWN outcome 安全边界。</Descriptions.Item>
-          <Descriptions.Item label="Repo 路径"><code>{SKILL_REPO_PATH}</code></Descriptions.Item>
-        </Descriptions>
+      <Alert
+        type="success"
+        showIcon
+        title="优先使用 MCP 原生发现"
+        description="支持 MCP 2025-06-18 的客户端可直接读取 initialize Instructions、Resources 与 Prompt；Tool fallback 仅用于不支持 Resource/Prompt 的客户端。"
+      />
+      <Row gutter={[16, 16]}>
+        <GuidanceCard title="Instructions" icon={<CloudServerOutlined />}>
+          <StatusTag label="AVAILABLE" />
+          <Typography.Paragraph>initialize 响应携带精简核心规则与完整 Playbook 获取路径。</Typography.Paragraph>
+        </GuidanceCard>
+        <GuidanceCard title="Resources" icon={<BookOutlined />}>
+          <CodeBlock value={'sfoa://agent-playbook/current\nsfoa://agent-capabilities/current'} />
+        </GuidanceCard>
+        <GuidanceCard title="Prompt / Tools" icon={<ToolOutlined />}>
+          <CodeBlock value={[
+            'Prompt: sfoa_salesforce_assistant',
+            `get_agent_playbook: ${playbookToolEnabled ? 'ENABLED' : 'DISABLED'}`,
+            `get_record_links: ${recordLinksEnabled ? 'ENABLED' : 'DISABLED'}`,
+          ].join('\n')} />
+        </GuidanceCard>
+      </Row>
+      <Card title={`Server Instructions · ${AGENT_PLAYBOOK_VERSION}`} className="surface-card" extra={<Button icon={<CopyOutlined />} onClick={() => void onCopy(instructions, '已复制 MCP Server Instructions。')}>复制 Instructions</Button>}>
+        <CodeBlock value={instructions} tall />
       </Card>
-      <Recommendation title="安装 / 导入说明" items={[
-        `保留 Repo 中的 ${SKILL_REPO_PATH} 目录结构。`,
-        '在 WorkBuddy / CodeBuddy Skill 管理页选择项目级 Skill 导入，或将该目录复制到目标工作区的 .codebuddy/skills/。',
-        '确认 SKILL.md 与 references/ 两个参考文件同时存在。',
-        '启用 Skill 后执行一次只读 Test Run，再进入 DML 测试。',
-      ]} />
-      <Button type="primary" icon={<CopyOutlined />} onClick={() => void onCopy()}>复制 SKILL.md</Button>
-      <CodeBlock value={skillMarkdown} tall />
+      <Alert
+        type="warning"
+        showIcon
+        title="协议指引不是授权"
+        description="Tool enabled state、DML allowlist、请求身份、Salesforce CRUD/FLS/Sharing/Validation/Flow/Trigger 才是执行边界；Prompt 与 annotations 不能绕过这些检查。"
+      />
     </Space>
   );
 }
@@ -348,7 +496,7 @@ function ConnectionExample({
   return (
     <Card title={title} className="surface-card full-height" extra={<Button icon={<CopyOutlined />} disabled={disabled} onClick={() => void onCopy()}>复制示例</Button>}>
       <CodeBlock value={value} />
-      <Typography.Paragraph type="secondary" className="credential-note">Token 始终使用 placeholder，真实 secret 不进入浏览器。</Typography.Paragraph>
+      <Typography.Paragraph type="secondary" className="credential-note">Token 始终是 placeholder；真实 bearer 不进入浏览器。</Typography.Paragraph>
     </Card>
   );
 }
@@ -361,6 +509,6 @@ function Recommendation({ title, items }: Readonly<{ title: string; items: reado
   );
 }
 
-function CodeBlock({ value, tall = false }: Readonly<{ value: string; tall?: boolean }>) {
-  return <pre className={tall ? 'json-summary integration-code-block integration-code-block-tall' : 'json-summary integration-code-block'}>{value}</pre>;
+function CodeBlock({ id, value, tall = false }: Readonly<{ id?: string; value: string; tall?: boolean }>) {
+  return <pre id={id} className={tall ? 'json-summary integration-code-block integration-code-block-tall' : 'json-summary integration-code-block'}>{value}</pre>;
 }

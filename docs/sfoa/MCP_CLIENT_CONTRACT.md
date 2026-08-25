@@ -103,6 +103,20 @@ Example SOQL call arguments:
 }
 ```
 
+## P6 Agent guidance and record links
+
+Initialize returns concise Server Instructions for canonical Agent Playbook `1.0.0`. Clients should prefer native discovery in this order:
+
+1. read `sfoa://agent-playbook/current` (`text/markdown`) for the full operating contract;
+2. read `sfoa://agent-capabilities/current` (`application/json`) for the current request's safe Tool, DML-object, Diagnostic, and Dynamic Forms evidence facts;
+3. request Prompt `sfoa_salesforce_assistant` with optional workflow `CORE | READ | CREATE | UPDATE | DIAGNOSIS | ALL`;
+4. only when Resource/Prompt support is absent and the Tool is listed, call `get_agent_playbook` with optional `workflow`;
+5. only when listed, call `get_record_links` for one to 50 record descriptors.
+
+`get_record_links` input has only `records[]` with `objectApiName`, a 15/18-character `recordId`, and optional `displayName`. It accepts no host, origin, base URL, identity, or credential. Output contains the same descriptor plus `recordUrl`, bounded `count`, `hasMore=false`, `nextCursor=null`, and `truncated=false`. The URL origin comes only from the current request Salesforce Connection and the Tool performs no Salesforce API call.
+
+The capability Resource contains no route, platform user, Salesforce username, Diagnostic username, instance host, credential, or secret. It is request-scoped and not an authorization replacement. Dynamic Forms evidence is `NOT_AVAILABLE` in P6-Agent-01.
+
 ## HTTP and stable error contract
 
 | Condition | HTTP/Tool result | Stable code |
@@ -124,6 +138,7 @@ Example SOQL call arguments:
 | Invalid/unsupported record context | MCP Tool-level `isError: true` | `MCP_RECORD_ACTION_CONTEXT_INVALID` / `MCP_RECORD_ACTION_CONTEXT_UNSUPPORTED` |
 | Record Type unavailable or mismatched | MCP Tool-level `isError: true` | `MCP_RECORD_TYPE_NOT_AVAILABLE` |
 | Metadata context exceeds safe bounds | MCP Tool-level `isError: true` | `MCP_METADATA_CONTEXT_TOO_LARGE` |
+| Missing/malformed/non-origin Salesforce Connection instance URL for record links | MCP Tool-level `isError: true` | `MCP_TRUSTED_INSTANCE_URL_INVALID` |
 
 The request-level unknown wire shape is:
 

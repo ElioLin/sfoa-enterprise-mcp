@@ -21,6 +21,8 @@
     "nock": "^13.5.6"
   },
   "scripts": {
+    "agent:sync": "yarn workspace @sfoa/agent-playbook run sync",
+    "agent:check": "yarn workspace @sfoa/agent-playbook run check",
     "build": "yarn workspaces run build",
     "clean": "yarn workspaces run clean",
     "clean-all": "yarn workspaces run clean-all && rimraf node_modules",

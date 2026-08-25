@@ -51,6 +51,9 @@ export type DmlCall = Readonly<{
 export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly creations: ConnectionCreation[] = [];
   public readonly dmlCalls: DmlCall[] = [];
+  public readonly apiRequests: string[] = [];
+  public instanceUrlForRoute = (route: SalesforceIdentityRoute): string =>
+    `https://${route.platformUserId}.my.salesforce.com`;
 
   public async create(route: SalesforceIdentityRoute): Promise<Connection> {
     const sequence = this.creations.length + 1;
@@ -61,6 +64,7 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
     };
     const createdRecordId = `00Q${String(sequence).padStart(12, '0')}AAA`;
     const connection = {
+      instanceUrl: this.instanceUrlForRoute(route),
       getApiVersion: () => '65.0',
       identity: async () => ({
         username: route.salesforceUsername,
@@ -69,8 +73,11 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       }),
       query: async (_query: string) => queryResult,
       tooling: { query: async (_query: string) => queryResult },
-      request: async (request: string | Readonly<{ url?: string }>) =>
-        uiApiResponse(typeof request === 'string' ? request : request.url ?? ''),
+      request: async (request: string | Readonly<{ url?: string }>) => {
+        const url = typeof request === 'string' ? request : request.url ?? '';
+        this.apiRequests.push(url);
+        return uiApiResponse(url);
+      },
       sobject: (objectApiName: string) => ({
         create: async (record: Record<string, unknown>) => {
           this.dmlCalls.push({

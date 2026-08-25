@@ -2,6 +2,16 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-26 — P6-Agent-01 canonical MCP-native Agent Playbook completed
+
+- Added pure strict-TypeScript `@sfoa/agent-playbook` with Playbook version `1.0.0`, ten canonical sections, six workflow selectors, safe capability facts, and deterministic Server/Dify/WorkBuddy renderers.
+- Added concise initialize Server Instructions, full `sfoa://agent-playbook/current` and request-scoped `sfoa://agent-capabilities/current` Resources, workflow Prompt `sfoa_salesforce_assistant`, and governed `get_agent_playbook` Tool fallback through the existing MCP SDK 1.18.2 public APIs.
+- Added governed read-only `get_record_links`, bounded to 50 validated descriptors. It derives Lightning URLs only from the current request Connection's credential-free Salesforce origin and performs zero Salesforce API calls; clients cannot supply a host/base URL.
+- Added deterministic `yarn agent:sync` / `yarn agent:check` generation for Dify instructions, WorkBuddy System Prompt, and the progressive-disclosure Skill; drift tests intentionally edit a fixture and prove nonzero check failure.
+- Rebuilt Admin Agent Integration around MCP access, Playbook status, 小犇/Dify Buntu setup, WorkBuddy USER_BOUND setup, and MCP-native discovery. Removed stale shared-token/platform-Header guidance from Dify and WorkBuddy while retaining it for Internal/Inspector.
+- Added Agent package, protocol, A/B policy-isolation, link injection/zero-API, Admin catalog, generator, identity-copy, generated-artifact, and UI source-contract regressions. Dynamic Forms evidence is explicitly `NOT_AVAILABLE`; no form engine or Salesforce permission replica was added.
+- Added ADR-0013, design/implementation/report documentation, Dify/WorkBuddy setup guides, and updated baseline/architecture/test/upstream records. No official Salesforce TypeScript or Tool implementation is modified; no database migration or dependency upgrade is introduced.
+
 ## 2026-08-24 — P6-Entry OPT01 completed
 
 - Converted all ordinary Admin Console navigation, page, form, state, validation, feedback, empty/loading, and error presentation to Simplified Chinese while preserving Salesforce/SFoA/MCP/API/Tool names, Error Codes, raw enums, JSON, REST, database, and MCP contracts. Applied the official Ant Design `zh_CN` locale and `zh-CN` date formatting.

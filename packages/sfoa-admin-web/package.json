@@ -2,7 +2,7 @@
   "name": "@sfoa/admin-web",
   "version": "0.1.0-p5",
   "private": true,
-  "description": "P5 React Admin Console for SFoA-owned governance and durable audit",
+  "description": "P6 React Admin Console for SFoA governance, audit, and canonical Agent guidance",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "6.3.2",
+    "@sfoa/agent-playbook": "0.1.0-p6-agent",
     "@sfoa/control-plane": "0.1.0-p5",
     "@tanstack/react-query": "5.102.0",
     "antd": "6.6.1",

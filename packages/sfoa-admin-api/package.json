@@ -2,7 +2,7 @@
   "name": "@sfoa/admin-api",
   "version": "0.1.0-p5",
   "private": true,
-  "description": "P5 authenticated Admin REST API for the SFoA Control Plane",
+  "description": "Authenticated SFoA Control Plane API with the P6 Agent infrastructure Tool catalog",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,6 +20,7 @@
     "dev": "yarn build && node --watch dist/main.js"
   },
   "dependencies": {
+    "@sfoa/agent-playbook": "0.1.0-p6-agent",
     "@sfoa/control-plane": "0.1.0-p5",
     "@sfoa/identity-runtime": "0.1.0-p4",
     "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",

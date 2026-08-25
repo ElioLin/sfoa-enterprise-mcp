@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_NAVIGATION } from '../components/AdminShell.js';
 import { ADMIN_ANT_LOCALE, ADMIN_LOCALE_CODE, statusLabel } from '../localization.js';
+import { AGENT_RECOGNIZED_TOOL_NAMES } from '@sfoa/agent-playbook';
 
 describe('zh-CN Admin presentation contract', () => {
   it('keeps every navigation label in Simplified Chinese', () => {
@@ -50,9 +51,20 @@ describe('zh-CN Admin presentation contract', () => {
       const source = readFileSync(resolve(process.cwd(), 'src', 'pages', file), 'utf8');
       expect(source, file).toContain(title);
     }
-    const generator = readFileSync(resolve(process.cwd(), 'src', 'agent', 'instruction-generator.ts'), 'utf8');
-    for (const toolName of ['get_username', 'run_soql_query', 'create_record', 'update_record', 'get_record_action_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context']) {
-      expect(generator).toContain(`'${toolName}'`);
-    }
+    expect(AGENT_RECOGNIZED_TOOL_NAMES).toEqual(expect.arrayContaining([
+      'get_username',
+      'run_soql_query',
+      'create_record',
+      'update_record',
+      'get_record_action_context',
+      'run_diagnostic_tooling_query',
+      'get_metadata_component_context',
+      'get_agent_playbook',
+      'get_record_links',
+    ]));
+    const integrationPage = readFileSync(resolve(process.cwd(), 'src', 'pages', 'AgentIntegrationPage.tsx'), 'utf8');
+    expect(integrationPage).toContain('小犇 / Dify');
+    expect(integrationPage).toContain('MCP 原生指引');
+    expect(integrationPage).not.toContain("'配置 X-Platform-User-Id。'");
   });
 });

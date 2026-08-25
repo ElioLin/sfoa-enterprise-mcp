@@ -93,7 +93,12 @@ test('P2 config uses safe defaults and refuses disabled auth away from loopback'
     assert.equal(config.mcpPath, '/mcp');
     assert.equal(config.publicUrl, undefined);
     assert.equal(config.authMode, 'internal_bearer');
-    assert.deepEqual(config.enabledTools, ['get_username', 'run_soql_query']);
+    assert.deepEqual(config.enabledTools, [
+      'get_username',
+      'run_soql_query',
+      'get_agent_playbook',
+      'get_record_links',
+    ]);
     assert.equal(config.useLoopbackHostDefaults, true);
 
     await assert.rejects(

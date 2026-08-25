@@ -1,0 +1,32 @@
+{
+  "name": "@sfoa/agent-playbook",
+  "version": "0.1.0-p6-agent",
+  "private": true,
+  "description": "Pure versioned Salesforce Agent operating contract and deterministic renderers for SFoA",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private P6 Agent Playbook package: package skipped')\"",
+    "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js",
+    "sync": "yarn build && node scripts/sync-generated.mjs --write",
+    "check": "yarn build && node scripts/sync-generated.mjs --check"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}

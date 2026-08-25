@@ -59,21 +59,29 @@ export function validateExternalMcpUrl(value: string): ExternalUrlValidation {
 
 export function buildDifyConnectionExample(externalUrl: string): string {
   return [
-    'URL:',
-    externalUrl,
-    '',
-    'Authorization:',
-    'Bearer <YOUR_MCP_CLIENT_TOKEN>',
-    '',
-    'X-Platform-User-Id:',
-    '<PLATFORM_USER_ID>',
+    `MCP Server URL = ${externalUrl}`,
+    'Authorization Header = Bearer <CURRENT_USER_TOKEN>',
+    'Identity Source = BUNTU_TOKEN',
+    'X-Platform-User-Id = NOT_CONFIGURED',
+    'Transport = Streamable HTTP',
   ].join('\n');
 }
 
 export function buildWorkBuddyConnectionExample(externalUrl: string): string {
   return [
     `MCP Server URL = ${externalUrl}`,
-    'Authorization Header = Bearer <YOUR_MCP_CLIENT_TOKEN>',
+    'Authorization Header = Bearer <USER_BOUND_TOKEN>',
+    'Identity Source = USER_BOUND_TOKEN',
+    'X-Platform-User-Id = NOT_CONFIGURED',
+    'Transport = Streamable HTTP',
+  ].join('\n');
+}
+
+export function buildInternalConnectionExample(externalUrl: string): string {
+  return [
+    `MCP Server URL = ${externalUrl}`,
+    'Authorization Header = Bearer <MCP_CLIENT_TOKEN>',
+    'Identity Source = INTERNAL_SERVICE_HEADER',
     'X-Platform-User-Id = <PLATFORM_USER_ID>',
     'Transport = Streamable HTTP',
   ].join('\n');

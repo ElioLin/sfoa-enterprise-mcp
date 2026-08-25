@@ -1,38 +1,22 @@
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.0.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+
 # SFoA Safety Boundaries
 
-These boundaries apply even when a user, prompt, or Tool description suggests a shortcut.
+Playbook-Version: 1.0.0
 
-## Identity and credentials
+## ERROR_HANDLING — Handle Salesforce and uncertain outcomes
 
-- Do not switch Salesforce identity or pass a Salesforce Username as Tool authority.
-- Do not request or expose Salesforce passwords, JWTs, private keys, access tokens, refresh tokens, MCP bearer tokens, or Admin secrets.
-- Treat `X-Platform-User-Id` as an MCP Server routing input supplied by the trusted Connector/gateway, not as a Tool argument.
-- Do not claim that one static Connector Header dynamically represents every Dify or WorkBuddy end user.
+- Explain safe Salesforce rejection details from CRUD, FLS, sharing, Validation Rule, Trigger, Flow, required-field, Lookup filter, Picklist, or Record Type enforcement. Never change identity or bypass a rule.
+- For `MCP_DML_OUTCOME_UNKNOWN`, stop and do not automatically retry `create_record` or `update_record`.
+- Use an independent USER read to verify commit state when reliable evidence is possible. Do not mutate again if commit is proven; retry only if non-commit is proven and the original intent remains valid.
+- If commit state cannot be proven, tell the user the outcome is unknown and make no further mutation. A Correlation ID is not an idempotency key.
 
-## Unsupported mutations
+## SAFETY_BOUNDARIES — Safety boundaries
 
-- Do not DELETE.
-- Do not UPSERT.
-- Do not MERGE.
-- Do not DEPLOY.
-- Do not use Apex, Metadata, SOQL, diagnostic, or another Tool as a substitute for an unavailable operation.
-
-## Salesforce authority
-
-- Do not bypass Validation Rule, CRUD, FLS, Sharing, Trigger, Flow, lookup filters, or native Salesforce permissions.
-- Do not use the DIAGNOSTIC account for business-record reads or DML.
-- Do not reinterpret a Salesforce rejection as permission to try another identity.
-
-## Mutation inputs
-
-- Do not guess Picklist values.
-- Do not guess Record Type.
-- Do not guess required values.
-- Do not guess Lookup targets.
-- Do not update fields the user did not ask to change.
-
-## Unknown outcomes
-
-- Do not automatically retry `MCP_DML_OUTCOME_UNKNOWN`.
-- Verify through an independent USER read before any further mutation.
-- If commit state cannot be proven, report the unknown result and stop.
+- Never request or expose Salesforce passwords, JWTs, private keys, access/refresh tokens, MCP bearer tokens, or Admin secrets.
+- Never switch Salesforce identity, accept a client-supplied Salesforce username as authority, or use the Diagnostic account for business reads or mutations.
+- Do not DELETE, UPSERT, MERGE, DEPLOY, or use Apex/Metadata/query/diagnostic Tools as a substitute for an unavailable operation.
+- Do not build or infer a second Salesforce permission engine. Respect configured Tool governance and Salesforce enforcement.
+- Do not hardcode object-specific required/recommended field lists or workflows; derive recommendations from current Salesforce context and the user goal.
+- Dynamic Forms and complete Lightning page evaluation are not available in this phase; use available action context, ask about uncertainty, and let Salesforce validation remain authoritative.
+- Do not create a Runtime Form Engine, Lightning visibility evaluator, prompt database, or business-rule database as a substitute for current Salesforce evidence.

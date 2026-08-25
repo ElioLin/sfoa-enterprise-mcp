@@ -1,8 +1,10 @@
-# SFoA P5 Remote MCP Runtime
+# SFoA P6 Remote MCP Runtime
 
-`@sfoa/mcp-server` is the production-oriented P5 HTTP runtime. It composes the public Salesforce Provider API, `@sfoa/identity-runtime`, the SFoA generic DML Provider, the SFoA deterministic Context Provider, and the MySQL Control Plane; it does not modify an official Salesforce Tool.
+`@sfoa/mcp-server` is the production-oriented P6 HTTP runtime. It composes the public Salesforce Provider API, `@sfoa/identity-runtime`, the SFoA generic DML Provider, the SFoA deterministic Context Provider, the canonical Agent Playbook, and the MySQL Control Plane; it does not modify an official Salesforce Tool.
 
-The default remote contract is stateless Streamable HTTP at `http://127.0.0.1:8080/mcp`, internal Bearer client authentication, an authenticated `X-Platform-User-Id` route, registration-time default-deny Tool governance, and the remote facades `get_username` plus `run_soql_query`. Each facade requires the pinned official Tool contract to match the executable audit baseline, exposes only explicitly allowed Agent fields, injects host-owned identity/workspace fields, and then invokes unchanged official `Tool.exec()`.
+The default remote contract is stateless Streamable HTTP at `http://127.0.0.1:8080/mcp`, registration-time default-deny Tool governance, the official read facades `get_username` and `run_soql_query`, and the safe SFoA infrastructure Tools `get_agent_playbook` and `get_record_links`. Internal clients use a shared bearer plus authenticated `X-Platform-User-Id`; WorkBuddy uses a USER_BOUND bearer without that Header; 小犇/Dify uses its current Buntu bearer without that Header. Official facades require the pinned Tool contract to match the executable audit baseline, expose only explicitly allowed Agent fields, inject host-owned identity/workspace fields, and then invoke unchanged official `Tool.exec()`.
+
+P6-Agent-01 publishes concise Server Instructions, `sfoa://agent-playbook/current`, request-scoped `sfoa://agent-capabilities/current`, Prompt `sfoa_salesforce_assistant`, and the Tool-only fallback. `get_record_links` derives up to 50 credential-free Lightning links from the current request Connection origin and performs no Salesforce API call. All guidance comes from `@sfoa/agent-playbook` version `1.0.0`; Dynamic Forms evidence is `NOT_AVAILABLE` and no Runtime Form Engine is implemented.
 
 P3 adds `create_record` and `update_record` only when each exact name is in `MCP_ENABLED_TOOLS` and `MCP_DML_ALLOWLIST_JSON` contains at least one matching Object-by-Operation rule. Missing/empty configuration denies all. Official mutation/admin Tools remain forbidden, and DELETE/UPSERT/arbitrary REST Tools do not exist.
 

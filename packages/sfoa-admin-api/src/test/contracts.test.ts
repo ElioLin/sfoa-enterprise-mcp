@@ -94,3 +94,16 @@ test('unknown or drifted executable Tools cannot be enabled from database state'
     assert.match(diagnostic?.disabledReason ?? '', /drift/iu);
   }
 });
+
+test('SFoA Agent infrastructure Tools are explicit read-only governed catalog entries', () => {
+  const catalog = buildAdminToolCatalog([], upstreamDrift);
+  for (const toolName of ['get_agent_playbook', 'get_record_links']) {
+    const record = catalog.find((item) => item.toolName === toolName);
+    assert.equal(record?.classification, 'READ');
+    assert.equal(record?.executionRole, 'USER');
+    assert.equal(record?.remoteCompatible, true);
+    assert.equal(record?.releaseState, 'GA');
+    assert.equal(record?.enableAllowed, true, `${toolName} is SFoA-owned and independent of official Provider drift`);
+    assert.equal(canEnableAdminTool(toolName, upstreamDrift).allowed, true);
+  }
+});

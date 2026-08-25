@@ -678,3 +678,51 @@ This matrix advances only the current P6-Entry status. Historical P0–P5 result
 P6-ENTRY OPT01 = PASS
 P6 REAL-AGENT EVALUATION = READY
 ```
+
+## P6-Agent-01 Acceptance Matrix — 2026-08-26
+
+This matrix advances only P6-Agent-01. It preserves all historical P0–P5 and P6 identity evidence and does not mark the complete P6 phase finished.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Canonical Playbook | PASS | Pure `@sfoa/agent-playbook`; version `1.0.0`; ten required sections and six workflow selectors |
+| Single source of truth | PASS | MCP, Admin, Dify, WorkBuddy prompt/Skill, and checked-in references use deterministic renderers from the same definition |
+| Playbook unit/drift tests | PASS | 6/6; includes sync success plus an intentional temporary generated-file edit that produces nonzero drift failure |
+| `agent:sync` | PASS | Rewrote exactly five marked Dify/WorkBuddy/Skill artifacts |
+| `agent:check` | PASS | Root script explicitly invokes the workspace `run check` script; five artifacts match exact UTF-8 output |
+| Server Instructions | PASS | SDK Client initialize returns concise Playbook `1.0.0`, identity/context/link/UNKNOWN rules, and full-guidance discovery paths |
+| Full Playbook Resource | PASS | `resources/list/read` exposes `sfoa://agent-playbook/current` with all workflows and Dynamic Forms limitation |
+| Capability Resource | PASS | `sfoa://agent-capabilities/current` contains only safe request facts; concurrent A/B snapshots prove no Tool/object-policy leakage |
+| MCP Prompt | PASS | `prompts/list/get` exposes `sfoa_salesforce_assistant`; workflow `CREATE` renders only canonical selection; invalid workflow is rejected |
+| Tool-only fallback | PASS | `get_agent_playbook` is discoverable/callable with stable structured output, annotations, bounds flags, and zero Salesforce API calls |
+| Trusted record links | PASS | `get_record_links` validates 1–50 descriptors, uses only request Connection origin, URL-encodes path segments, ignores injected host-shaped extras, rejects invalid origin, and makes zero Salesforce API calls |
+| Tool governance | PASS | Both infrastructure Tools are explicit READ/USER/GA/remote-compatible catalog entries; env defaults enable them and MySQL remains next-request DB authoritative |
+| CREATE workflow | PASS | Context-first, evidence-only required fields, reliable defaults, 3–8 skippable recommendations, Picklist/dependency/Lookup resolution, single mutation, name/link result |
+| UPDATE workflow | PASS | Unique target, relevant UPDATE context, CREATE-required distinction, minimum requested fields, single mutation, actual-change/link result |
+| READ workflow | PASS | Bounded query, user-requested field priority, proven display/name link, concise one-record or 6–10-column multi-record output |
+| DIAGNOSIS workflow | PASS | Requires complete verified Diagnostic chain and preserves USER-versus-DIAGNOSTIC evidence/authority boundaries |
+| Dify / 小犇 renderer | PASS | Current safe Tool/DML/Diagnostic facts plus canonical rules; Buntu current-user bearer; no normal platform Header or identity Tool argument |
+| WorkBuddy renderer/Skill | PASS | USER_BOUND bearer, no platform Header, generated prompt/Skill and two progressive-disclosure references |
+| Admin Agent Integration | PASS | Existing Ant Design page now separates MCP, Playbook, 小犇/Dify, WorkBuddy, and MCP-native guidance with visible text/icon statuses and copy feedback |
+| Admin API tests | PASS | 14/14, including explicit safe infrastructure Tool catalog contracts |
+| Admin Web P6 focused tests | PASS | 5 files / 20 tests under the repository default timeout |
+| Admin Web full diagnostic | PASS | 7 files / 33 tests with a 60-second diagnostic timeout; a prior default-timeout run had three existing GovernancePages timing expirations, and the isolated timed test passed |
+| Admin Web production build | PASS | strict TypeScript plus Vite; 3,175 modules transformed; existing >500 kB chunk advisory only |
+| MCP Server full tests | PASS | 50/50 on the final source, covering all three identity providers, governance, timeout/shutdown, upstream contract, and P6 protocol surfaces |
+| Identity regression | PASS | 27/27 request-scoped identity/runtime tests |
+| Historical phase regressions | PASS | P3 20/20; P4 7/7; P5 MySQL 5/5 |
+| Changed-code lint | PASS | Agent Playbook, MCP Server, Admin API, and Admin Web strict TypeScript lint |
+| Upstream compatibility | PASS | Provider API `0.6.0`, dx-core `0.10.0`, exact nine GA Tools, `drift: []` |
+| MCP SDK | PASS | Exact existing `@modelcontextprotocol/sdk` `1.18.2`; no migration or dependency upgrade |
+| Lockfile | PASS | `yarn.lock` content delta is zero |
+| Dynamic Forms evidence | NOT AVAILABLE | Current action context has Page Layout/Record Type/Picklist/dependency facts but no Lightning Dynamic Forms evaluator |
+| Runtime Form Engine | PASS (`NO`) | No form/visibility engine was created |
+| Business-object hardcoding | PASS (`0`) | No object-specific field recommendation/workflow branch in new production source |
+| Prompt database tables | PASS (`0`) | No migration, prompt table, editor, history, or publisher |
+| Official Salesforce TypeScript modified | PASS (`0`) | All production changes are SFoA-owned composition/package paths; official Tool implementations remain unchanged |
+| Dependency install environment | KNOWN WINDOWS DEBT | Pinned Yarn Classic linked all new local workspaces, but a forced root reinstall was interrupted by an `EBUSY` lock from the already-running local dev stack; package build/test/lint and zero lock delta independently passed |
+
+```text
+P6-Agent-01 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW
+P6 REAL-AGENT EVALUATION = READY / NOT STARTED
+```

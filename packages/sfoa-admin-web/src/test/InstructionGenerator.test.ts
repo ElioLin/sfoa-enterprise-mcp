@@ -1,148 +1,120 @@
-import { describe, expect, it } from 'vitest';
+import { AGENT_PLAYBOOK_VERSION } from '@sfoa/agent-playbook';
 import type { AdminToolRecordDto, DiagnosticConfigRecord, DmlPolicyRecord } from '@sfoa/control-plane';
-import { generateDifyAgentInstruction } from '../agent/instruction-generator.js';
+import { describe, expect, it } from 'vitest';
+import { deriveDifyInstructionFacts, generateDifyAgentInstruction } from '../agent/instruction-generator.js';
 
 const NOW = '2026-08-24T00:00:00.000Z';
 
-describe('deterministic Dify Agent instruction generator', () => {
-  it('generates a READ-only workflow from the current executable Tool catalog', () => {
-    const instruction = generate([tool('get_username'), tool('run_soql_query')]);
+describe('canonical capability-aware Dify Agent instruction generator', () => {
+  it('renders the canonical version and READ-only live capabilities without claiming mutation', () => {
+    const input = fixture([tool('get_username'), tool('run_soql_query')]);
+    const instruction = generateDifyAgentInstruction(input);
+    const facts = deriveDifyInstructionFacts(input);
 
-    expect(instruction).toContain('## READ Workflow');
-    expect(instruction).toContain('`run_soql_query`');
-    expect(instruction).not.toContain('## CREATE Workflow');
-    expect(instruction).not.toContain('## UPDATE Workflow');
-    expect(instruction).not.toContain('MCP_DML_OUTCOME_UNKNOWN');
+    expect(instruction).toContain(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`);
+    expect(instruction).toContain('## READ');
+    expect(instruction).toContain('CREATE');
+    expect(instruction).toContain('Status: unavailable');
+    expect(facts.availableTools).toEqual(['get_username', 'run_soql_query']);
+    expect(facts.createObjects).toEqual([]);
+    expect(instruction).toContain('MCP_DML_OUTCOME_UNKNOWN');
   });
 
-  it('adds the full CREATE workflow when create_record, context, and policy are enabled', () => {
-    const instruction = generate(
-      [tool('run_soql_query'), tool('create_record'), tool('get_record_action_context')],
+  it('reports CREATE and UPDATE only for effective matching Tool and object policies', () => {
+    const input = fixture(
+      [tool('run_soql_query'), tool('create_record'), tool('update_record'), tool('get_record_action_context')],
+      [policy('Lead', true, false), policy('Account', true, false), policy('Contact', false, true)],
+    );
+    const instruction = generateDifyAgentInstruction(input);
+    const facts = deriveDifyInstructionFacts(input);
+
+    expect(facts.createObjects).toEqual(['Account', 'Lead']);
+    expect(facts.updateObjects).toEqual(['Contact']);
+    expect(instruction).toContain('Status: available for `Account`, `Lead`');
+    expect(instruction).toContain('Status: available for `Contact`');
+    expect(instruction).toContain('get_record_action_context');
+    expect(instruction).toContain('only fields the user asked to change');
+  });
+
+  it('does not treat a policy as executable when its matching mutation Tool is disabled', () => {
+    const input = fixture(
+      [tool('create_record', { enabled: false, status: 'DISABLED' }), tool('run_soql_query')],
       [policy('Account', true, false)],
     );
+    const facts = deriveDifyInstructionFacts(input);
 
-    expect(instruction).toContain('## CREATE Workflow');
-    expect(instruction).toContain('2. 调用 `get_record_action_context`。');
-    expect(instruction).toContain('Picklist 必须使用 Salesforce 返回的合法值');
-    expect(instruction).toContain('CREATE 允许对象：`Account`');
+    expect(facts.createObjects).toEqual([]);
+    expect(facts.availableTools).not.toContain('create_record');
+    expect(generateDifyAgentInstruction(input)).toContain('CREATE object policy is absent');
   });
 
-  it('adds UPDATE only when update_record and UPDATE policy are enabled', () => {
-    const instruction = generate(
-      [tool('run_soql_query'), tool('update_record')],
-      [policy('Contact', false, true)],
-    );
-
-    expect(instruction).toContain('## UPDATE Workflow');
-    expect(instruction).toContain('不修改用户没有要求修改的业务字段');
-    expect(instruction).not.toContain('## CREATE Workflow');
-  });
-
-  it('changes CREATE and UPDATE guidance when context Tool is disabled', () => {
-    const disabledContext = tool('get_record_action_context', { enabled: false, status: 'DISABLED' });
-    const instruction = generate(
-      [tool('run_soql_query'), tool('create_record'), tool('update_record'), disabledContext],
-      [policy('Account', true, true)],
-    );
-
-    expect(instruction).toContain('当前不得强制调用未启用的 `get_record_action_context`');
-    expect(instruction).not.toContain('2. 调用 `get_record_action_context`。');
-  });
-
-  it('adds diagnosis only when both Diagnostic Tools and verification are ready', () => {
-    const instruction = generate(
+  it('exposes Diagnosis only when both Tools and verified Diagnostic configuration are ready', () => {
+    const ready = fixture(
       [tool('run_soql_query'), tool('run_diagnostic_tooling_query'), tool('get_metadata_component_context')],
       [],
       diagnostic({ verificationStatus: 'PASS' }),
     );
-
-    expect(instruction).toContain('## Diagnosis Workflow');
-    expect(instruction).toContain('`run_diagnostic_tooling_query`');
-    expect(instruction).toContain('DIAGNOSTIC evidence ≠ business record data');
-  });
-
-  it('does not claim diagnosis when Diagnostic is disabled or unverified', () => {
-    const instruction = generate(
+    const unverified = fixture(
       [tool('run_diagnostic_tooling_query'), tool('get_metadata_component_context')],
       [],
-      diagnostic({ enabled: false, verificationStatus: 'PASS' }),
+      diagnostic({ verificationStatus: 'NOT_VERIFIED' }),
     );
 
-    expect(instruction).not.toContain('## Diagnosis Workflow');
-    expect(instruction).not.toContain('`run_diagnostic_tooling_query`');
-    expect(instruction).toContain('不得将诊断能力描述为当前可用');
+    expect(deriveDifyInstructionFacts(ready).diagnosticReady).toBe(true);
+    expect(generateDifyAgentInstruction(ready)).not.toContain('complete verified Diagnostic chain is not ready');
+    expect(deriveDifyInstructionFacts(unverified).diagnosticEnabledButUnverified).toBe(true);
+    expect(deriveDifyInstructionFacts(unverified).availableTools).not.toContain('run_diagnostic_tooling_query');
+    expect(generateDifyAgentInstruction(unverified)).toContain('Diagnostic chain is not ready');
   });
 
-  it('removes mutation workflows when DML policy is disabled but retains UNKNOWN safety for exposed Tools', () => {
-    const instruction = generate(
-      [tool('create_record'), tool('update_record')],
-      [policy('Lead', true, true, false)],
-    );
+  it('includes the mandatory unknown-outcome, Salesforce rejection, link, and Dynamic Forms boundaries', () => {
+    const instruction = generateDifyAgentInstruction(fixture(
+      [tool('create_record'), tool('get_record_links')],
+      [policy('Lead', true, false)],
+    ));
 
-    expect(instruction).not.toContain('## CREATE Workflow');
-    expect(instruction).not.toContain('## UPDATE Workflow');
-    expect(instruction).toContain('没有启用的 CREATE 对象策略；不得执行创建');
-    expect(instruction).toContain('没有启用的 UPDATE 对象策略；不得执行更新');
     expect(instruction).toContain('MCP_DML_OUTCOME_UNKNOWN');
+    expect(instruction).toContain('do not automatically retry');
+    expect(instruction).toContain('trusted Lightning record link');
+    expect(instruction).toContain('Dynamic Forms evidence: `NOT_AVAILABLE`');
+    expect(instruction).toContain('Never change identity or bypass a rule');
+    expect(instruction).toContain('required, recommended, and other optional fields');
+    expect(instruction).toContain('3 to 8 high-value optional fields');
+    expect(instruction).toContain('show the bounded current valid choices');
+    expect(instruction).toContain('confirm the controlling value first');
+    expect(instruction).toContain('Resolve ambiguous Lookups');
+    expect(instruction).toContain('CREATE-required fields are not automatically required');
+    expect(instruction).toContain('display/name field as the primary label and Markdown hyperlink');
   });
 
-  it('does not present DML policy as executable when the matching Tool is disabled', () => {
-    const instruction = generate(
-      [tool('create_record', { enabled: false, status: 'DISABLED' }), tool('run_soql_query')],
-      [policy('Account', true, false)],
-    );
-
-    expect(instruction).not.toContain('## CREATE Workflow');
-    expect(instruction).not.toContain('CREATE 允许对象');
-    expect(instruction).not.toContain('MCP_DML_OUTCOME_UNKNOWN');
-  });
-
-  it('always includes UNKNOWN-outcome safety when either mutation is effective', () => {
-    const createInstruction = generate([tool('create_record')], [policy('Lead', true, false)]);
-    const updateInstruction = generate([tool('update_record')], [policy('Lead', false, true)]);
-
-    for (const instruction of [createInstruction, updateInstruction]) {
-      expect(instruction).toContain('MCP_DML_OUTCOME_UNKNOWN');
-      expect(instruction).toContain('禁止自动再次调用 `create_record` / `update_record`');
-      expect(instruction).toContain('如果无法确认，明确告诉用户结果未知');
-    }
-  });
-
-  it('does not let an unknown Tool enter the generated instruction', () => {
-    const instruction = generate([tool('run_soql_query'), tool('future_unknown_tool')]);
-
-    expect(instruction).not.toContain('future_unknown_tool');
-  });
-
-  it('never copies secret-shaped remarks or diagnostic details into the instruction', () => {
-    const secret = 'MCP_CLIENT_TOKEN=super-secret-value';
-    const instruction = generate(
-      [tool('run_soql_query', { remark: secret })],
-      [policy('Account', false, false, true, secret)],
+  it('filters unknown Tools and secret-shaped records from canonical facts and output', () => {
+    const secret = 'MCP_CLIENT_TOKEN=<TEST_ONLY_SECRET_SHAPED_VALUE>';
+    const input = fixture(
+      [tool('run_soql_query', { remark: secret }), tool('future_unknown_tool')],
+      [policy(secret, true, true, true, secret)],
       diagnostic({ lastErrorMessageSafe: secret, salesforceUsername: secret }),
     );
+    const instruction = generateDifyAgentInstruction(input);
 
-    expect(instruction).not.toContain(secret);
-    expect(instruction).not.toContain('super-secret-value');
+    expect(instruction).not.toContain('future_unknown_tool');
+    expect(instruction).not.toContain('TEST_ONLY_SECRET_SHAPED_VALUE');
+    expect(deriveDifyInstructionFacts(input).availableTools).toEqual(['run_soql_query']);
   });
 
-  it('presents enabled DML object policies deterministically by operation and name', () => {
-    const instruction = generate(
-      [tool('create_record'), tool('update_record')],
-      [policy('Lead', true, false), policy('Account', true, false), policy('Contact', false, true)],
-    );
-
-    expect(instruction).toContain('CREATE 允许对象：`Account`、`Lead`');
-    expect(instruction).toContain('UPDATE 允许对象：`Contact`');
+  it('uses Buntu bearer identity guidance and forbids normal platform Header setup', () => {
+    const instruction = generateDifyAgentInstruction(fixture([tool('run_soql_query')]));
+    expect(instruction).toContain('Bearer <CURRENT_USER_TOKEN>');
+    expect(instruction).toContain('Do not configure `X-Platform-User-Id`');
+    expect(instruction).toContain('platformUserId -> Identity Route -> Salesforce username');
   });
 });
 
-function generate(
+function fixture(
   tools: readonly AdminToolRecordDto[],
   dmlPolicies: readonly DmlPolicyRecord[] = [],
   diagnosticConfig: DiagnosticConfigRecord | null = null,
-): string {
-  return generateDifyAgentInstruction({ tools, dmlPolicies, diagnostic: diagnosticConfig });
+) {
+  return Object.freeze({ tools, dmlPolicies, diagnostic: diagnosticConfig });
 }
 
 function tool(toolName: string, overrides: Partial<AdminToolRecordDto> = {}): AdminToolRecordDto {
@@ -170,7 +142,7 @@ function policy(
   enabled = true,
   remark: string | null = null,
 ): DmlPolicyRecord {
-  return Object.freeze({ id: objectApiName, objectApiName, allowCreate, allowUpdate, enabled, remark, rowVersion: '1', createdAt: NOW, updatedAt: NOW });
+  return Object.freeze({ objectApiName, allowCreate, allowUpdate, enabled, remark, id: objectApiName, rowVersion: '1', createdAt: NOW, updatedAt: NOW });
 }
 
 function diagnostic(overrides: Partial<DiagnosticConfigRecord> = {}): DiagnosticConfigRecord {

@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 and P6-Entry OPT01 final accepted; P6-ID-01 USER_BOUND identity enhancement is implemented and under final validation; P6 Real-Agent Evaluation remains unstarted
+Status: P0–P5 final accepted; P6-Entry OPT01, P6-ID-01 USER_BOUND, and P6-ID-02 Buntu identity complete; P6-Agent-01 Playbook `1.0.0` PASS/complete awaiting Maintainer review; P6 Real-Agent Evaluation remains unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -11,6 +11,8 @@ SFoA Enterprise MCP selects the real Salesforce identity for an authenticated pl
 ```mermaid
 flowchart LR
   Client[Dify / WorkBuddy / local MCP client] --> Transport[stdio or Streamable HTTP]
+  Playbook[Canonical Agent Playbook] --> Native[Instructions / Resources / Prompt / Tool fallback]
+  Native --> Client
   Transport --> Context[Authenticated request context]
   Context --> Resolver[platformUserId identity resolver]
   Resolver --> OrgService[Request-scoped OrgService]
@@ -94,6 +96,7 @@ Request/connection contracts use `ConnectionRole = USER | DIAGNOSTIC`. P1 establ
 | `@salesforce/mcp-provider-scale-products` | Apex scale/performance analysis | provider API, Apex parser |
 | `@salesforce/mcp-test-client` | Type-safe stdio test client | MCP SDK and Zod |
 | `EXAMPLE-MCP-PROVIDER` | Minimal Provider template | provider API, MCP SDK, Zod |
+| `@sfoa/agent-playbook` | Pure versioned Agent operating contract and renderers | no production dependencies; browser and Node compatible |
 
 The server source also imports published LWC and Aura provider packages that are not source workspaces in this checkout.
 
@@ -556,9 +559,9 @@ MySQL stores only SFoA governance and safe audit. Executable-code facts still de
 
 Configuration updates use optimistic `row_version` checks and include their Admin audit insertion in the same transaction. Runtime audit failure is deliberately different: it degrades audit health and falls back to the existing logger, but never changes or retries an already determined Salesforce mutation outcome.
 
-## P6-ID-01 unified identity and USER_BOUND credentials
+## P6 unified identity: Internal, USER_BOUND, and Buntu credentials
 
-ADR-0012 extends the HTTP identity-acquisition edge without changing the P1-P5 path after an effective platform user is known.
+ADR-0012 establishes the unified HTTP identity-acquisition edge; P6-ID-02 fills its Buntu branch without changing the P1-P5 path after an effective platform user is known.
 
 ```mermaid
 flowchart TD
@@ -566,24 +569,51 @@ flowchart TD
   Header[X-Platform-User-Id] --> Internal[Internal-service authenticator]
   Provider --> Internal
   Provider --> Bound[USER_BOUND credential authenticator]
-  Future[Future BUNTU_TOKEN provider<br/>not implemented] -.-> Provider
+  Provider --> Buntu[BUNTU_TOKEN authenticator<br/>validate-token data.userId]
   Internal --> Principal[AuthenticatedPrincipal<br/>identitySource + platformUserId]
   Bound --> Hash[SHA-256 indexed credential lookup]
   Hash --> RouteState[ACTIVE credential + enabled current route]
   RouteState --> Principal
+  Buntu --> Principal
   Principal --> Snapshot[immutable request policy snapshot]
   Snapshot --> Resolver[existing Identity Route resolver]
   Resolver --> Fresh[fresh JWT / request Connection]
   Fresh --> Salesforce[Salesforce authorization]
 ```
 
-The internal branch keeps `MCP_CLIENT_TOKEN` plus the trusted Header. The USER_BOUND branch accepts `sfoa_ub1_...` without a Header, binds the credential to the route ID, and derives the route's current `platformUserId`. A supplied conflicting Header is rejected and can never override the token.
+The internal branch keeps `MCP_CLIENT_TOKEN` plus the trusted Header. The USER_BOUND branch accepts `sfoa_ub1_...` without a Header, binds the credential to the route ID, and derives the route's current `platformUserId`. The Buntu branch validates every current-user bearer and accepts only normalized `data.userId` as the platform identity. A supplied conflicting Header is rejected and can never override a bound token.
 
 Credential lookup happens before the policy snapshot and never loads all tokens into request policy. MySQL stores a unique SHA-256 hash for lookup, authenticated AES-256-GCM ciphertext for repeated Admin copy, and last four characters for list display. `MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY` remains server-owned. One active credential per route is enforced by schema; regeneration uses optimistic concurrency and has no grace period.
 
 Disabling a route makes its active token unusable on the next request; re-enabling restores it. Regeneration permanently revokes the old token. Only disabled routes can be transactionally deleted with their credentials, while non-secret Admin audit remains. Successful USER_BOUND authentication records `identitySource=USER_BOUND_TOKEN`, a safe credential ID, and best-effort last-used time.
 
-`MCP_PUBLIC_URL` is presentation/configuration input only. It never changes Runtime binding or network policy. WorkBuddy JSON contains Authorization only. `BUNTU_TOKEN` is a future provider slot, not an implemented external integration.
+`MCP_PUBLIC_URL` is presentation/configuration input only. It never changes Runtime binding or network policy. WorkBuddy JSON contains USER_BOUND Authorization only. 小犇/Dify sends Buntu Authorization only; `data.userId` is the authoritative platform identity. Internal/Inspector retains the shared token plus trusted platform Header.
+
+## P6-Agent-01 canonical MCP-native guidance
+
+ADR-0013 adds one pure authored rule source without changing execution authorization:
+
+```mermaid
+flowchart TD
+  Definition[Playbook 1.0.0<br/>ten canonical sections] --> Renderers[Pure deterministic renderers]
+  Snapshot[Request/Admin safe facts<br/>Tools + DML objects + Diagnostic readiness] --> Renderers
+  Renderers --> Instructions[Server Instructions]
+  Renderers --> Resources[Playbook + Capability Resources]
+  Renderers --> Prompt[sfoa_salesforce_assistant Prompt]
+  Renderers --> Fallback[get_agent_playbook Tool fallback]
+  Renderers --> Dify[Dify / 小犇 instruction]
+  Renderers --> Buddy[WorkBuddy Prompt + Skill]
+  Conn[Current request Connection instanceUrl] --> Links[get_record_links]
+  Links --> Lightning[Trusted Lightning record URLs]
+```
+
+The HTTP host already constructs a fresh MCP server for each POST. It now calculates one immutable `AgentCapabilities` object from that request's enabled Tools, effective DML allowlist, verified Diagnostic state, and `NOT_AVAILABLE` Dynamic Forms evidence. Resource/Prompt/Tool callbacks close over that object; there is no process-global policy/prompt cache and no cross-request fact mutation.
+
+`sfoa://agent-playbook/current` returns canonical Markdown; `sfoa://agent-capabilities/current` returns only safe policy facts. Prompt `sfoa_salesforce_assistant` selects `CORE | READ | CREATE | UPDATE | DIAGNOSIS | ALL`. `get_agent_playbook` and `get_record_links` are ordinary enabled/disabled SFoA-owned read Tools, so older clients retain compatibility without bypassing Tool governance.
+
+`get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from a credential-free HTTP(S) origin-root `Connection.instanceUrl`. No host/base URL is accepted from the client and no Salesforce API is called. Invalid trusted origins return Tool-level `MCP_TRUSTED_INSTANCE_URL_INVALID`.
+
+Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence. It does not evaluate Dynamic Forms or a complete Lightning page. The Playbook degrades by asking about uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
 
 ## Data, cache, and security baseline
 

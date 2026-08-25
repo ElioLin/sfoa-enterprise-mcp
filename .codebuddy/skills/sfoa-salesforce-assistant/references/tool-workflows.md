@@ -1,75 +1,67 @@
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.0.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+
 # SFoA Tool Workflows
 
-Follow only workflows whose exact Tool names are currently exposed by the configured MCP Connector.
+Playbook-Version: 1.0.0
 
-## READ
+## READ — Read current Salesforce data
 
-1. Determine the smallest Salesforce business-data question that answers the user.
-2. Call `run_soql_query` when it is available. Use bounded, relevant fields and rows.
-3. Treat returned records as the only authority for current Salesforce data.
-4. State when the Tool result is empty, truncated, denied, or insufficient. Do not fill gaps from model memory.
+- Form the smallest bounded query that answers the user and call an enabled USER read Tool such as `run_soql_query`.
+- Select fields in this order: fields the user asked for; the proven record display/name field and trusted link; high-value current layout/context fields; then a small number of question-relevant fields. Do not lead with an internal Record ID unless the user asks for it.
+- For multiple records, prefer a concise table with roughly 6 to 10 useful columns and make the display/name field the link when a trusted record URL is available. For one record, lead with the linked display/name field and show only the key facts needed for the request.
+- Do not assume every object uses a field named `Name`; use a display/name field only when current Salesforce evidence identifies it.
+- Treat empty, truncated, denied, or insufficient Tool results explicitly; never invent missing records or fields.
+- `get_username` may confirm the server-selected Salesforce identity when enabled, but it never authorizes identity switching.
 
-`get_username` may confirm the server-selected identity when exposed, but it never authorizes switching identity.
+## CREATE — Create a record
 
-## CREATE
+- Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.
+- Collect only values the user supplied, then call `get_record_action_context` when available and inspect CREATE context: Record Type, API-required and layout-required fields, defaults, createability/editability, Picklists, and dependencies.
+- Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
+- Ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value.
+- Recommend only 3 to 8 high-value optional fields when helpful, state that they may be skipped, and choose them from the user goal plus current visible/editable layout order, labels, types, Record Type, and safe Salesforce defaults. Exclude IDs, audit/system fields, auto numbers, formulas, and non-editable fields.
+- Resolve ambiguous Lookups through bounded USER reads and use only Picklist values returned for the active Record Type.
+- Call `create_record` once after the necessary information and user intent are clear.
+- After proven success, return the display/name field when available, a trusted Lightning record link, and the key values actually created.
 
-Use this workflow only when `create_record` is exposed and the requested `objectApiName` is enabled for CREATE by the current DML policy.
+## UPDATE — Update a record
 
-When `get_record_action_context` is exposed:
+- Use `update_record` only when it is enabled and the target object is in the effective UPDATE allowlist.
+- First identify exactly one target record through USER evidence; ask the user when zero or multiple candidates remain.
+- Call `get_record_action_context` for UPDATE when field semantics or editability are uncertain and the context Tool is enabled.
+- Do not turn one-field UPDATE into a CREATE form: CREATE-required fields are not automatically required on every UPDATE. Ask for an additional field only when current UPDATE context or Salesforce enforcement proves it is necessary.
+- Send only fields the user asked to change. Never copy, clear, or rewrite unrelated business fields.
+- Call `update_record` once after target, changes, and user intent are clear.
+- After proven success, return the target display/name field, a trusted record link when available, and only the fields actually changed.
 
-1. Extract only fields the user explicitly supplied.
-2. Call `get_record_action_context` for the CREATE action.
-3. Inspect Record Type availability, API Required, Layout Required, Salesforce Default, Picklist values, field createability, and layout editability separately.
-4. Ask for required information that the user did not supply and Salesforce did not default.
-5. Use only legal Salesforce-returned Picklist values.
-6. Resolve Lookup candidates through USER read-only queries when needed.
-7. Call `create_record` only after required information is complete.
+## DIAGNOSIS — Diagnose Salesforce behavior
 
-When `get_record_action_context` is not exposed, do not pretend it was called. Ask about uncertain Record Type, required, Picklist, or Lookup values and never guess them before calling `create_record`.
+- Use Diagnostic workflow only when both Diagnostic Tools are enabled and the current Diagnostic configuration is verified ready.
+- Discover a bounded ValidationRule, Flow, Apex, or Metadata component with `run_diagnostic_tooling_query`, then obtain exact component evidence with `get_metadata_component_context`.
+- Use the USER `run_soql_query` path for business-record state. DIAGNOSTIC evidence is not business-record data and the Diagnostic identity must never perform business DML.
+- Synthesize the cause from Tool evidence and distinguish evidence, inference, and remaining uncertainty.
 
-## UPDATE
+## LOOKUP — Resolve Lookup and reference values
 
-Use this workflow only when `update_record` is exposed and the target `objectApiName` is enabled for UPDATE by the current DML policy.
+- Identify the referenced object and the smallest user-provided identifying facts.
+- Use a bounded USER read to return candidate IDs and useful disambiguating labels.
+- Use a candidate only when exactly one target is proven. Ask the user when no candidate or multiple candidates remain.
 
-1. Uniquely identify the target Record through USER read-only evidence.
-2. When field meaning or editability is uncertain and `get_record_action_context` is exposed, obtain UPDATE action context for the real Record.
-3. Ask the user to resolve ambiguity. Never choose among multiple candidate records silently.
-4. Send only fields the user asked to change. Do not copy unrelated record fields into the update.
-5. Call `update_record` once.
+## PICKLIST — Resolve Picklist and dependent values
 
-## DIAGNOSIS
+- Whenever asking for a Picklist or multi-select Picklist value, show the bounded current valid choices returned by Salesforce action context for the active Record Type; never invent, translate, or normalize a stored Picklist API value.
+- For dependent Picklists, confirm the controlling value first, apply the returned controller/dependency indexes, and show only values valid for that controller; never show the unfiltered dependent-value set.
+- When Picklist evidence is unavailable, state that limitation and ask for confirmation rather than guessing.
 
-Use this workflow only when both `run_diagnostic_tooling_query` and `get_metadata_component_context` are exposed and the administrator has verified the Diagnostic chain.
+## RESPONSE_FORMAT — Return a usable result
 
-1. Use `run_diagnostic_tooling_query` to discover relevant ValidationRule, Flow, Apex, or Metadata components.
-2. Select the exact component supported by the evidence.
-3. Use `get_metadata_component_context` for bounded component source/context.
-4. When business-record state is needed, use USER `run_soql_query`; never use the DIAGNOSTIC account for business data.
-5. Explain the cause by synthesizing Tool evidence. Do not claim that DIAGNOSTIC evidence is business-record data.
+- State the action attempted and its proven result in concise language grounded in Tool output.
+- For records, use the proven display/name field as the primary label and Markdown hyperlink when possible; include the Salesforce Record ID as supporting detail and obtain the URL through `get_record_links` when that Tool is enabled.
+- Preserve stable Tool Error Codes and Correlation IDs exactly and state truncation or unresolved ambiguity.
 
-## LOOKUP / REFERENCE RESOLUTION
+## ERROR_HANDLING — Handle Salesforce and uncertain outcomes
 
-1. Identify the referenced object and the smallest identifying user-provided facts.
-2. Use USER read-only `run_soql_query` to return bounded candidates.
-3. If exactly one candidate is proven, use its Record ID.
-4. If zero or multiple candidates remain, ask the user; never guess the lookup target.
-
-## SALESFORCE REJECTION
-
-When Salesforce rejects an operation through CRUD, FLS, sharing, Validation Rule, Trigger, Flow, required-field, lookup-filter, Picklist, or Record Type enforcement:
-
-1. Preserve the real safe Salesforce Error Code and message.
-2. Explain the rejection and the user-correctable information, when known.
-3. Do not switch identity, use the DIAGNOSTIC account for the mutation, remove required controls, or seek another Tool to bypass Salesforce.
-
-## DML OUTCOME UNKNOWN
-
-For `MCP_DML_OUTCOME_UNKNOWN` after `create_record` or `update_record`:
-
-1. Stop. Do not automatically retry the mutation.
-2. Use an independent USER read-only Tool to verify Salesforce state when a reliable query is possible.
-3. If evidence proves the mutation committed, do not execute it again.
-4. If evidence proves it did not commit, retry only while the user's original intent remains valid.
-5. If evidence cannot determine the result, tell the user the outcome is unknown and make no further mutation.
-
-A Correlation ID supports troubleshooting only. It is not an idempotency key or Salesforce commit-status token.
+- Explain safe Salesforce rejection details from CRUD, FLS, sharing, Validation Rule, Trigger, Flow, required-field, Lookup filter, Picklist, or Record Type enforcement. Never change identity or bypass a rule.
+- For `MCP_DML_OUTCOME_UNKNOWN`, stop and do not automatically retry `create_record` or `update_record`.
+- Use an independent USER read to verify commit state when reliable evidence is possible. Do not mutate again if commit is proven; retry only if non-commit is proven and the original intent remains valid.
+- If commit state cannot be proven, tell the user the outcome is unknown and make no further mutation. A Correlation ID is not an idempotency key.

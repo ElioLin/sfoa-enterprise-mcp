@@ -21,7 +21,7 @@ import {
   USER_BOUND_TOKEN_PREFIX,
   type ControlPlaneConfig,
 } from '@sfoa/control-plane';
-import { DEFAULT_ENABLED_TOOLS } from './tool-governance.js';
+import { DEFAULT_RUNTIME_ENABLED_TOOLS } from './tool-governance.js';
 import { RemoteRuntimeError } from './errors.js';
 
 export type RemoteAuthMode = 'internal_bearer' | 'disabled';
@@ -81,7 +81,7 @@ const rawRemoteConfigSchema = z
     MCP_MAX_BODY_BYTES: z.coerce.number().int().min(1024).max(10_485_760).default(1_048_576),
     MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_REQUEST_TIMEOUT_MS),
     MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_TOOL_TIMEOUT_MS),
-    MCP_ENABLED_TOOLS: z.string().trim().default(DEFAULT_ENABLED_TOOLS.join(',')),
+    MCP_ENABLED_TOOLS: z.string().trim().default(DEFAULT_RUNTIME_ENABLED_TOOLS.join(',')),
     MCP_DML_ALLOWLIST_JSON: z.string().max(65_536).optional(),
     MCP_ALLOWED_HOSTS: z.string().trim().optional(),
     MCP_ALLOWED_ORIGINS: z.string().trim().optional(),
