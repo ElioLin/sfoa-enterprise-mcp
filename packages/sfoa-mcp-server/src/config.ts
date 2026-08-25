@@ -188,6 +188,12 @@ export async function loadRemoteRuntimeConfig(
   if (buntuIdentity.enabled && parsed.data.MCP_AUTH_MODE !== 'internal_bearer') {
     throw configurationError('MCP_BUNTU_IDENTITY_ENABLED=true requires MCP_AUTH_MODE=internal_bearer.');
   }
+  // P6-ID-02 HOTFIX01: the BUNTU_TOKEN provider resolves user_id through the
+  // MySQL identity routes, so it must fail fast at configuration time instead of
+  // silently starting a runtime whose provider was never wired.
+  if (buntuIdentity.enabled && controlPlane.mode !== 'mysql') {
+    throw configurationError('BUNTU_TOKEN identity requires SFOA_CONTROL_PLANE_MODE=mysql.');
+  }
 
   const mcpPath = normalizeMcpPath(parsed.data.MCP_PATH);
   const publicUrl = parsed.data.MCP_PUBLIC_URL

@@ -8,7 +8,7 @@ import {
 } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ControlPlaneError, USER_BOUND_TOKEN_PREFIX } from '@sfoa/control-plane';
+import { ControlPlaneError } from '@sfoa/control-plane';
 import {
   dmlOutcomeUnknownError,
   type DmlOperation,
@@ -768,16 +768,22 @@ function toRequestHeaders(request: IncomingMessage): RequestHeaders {
 }
 
 /**
- * Captures the raw request-scoped USER_BOUND bearer token so error paths and
- * governed Tools can redact it from messages and logs. Only tokens carrying the
- * reserved sfoa_ub1_ prefix are treated as request secrets; legacy
- * MCP_CLIENT_TOKEN values are already covered by config-scoped redaction.
+ * Captures the raw request-scoped bearer token so error paths and governed
+ * Tools can redact it from messages and logs. This covers USER_BOUND
+ * (`sfoa_ub1_*`) and BUNTU_TOKEN credentials. Legacy MCP_CLIENT_TOKEN values
+ * are already covered by config-scoped redaction and are additionally captured
+ * here as defense in depth.
+ *
+ * The captured secrets are only ever used for redaction. They must never flow
+ * into the audit persistence path, where `requestSummary.rawToken` for
+ * BUNTU_TOKEN_VALIDATE is governed exclusively by
+ * MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED.
  */
-function captureRequestBearerSecrets(request: IncomingMessage): readonly string[] {
+export function captureRequestBearerSecrets(request: IncomingMessage): readonly string[] {
   const authorization = request.headers.authorization;
   if (authorization === undefined || authorization.trim().length === 0) return [];
   const token = /^Bearer\s+([^\s]+)$/iu.exec(authorization.trim())?.[1];
-  if (!token?.startsWith(USER_BOUND_TOKEN_PREFIX)) return [];
+  if (!token) return [];
   return Object.freeze([token]);
 }
 

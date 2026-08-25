@@ -41,8 +41,21 @@ export type BuntuValidatorOptions = Readonly<{
   timeoutMs: number;
 }>;
 
-/** Accepts an object carrying `user_id`; extra upstream fields are tolerated but never surfaced. */
-const buntuValidateResponseSchema = z.object({ user_id: z.string() });
+/**
+ * Accepts an object carrying `user_id`; extra upstream fields are tolerated but never surfaced.
+ *
+ * P6-ID-02 HOTFIX01: the real Buntu contract documents only that the response
+ * contains `user_id`; its JSON primitive type has not been confirmed yet. Only
+ * a `string` or a safe integer `number` is accepted. Floats, NaN, Infinity,
+ * booleans, objects, arrays, and null are rejected. A numeric user_id is
+ * normalized with `String(...)` and then validated by the shared
+ * `platformUserIdSchema`; no Buntu-specific user id rules are invented here.
+ */
+const buntuUserIdSchema = z.union([
+  z.string(),
+  z.number().refine((value) => Number.isSafeInteger(value)),
+]);
+const buntuValidateResponseSchema = z.object({ user_id: buntuUserIdSchema });
 
 export class HttpBuntuTokenValidator implements BuntuTokenValidator {
   public constructor(private readonly options: BuntuValidatorOptions) {}
@@ -96,7 +109,10 @@ export class HttpBuntuTokenValidator implements BuntuTokenValidator {
         );
       }
 
-      const parsedUserId = platformUserIdSchema.safeParse(contract.data.user_id);
+      const candidateUserId = typeof contract.data.user_id === 'number'
+        ? String(contract.data.user_id)
+        : contract.data.user_id;
+      const parsedUserId = platformUserIdSchema.safeParse(candidateUserId);
       if (!parsedUserId.success) {
         return buntuFailure('MCP_BUNTU_IDENTITY_RESPONSE_INVALID', { httpStatus, durationMs, validatedAt });
       }
