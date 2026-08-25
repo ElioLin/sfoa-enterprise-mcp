@@ -78,6 +78,8 @@ export type RemoteMcpServer = Readonly<{
   healthUrl: URL;
   readyUrl: URL;
   registeredTools: readonly string[];
+  /** Active credential identity sources, for operator startup logs. Never contains secrets. */
+  identitySources: readonly string[];
   getMetrics(): RemoteMcpServerMetrics;
   close(): Promise<GracefulShutdownResult>;
 }>;
@@ -200,6 +202,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
     healthUrl,
     readyUrl,
     registeredTools: initializedProvider.enabledTools,
+    identitySources: resolveIdentitySources(options),
     getMetrics: () =>
       Object.freeze({
         totalRequests,
@@ -208,6 +211,17 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       }),
     close,
   });
+}
+
+function resolveIdentitySources(options: StartRemoteMcpServerOptions): readonly string[] {
+  if (options.identityProvider) {
+    const sources: string[] = ['USER_BOUND_TOKEN', 'INTERNAL_SERVICE_HEADER'];
+    if (options.config.buntuIdentity.enabled) sources.push('BUNTU_TOKEN');
+    return Object.freeze(sources);
+  }
+  return Object.freeze(
+    options.config.authMode === 'disabled' ? ['DEVELOPMENT_LOOPBACK'] : ['INTERNAL_SERVICE_HEADER'],
+  );
 }
 
 type HandleRemoteRequestOptions = Readonly<{
@@ -662,6 +676,7 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
     case 'MCP_IDENTITY_CREDENTIAL_INVALID':
     case 'MCP_IDENTITY_CREDENTIAL_REVOKED':
     case 'MCP_PLATFORM_USER_REQUIRED':
+    case 'MCP_BUNTU_TOKEN_INVALID':
       return 401;
     case 'MCP_IDENTITY_ROUTE_NOT_FOUND':
     case 'MCP_IDENTITY_CONTEXT_MISMATCH':
@@ -682,6 +697,8 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
       return 503;
     case 'MCP_SALESFORCE_AUTH_FAILED':
     case 'MCP_SALESFORCE_CONNECTION_FAILED':
+    case 'MCP_BUNTU_IDENTITY_UNAVAILABLE':
+    case 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID':
       return 502;
     case 'MCP_REQUEST_INVALID':
       return 400;
@@ -706,6 +723,7 @@ function isBlocked(code: string): boolean {
     'MCP_ORIGIN_NOT_ALLOWED',
     'MCP_TOOL_DISABLED',
     'MCP_TOOL_NOT_AVAILABLE',
+    'MCP_BUNTU_TOKEN_INVALID',
   ].includes(code);
 }
 

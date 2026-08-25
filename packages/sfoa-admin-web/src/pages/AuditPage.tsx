@@ -1,8 +1,8 @@
 import { FilterOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Descriptions, Drawer, Form, Input, Pagination, Select, Space, Table, Typography } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Form, Input, Pagination, Select, Space, Table, Typography } from 'antd';
 import { useState } from 'react';
-import type { AuditRecord } from '@sfoa/control-plane';
+import type { AuditRecord, IdentitySource } from '@sfoa/control-plane';
 import { adminApi, type AuditFilters } from '../api/client.js';
 import { EmptyState, ErrorState, LoadingState } from '../components/QueryState.js';
 import { PageFrame } from '../components/PageFrame.js';
@@ -20,6 +20,16 @@ type AuditFilterForm = Readonly<{
   result?: AuditFilters['result'];
   errorCode?: string;
 }>;
+
+function identitySourceLabel(source: IdentitySource | null): string {
+  switch (source) {
+    case 'INTERNAL_SERVICE_HEADER': return '内部服务凭据';
+    case 'USER_BOUND_TOKEN': return '用户绑定 Token';
+    case 'BUNTU_TOKEN': return '小犇 Token';
+    case null: return '—';
+    default: return String(source);
+  }
+}
 
 export default function AuditPage() {
   const [form] = Form.useForm<AuditFilterForm>();
@@ -87,6 +97,7 @@ export default function AuditPage() {
                 columns={[
                   { title: '发生时间', dataIndex: 'occurredAt', width: 180, render: formatDateTime },
                   { title: '通道', dataIndex: 'channel', render: (value: string) => <StatusTag label={value} tone="neutral" /> },
+                  { title: '身份来源', dataIndex: 'identitySource', render: (value: IdentitySource | null) => <StatusTag label={identitySourceLabel(value)} tone="neutral" /> },
                   { title: '平台用户', dataIndex: 'platformUserId', render: (value: string | null) => value ? <code>{value}</code> : '—' },
                   { title: 'Salesforce 执行用户', dataIndex: 'salesforceUsername', render: (value: string | null) => value ?? '—' },
                   { title: '执行角色', dataIndex: 'executionRole', render: (value: string | null) => value ? <StatusTag label={value} tone={value === 'DIAGNOSTIC' ? 'warning' : 'neutral'} /> : '—' },
@@ -129,6 +140,7 @@ function AuditDetail({ record }: Readonly<{ record: AuditRecord }>) {
     <Space orientation="vertical" size="large" className="full-width">
       <Descriptions bordered size="small" column={1}>
         <Descriptions.Item label="发生时间">{formatDateTime(record.occurredAt)}</Descriptions.Item>
+        <Descriptions.Item label="身份来源">{identitySourceLabel(record.identitySource)}</Descriptions.Item>
         <Descriptions.Item label="触发平台用户">{record.platformUserId ?? '不适用'}</Descriptions.Item>
         <Descriptions.Item label="实际 Salesforce 执行用户">{record.salesforceUsername ?? '不适用'}</Descriptions.Item>
         <Descriptions.Item label="执行角色">{record.executionRole ? <StatusTag label={record.executionRole} /> : '不适用'}</Descriptions.Item>
@@ -144,10 +156,53 @@ function AuditDetail({ record }: Readonly<{ record: AuditRecord }>) {
         <Descriptions.Item label="耗时">{record.durationMs === null ? '—' : `${record.durationMs} ms`}</Descriptions.Item>
         <Descriptions.Item label="Correlation ID"><Typography.Text copyable code>{record.correlationId}</Typography.Text></Descriptions.Item>
       </Descriptions>
+      {record.operation === 'BUNTU_TOKEN_VALIDATE' ? <BuntuValidateDetail record={record} /> : null}
       <SafeSummary title="安全请求摘要" value={record.requestSummary} />
       <SafeSummary title="安全响应摘要" value={record.responseSummary} />
     </Space>
   );
+}
+
+function BuntuValidateDetail({ record }: Readonly<{ record: AuditRecord }>) {
+  const request = isRecord(record.requestSummary) ? record.requestSummary : undefined;
+  const response = isRecord(record.responseSummary) ? record.responseSummary : undefined;
+  const rawToken = request?.rawToken;
+  return (
+    <section aria-label="小犇 Token 校验详情">
+      <Typography.Title level={5}>小犇 Token 校验详情</Typography.Title>
+      {typeof rawToken === 'string' ? (
+        <Alert
+          type="warning"
+          showIcon
+          className="margin-bottom"
+          message="原始 Token 已记录"
+          description="MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true 生效，原始 Buntu Token 被写入了 MySQL 审计库。此值等同凭据本身，请按保密要求处理审计数据。"
+        />
+      ) : null}
+      <Descriptions bordered size="small" column={1}>
+        <Descriptions.Item label="校验结果">
+          {response?.valid === true ? <StatusTag label="PASS" /> : <StatusTag label={record.errorCode ?? 'DENIED'} />}
+        </Descriptions.Item>
+        <Descriptions.Item label="平台用户编号">
+          {typeof response?.userId === 'string' ? <code>{response.userId}</code> : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="上游 HTTP 状态">
+          {typeof response?.httpStatus === 'number' ? String(response.httpStatus) : '未收到响应'}
+        </Descriptions.Item>
+        <Descriptions.Item label="校验接口耗时">
+          {record.durationMs === null ? '—' : `${record.durationMs} ms`}
+        </Descriptions.Item>
+        <Descriptions.Item label="Token 尾号">{typeof request?.tokenLast4 === 'string' ? <code>{request.tokenLast4}</code> : '—'}</Descriptions.Item>
+        <Descriptions.Item label="Token Fingerprint">{typeof request?.tokenFingerprint === 'string' ? <code>{request.tokenFingerprint}</code> : '—'}</Descriptions.Item>
+        <Descriptions.Item label="校验时间">{formatDateTime(record.occurredAt)}</Descriptions.Item>
+        <Descriptions.Item label="校验接口地址">{typeof request?.validationUrl === 'string' ? <code>{request.validationUrl}</code> : '—'}</Descriptions.Item>
+      </Descriptions>
+    </section>
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function SafeSummary({ title, value }: Readonly<{ title: string; value: unknown }>) {

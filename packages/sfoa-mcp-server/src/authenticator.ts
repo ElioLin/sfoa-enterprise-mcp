@@ -9,6 +9,13 @@ import {
 } from '@sfoa/control-plane';
 import type { RequestHeaders } from '@sfoa/identity-runtime';
 import { IdentityRuntimeError, type RuntimeLogger } from '@sfoa/identity-runtime';
+import {
+  buntuTokenFingerprint,
+  buntuTokenLast4,
+  type BuntuTokenValidator,
+  type BuntuValidationErrorCode,
+  type BuntuValidationResult,
+} from './buntu-validator.js';
 import { RemoteRuntimeError } from './errors.js';
 
 export type AuthenticatedClient = Readonly<{
@@ -72,7 +79,7 @@ export class InternalBearerAuthenticator implements ClientAuthenticator {
     }
 
     const match = /^Bearer\s+([^\s]+)$/iu.exec(authorization.trim());
-    if (!match?.[1] || !timingSafeEqual(this.expectedDigest, digest(match[1]))) {
+    if (!match?.[1] || !this.matches(match[1])) {
       throw new RemoteRuntimeError(
         'MCP_CLIENT_AUTH_INVALID',
         'The MCP client Bearer credential is invalid.',
@@ -80,6 +87,11 @@ export class InternalBearerAuthenticator implements ClientAuthenticator {
     }
 
     return Object.freeze({ clientId: 'internal-bearer' });
+  }
+
+  /** Timing-safe exact-token comparison used by deterministic provider routing. */
+  public matches(token: string): boolean {
+    return timingSafeEqual(this.expectedDigest, digest(token));
   }
 }
 
@@ -96,8 +108,15 @@ export class InternalServiceCredentialAuthenticator implements CredentialAuthent
     this.authenticator = new InternalBearerAuthenticator(token);
   }
 
+  /**
+   * Deterministic exclusivity: only an exact timing-safe match of MCP_CLIENT_TOKEN
+   * claims this provider. USER_BOUND tokens and arbitrary third-party tokens are
+   * deliberately never claimed here.
+   */
   public supports(token: string | undefined): boolean {
-    return token === undefined || !token.startsWith(USER_BOUND_TOKEN_PREFIX);
+    return token !== undefined
+      && !token.startsWith(USER_BOUND_TOKEN_PREFIX)
+      && this.authenticator.matches(token);
   }
 
   public async authenticate(token: string | undefined, _correlationId: string): Promise<CredentialAuthentication> {
@@ -174,6 +193,117 @@ export class UserBoundCredentialAuthenticator implements CredentialAuthenticator
         }
       },
     });
+  }
+}
+
+export const BUNTU_CLIENT_ID = 'xiaoben-buntu-token';
+
+export type BuntuTokenCredentialAuthenticatorOptions = Readonly<{
+  validator: BuntuTokenValidator;
+  routes: IdentityRouteRepository;
+  logger: RuntimeLogger;
+  /** MCP_CLIENT_TOKEN used for deterministic exclusivity; compared with timing-safe digest. */
+  clientToken: string;
+  validateTokenUrl: string;
+  rawTokenAuditEnabled: boolean;
+}>;
+
+export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticator {
+  private readonly expectedClientDigest: Buffer;
+
+  public constructor(private readonly options: BuntuTokenCredentialAuthenticatorOptions) {
+    this.expectedClientDigest = digest(options.clientToken);
+  }
+
+  /**
+   * Deterministic exclusivity: claims any defined token that is neither a
+   * USER_BOUND credential nor an exact match of MCP_CLIENT_TOKEN. The Buntu
+   * provider is only wired when MCP_BUNTU_IDENTITY_ENABLED=true, so no other
+   * provider overlaps with this predicate.
+   */
+  public supports(token: string | undefined): boolean {
+    return token !== undefined
+      && !token.startsWith(USER_BOUND_TOKEN_PREFIX)
+      && !timingSafeEqual(this.expectedClientDigest, digest(token));
+  }
+
+  public async authenticate(token: string | undefined, correlationId: string): Promise<CredentialAuthentication> {
+    if (token === undefined || !this.supports(token)) {
+      throw new RemoteRuntimeError(
+        'MCP_CLIENT_AUTH_INVALID',
+        'The MCP client Bearer credential is invalid.',
+        { correlationId },
+      );
+    }
+
+    const result = await this.options.validator.validate(token, correlationId);
+    await this.logValidateAudit(token, result, correlationId);
+
+    if (!result.valid) {
+      throw buntuValidationError(result.errorCode ?? 'MCP_BUNTU_IDENTITY_UNAVAILABLE', correlationId);
+    }
+
+    const platformUserId = platformUserIdSchema.parse(result.userId);
+    const route = await this.options.routes.getByPlatformUserId(platformUserId);
+    if (!route) {
+      throw new IdentityRuntimeError(
+        'MCP_IDENTITY_ROUTE_NOT_FOUND',
+        'No Salesforce identity route exists for the authenticated platform user. Ask an administrator to configure the route.',
+        { correlationId },
+      );
+    }
+    if (!route.enabled) {
+      throw new RemoteRuntimeError(
+        'MCP_IDENTITY_ROUTE_DISABLED',
+        'The identity route for the authenticated platform user is disabled.',
+        { correlationId },
+      );
+    }
+
+    return Object.freeze({
+      clientId: BUNTU_CLIENT_ID,
+      identitySource: 'BUNTU_TOKEN' as const,
+      boundPlatformUserId: platformUserId,
+    });
+  }
+
+  private async logValidateAudit(
+    rawToken: string,
+    result: BuntuValidationResult,
+    correlationId: string,
+  ): Promise<void> {
+    const invalidResponse = result.errorCode === 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID'
+      || result.errorCode === 'MCP_BUNTU_IDENTITY_UNAVAILABLE';
+    const requestSummary = {
+      provider: 'BUNTU',
+      tokenFingerprint: buntuTokenFingerprint(rawToken),
+      tokenLast4: buntuTokenLast4(rawToken),
+      validationUrl: this.options.validateTokenUrl,
+      ...(this.options.rawTokenAuditEnabled ? { rawToken } : {}),
+    };
+    const responseSummary = {
+      valid: result.valid,
+      ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+      ...(result.userId ? { userId: result.userId } : {}),
+    };
+    try {
+      await this.options.logger.log({
+        correlationId,
+        clientId: BUNTU_CLIENT_ID,
+        ...(result.userId ? { platformUserId: result.userId } : {}),
+        identitySource: 'BUNTU_TOKEN',
+        operation: 'BUNTU_TOKEN_VALIDATE',
+        result: result.valid ? 'PASS' : invalidResponse ? 'ERROR' : 'BLOCKED',
+        outcome: result.valid ? 'SUCCESS' : invalidResponse ? 'FAILED' : 'DENIED',
+        ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+        durationMs: result.durationMs,
+        requestSummary,
+        responseSummary,
+      });
+    } catch {
+      // Audit persistence is observational. A validation outcome must not be
+      // altered by an audit sink failure; the request-level audit path covers this.
+    }
   }
 }
 
@@ -295,6 +425,21 @@ function invalidUserBoundCredential(correlationId: string): RemoteRuntimeError {
     'The USER_BOUND credential is invalid.',
     { correlationId },
   );
+}
+
+function buntuValidationError(code: BuntuValidationErrorCode, correlationId: string): RemoteRuntimeError {
+  return new RemoteRuntimeError(code, buntuValidationMessage(code), { correlationId });
+}
+
+function buntuValidationMessage(code: BuntuValidationErrorCode): string {
+  switch (code) {
+    case 'MCP_BUNTU_TOKEN_INVALID':
+      return 'The Buntu token was rejected by the identity provider.';
+    case 'MCP_BUNTU_IDENTITY_UNAVAILABLE':
+      return 'The Buntu identity provider is currently unavailable. Retry the request later.';
+    case 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID':
+      return 'The Buntu identity provider returned an invalid identity response.';
+  }
 }
 
 function getSingleHeader(headers: RequestHeaders, targetName: string): string | undefined {

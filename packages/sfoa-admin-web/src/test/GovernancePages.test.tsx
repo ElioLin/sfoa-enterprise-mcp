@@ -180,6 +180,42 @@ describe('Admin governance pages', () => {
     expect(screen.getByText('其他管理员已修改该配置，请刷新最新版本后重新确认。')).toBeInTheDocument();
   });
 
+  it('renders the Buntu identity source label and the BUNTU_TOKEN_VALIDATE detail drawer', async () => {
+    const rawToken = 'buntu-raw-token-should-show';
+    const record = auditRecord('77', {
+      identitySource: 'BUNTU_TOKEN',
+      clientId: 'xiaoben-buntu-token',
+      operation: 'BUNTU_TOKEN_VALIDATE',
+      result: 'PASS',
+      outcome: 'SUCCESS',
+      errorCode: null,
+      platformUserId: 'platform-buntu',
+      requestSummary: {
+        provider: 'BUNTU',
+        tokenFingerprint: `sha256:${'a'.repeat(64)}`,
+        tokenLast4: 'wxyz',
+        validationUrl: 'https://buntu.example.test/validate',
+        rawToken,
+      },
+      responseSummary: { valid: true, httpStatus: 200, userId: 'platform-buntu' },
+    });
+    const fetchMock = asFetchMock((url) => {
+      if (/\/audits\/77$/u.test(url.pathname)) return jsonResponse(record);
+      return jsonResponse(page([record]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderAdmin(<AuditPage />);
+
+    expect(await screen.findByText('小犇 Token')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('platform-buntu'));
+    expect(await screen.findByText('小犇 Token 校验详情')).toBeInTheDocument();
+    expect(screen.getByText('原始 Token 已记录')).toBeInTheDocument();
+    expect(screen.getByText(`sha256:${'a'.repeat(64)}`)).toBeInTheDocument();
+    expect(screen.getByText('wxyz')).toBeInTheDocument();
+    expect(screen.getAllByText('platform-buntu', { selector: 'code' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('region', { name: '安全请求摘要' }).textContent).toContain(rawToken);
+  });
+
   it('renders only configured state even when an unexpected secret-shaped field exists', async () => {
     const secret = 'SHOULD_NEVER_RENDER_PRIVATE_KEY';
     const fetchMock = asFetchMock((url) => url.pathname.endsWith('/system/settings')
@@ -236,12 +272,14 @@ function diagnosticVerification() {
   };
 }
 
-function auditRecord(id: string) {
+function auditRecord(id: string, overrides: Readonly<Partial<Record<string, unknown>>> = {}) {
   return {
     id, occurredAt: NOW, correlationId: `correlation-${id}`, channel: 'MCP', clientId: 'client-a', actorAdmin: null,
     platformUserId: 'platform-a', salesforceUsername: 'sf-user@example.com', executionRole: 'USER', toolName: 'run_soql_query',
     operation: 'READ', objectApiName: null, recordId: null, result: 'PASS', outcome: 'SUCCESS', errorCode: null, durationMs: 5,
+    identitySource: 'USER_BOUND_TOKEN',
     requestSummary: { querySha256: 'abcd', queryLength: 42 }, responseSummary: { returnedRecords: 1 }, createdAt: NOW,
+    ...overrides,
   };
 }
 

@@ -14,6 +14,7 @@ async function main(): Promise<void> {
       healthUrl: server.healthUrl.href,
       readyUrl: server.readyUrl.href,
       tools: server.registeredTools,
+      identitySources: server.identitySources,
     })}\n`,
   );
 }

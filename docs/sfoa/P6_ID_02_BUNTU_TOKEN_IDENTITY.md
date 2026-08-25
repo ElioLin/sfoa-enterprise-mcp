@@ -1,0 +1,117 @@
+# P6-ID-02 BUNTU_TOKEN Identity
+
+Status: implemented; acceptance evidence is recorded in `P6_ID_02_REPORT.md`.
+
+## Architecture
+
+P6-ID-02 adds a third trusted identity source — the Dify / 小犇 real-user bearer (`BUNTU_TOKEN`) — without redesigning Salesforce identity routing. `BUNTU_TOKEN` is responsible only for `Token -> platformUserId`; the effective platform user still flows through the accepted P1-P5 `sfoa_identity_route` boundary:
+
+```text
+                        IdentityProvider
+                              |
+          +-------------------+-------------------+
+          |                   |                   |
+ Internal service        USER_BOUND          BUNTU bearer
+ bearer                 route-bound         validate-token
+ + trusted platform      token               -> user_id
+   Header                 (sfoa_ub1_*)       (only when enabled)
+          |                   |                   |
+          +-------------------+-------------------+
+                              |
+                  Effective platformUserId
+                              |
+                       Identity Route
+                              |
+                 current Salesforce Username
+                              |
+                   fresh JWT / Connection
+                              |
+                         Salesforce
+```
+
+The unified principal carries `clientId`, `identitySource`, `platformUserId`, and an optional safe `credentialId`. Buntu authentication completes before body processing, policy-snapshot loading, JWT construction, or Tool execution. `clientId=xiaoben-buntu-token`, `identitySource=BUNTU_TOKEN`.
+
+Because the Buntu provider returns `boundPlatformUserId`, a Dify client supplies only the Buntu bearer; it does not need `X-Platform-User-Id`. If a platform Header is nevertheless supplied it must match the validated `user_id` or authentication fails with `MCP_IDENTITY_CONTEXT_MISMATCH` (same rule as USER_BOUND).
+
+## Deterministic provider routing
+
+`UnifiedIdentityProvider` selects the first authenticator whose `supports(token)` is true. To keep the three providers mutually exclusive, deterministic and testable, `supports()` now implements the following closed decision table (timing-safe digest comparison for the internal client token):
+
+| Case | Condition | Provider |
+| --- | --- | --- |
+| 1 | `token` starts with `sfoa_ub1_` | `USER_BOUND` |
+| 2 | `token` exactly matches `MCP_CLIENT_TOKEN` | `INTERNAL_SERVICE_HEADER` |
+| 3 | `token` exists, is neither case 1 nor 2, and `MCP_BUNTU_IDENTITY_ENABLED=true` | `BUNTU_TOKEN` |
+| 4 | otherwise | `MCP_CLIENT_AUTH_INVALID` |
+
+This fixes the previous over-broad `InternalServiceCredentialAuthenticator.supports()` ("token is not `sfoa_ub1_*` -> true"), which used to intercept Buntu tokens and fail them. `MCP_CLIENT_TOKEN` never enters logs; comparison is timing-safe via SHA-256 digests.
+
+## Buntu validate-token contract
+
+When the Buntu provider is selected, every request calls the remote validator once — there is no token cache in this phase:
+
+```http
+GET <MCP_BUNTU_VALIDATE_TOKEN_URL>
+Accept: application/json
+Authorization: Bearer <raw token>
+```
+
+Expected response body: `{ "user_id": "<platformUserId>" }` with strict `platformUserIdSchema` (trimmed, 1..128 chars, no control characters). Failures classify as follows:
+
+| Observation | Error code | HTTP |
+| --- | --- | --- |
+| 401/403, or HTTP success without a valid `user_id` | `MCP_BUNTU_TOKEN_INVALID` | 401 |
+| timeout / DNS / TCP / TLS / non-2xx upstream | `MCP_BUNTU_IDENTITY_UNAVAILABLE` | 502 |
+| invalid JSON, body > 64 KiB, or `user_id` fails the platform schema | `MCP_BUNTU_IDENTITY_RESPONSE_INVALID` | 502 |
+
+The validator is fail-closed: no fallback identity, no legacy pass-through, and Buntu is never treated as Internal. `MCP_CLIENT_AUTH_INVALID` remains the only outcome when no provider matches.
+
+## Configuration
+
+New variables in `MCP_AUTH_MODE=internal_bearer` mode (validated by `loadRemoteRuntimeConfig`):
+
+```dotenv
+MCP_BUNTU_IDENTITY_ENABLED=false
+MCP_BUNTU_VALIDATE_TOKEN_URL=
+MCP_BUNTU_VALIDATE_TIMEOUT_MS=5000
+MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=false
+```
+
+Validation rules:
+
+- `MCP_BUNTU_IDENTITY_ENABLED=true` requires `MCP_AUTH_MODE=internal_bearer` (otherwise the Buntu provider would be shadowed by the loopback/disabled path).
+- `MCP_BUNTU_VALIDATE_TOKEN_URL` is required when enabled; it must be an absolute credential-free `http(s)` URL with no query or fragment.
+- `MCP_BUNTU_VALIDATE_TIMEOUT_MS` is bounded to 500..30 000 and applied with `AbortController`; the timer is cleared in `finally`.
+- TLS verification is never disabled; `NODE_TLS_REJECT_UNAUTHORIZED=0` / `rejectUnauthorized=false` are forbidden.
+
+Startup logs report the wired identity sources (safe names only), e.g. `USER_BOUND`, `INTERNAL_SERVICE_HEADER`, and — when enabled — `BUNTU_TOKEN`. The validate URL and any token are never logged.
+
+## Audit and secret boundary
+
+Every Buntu validation emits a `BUNTU_TOKEN_VALIDATE` audit record:
+
+- `clientId=xiaoben-buntu-token`, `identitySource=BUNTU_TOKEN`;
+- `requestSummary`: `provider: 'BUNTU'`, `tokenFingerprint` (sha256 digest), `tokenLast4`, `validationUrl`, and — only when `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` — the raw token;
+- `responseSummary`: `valid`, optional `httpStatus` and validated `userId`;
+- `durationMs` covers the remote validate round-trip; `result`/`outcome` map to PASS/SUCCESS, or BLOCKED/DENIED on `MCP_BUNTU_TOKEN_INVALID`, or ERROR/FAILED on unavailable/invalid-response.
+
+Secret boundary: the raw token may be stored only inside the MySQL `sfoa_audit_log.requestSummary` column and only under the raw-token flag. The database fallback path and every stdout/stderr/HTTP response remain token-free by construction (`DatabaseRuntimeLogger` fallback never writes `requestSummary`/`responseSummary`).
+
+## Admin presentation
+
+The Audit page adds a "身份来源" column and drawer row with a Chinese label map (`INTERNAL_SERVICE_HEADER` -> 内部服务凭据, `USER_BOUND_TOKEN` -> 用户绑定 Token, `BUNTU_TOKEN` -> 小犇 Token). A `BUNTU_TOKEN_VALIDATE` record shows a dedicated detail block: 校验结果, 平台用户编号, 上游 HTTP 状态, 校验接口耗时, Token 尾号, Token Fingerprint, 校验时间, 校验接口地址. When the raw-token flag was enabled the drawer shows a warning banner ("原始 Token 已记录") and the raw value appears only inside the bounded JSON pre block.
+
+## Error codes
+
+New stable codes: `MCP_BUNTU_TOKEN_INVALID`, `MCP_BUNTU_IDENTITY_UNAVAILABLE`, `MCP_BUNTU_IDENTITY_RESPONSE_INVALID`. HTTP mapping: `MCP_BUNTU_TOKEN_INVALID` -> 401; the two upstream failures -> 502. Route resolution failures reuse `MCP_IDENTITY_ROUTE_NOT_FOUND` (403) and `MCP_IDENTITY_ROUTE_DISABLED` (403); `MCP_IDENTITY_CONTEXT_MISMATCH` applies to a mismatched bound header.
+
+## Verification
+
+```powershell
+yarn workspace @sfoa/control-plane test
+yarn workspace @sfoa/mcp-server test
+yarn workspace @sfoa/admin-api test
+yarn workspace @sfoa/admin-web test
+```
+
+Focused evidence: `dist/test/buntu-validator.test.js` (validator classification), `dist/test/identity-provider.test.js` (provider routing, route resolution, audit, USER_BOUND/Internal regression). See `P6_ID_02_REPORT.md` for the actual PASS/FAIL record.

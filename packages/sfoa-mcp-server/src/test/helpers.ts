@@ -206,6 +206,11 @@ export function createTestRemoteConfig(
     allowedOrigins: Object.freeze([]),
     useLoopbackHostDefaults: true,
     useLoopbackOriginDefaults: true,
+    buntuIdentity: Object.freeze({
+      enabled: false,
+      timeoutMs: 5_000,
+      rawTokenAuditEnabled: false,
+    }),
     ...overrides,
   });
 }

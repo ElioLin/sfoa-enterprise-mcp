@@ -515,6 +515,10 @@ div.surface-card:not(.ant-card) {
   line-height: 1.5;
 }
 
+.margin-bottom {
+  margin-bottom: 18px;
+}
+
 @media (max-width: 1199px) {
   .filter-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));

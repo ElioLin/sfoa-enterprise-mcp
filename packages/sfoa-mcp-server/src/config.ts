@@ -29,6 +29,17 @@ export type RemoteAuthMode = 'internal_bearer' | 'disabled';
 export const DEFAULT_MCP_REQUEST_TIMEOUT_MS = 180_000;
 export const DEFAULT_MCP_TOOL_TIMEOUT_MS = 120_000;
 
+export const DEFAULT_BUNTU_VALIDATE_TIMEOUT_MS = 5_000;
+export const MIN_BUNTU_VALIDATE_TIMEOUT_MS = 500;
+export const MAX_BUNTU_VALIDATE_TIMEOUT_MS = 30_000;
+
+export type BuntuIdentityConfig = Readonly<{
+  enabled: boolean;
+  validateTokenUrl?: string;
+  timeoutMs: number;
+  rawTokenAuditEnabled: boolean;
+}>;
+
 export type RemoteRuntimeConfig = Readonly<{
   identity: IdentityRuntimeConfig;
   controlPlane: ControlPlaneConfig;
@@ -48,6 +59,7 @@ export type RemoteRuntimeConfig = Readonly<{
   allowedOrigins: readonly string[];
   useLoopbackHostDefaults: boolean;
   useLoopbackOriginDefaults: boolean;
+  buntuIdentity: BuntuIdentityConfig;
 }>;
 
 const headerNameSchema = z
@@ -73,6 +85,21 @@ const rawRemoteConfigSchema = z
     MCP_DML_ALLOWLIST_JSON: z.string().max(65_536).optional(),
     MCP_ALLOWED_HOSTS: z.string().trim().optional(),
     MCP_ALLOWED_ORIGINS: z.string().trim().optional(),
+    MCP_BUNTU_IDENTITY_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    MCP_BUNTU_VALIDATE_TOKEN_URL: z.string().trim().max(2048).optional(),
+    MCP_BUNTU_VALIDATE_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(MIN_BUNTU_VALIDATE_TIMEOUT_MS)
+      .max(MAX_BUNTU_VALIDATE_TIMEOUT_MS)
+      .default(DEFAULT_BUNTU_VALIDATE_TIMEOUT_MS),
+    MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
   })
   .strict();
 
@@ -91,6 +118,10 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'MCP_DML_ALLOWLIST_JSON',
   'MCP_ALLOWED_HOSTS',
   'MCP_ALLOWED_ORIGINS',
+  'MCP_BUNTU_IDENTITY_ENABLED',
+  'MCP_BUNTU_VALIDATE_TOKEN_URL',
+  'MCP_BUNTU_VALIDATE_TIMEOUT_MS',
+  'MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED',
 ] as const;
 
 export async function loadRemoteRuntimeConfig(
@@ -153,6 +184,11 @@ export async function loadRemoteRuntimeConfig(
     parsed.data.MCP_TOOL_TIMEOUT_MS,
   );
 
+  const buntuIdentity = parseBuntuIdentityConfig(parsed.data);
+  if (buntuIdentity.enabled && parsed.data.MCP_AUTH_MODE !== 'internal_bearer') {
+    throw configurationError('MCP_BUNTU_IDENTITY_ENABLED=true requires MCP_AUTH_MODE=internal_bearer.');
+  }
+
   const mcpPath = normalizeMcpPath(parsed.data.MCP_PATH);
   const publicUrl = parsed.data.MCP_PUBLIC_URL
     ? normalizePublicUrl(parsed.data.MCP_PUBLIC_URL)
@@ -208,6 +244,7 @@ export async function loadRemoteRuntimeConfig(
     allowedOrigins,
     useLoopbackHostDefaults: loopback && allowedHosts.length === 0,
     useLoopbackOriginDefaults: loopback && allowedOrigins.length === 0,
+    buntuIdentity,
   });
 }
 
@@ -235,6 +272,48 @@ export function assertValidTimeoutHierarchy(requestTimeoutMs: number, toolTimeou
       'MCP_REQUEST_TIMEOUT_MS must be greater than MCP_TOOL_TIMEOUT_MS so a Tool deadline can normally complete within the HTTP request deadline.',
     );
   }
+}
+
+type ParsedBuntuIdentityFields = Readonly<{
+  MCP_BUNTU_IDENTITY_ENABLED: boolean;
+  MCP_BUNTU_VALIDATE_TOKEN_URL?: string;
+  MCP_BUNTU_VALIDATE_TIMEOUT_MS: number;
+  MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: boolean;
+}>;
+
+function parseBuntuIdentityConfig(fields: ParsedBuntuIdentityFields): BuntuIdentityConfig {
+  if (!fields.MCP_BUNTU_IDENTITY_ENABLED) {
+    return Object.freeze({
+      enabled: false,
+      timeoutMs: fields.MCP_BUNTU_VALIDATE_TIMEOUT_MS,
+      rawTokenAuditEnabled: fields.MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED,
+    });
+  }
+  if (!fields.MCP_BUNTU_VALIDATE_TOKEN_URL) {
+    throw configurationError('MCP_BUNTU_VALIDATE_TOKEN_URL is required when MCP_BUNTU_IDENTITY_ENABLED=true.');
+  }
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(fields.MCP_BUNTU_VALIDATE_TOKEN_URL);
+  } catch {
+    throw configurationError('MCP_BUNTU_VALIDATE_TOKEN_URL must be a valid absolute URL.');
+  }
+  if (
+    !['http:', 'https:'].includes(parsedUrl.protocol) ||
+    parsedUrl.username ||
+    parsedUrl.password ||
+    parsedUrl.hash
+  ) {
+    throw configurationError(
+      'MCP_BUNTU_VALIDATE_TOKEN_URL must be a credential-free HTTP(S) URL without a fragment.',
+    );
+  }
+  return Object.freeze({
+    enabled: true,
+    validateTokenUrl: parsedUrl.href,
+    timeoutMs: fields.MCP_BUNTU_VALIDATE_TIMEOUT_MS,
+    rawTokenAuditEnabled: fields.MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED,
+  });
 }
 
 async function readLocalEnvironment(projectRoot: string): Promise<Record<string, string>> {
