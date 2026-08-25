@@ -82,5 +82,7 @@ function status(readOnlyRuntimeSettings: SystemStatusDto['readOnlyRuntimeSetting
     mcpEndpoint: 'http://127.0.0.1:8080/mcp',
     phases: Object.freeze({ P0: 'FINAL ACCEPTED', P1: 'FINAL ACCEPTED', P2: 'FINAL ACCEPTED', P3: 'FINAL ACCEPTED', P4: 'FINAL ACCEPTED', P5: 'FINAL ACCEPTED' }),
     readOnlyRuntimeSettings,
+    buildPhase: 'P6-ID-01',
+    capabilities: Object.freeze(['USER_BOUND_CREDENTIAL', 'IDENTITY_ROUTE_SEARCH', 'IDENTITY_ROUTE_PERMANENT_DELETE']),
   });
 }

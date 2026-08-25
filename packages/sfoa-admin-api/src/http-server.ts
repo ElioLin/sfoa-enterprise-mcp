@@ -73,6 +73,10 @@ export type AdminSystemRuntimeInfo = Readonly<{
   mcpPublicEndpoint: McpPublicEndpointDto;
   readOnlyRuntimeSettings: Readonly<Record<string, string | number | boolean | readonly string[] | null>>;
   phases: SystemStatusDto['phases'];
+  /** P6-ID-01 HOTFIX01: build phase marker for mixed-version diagnosis. */
+  buildPhase: string;
+  /** P6-ID-01 HOTFIX01: capability markers advertised by this Admin API build. */
+  capabilities: readonly string[];
 }>;
 
 export type StartAdminApiServerOptions = Readonly<{
@@ -268,7 +272,7 @@ async function handleLogin(
   }
   const input = parseWithSchema(adminLoginInputSchema, await readJsonBody(context.request));
   const usernameValid = safeTextEqual(input.username, options.config.username);
-  const passwordValid = await verifyAdminPassword(input.password, options.config.passwordHash);
+  const passwordValid = verifyAdminPassword(input.password, options.config.password);
   if (!usernameValid || !passwordValid) {
     throw new AdminHttpError('MCP_ADMIN_AUTH_INVALID', 'The Admin username or password is invalid.', 401);
   }
@@ -650,6 +654,8 @@ async function buildSystemStatus(options: StartAdminApiServerOptions): Promise<S
     mcpEndpoint: options.system.mcpEndpoint,
     phases: options.system.phases,
     readOnlyRuntimeSettings: options.system.readOnlyRuntimeSettings,
+    buildPhase: options.system.buildPhase,
+    capabilities: options.system.capabilities,
   });
 }
 

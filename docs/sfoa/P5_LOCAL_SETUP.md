@@ -53,7 +53,7 @@ SALESFORCE_USERNAME=<user-a-salesforce-username>
 SECOND_TEST_USER=<user-b-salesforce-username>
 
 SFOA_ADMIN_USERNAME=admin
-SFOA_ADMIN_PASSWORD_HASH=<generated-below>
+SFOA_ADMIN_PASSWORD=<local-only-plaintext>
 SFOA_ADMIN_SESSION_SECRET=<independent-random-secret>
 SFOA_ADMIN_ALLOWED_ORIGIN=http://127.0.0.1:5173
 SFOA_ADMIN_COOKIE_SECURE=false
@@ -66,18 +66,9 @@ MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY=<independent-32-byte-base64url-key>
 
 `MCP_CLIENT_TOKEN`, the identity-credential encryption key, the Admin session secret, the Admin password, the database password, and Salesforce material must all be independent values. `MCP_PUBLIC_URL` is only the connector-facing URL; it does not change the listener. In mysql mode, routes, Tool enablement, DML policy, and Diagnostic identity come only from MySQL. Missing/unavailable data denies the request; there is no environment fallback.
 
-Generate an Admin password hash using an ephemeral shell value:
+`SFOA_ADMIN_PASSWORD` is the plaintext Admin login password for local development; it is compared in constant time and is never stored as a hash in configuration. Put a real value only in the ignored `.env.local` and never commit it.
 
-```powershell
-$sfoaAdminPlaintext = Read-Host 'Temporary Admin password'
-$env:SFOA_ADMIN_PASSWORD_PLAINTEXT = $sfoaAdminPlaintext
-try { yarn admin:hash-password } finally {
-  Remove-Item Env:SFOA_ADMIN_PASSWORD_PLAINTEXT -ErrorAction SilentlyContinue
-  $sfoaAdminPlaintext = $null
-}
-```
-
-Copy only the emitted `scrypt$...` hash into `.env.local`. Generate a session secret with `node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))"`. Generate the independent AES key with `node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"`. Store both outputs only in `.env.local`.
+Generate a session secret with `node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))"`. Generate the independent AES key with `node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"`. Store both outputs only in `.env.local`.
 
 ## 3. Migrate and inspect the schema
 
@@ -132,7 +123,7 @@ http://127.0.0.1:8080/health            — MCP runtime health
 http://127.0.0.1:5173/login             — Admin Console
 ```
 
-Open the console with the exact configured origin, `http://127.0.0.1:5173/login`, rather than changing the host to `localhost`. Sign in with `SFOA_ADMIN_USERNAME` and the original plaintext password used to generate `SFOA_ADMIN_PASSWORD_HASH`. The `scrypt$...` hash itself is never a login password.
+Open the console with the exact configured origin, `http://127.0.0.1:5173/login`, rather than changing the host to `localhost`. Sign in with `SFOA_ADMIN_USERNAME` and the plaintext `SFOA_ADMIN_PASSWORD`.
 
 ### Startup and sign-in troubleshooting
 
@@ -152,7 +143,7 @@ Invoke-WebRequest http://127.0.0.1:8081/admin/api/ready -UseBasicParsing
 Invoke-WebRequest http://127.0.0.1:5173/admin/api/ready -UseBasicParsing
 ```
 
-- `MCP_ADMIN_AUTH_INVALID` means the browser reached the real Admin API but the submitted username/plaintext password did not match. Regenerate the hash using section 2 if the plaintext is unknown, update only ignored `.env.local`, and restart the Admin API.
+- `MCP_ADMIN_AUTH_INVALID` means the browser reached the real Admin API but the submitted username/plaintext password did not match. Update only the ignored `.env.local` `SFOA_ADMIN_PASSWORD` and restart the Admin API.
 - “The browser could not reach the Admin API” or “no structured response” means the API/proxy path is unavailable or a stale partial stack is running. Clear the project ports, restart once, and confirm both direct and Vite-proxied readiness.
 - `cannot bind ... (EADDRINUSE)` identifies the occupied service and exits nonzero without stopping the process that already owns the port.
 

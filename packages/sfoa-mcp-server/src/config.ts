@@ -18,6 +18,7 @@ import {
 import { z } from 'zod';
 import {
   loadControlPlaneConfig,
+  USER_BOUND_TOKEN_PREFIX,
   type ControlPlaneConfig,
 } from '@sfoa/control-plane';
 import { DEFAULT_ENABLED_TOOLS } from './tool-governance.js';
@@ -138,6 +139,14 @@ export async function loadRemoteRuntimeConfig(
   }
   if (parsed.data.MCP_AUTH_MODE === 'internal_bearer' && !parsed.data.MCP_CLIENT_TOKEN) {
     throw configurationError('MCP_CLIENT_TOKEN is required when MCP_AUTH_MODE=internal_bearer.');
+  }
+  if (parsed.data.MCP_CLIENT_TOKEN?.startsWith(USER_BOUND_TOKEN_PREFIX)) {
+    // P6-ID-01: USER_BOUND credentials (sfoa_ub1_...) are route-bound and live in MySQL,
+    // never in MCP_CLIENT_TOKEN. Rejecting the prefix here fail-fast prevents a token that
+    // looks USER_BOUND from silently downgrading the legacy internal bearer path.
+    throw configurationError(
+      `MCP_CLIENT_TOKEN must not use the reserved ${USER_BOUND_TOKEN_PREFIX} USER_BOUND prefix; configure an independent internal service token.`,
+    );
   }
   assertValidTimeoutHierarchy(
     parsed.data.MCP_REQUEST_TIMEOUT_MS,

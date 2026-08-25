@@ -1,13 +1,11 @@
 import {
   createHmac,
   randomBytes,
-  scrypt as scryptCallback,
   timingSafeEqual,
 } from 'node:crypto';
 import { z } from 'zod';
 import type { AdminApiConfig } from './config.js';
 
-const HASH_PATTERN = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/u;
 const sessionSchema = z.object({
   username: z.string().min(1).max(128),
   expiresAt: z.number().int().positive(),
@@ -17,28 +15,16 @@ const sessionSchema = z.object({
 
 export type AdminSession = Readonly<z.infer<typeof sessionSchema>>;
 
-export async function hashAdminPassword(password: string): Promise<string> {
-  if (password.length < 12 || password.length > 1024) throw new Error('Admin password must contain 12-1024 characters.');
-  const N = 16_384;
-  const r = 8;
-  const p = 1;
-  const salt = randomBytes(16);
-  const derived = await deriveScrypt(password, salt, 32, { N, r, p, maxmem: 64 * 1024 * 1024 });
-  return `scrypt$${N}$${r}$${p}$${salt.toString('base64url')}$${derived.toString('base64url')}`;
-}
-
-export async function verifyAdminPassword(password: string, encoded: string): Promise<boolean> {
-  const match = HASH_PATTERN.exec(encoded);
-  if (!match?.[1] || !match[2] || !match[3] || !match[4] || !match[5] || password.length > 1024) return false;
-  const N = Number(match[1]);
-  const r = Number(match[2]);
-  const p = Number(match[3]);
-  if (N !== 16_384 || r !== 8 || p !== 1) return false;
-  const salt = Buffer.from(match[4], 'base64url');
-  const expected = Buffer.from(match[5], 'base64url');
-  if (salt.length !== 16 || expected.length !== 32) return false;
-  const actual = await deriveScrypt(password, salt, expected.length, { N, r, p, maxmem: 64 * 1024 * 1024 });
-  return timingSafeEqual(actual, expected);
+/**
+ * P6-ID-01: the Admin password is configured as plaintext via SFOA_ADMIN_PASSWORD.
+ * The incoming login password is compared against the configured value directly with
+ * a constant-time comparison; no scrypt hash is derived and no hash is stored in config.
+ */
+export function verifyAdminPassword(password: string, expected: string): boolean {
+  if (password.length === 0 || password.length > 1024 || expected.length === 0) return false;
+  const actual = Buffer.from(password, 'utf8');
+  const configured = Buffer.from(expected, 'utf8');
+  return actual.length === configured.length && timingSafeEqual(actual, configured);
 }
 
 export class AdminSessionManager {
@@ -148,18 +134,4 @@ function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);
   const b = Buffer.from(right);
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function deriveScrypt(
-  password: string,
-  salt: Buffer,
-  length: number,
-  options: Readonly<{ N: number; r: number; p: number; maxmem: number }>,
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scryptCallback(password, salt, length, options, (error, derivedKey) => {
-      if (error) reject(error);
-      else resolve(derivedKey);
-    });
-  });
 }

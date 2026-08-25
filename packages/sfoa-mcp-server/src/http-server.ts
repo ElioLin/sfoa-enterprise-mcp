@@ -8,7 +8,7 @@ import {
 } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ControlPlaneError } from '@sfoa/control-plane';
+import { ControlPlaneError, USER_BOUND_TOKEN_PREFIX } from '@sfoa/control-plane';
 import {
   dmlOutcomeUnknownError,
   type DmlOperation,
@@ -228,6 +228,7 @@ type HandleRemoteRequestOptions = Readonly<{
 async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise<void> {
   const started = performance.now();
   const observation: RequestObservation = { correlationId: parseCorrelationId(options.request) };
+  const requestSecrets = captureRequestBearerSecrets(options.request);
   const resources = new RequestResources();
   let clientDisconnected = false;
   let responseFinished = false;
@@ -312,6 +313,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       resources,
       mutationRequestState,
       controller.signal,
+      requestSecrets,
     );
     try {
       await withTimeout(
@@ -376,6 +378,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         errorStatus(error, normalized),
         [
           ...options.identityRuntime.redactionSecrets,
+          ...requestSecrets,
           options.config.clientToken ?? '',
           options.config.controlPlane.database?.password ?? '',
         ],
@@ -398,6 +401,7 @@ async function executeMcpPost(
   resources: RequestResources,
   mutationRequestState: MutationRequestState,
   signal: AbortSignal,
+  requestSecrets: readonly string[],
 ): Promise<void> {
   const headers = toRequestHeaders(options.request);
   const principal = await options.identityProvider.authenticate(
@@ -468,6 +472,7 @@ async function executeMcpPost(
     toolTimeoutMs: options.config.toolTimeoutMs,
     redactionSecrets: [
       ...options.identityRuntime.redactionSecrets,
+      ...requestSecrets,
       options.config.clientToken ?? '',
       options.config.controlPlane.database?.password ?? '',
     ],
@@ -742,6 +747,20 @@ function parseCorrelationId(request: IncomingMessage): string {
 
 function toRequestHeaders(request: IncomingMessage): RequestHeaders {
   return Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name, value]));
+}
+
+/**
+ * Captures the raw request-scoped USER_BOUND bearer token so error paths and
+ * governed Tools can redact it from messages and logs. Only tokens carrying the
+ * reserved sfoa_ub1_ prefix are treated as request secrets; legacy
+ * MCP_CLIENT_TOKEN values are already covered by config-scoped redaction.
+ */
+function captureRequestBearerSecrets(request: IncomingMessage): readonly string[] {
+  const authorization = request.headers.authorization;
+  if (authorization === undefined || authorization.trim().length === 0) return [];
+  const token = /^Bearer\s+([^\s]+)$/iu.exec(authorization.trim())?.[1];
+  if (!token?.startsWith(USER_BOUND_TOKEN_PREFIX)) return [];
+  return Object.freeze([token]);
 }
 
 function createAuthenticator(config: RemoteRuntimeConfig): ClientAuthenticator {

@@ -15,8 +15,13 @@ process.once('SIGINT', () => { void stop(0, '[P5 DEV] stopping services.'); });
 process.once('SIGTERM', () => { void stop(0, '[P5 DEV] stopping services.'); });
 
 try {
-  // Yarn Classic on Windows can transiently deny Vite/esbuild startup while two TypeScript
+  // Yarn Classic on Windows can transiently deny Vite/esbuild startup while TypeScript
   // builds are creating workspace process trees. Build the backends first, deterministically.
+  // P6-ID-01 HOTFIX01: control-plane must be built BEFORE mcp-server/admin-api so that the
+  // freshly compiled control-plane (USER_BOUND credential repos, migrations, identity-credential
+  // cipher) is what the runtime loads — a stale control-plane dist was the mixed-version cause
+  // of MCP_ADMIN_NOT_FOUND and the P5 delete semantics.
+  await runTypeScriptBuild('Control Plane', 'sfoa-control-plane');
   await runTypeScriptBuild('MCP runtime', 'sfoa-mcp-server');
   await runTypeScriptBuild('Admin API', 'sfoa-admin-api');
 
@@ -66,7 +71,8 @@ try {
   await waitForHttp('Admin Web', new URL('/login', webOrigin), 30_000);
 
   process.stdout.write(
-    `[P5 DEV] ready: MCP ${mcpHealth.origin}, Admin API ${adminReady.origin}, Admin Web ${webOrigin}\n`,
+    `[P5 DEV] ready: MCP ${mcpHealth.origin}, Admin API ${adminReady.origin}, Admin Web ${webOrigin}\n` +
+    `[P5 DEV] capabilities: USER_BOUND_CREDENTIAL enabled (sfoa_ub1_ bearer on ${mcpHealth.origin}/mcp)\n`,
   );
   await finished;
 } catch (error) {

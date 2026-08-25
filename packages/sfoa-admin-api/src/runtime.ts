@@ -65,7 +65,7 @@ export async function startConfiguredAdminApi(
     const healthUrl = localRuntimeUrl(remoteConfig.bindHost, remoteConfig.port, '/health');
     const mcpPublicEndpoint = publicMcpEndpoint(remoteConfig);
     const system: AdminSystemRuntimeInfo = Object.freeze({
-      adminVersion: '0.1.0-p5',
+      adminVersion: '0.1.0-p6',
       mcpServerVersion: '0.1.0-p5',
       salesforceApiVersion: 'LATEST_PER_FRESH_CONNECTION',
       providerVersions: Object.freeze([
@@ -103,6 +103,12 @@ export async function startConfiguredAdminApi(
         P4: 'FINAL ACCEPTED',
         P5: 'FINAL ACCEPTED',
       }),
+      buildPhase: 'P6-ID-01',
+      capabilities: Object.freeze([
+        'USER_BOUND_CREDENTIAL',
+        'IDENTITY_ROUTE_SEARCH',
+        'IDENTITY_ROUTE_PERMANENT_DELETE',
+      ]),
     });
     const server = await startAdminApiServer({
       config: adminConfig,

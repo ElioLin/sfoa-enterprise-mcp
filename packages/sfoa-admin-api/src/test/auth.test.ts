@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { AdminSessionManager, LoginRateLimiter, hashAdminPassword, verifyAdminPassword } from '../auth.js';
+import { AdminSessionManager, LoginRateLimiter, verifyAdminPassword } from '../auth.js';
 import { loadAdminApiConfig, type AdminApiConfig } from '../config.js';
 
 const baseConfig: AdminApiConfig = Object.freeze({
@@ -11,7 +11,7 @@ const baseConfig: AdminApiConfig = Object.freeze({
   port: 8081,
   allowedOrigin: 'http://127.0.0.1:5173',
   username: 'bootstrap-admin',
-  passwordHash: 'unused',
+  password: 'unused',
   sessionSecret: 's'.repeat(64),
   sessionTtlSeconds: 300,
   cookieSecure: false,
@@ -20,13 +20,13 @@ const baseConfig: AdminApiConfig = Object.freeze({
   loginWindowMs: 60_000,
 });
 
-test('scrypt password hashes verify without storing plaintext', async () => {
-  const hash = await hashAdminPassword('correct horse battery staple');
-  assert.match(hash, /^scrypt\$16384\$8\$1\$/u);
-  assert.equal(hash.includes('correct horse'), false);
-  assert.equal(await verifyAdminPassword('correct horse battery staple', hash), true);
-  assert.equal(await verifyAdminPassword('wrong password', hash), false);
-  assert.equal(await verifyAdminPassword('anything', 'not-a-supported-hash'), false);
+test('plaintext password verification is constant-time and rejects mismatches', () => {
+  const password = 'correct horse battery staple';
+  assert.equal(verifyAdminPassword(password, password), true);
+  assert.equal(verifyAdminPassword('wrong password', password), false);
+  assert.equal(verifyAdminPassword(password, ''), false);
+  assert.equal(verifyAdminPassword('', password), false);
+  assert.equal(verifyAdminPassword('a'.repeat(1025), password), false);
 });
 
 test('session cookies are signed, HttpOnly, Strict, expiring, revocable, and dev-safe', () => {
@@ -56,11 +56,11 @@ test('production cookie uses __Host prefix and Secure attribute', () => {
 test('production configuration requires HTTPS and cannot disable Secure cookies', async (context) => {
   const root = await mkdtemp(path.join(tmpdir(), 'sfoa-admin-config-'));
   context.after(() => rm(root, { recursive: true, force: true }));
-  const passwordHash = await hashAdminPassword('correct horse battery staple');
+  const password = 'correct horse battery staple';
   const common = {
     NODE_ENV: 'production',
     SFOA_ADMIN_USERNAME: 'bootstrap-admin',
-    SFOA_ADMIN_PASSWORD_HASH: passwordHash,
+    SFOA_ADMIN_PASSWORD: password,
     SFOA_ADMIN_SESSION_SECRET: 's'.repeat(64),
   };
   await assert.rejects(

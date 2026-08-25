@@ -310,6 +310,14 @@ export type SystemStatusDto = Readonly<{
   mcpEndpoint: string;
   phases: Readonly<Record<'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5', string>>;
   readOnlyRuntimeSettings: Readonly<Record<string, string | number | boolean | readonly string[] | null>>;
+  /**
+   * P6-ID-01 HOTFIX01 runtime fingerprint: which Admin build phase produced this response.
+   * Lets a mixed-version deployment (P6 Admin Web calling a P5 Admin API) be diagnosed
+   * immediately from /system/status instead of via 404-style errors.
+   */
+  buildPhase: string;
+  /** P6-ID-01 HOTFIX01 capability markers advertised by this Admin API build. */
+  capabilities: readonly string[];
 }>;
 
 export type AdminRoutesResponse = TotalPage<AdminIdentityRouteDto>;

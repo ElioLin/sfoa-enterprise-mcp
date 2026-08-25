@@ -15,7 +15,6 @@ import {
   migrateDatabase,
   MySqlControlPlaneStore,
 } from '../packages/sfoa-control-plane/dist/index.js';
-import { hashAdminPassword } from '../packages/sfoa-admin-api/dist/index.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const adminPort = 18_081;
@@ -27,7 +26,6 @@ const adminPassword = randomBytes(36).toString('base64url');
 const sessionSecret = randomBytes(48).toString('base64url');
 const identityCredentialEncryptionKeyBytes = randomBytes(32);
 const identityCredentialEncryptionKey = identityCredentialEncryptionKeyBytes.toString('base64url');
-const adminPasswordHash = await hashAdminPassword(adminPassword);
 const loaded = await loadControlPlaneConfig(projectRoot, process.env, { requireDatabase: true });
 if (!loaded.database) throw new Error('P5 full-stack E2E requires configured MySQL credentials.');
 const testDatabaseName = databaseNameForTest(loaded.database);
@@ -58,7 +56,7 @@ try {
     SFOA_ADMIN_PORT: String(adminPort),
     SFOA_ADMIN_ALLOWED_ORIGIN: webOrigin,
     SFOA_ADMIN_USERNAME: adminUsername,
-    SFOA_ADMIN_PASSWORD_HASH: adminPasswordHash,
+    SFOA_ADMIN_PASSWORD: adminPassword,
     SFOA_ADMIN_SESSION_SECRET: sessionSecret,
     SFOA_ADMIN_SESSION_TTL_SECONDS: '300',
     SFOA_ADMIN_COOKIE_SECURE: 'false',

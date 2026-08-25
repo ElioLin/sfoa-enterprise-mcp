@@ -53,6 +53,8 @@ export default function SystemPage() {
                   <Descriptions.Item label="MCP Endpoint">{status.data.mcpEndpoint}</Descriptions.Item>
                   <Descriptions.Item label="MCP 健康状态"><StatusTag label={status.data.mcpHealth} /></Descriptions.Item>
                   <Descriptions.Item label="Admin 版本">{status.data.adminVersion}</Descriptions.Item>
+                  <Descriptions.Item label="构建阶段">{status.data.buildPhase ?? 'UNKNOWN'}</Descriptions.Item>
+                  <Descriptions.Item label="能力标记">{status.data.capabilities?.length ? [...status.data.capabilities].join(', ') : '未报告'}</Descriptions.Item>
                   <Descriptions.Item label="MCP Server 版本">{status.data.mcpServerVersion}</Descriptions.Item>
                   <Descriptions.Item label="Salesforce API 版本">{status.data.salesforceApiVersion}</Descriptions.Item>
                   <Descriptions.Item label="Salesforce 实例 Host">{status.data.salesforceInstanceHost ?? '未配置'}</Descriptions.Item>

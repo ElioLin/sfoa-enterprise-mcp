@@ -17,7 +17,6 @@ import {
 } from '@sfoa/control-plane';
 import type { IdentityRuntime } from '@sfoa/identity-runtime';
 import type { UpstreamInventoryComparison } from '@sfoa/mcp-server';
-import { hashAdminPassword } from '../auth.js';
 import type { AdminApiConfig } from '../config.js';
 import { startAdminApiServer, type StartAdminApiServerOptions } from '../http-server.js';
 
@@ -29,8 +28,7 @@ const now = '2026-01-01T00:00:00.000Z';
 const TEST_USER_BOUND_TOKEN = `sfoa_ub1_${'a'.repeat(43)}`;
 
 test('Admin liveness stays UP while database readiness fails with 503', async (context) => {
-  const passwordHash = await hashAdminPassword(PASSWORD);
-  const options = createOptions(passwordHash, createRepositories());
+  const options = createOptions(PASSWORD, createRepositories());
   const server = await startAdminApiServer({
     ...options,
     store: Object.freeze({
@@ -50,9 +48,8 @@ test('Admin liveness stays UP while database readiness fails with 503', async (c
 });
 
 test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, and masking', async (context) => {
-  const passwordHash = await hashAdminPassword(PASSWORD);
   const repositories = createRepositories();
-  const options = createOptions(passwordHash, repositories);
+  const options = createOptions(PASSWORD, repositories);
   const server = await startAdminApiServer(options);
   context.after(() => server.close());
   const root = server.baseUrl.href.replace(/\/$/u, '');
@@ -143,8 +140,7 @@ test('identity route APIs expose filtered totals and copy-ready credentials only
     listCalls.push(options);
     return Object.freeze({ ...page([routeRecord({ ...routeInput(), id: '1', rowVersion: '1' })], options.limit, options.offset), total: 7 });
   });
-  const passwordHash = await hashAdminPassword(PASSWORD);
-  const server = await startAdminApiServer(createOptions(passwordHash, repositories));
+  const server = await startAdminApiServer(createOptions(PASSWORD, repositories));
   context.after(() => server.close());
   const root = server.baseUrl.href.replace(/\/$/u, '');
   const login = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
@@ -204,9 +200,9 @@ test('identity route APIs expose filtered totals and copy-ready credentials only
   assert.equal(deleted.status, 200);
 });
 
-function createOptions(passwordHash: string, repositories: ControlPlaneRepositories): StartAdminApiServerOptions {
+function createOptions(password: string, repositories: ControlPlaneRepositories): StartAdminApiServerOptions {
   const config: AdminApiConfig = Object.freeze({
-    bindHost: '127.0.0.1', port: 0, allowedOrigin: ORIGIN, username: ADMIN, passwordHash,
+    bindHost: '127.0.0.1', port: 0, allowedOrigin: ORIGIN, username: ADMIN, password,
     sessionSecret: 'session-signing-secret-that-is-at-least-thirty-two-characters',
     sessionTtlSeconds: 300, cookieSecure: false, cookieName: 'sfoa_admin', loginMaxAttempts: 5, loginWindowMs: 60_000,
   });
@@ -264,7 +260,7 @@ function createOptions(passwordHash: string, repositories: ControlPlaneRepositor
     upstream,
     migrations,
     system: Object.freeze({
-      adminVersion: '0.1.0-p5', mcpServerVersion: '0.1.0-p5', salesforceApiVersion: 'LATEST_PER_FRESH_CONNECTION',
+      adminVersion: '0.1.0-p6', mcpServerVersion: '0.1.0-p5', salesforceApiVersion: 'LATEST_PER_FRESH_CONNECTION',
       providerVersions: Object.freeze([{ name: '@salesforce/mcp-provider-dx-core', version: '0.10.0' }]),
       runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', connectedAppConfigured: true,
       jwtPrivateKeyConfigured: true, mcpClientTokenConfigured: true, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
@@ -272,6 +268,8 @@ function createOptions(passwordHash: string, repositories: ControlPlaneRepositor
       mcpPublicEndpoint: Object.freeze({ url: 'http://127.0.0.1:8080/mcp', source: 'LOOPBACK_FALLBACK', warning: '仅限本机' }),
       readOnlyRuntimeSettings: Object.freeze({ CONNECTED_APP_CLIENT_ID_CONFIGURED: true }),
       phases: Object.freeze({ P0: 'PASS', P1: 'PASS', P2: 'PASS', P3: 'PASS', P4: 'PARTIAL', P5: 'PARTIAL' }),
+      buildPhase: 'P6-ID-01',
+      capabilities: Object.freeze(['USER_BOUND_CREDENTIAL', 'IDENTITY_ROUTE_SEARCH', 'IDENTITY_ROUTE_PERMANENT_DELETE']),
     }),
     auditPersistenceHealth: () => Object.freeze({ status: 'UP', failureCount: 0, lastFailureAt: null }),
     probeMcpHealth: async () => Object.freeze({ status: 'UP', auditPersistence: Object.freeze({ status: 'UP', failureCount: 0 }) }),

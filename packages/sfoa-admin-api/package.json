@@ -17,8 +17,7 @@
     "package": "node -e \"console.log('Private P5 Admin API: package skipped')\"",
     "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js",
     "start": "yarn build && node dist/main.js",
-    "dev": "yarn build && node --watch dist/main.js",
-    "admin:hash-password": "yarn build && node dist/cli/hash-password.js"
+    "dev": "yarn build && node --watch dist/main.js"
   },
   "dependencies": {
     "@sfoa/control-plane": "0.1.0-p5",

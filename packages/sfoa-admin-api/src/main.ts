@@ -24,6 +24,7 @@ void main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : 'The P5 Admin API failed to start.';
   const secrets = [
     process.env.SFOA_ADMIN_SESSION_SECRET,
+    process.env.SFOA_ADMIN_PASSWORD,
     process.env.SFOA_DB_PASSWORD,
     process.env.MCP_CLIENT_TOKEN,
   ].filter((value): value is string => Boolean(value));

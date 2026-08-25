@@ -479,15 +479,27 @@ function CredentialDrawer({
       ) : null}
 
       <Divider />
-      <Popconfirm
-        title="重新生成 Token？"
-        description={<span>重新生成后，当前 Token 将立即失效。使用旧 Token 的 WorkBuddy Connector 需要替换为新 Token 或 MCP JSON。</span>}
-        okText="确定重新生成"
-        cancelText="取消"
-        onConfirm={onRegenerate}
-      >
-        <Button icon={<ReloadOutlined />} loading={regenerating}>重新生成 Token</Button>
-      </Popconfirm>
+      {credential ? (
+        <Popconfirm
+          title="重新生成 Token？"
+          description={<span>重新生成后，当前 Token 将立即失效。使用旧 Token 的 WorkBuddy Connector 需要替换为新 Token 或 MCP JSON。</span>}
+          okText="确定重新生成"
+          cancelText="取消"
+          onConfirm={onRegenerate}
+        >
+          <Button icon={<ReloadOutlined />} loading={regenerating}>重新生成 Token</Button>
+        </Popconfirm>
+      ) : (
+        <Popconfirm
+          title="生成 Token？"
+          description={<span>将为当前路由生成新的 USER_BOUND 凭证，生成后可复制 Token 与 WorkBuddy MCP JSON。</span>}
+          okText="确定生成"
+          cancelText="取消"
+          onConfirm={onRegenerate}
+        >
+          <Button icon={<ReloadOutlined />} loading={regenerating}>生成 Token</Button>
+        </Popconfirm>
+      )}
     </Space>
   );
 }
