@@ -13,7 +13,7 @@ P6-ID-02 adds a third trusted identity source — the Dify / 小犇 real-user be
           |                   |                   |
  Internal service        USER_BOUND          BUNTU bearer
  bearer                 route-bound         validate-token
- + trusted platform      token               -> user_id
+ + trusted platform      token               -> data.userId
    Header                 (sfoa_ub1_*)       (only when enabled)
           |                   |                   |
           +-------------------+-------------------+
@@ -31,7 +31,7 @@ P6-ID-02 adds a third trusted identity source — the Dify / 小犇 real-user be
 
 The unified principal carries `clientId`, `identitySource`, `platformUserId`, and an optional safe `credentialId`. Buntu authentication completes before body processing, policy-snapshot loading, JWT construction, or Tool execution. `clientId=xiaoben-buntu-token`, `identitySource=BUNTU_TOKEN`.
 
-Because the Buntu provider returns `boundPlatformUserId`, a Dify client supplies only the Buntu bearer; it does not need `X-Platform-User-Id`. If a platform Header is nevertheless supplied it must match the validated `user_id` or authentication fails with `MCP_IDENTITY_CONTEXT_MISMATCH` (same rule as USER_BOUND).
+Because the Buntu provider returns `boundPlatformUserId`, a Dify client supplies only the Buntu bearer; it does not need `X-Platform-User-Id`. If a platform Header is nevertheless supplied it must match the validated `data.userId` or authentication fails with `MCP_IDENTITY_CONTEXT_MISMATCH` (same rule as USER_BOUND).
 
 ## Deterministic provider routing
 
@@ -56,13 +56,35 @@ Accept: application/json
 Authorization: Bearer <raw token>
 ```
 
-Expected response body: `{ "user_id": "<platformUserId>" }` with strict `platformUserIdSchema` (trimmed, 1..128 chars, no control characters). Failures classify as follows:
+The confirmed upstream contract (verified against the real Buntu service by the Maintainer, P6-ID-02 HOTFIX02):
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "<platform user id>",
+    "userName": "...",
+    "expiresAt": 1787640358
+  }
+}
+```
+
+Only `success` and `data.userId` participate in identity decisions:
+
+- `data.userId` is the only identity primary key; it may arrive as a `string` (`"62001"`) or a safe integer `number` (`62001`), is normalized with `String(...)` when numeric, and must then pass the shared `platformUserIdSchema` (trimmed, 1..128 chars, no control characters). Floats, NaN, Infinity, booleans, objects, arrays, null, and the empty string are rejected.
+- `data.userName` is display metadata only and must never be routed to a Salesforce username. The chain is always `data.userId -> platformUserId -> sfoa_identity_route -> Salesforce Username`.
+- `data.expiresAt` is deliberately ignored; the validate-token API is the identity authority and the runtime never builds a second token-expiry rule.
+- The legacy top-level `user_id` assumption is **wrong** and is not parsed. No recursive search for `userId` / `user_id` / `id` / `username` is performed.
+
+Failures classify as follows:
 
 | Observation | Error code | HTTP |
 | --- | --- | --- |
-| 401/403, or HTTP success without a valid `user_id` | `MCP_BUNTU_TOKEN_INVALID` | 401 |
+| 401/403, or HTTP 2xx with `success: false` | `MCP_BUNTU_TOKEN_INVALID` | 401 |
 | timeout / DNS / TCP / TLS / non-2xx upstream | `MCP_BUNTU_IDENTITY_UNAVAILABLE` | 502 |
-| invalid JSON, body > 64 KiB, or `user_id` fails the platform schema | `MCP_BUNTU_IDENTITY_RESPONSE_INVALID` | 502 |
+| invalid JSON, body > 64 KiB, `success: true` without `data` / `data.userId`, or `userId` fails the platform schema | `MCP_BUNTU_IDENTITY_RESPONSE_INVALID` | 502 |
+
+Every 401 response carries `WWW-Authenticate: Bearer` so MCP clients (including Xiaoben) can distinguish an authentication failure from an unavailable identity provider.
 
 The validator is fail-closed: no fallback identity, no legacy pass-through, and Buntu is never treated as Internal. `MCP_CLIENT_AUTH_INVALID` remains the only outcome when no provider matches.
 
@@ -92,7 +114,7 @@ Every Buntu validation emits a `BUNTU_TOKEN_VALIDATE` audit record:
 
 - `clientId=xiaoben-buntu-token`, `identitySource=BUNTU_TOKEN`;
 - `requestSummary`: `provider: 'BUNTU'`, `tokenFingerprint` (sha256 digest), `tokenLast4`, `validationUrl`, and — only when `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` — the raw token;
-- `responseSummary`: `valid`, optional `httpStatus` and validated `userId`;
+- `responseSummary`: `valid`, optional `httpStatus`, optional `upstreamSuccess` (the upstream `success` field, only when a parseable 2xx business response was received), and on success the normalized `userId` plus `userIdType` (`string` | `number`, the original JSON primitive type of `data.userId`). The upstream `userName` is never copied into the audit;
 - `durationMs` covers the remote validate round-trip; `result`/`outcome` map to PASS/SUCCESS, or BLOCKED/DENIED on `MCP_BUNTU_TOKEN_INVALID`, or ERROR/FAILED on unavailable/invalid-response.
 
 Secret boundary: the raw token may be stored only inside the MySQL `sfoa_audit_log.requestSummary` column and only under the raw-token flag. The database fallback path and every stdout/stderr/HTTP response remain token-free by construction (`DatabaseRuntimeLogger` fallback never writes `requestSummary`/`responseSummary`).
@@ -107,11 +129,14 @@ New stable codes: `MCP_BUNTU_TOKEN_INVALID`, `MCP_BUNTU_IDENTITY_UNAVAILABLE`, `
 
 ## Verification
 
+Focused HOTFIX02 gate:
+
 ```powershell
-yarn workspace @sfoa/control-plane test
-yarn workspace @sfoa/mcp-server test
-yarn workspace @sfoa/admin-api test
-yarn workspace @sfoa/admin-web test
+yarn workspace @sfoa/mcp-server build
+node --test dist/test/buntu-validator.test.js
+node --test dist/test/buntu-safety.test.js
+node --test dist/test/identity-provider.test.js
+node --test dist/test/http-integration.test.js
 ```
 
-Focused evidence: `dist/test/buntu-validator.test.js` (validator classification), `dist/test/identity-provider.test.js` (provider routing, route resolution, audit, USER_BOUND/Internal regression). See `P6_ID_02_REPORT.md` for the actual PASS/FAIL record.
+Focused evidence: `dist/test/buntu-validator.test.js` (confirmed `{ success, data.userId }` contract and CASE 1-7 classification), `dist/test/buntu-safety.test.js` (redaction, 401 challenge, concurrency isolation), `dist/test/identity-provider.test.js` (provider routing, route resolution, audit, USER_BOUND/Internal regression), `dist/test/http-integration.test.js` (HTTP auth challenge). See `P6_ID_02_HOTFIX02_REPORT.md` for the actual PASS/FAIL record.

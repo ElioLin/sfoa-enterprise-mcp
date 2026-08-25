@@ -33,19 +33,29 @@ function jsonResponse(response: import('node:http').ServerResponse, status: numb
   response.end(JSON.stringify(body));
 }
 
-test('HttpBuntuTokenValidator accepts a 2xx { user_id } contract and forwards only the expected headers', async () => {
+test('HttpBuntuTokenValidator accepts the real 2xx { success, data.userId } contract and forwards only the expected headers', async () => {
   let forwardedAuthorization: string | undefined;
   let forwardedAccept: string | undefined;
   const { baseUrl, close } = await listen((request, response) => {
     forwardedAuthorization = request.headers.authorization;
     forwardedAccept = request.headers.accept;
-    jsonResponse(response, 200, { user_id: 'platform-buntu-user', extra: 'ignored' });
+    jsonResponse(response, 200, {
+      success: true,
+      data: {
+        userId: 'platform-buntu-user',
+        userName: 'Test User',
+        expiresAt: 1787640358,
+      },
+      extra: 'ignored',
+    });
   });
   try {
     const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
     const result = await validator.validate(RAW_TOKEN, 'correlation-1');
     assert.equal(result.valid, true);
     assert.equal(result.userId, 'platform-buntu-user');
+    assert.equal(result.upstreamSuccess, true);
+    assert.equal(result.userIdType, 'string');
     assert.equal(result.httpStatus, 200);
     assert.equal(forwardedAuthorization, `Bearer ${RAW_TOKEN}`);
     assert.equal(forwardedAccept, 'application/json');
@@ -94,7 +104,10 @@ test('HttpBuntuTokenValidator classifies malformed and oversized responses as RE
     await invalidJson.close();
   }
 
-  const wrongType = await listen((_request, response) => jsonResponse(response, 200, { user_id: 61979.5 }));
+  const wrongType = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: 62001.5 },
+  }));
   try {
     const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${wrongType.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
     const result = await validator.validate(RAW_TOKEN, 'correlation-1');
@@ -103,7 +116,10 @@ test('HttpBuntuTokenValidator classifies malformed and oversized responses as RE
     await wrongType.close();
   }
 
-  const badUserId = await listen((_request, response) => jsonResponse(response, 200, { user_id: 'has\u0000control' }));
+  const badUserId = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: 'has\u0000control' },
+  }));
   try {
     const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${badUserId.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
     const result = await validator.validate(RAW_TOKEN, 'correlation-1');
@@ -126,14 +142,14 @@ test('HttpBuntuTokenValidator classifies malformed and oversized responses as RE
   }
 });
 
-test('HttpBuntuTokenValidator accepts string and safe-integer user_id values and normalizes both to the shared platform user id rules', async () => {
-  // P6-ID-02 HOTFIX01: the real Buntu contract documents `user_id` but has not
-  // confirmed the JSON primitive type. Only string and safe integers are accepted;
-  // floats, booleans, objects, arrays, and null are rejected.
-  const accepted: ReadonlyArray<{ body: unknown; expectedUserId: string }> = [
-    { body: { user_id: '61979' }, expectedUserId: '61979' },
-    { body: { user_id: 61979 }, expectedUserId: '61979' },
-    { body: { user_id: 0 }, expectedUserId: '0' },
+test('HttpBuntuTokenValidator accepts string and safe-integer data.userId values and normalizes both to the shared platform user id rules', async () => {
+  // P6-ID-02 HOTFIX02: the real Buntu contract is `{ success: true, data: { userId } }`.
+  // Only string and safe integers are accepted; floats, booleans, objects,
+  // arrays, and null are rejected.
+  const accepted: ReadonlyArray<{ body: unknown; expectedUserId: string; expectedType: 'string' | 'number' }> = [
+    { body: { success: true, data: { userId: '62001' } }, expectedUserId: '62001', expectedType: 'string' },
+    { body: { success: true, data: { userId: 62001 } }, expectedUserId: '62001', expectedType: 'number' },
+    { body: { success: true, data: { userId: 0 } }, expectedUserId: '0', expectedType: 'number' },
   ];
   for (const scenario of accepted) {
     const { baseUrl, close } = await listen((_request, response) => jsonResponse(response, 200, scenario.body));
@@ -142,19 +158,21 @@ test('HttpBuntuTokenValidator accepts string and safe-integer user_id values and
       const result = await validator.validate(RAW_TOKEN, 'correlation-1');
       assert.equal(result.valid, true, `body ${JSON.stringify(scenario.body)} must be accepted`);
       assert.equal(result.userId, scenario.expectedUserId);
+      assert.equal(result.userIdType, scenario.expectedType);
+      assert.equal(result.upstreamSuccess, true);
     } finally {
       await close();
     }
   }
 
   const rejected: readonly unknown[] = [
-    { user_id: 61979.5 },
-    { user_id: null },
-    { user_id: {} },
-    { user_id: [] },
-    { user_id: true },
-    { user_id: '' },
-    { user_id: 'has\u0000control' },
+    { success: true, data: { userId: 62001.5 } },
+    { success: true, data: { userId: null } },
+    { success: true, data: { userId: {} } },
+    { success: true, data: { userId: [] } },
+    { success: true, data: { userId: true } },
+    { success: true, data: { userId: '' } },
+    { success: true, data: { userId: 'has\u0000control' } },
   ];
   for (const body of rejected) {
     const { baseUrl, close } = await listen((_request, response) => jsonResponse(response, 200, body));
@@ -169,15 +187,109 @@ test('HttpBuntuTokenValidator accepts string and safe-integer user_id values and
   }
 });
 
-test('HttpBuntuTokenValidator treats an HTTP success without user_id as TOKEN_INVALID', async () => {
-  const { baseUrl, close } = await listen((_request, response) => jsonResponse(response, 200, { ok: true }));
+test('HttpBuntuTokenValidator classifies the confirmed response envelope (CASE 1-7 focused contract tests)', async () => {
+  // CASE 1: real string userId -> PASS
+  const case1 = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: '62001' },
+  }));
   try {
-    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case1.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, true);
+    assert.equal(result.userId, '62001');
+    assert.equal(result.userIdType, 'string');
+  } finally {
+    await case1.close();
+  }
+
+  // CASE 2: safe integer number userId -> PASS, normalized to string
+  const case2 = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: 62001 },
+  }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case2.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, true);
+    assert.equal(result.userId, '62001');
+    assert.equal(result.userIdType, 'number');
+  } finally {
+    await case2.close();
+  }
+
+  // CASE 3: success=false -> TOKEN_INVALID (normal upstream business decision)
+  const case3 = await listen((_request, response) => jsonResponse(response, 200, { success: false }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case3.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
     const result = await validator.validate(RAW_TOKEN, 'correlation-1');
     assert.equal(result.valid, false);
     assert.equal(result.errorCode, 'MCP_BUNTU_TOKEN_INVALID');
+    assert.equal(result.upstreamSuccess, false);
   } finally {
-    await close();
+    await case3.close();
+  }
+
+  // CASE 4: success=true without data -> RESPONSE_INVALID (contract violation)
+  const case4 = await listen((_request, response) => jsonResponse(response, 200, { success: true }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case4.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, false);
+    assert.equal(result.errorCode, 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID');
+  } finally {
+    await case4.close();
+  }
+
+  // CASE 5: success=true with empty data -> RESPONSE_INVALID
+  const case5 = await listen((_request, response) => jsonResponse(response, 200, { success: true, data: {} }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case5.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, false);
+    assert.equal(result.errorCode, 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID');
+  } finally {
+    await case5.close();
+  }
+
+  // CASE 6: success=true with an object userId -> RESPONSE_INVALID
+  const case6 = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: {} },
+  }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case6.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, false);
+    assert.equal(result.errorCode, 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID');
+  } finally {
+    await case6.close();
+  }
+
+  // CASE 7: success=true with a float userId -> RESPONSE_INVALID
+  const case7 = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: 62001.5 },
+  }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${case7.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, false);
+    assert.equal(result.errorCode, 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID');
+  } finally {
+    await case7.close();
+  }
+
+  // A legacy top-level `user_id` is not the confirmed contract: success is
+  // missing, so the envelope is invalid, not accepted and not TOKEN_INVALID.
+  const legacy = await listen((_request, response) => jsonResponse(response, 200, { user_id: '62001' }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${legacy.baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, false);
+    assert.equal(result.errorCode, 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID');
+  } finally {
+    await legacy.close();
   }
 });
 

@@ -284,7 +284,9 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
     const responseSummary = {
       valid: result.valid,
       ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+      ...(result.upstreamSuccess !== undefined ? { upstreamSuccess: result.upstreamSuccess } : {}),
       ...(result.userId ? { userId: result.userId } : {}),
+      ...(result.userIdType ? { userIdType: result.userIdType } : {}),
     };
     try {
       await this.options.logger.log({

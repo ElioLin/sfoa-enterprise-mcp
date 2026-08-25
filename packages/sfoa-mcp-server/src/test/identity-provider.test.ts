@@ -225,6 +225,8 @@ test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4; the raw token is o
     httpStatus: 200,
     durationMs: 11,
     validatedAt: NOW,
+    upstreamSuccess: true,
+    userIdType: 'string',
   });
 
   await authenticate(fixture.provider({ includeBuntu: true, rawTokenAuditEnabled: false }), BUNTU_TOKEN);
@@ -241,6 +243,11 @@ test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4; the raw token is o
   assert.match(String(requestSummary.tokenFingerprint), /^sha256:[0-9a-f]{64}$/u);
   assert.equal('rawToken' in requestSummary, false);
   assert.equal(JSON.stringify(events).includes(BUNTU_TOKEN), false);
+  const responseSummary = event.responseSummary as Record<string, unknown>;
+  assert.equal(responseSummary.valid, true);
+  assert.equal(responseSummary.upstreamSuccess, true);
+  assert.equal(responseSummary.userId, 'platform-a');
+  assert.equal(responseSummary.userIdType, 'string');
 
   const eventsRaw: RuntimeLogEvent[] = [];
   const loggerRaw: RuntimeLogger = { log: (rawEvent) => { void eventsRaw.push(rawEvent); } };
@@ -252,6 +259,8 @@ test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4; the raw token is o
     httpStatus: 200,
     durationMs: 11,
     validatedAt: NOW,
+    upstreamSuccess: true,
+    userIdType: 'string',
   });
   await authenticate(fixtureRaw.provider({ includeBuntu: true, rawTokenAuditEnabled: true }), BUNTU_TOKEN);
   const rawEvent = eventsRaw.find((entry) => entry.operation === 'BUNTU_TOKEN_VALIDATE');
@@ -282,6 +291,35 @@ test('a denied Buntu validation is audited as BLOCKED with the upstream error co
   assert.equal(event?.outcome, 'DENIED');
   assert.equal(event?.errorCode, 'MCP_BUNTU_TOKEN_INVALID');
   assert.equal((event?.responseSummary as Record<string, unknown> | undefined)?.httpStatus, 403);
+});
+
+test('a Buntu success=false business rejection is audited with upstreamSuccess=false (not a response error)', async () => {
+  const events: RuntimeLogEvent[] = [];
+  const logger: RuntimeLogger = { log: (event) => { void events.push(event); } };
+  const fixture = new MutableIdentityFixture(logger);
+  fixture.putRoute(route('1', 'platform-a', true));
+  // HTTP 200 with { success: false } -> MCP_BUNTU_TOKEN_INVALID, upstreamSuccess=false.
+  fixture.validator.result = Object.freeze({
+    valid: false,
+    errorCode: 'MCP_BUNTU_TOKEN_INVALID',
+    httpStatus: 200,
+    durationMs: 5,
+    validatedAt: NOW,
+    upstreamSuccess: false,
+  });
+
+  await assert.rejects(
+    authenticate(fixture.provider({ includeBuntu: true }), BUNTU_TOKEN),
+    hasRemoteCode('MCP_BUNTU_TOKEN_INVALID'),
+  );
+  const event = events.find((entry) => entry.operation === 'BUNTU_TOKEN_VALIDATE');
+  assert.equal(event?.result, 'BLOCKED');
+  assert.equal(event?.outcome, 'DENIED');
+  assert.equal(event?.errorCode, 'MCP_BUNTU_TOKEN_INVALID');
+  const responseSummary = event?.responseSummary as Record<string, unknown> | undefined;
+  assert.equal(responseSummary?.valid, false);
+  assert.equal(responseSummary?.httpStatus, 200);
+  assert.equal(responseSummary?.upstreamSuccess, false);
 });
 
 class MutableIdentityFixture {

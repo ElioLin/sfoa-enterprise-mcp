@@ -44,10 +44,11 @@ import {
 } from './helpers.js';
 
 /**
- * P6-ID-02 HOTFIX01 focused tests: Buntu request secret redaction, the MySQL
- * Control Plane fail-fast gate, user_id primitive compatibility, and
- * deterministic concurrency isolation across the Buntu provider, identity
- * routes, and request-scoped Salesforce Connections.
+ * P6-ID-02 HOTFIX01/HOTFIX02 focused tests: Buntu request secret redaction,
+ * the MySQL Control Plane fail-fast gate, the confirmed
+ * `{ success, data.userId }` response contract, and deterministic concurrency
+ * isolation across the Buntu provider, identity routes, and request-scoped
+ * Salesforce Connections.
  */
 
 const BUNTU_TOKEN_A = 'fake-buntu-token-a';
@@ -377,6 +378,46 @@ test('captureRequestBearerSecrets feeds text redaction for Buntu tokens (CASE B)
     [...captureRequestBearerSecrets({ headers: { authorization: 'Basic abc' } } as IncomingMessage)],
     [],
   );
+});
+
+// =====================================================================
+// HTTP challenge: MCP_BUNTU_TOKEN_INVALID -> 401 + WWW-Authenticate: Bearer
+// =====================================================================
+
+test('a rejected Buntu token maps to HTTP 401 with a WWW-Authenticate: Bearer challenge', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-buntu-challenge-'));
+  const rejectingValidator: BuntuTokenValidator = {
+    validate: async () => Object.freeze({
+      valid: false,
+      errorCode: 'MCP_BUNTU_TOKEN_INVALID',
+      httpStatus: 401,
+      durationMs: 4,
+      validatedAt: NOW,
+    }),
+  };
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig(),
+    identityRuntime: createTestIdentityRuntime(baseRoot, new RecordingConnectionFactory(), new NoopRuntimeLogger()),
+    identityProvider: new UnifiedIdentityProvider([
+      new InternalServiceCredentialAuthenticator(TEST_CLIENT_TOKEN),
+      buntuAuthenticator(rejectingValidator, new StaticRouteRepository([]), new NoopRuntimeLogger()),
+    ]),
+  });
+  try {
+    const response = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: mcpHeaders(undefined, BUNTU_TOKEN_A),
+      body: initializeBody(),
+    });
+    const body = await response.text();
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get('www-authenticate'), 'Bearer');
+    assert.ok(body.includes('MCP_BUNTU_TOKEN_INVALID'));
+    assert.equal(body.includes(BUNTU_TOKEN_A), false, 'the raw Buntu token must never reach the HTTP error response');
+  } finally {
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
 });
 
 // =====================================================================

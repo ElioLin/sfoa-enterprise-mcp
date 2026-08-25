@@ -6,13 +6,30 @@ import { z } from 'zod';
  * Buntu (Xiaoben / Dify) per-user token validation.
  *
  * The MCP runtime never interprets a Buntu bearer token itself. It forwards the
- * raw token to the configured Buntu validate-token endpoint and only accepts a
- * bounded, strict `{ user_id }` contract from that trusted upstream.
+ * raw token to the configured Buntu validate-token endpoint and only accepts
+ * the confirmed upstream contract (verified against the real Buntu service):
+ *
+ *   HTTP 200
+ *   {
+ *     "success": true,
+ *     "data": {
+ *       "userId": "<platform user id>",
+ *       "userName": "...",   // display-only, never used for identity routing
+ *       "expiresAt": ...     // ignored; validate-token is the identity authority
+ *     }
+ *   }
+ *
+ * Only `success` and `data.userId` participate in identity decisions. The
+ * upstream `userName` is display metadata and must never be mapped to a
+ * Salesforce username; `expiresAt` is deliberately ignored so the MCP runtime
+ * never builds a second token-expiry rule. No recursive search for `userId`,
+ * `user_id`, `id`, or `username` is performed anywhere in the response.
  *
  * Error classification is stable and fail-closed:
- * - `MCP_BUNTU_TOKEN_INVALID`            401/403, HTTP success without user_id;
+ * - `MCP_BUNTU_TOKEN_INVALID`            401/403, or HTTP 2xx with `success: false`;
  * - `MCP_BUNTU_IDENTITY_UNAVAILABLE`     timeout, DNS/TCP/TLS failure, 5xx, other non-2xx;
- * - `MCP_BUNTU_IDENTITY_RESPONSE_INVALID` invalid JSON, oversized body, wrong user_id type/format.
+ * - `MCP_BUNTU_IDENTITY_RESPONSE_INVALID` invalid JSON, oversized body, missing
+ *   `data`/`data.userId`, or a `userId` that is not a string / safe integer.
  */
 
 export type BuntuValidationErrorCode =
@@ -30,6 +47,10 @@ export type BuntuValidationResult = Readonly<{
   durationMs: number;
   validatedAt: string;
   errorCode?: BuntuValidationErrorCode;
+  /** Upstream `success` field, present only when a parseable 2xx business response was received. */
+  upstreamSuccess?: boolean;
+  /** Original JSON primitive type of `data.userId`, present only on success. */
+  userIdType?: 'string' | 'number';
 }>;
 
 export interface BuntuTokenValidator {
@@ -42,20 +63,28 @@ export type BuntuValidatorOptions = Readonly<{
 }>;
 
 /**
- * Accepts an object carrying `user_id`; extra upstream fields are tolerated but never surfaced.
+ * Confirmed Buntu validate-token response contract (P6-ID-02 HOTFIX02).
  *
- * P6-ID-02 HOTFIX01: the real Buntu contract documents only that the response
- * contains `user_id`; its JSON primitive type has not been confirmed yet. Only
- * a `string` or a safe integer `number` is accepted. Floats, NaN, Infinity,
- * booleans, objects, arrays, and null are rejected. A numeric user_id is
- * normalized with `String(...)` and then validated by the shared
- * `platformUserIdSchema`; no Buntu-specific user id rules are invented here.
+ * The real service returns `success: true` with the platform identity nested
+ * under `data.userId`; `data.userName` and `data.expiresAt` are tolerated extra
+ * fields and are stripped by Zod. Only a `string` or a safe integer `number` is
+ * accepted for `userId`. Floats, NaN, Infinity, booleans, objects, arrays, null,
+ * and the empty string are rejected. A numeric userId is normalized with
+ * `String(...)` and then validated by the shared `platformUserIdSchema`; no
+ * Buntu-specific user id rules are invented here.
+ *
+ * The previous `{ user_id }` assumption was wrong: the real contract uses
+ * `data.userId` (camelCase, nested), so no compatibility parsing of `user_id`
+ * is retained.
  */
 const buntuUserIdSchema = z.union([
-  z.string(),
+  z.string().min(1),
   z.number().refine((value) => Number.isSafeInteger(value)),
 ]);
-const buntuValidateResponseSchema = z.object({ user_id: buntuUserIdSchema });
+const buntuValidateResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({ userId: buntuUserIdSchema }),
+});
 
 export class HttpBuntuTokenValidator implements BuntuTokenValidator {
   public constructor(private readonly options: BuntuValidatorOptions) {}
@@ -101,17 +130,22 @@ export class HttpBuntuTokenValidator implements BuntuTokenValidator {
 
       const contract = buntuValidateResponseSchema.safeParse(parsed);
       if (!contract.success) {
-        // A valid JSON object that simply lacks user_id means the token was not accepted.
-        const missingUserId = isPlainObject(parsed) && !('user_id' in parsed);
+        // Classify strictly by the confirmed contract, never by scanning for
+        // arbitrary id fields:
+        // - HTTP 2xx with `success: false` is a normal upstream business
+        //   decision (the token was not accepted) -> MCP_BUNTU_TOKEN_INVALID;
+        // - any other broken envelope (`success: true` without `data` /
+        //   `data.userId`, missing success, non-object JSON, wrong userId
+        //   type/format) is a response contract error -> RESPONSE_INVALID.
+        const upstreamRejected = isPlainObject(parsed) && parsed.success === false;
         return buntuFailure(
-          missingUserId ? 'MCP_BUNTU_TOKEN_INVALID' : 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID',
-          { httpStatus, durationMs, validatedAt },
+          upstreamRejected ? 'MCP_BUNTU_TOKEN_INVALID' : 'MCP_BUNTU_IDENTITY_RESPONSE_INVALID',
+          { httpStatus, durationMs, validatedAt, upstreamSuccess: upstreamRejected ? false : undefined },
         );
       }
 
-      const candidateUserId = typeof contract.data.user_id === 'number'
-        ? String(contract.data.user_id)
-        : contract.data.user_id;
+      const rawUserId = contract.data.data.userId;
+      const candidateUserId = typeof rawUserId === 'number' ? String(rawUserId) : rawUserId;
       const parsedUserId = platformUserIdSchema.safeParse(candidateUserId);
       if (!parsedUserId.success) {
         return buntuFailure('MCP_BUNTU_IDENTITY_RESPONSE_INVALID', { httpStatus, durationMs, validatedAt });
@@ -123,6 +157,8 @@ export class HttpBuntuTokenValidator implements BuntuTokenValidator {
         httpStatus,
         durationMs,
         validatedAt,
+        upstreamSuccess: true,
+        userIdType: typeof rawUserId === 'number' ? 'number' : 'string',
       });
     } catch (error) {
       // Oversized responses are an invalid response contract; everything else
@@ -146,12 +182,19 @@ export function buntuTokenLast4(rawToken: string): string {
 
 function buntuFailure(
   errorCode: BuntuValidationErrorCode,
-  details: Readonly<{ httpStatus?: number; durationMs: number; validatedAt: string }>,
+  details: Readonly<{
+    httpStatus?: number;
+    durationMs: number;
+    validatedAt: string;
+    /** Upstream `success` field when a parseable 2xx business response was received. */
+    upstreamSuccess?: boolean;
+  }>,
 ): BuntuValidationResult {
   return Object.freeze({
     valid: false,
     errorCode,
     ...(details.httpStatus !== undefined ? { httpStatus: details.httpStatus } : {}),
+    ...(details.upstreamSuccess !== undefined ? { upstreamSuccess: details.upstreamSuccess } : {}),
     durationMs: details.durationMs,
     validatedAt: details.validatedAt,
   });

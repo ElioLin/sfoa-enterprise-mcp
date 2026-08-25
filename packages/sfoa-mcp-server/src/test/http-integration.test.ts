@@ -59,6 +59,7 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
       body: initializeBody(),
     });
     assert.equal(noBearer.status, 401);
+    assert.equal(noBearer.headers.get('www-authenticate'), 'Bearer');
     assert.equal(await responseErrorCode(noBearer), 'MCP_CLIENT_AUTH_REQUIRED');
 
     const wrongBearer = await fetch(server.mcpUrl, {
@@ -67,6 +68,7 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
       body: initializeBody(),
     });
     assert.equal(wrongBearer.status, 401);
+    assert.equal(wrongBearer.headers.get('www-authenticate'), 'Bearer');
     assert.equal(await responseErrorCode(wrongBearer), 'MCP_CLIENT_AUTH_INVALID');
 
     const noPlatformUser = await fetch(server.mcpUrl, {
@@ -75,6 +77,7 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
       body: initializeBody(),
     });
     assert.equal(noPlatformUser.status, 401);
+    assert.equal(noPlatformUser.headers.get('www-authenticate'), 'Bearer');
     assert.equal(await responseErrorCode(noPlatformUser), 'MCP_PLATFORM_USER_REQUIRED');
 
     const unknownPlatformUser = await fetch(server.mcpUrl, {

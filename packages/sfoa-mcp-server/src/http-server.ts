@@ -653,6 +653,12 @@ function writeNormalizedError(
   const message = error.identityError
     ? formatRuntimeError(error.identityError, secrets, error.correlationId)
     : formatRemoteRuntimeError(error.remoteError as RemoteRuntimeError, secrets, error.correlationId);
+  // All credential failures map to 401; advertise the Bearer challenge so MCP
+  // clients (including Xiaoben) can distinguish an authentication failure from
+  // an unavailable identity provider.
+  if (status === 401 && !response.headersSent) {
+    response.setHeader('www-authenticate', 'Bearer');
+  }
   writeJson(response, status, {
     jsonrpc: '2.0',
     error: {
