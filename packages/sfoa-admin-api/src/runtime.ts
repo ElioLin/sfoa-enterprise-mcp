@@ -13,6 +13,7 @@ import {
   createIdentityRuntime,
   JsonLineRuntimeLogger,
   loadIdentityRuntimeConfig,
+  seedSfdxLocalAuthStore,
 } from '@sfoa/identity-runtime';
 import {
   compareOfficialProviderInventory,
@@ -57,6 +58,18 @@ export async function startConfiguredAdminApi(
       identityRepository: new MySqlIdentityRepository(database),
       logger: databaseLogger,
     });
+    // Admin API loads identity config with routesFromDatabase: true, so the env
+    // usernames are stripped; seed from the database sources the verification
+    // actually uses (enabled routes + the diagnostic record).
+    const [routeUsernames, diagnosticRecord] = await Promise.all([
+      store.repositories.identityRoutes.listActiveSalesforceUsernames(),
+      store.repositories.diagnostic.get(),
+    ]);
+    const extraUsernames = [
+      ...routeUsernames,
+      ...(diagnosticRecord ? [diagnosticRecord.salesforceUsername] : []),
+    ];
+    await seedSfdxLocalAuthStore(identityConfig, extraUsernames);
     const adminService = new ControlPlaneAdminService(
       store,
       (toolName) => canEnableAdminTool(toolName, upstream),

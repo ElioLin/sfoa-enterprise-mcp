@@ -1,6 +1,7 @@
 import { ZodError } from 'zod';
 import { ControlPlaneError } from '@sfoa/control-plane';
 import { IdentityRuntimeError, redactSensitiveText } from '@sfoa/identity-runtime';
+import { ContextRuntimeError } from '@sfoa/mcp-provider-sfoa-context';
 import { RemoteRuntimeError } from '@sfoa/mcp-server';
 
 export class AdminHttpError extends Error {
@@ -56,7 +57,12 @@ export function safeVerificationError(
   error: unknown,
   secrets: readonly string[],
 ): Readonly<{ code: string; message: string }> {
-  if (error instanceof ControlPlaneError || error instanceof IdentityRuntimeError || error instanceof RemoteRuntimeError) {
+  if (
+    error instanceof ControlPlaneError
+    || error instanceof IdentityRuntimeError
+    || error instanceof RemoteRuntimeError
+    || error instanceof ContextRuntimeError
+  ) {
     return Object.freeze({ code: error.code, message: redactSensitiveText(error.message, secrets).slice(0, 1_000) });
   }
   return Object.freeze({

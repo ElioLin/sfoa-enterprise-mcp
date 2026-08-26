@@ -1,6 +1,7 @@
 import {
   createIdentityRuntime,
   JsonLineRuntimeLogger,
+  seedSfdxLocalAuthStore,
   type CreateIdentityRuntimeOverrides,
 } from '@sfoa/identity-runtime';
 import {
@@ -31,6 +32,7 @@ export async function startConfiguredRemoteRuntime(
   const config = await loadRemoteRuntimeConfig(projectRoot, environment);
   if (config.controlPlane.mode === 'env') {
     const identityRuntime = createIdentityRuntime(config.identity, identityOverrides);
+    await seedSfdxLocalAuthStore(config.identity);
     return startRemoteMcpServer({ config, identityRuntime });
   }
   const databaseConfig = config.controlPlane.database;
@@ -46,6 +48,8 @@ export async function startConfiguredRemoteRuntime(
       identityRepository: new MySqlIdentityRepository(database),
       logger: databaseLogger,
     });
+    const routeUsernames = await store.repositories.identityRoutes.listActiveSalesforceUsernames();
+    await seedSfdxLocalAuthStore(config.identity, routeUsernames);
     const server = await startRemoteMcpServer({
       config,
       identityRuntime,

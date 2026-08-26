@@ -13,5 +13,6 @@ export * from './request-scope.js';
 export * from './runtime-logger.js';
 export * from './runtime.js';
 export * from './services.js';
+export * from './sfdx-auth-store.js';
 export * from './tool-execution-adapter.js';
 export * from './workspace.js';
