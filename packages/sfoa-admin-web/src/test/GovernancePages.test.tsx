@@ -180,6 +180,25 @@ describe('Admin governance pages', () => {
     expect(screen.getByText('其他管理员已修改该配置，请刷新最新版本后重新确认。')).toBeInTheDocument();
   });
 
+  it('shows the conflict reason instead of a version-conflict message when route creation returns 409 MCP_CONTROL_PLANE_CONFLICT', async () => {
+    const fetchMock = asFetchMock((url, init) => {
+      if (url.pathname.endsWith('/routes') && init.method === 'POST') return apiError(409, 'MCP_CONTROL_PLANE_CONFLICT', 'An identity route already exists for this platform user.');
+      if (url.pathname.endsWith('/system/settings')) return jsonResponse([]);
+      return jsonResponse(page([]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<IdentityRoutesPage />);
+
+    await user.click(await screen.findByRole('button', { name: '新建身份路由' }));
+    await user.type(screen.getByLabelText('平台用户 ID'), 'platform-a');
+    await user.type(screen.getByLabelText('Salesforce Username'), 'sf-user@example.com');
+    await user.click(screen.getByRole('button', { name: '保存路由' }));
+
+    expect(await screen.findByText(/该配置与现有数据冲突/u)).toBeInTheDocument();
+    expect(screen.queryByText('其他管理员已修改该配置，请刷新最新版本后重新确认。')).not.toBeInTheDocument();
+  });
+
   it('renders the Buntu identity source label and the BUNTU_TOKEN_VALIDATE detail drawer', async () => {
     const rawToken = 'buntu-raw-token-should-show';
     const record = auditRecord('77', {

@@ -56,6 +56,7 @@ const ERROR_EXPLANATIONS: Readonly<Record<string, string>> = Object.freeze({
   MCP_ADMIN_REQUEST_FAILED: '管理端请求未获得结构化响应，请检查 Admin API 就绪状态。',
   MCP_ADMIN_RESPONSE_INVALID: 'Admin API 返回了无效的 JSON 响应。',
   MCP_ADMIN_CONCURRENT_MODIFICATION: '其他管理员已修改该配置，请刷新最新版本后重新确认。',
+  MCP_CONTROL_PLANE_CONFLICT: '该配置与现有数据冲突，请检查平台用户、Salesforce Username 或诊断配置是否已被其他配置占用。',
   MCP_CONTROL_PLANE_UNAVAILABLE: '控制平面当前不可用，请检查 MySQL 与 Admin API 就绪状态。',
   MCP_UPSTREAM_TOOL_CONTRACT_DRIFT: '检测到上游 Tool 契约变化，必须先完成维护者审查。',
 });
@@ -83,7 +84,11 @@ export function hasLocalizedStatus(value: string): boolean {
   return Object.hasOwn(STATUS_LABELS, normalizeStatus(value));
 }
 export function localizeErrorCode(errorCode: string, status?: number): Readonly<{ title: string; explanation: string }> {
-  if (status === 409) {
+  // HTTP 409 is shared by MCP_ADMIN_CONCURRENT_MODIFICATION, MCP_CONTROL_PLANE_CONFLICT and
+  // MCP_IDENTITY_ROUTE_DELETE_REQUIRES_DISABLED. Only the real optimistic-lock code should be
+  // presented as "another admin changed the config"; every other code must fall through to its
+  // own explanation so an ordinary conflict is not mislabelled.
+  if (errorCode === 'MCP_ADMIN_CONCURRENT_MODIFICATION') {
     return Object.freeze({ title: '配置已变更', explanation: ERROR_EXPLANATIONS.MCP_ADMIN_CONCURRENT_MODIFICATION! });
   }
   if (status === 429) {
