@@ -23,6 +23,7 @@ import { HttpBuntuTokenValidator } from './buntu-validator.js';
 import { loadRemoteRuntimeConfig } from './config.js';
 import { startRemoteMcpServer, type RemoteMcpServer } from './http-server.js';
 import { MySqlRuntimePolicySnapshotSource } from './policy-snapshot.js';
+import { loadMySqlSfdxSeedUsernames } from './runtime-sfdx-seed-usernames.js';
 
 export async function startConfiguredRemoteRuntime(
   projectRoot: string,
@@ -48,8 +49,8 @@ export async function startConfiguredRemoteRuntime(
       identityRepository: new MySqlIdentityRepository(database),
       logger: databaseLogger,
     });
-    const routeUsernames = await store.repositories.identityRoutes.listActiveSalesforceUsernames();
-    await seedSfdxLocalAuthStore(config.identity, routeUsernames);
+    const seedUsernames = await loadMySqlSfdxSeedUsernames(store.repositories);
+    await seedSfdxLocalAuthStore(config.identity, seedUsernames);
     const server = await startRemoteMcpServer({
       config,
       identityRuntime,
