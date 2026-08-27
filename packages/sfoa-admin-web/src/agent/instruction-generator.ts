@@ -5,12 +5,15 @@ import {
   type AgentCapabilities,
   type AgentRecognizedToolName,
 } from '@sfoa/agent-playbook';
-import type { AdminToolRecordDto, DiagnosticConfigRecord, DmlPolicyRecord } from '@sfoa/control-plane';
+import type { AdminToolRecordDto, DiagnosticConfigRecord, DmlPolicyRecord, ManagedDmlFieldRuleRecord } from '@sfoa/control-plane';
+
+export type AdminManagedDmlFieldFact = Readonly<ManagedDmlFieldRuleRecord & { objectApiName: string }>;
 
 export type DifyInstructionInput = Readonly<{
   tools: readonly AdminToolRecordDto[];
   dmlPolicies: readonly DmlPolicyRecord[];
   diagnostic: DiagnosticConfigRecord | null;
+  managedDmlFields?: readonly AdminManagedDmlFieldFact[];
 }>;
 
 export type DifyInstructionFacts = Readonly<{
@@ -19,6 +22,7 @@ export type DifyInstructionFacts = Readonly<{
   updateObjects: readonly string[];
   diagnosticReady: boolean;
   diagnosticEnabledButUnverified: boolean;
+  managedDmlFieldCount: number;
   capabilities: AgentCapabilities;
 }>;
 
@@ -63,6 +67,16 @@ export function deriveDifyInstructionFacts(input: DifyInstructionInput): DifyIns
     updateAllowedObjects: updateObjects,
     diagnosticReady,
     dynamicFormEvidence: 'NOT_AVAILABLE',
+    managedDmlFields: (input.managedDmlFields ?? []).filter((rule) => rule.enabled).map((rule) => ({
+      objectApiName: rule.objectApiName,
+      fieldApiName: rule.targetFieldApiName,
+      operations: [
+        ...(rule.applyOnCreate ? ['CREATE' as const] : []),
+        ...(rule.applyOnUpdate ? ['UPDATE' as const] : []),
+      ],
+      managedBy: 'MCP' as const,
+      strategy: rule.strategy === 'PLATFORM_USER_LOOKUP' ? 'PLATFORM_IDENTITY' as const : 'AI_CREATED_MARKER' as const,
+    })),
   });
 
   return Object.freeze({
@@ -71,6 +85,7 @@ export function deriveDifyInstructionFacts(input: DifyInstructionInput): DifyIns
     updateObjects: capabilities.updateAllowedObjects,
     diagnosticReady: capabilities.diagnosticReady,
     diagnosticEnabledButUnverified,
+    managedDmlFieldCount: capabilities.managedDmlFields.length,
     capabilities,
   });
 }

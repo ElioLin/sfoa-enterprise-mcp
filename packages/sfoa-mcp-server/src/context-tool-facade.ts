@@ -17,7 +17,8 @@ import type {
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
-import type { z } from 'zod';
+import { z } from 'zod';
+import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
 import { withTimeout } from './timeouts.js';
 
@@ -32,6 +33,7 @@ export type ContextToolFacadeOptions = Readonly<{
   logger: RuntimeLogger;
   clientId: string;
   redactionSecrets?: readonly string[];
+  managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
 }>;
 
 export class ContextToolFacade {
@@ -49,7 +51,22 @@ export class ContextToolFacade {
   }
 
   public getConfig(): McpToolConfig<z.ZodRawShape, z.ZodRawShape> {
-    return this.options.tool.getConfig();
+    const config = this.options.tool.getConfig();
+    if (this.getName() !== 'get_record_action_context') return config;
+    return {
+      ...config,
+      description: `${config.description} The host also returns current-operation MCP-managed field facts; agents must not ask for, recommend, or submit those fields.`,
+      outputSchema: {
+        ...config.outputSchema,
+        managedDmlFields: z.array(z.object({
+          objectApiName: z.string(),
+          fieldApiName: z.string(),
+          operations: z.array(z.enum(['CREATE', 'UPDATE'])),
+          managedBy: z.literal('MCP'),
+          strategy: z.enum(['PLATFORM_IDENTITY', 'AI_CREATED_MARKER']),
+        }).strict()).optional(),
+      },
+    };
   }
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
@@ -83,9 +100,10 @@ export class ContextToolFacade {
         `Tool ${name} exceeded MCP_TOOL_TIMEOUT_MS. The runtime stopped waiting; Salesforce server-side cancellation is not guaranteed.`,
         this.options.context.correlationId,
       );
-      const errorCode = resultErrorCode(result);
-      await this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), errorCode, input, result);
-      return result;
+      const enriched = enrichManagedDmlFields(result, name, input, this.options.managedDmlFieldRules ?? []);
+      const errorCode = resultErrorCode(enriched);
+      await this.log(enriched.isError === true ? 'ERROR' : 'PASS', elapsed(started), errorCode, input, enriched);
+      return enriched;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
         await this.log('ERROR', elapsed(started), error.code, input);
@@ -154,8 +172,39 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     ...(typeof content.returnedRecords === 'number' ? { returnedRecords: content.returnedRecords } : {}),
     ...(typeof content.returnedFiles === 'number' ? { returnedFiles: content.returnedFiles } : {}),
     ...(fields !== undefined ? { fieldCount: fields } : {}),
+    ...(Array.isArray(content.managedDmlFields) ? { managedDmlFieldCount: content.managedDmlFields.length } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
     ...(errorCode ? { errorCode } : {}),
+  };
+}
+
+function enrichManagedDmlFields(
+  result: CallToolResult,
+  toolName: string,
+  input: ToolInput,
+  rules: readonly RuntimeManagedDmlFieldRule[],
+): CallToolResult {
+  if (toolName !== 'get_record_action_context' || result.isError === true || !result.structuredContent
+    || typeof input.objectApiName !== 'string' || (input.action !== 'CREATE' && input.action !== 'UPDATE')) {
+    return result;
+  }
+  const action = input.action;
+  const managedDmlFields = rules.filter((rule) => rule.enabled
+    && rule.objectApiName === input.objectApiName
+    && (action === 'CREATE' ? rule.applyOnCreate : rule.applyOnUpdate))
+    .map((rule) => Object.freeze({
+      objectApiName: rule.objectApiName,
+      fieldApiName: rule.targetFieldApiName,
+      operations: Object.freeze([action]),
+      managedBy: 'MCP' as const,
+      strategy: rule.strategy === 'PLATFORM_USER_LOOKUP' ? 'PLATFORM_IDENTITY' as const : 'AI_CREATED_MARKER' as const,
+    }));
+  return {
+    ...result,
+    structuredContent: {
+      ...result.structuredContent,
+      managedDmlFields: Object.freeze(managedDmlFields),
+    },
   };
 }
 

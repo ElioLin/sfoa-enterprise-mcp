@@ -4,6 +4,9 @@ import type {
   AdminDmlPoliciesResponse,
   AdminDmlPolicyCreateInput,
   AdminDmlPolicyUpdateInput,
+  AdminManagedDmlFieldRuleCreateInput,
+  AdminManagedDmlFieldRuleUpdateInput,
+  AdminManagedDmlFieldRulesResponse,
   AdminIdentityRouteCreateInput,
   AdminIdentityRouteUpdateInput,
   AdminIdentityCredentialResponse,
@@ -18,6 +21,7 @@ import type {
   DiagnosticPageDto,
   DiagnosticVerificationDto,
   DmlPolicyRecord,
+  ManagedDmlFieldRuleRecord,
   RouteVerificationDto,
   RuntimeSettingKey,
   RuntimeSettingRecord,
@@ -106,6 +110,30 @@ export const adminApi = Object.freeze({
   ),
   disableDmlPolicy: (id: string, rowVersion: string) => request<DmlPolicyRecord>(
     `/dml-policies/${encodeURIComponent(id)}`,
+    { method: 'DELETE', body: { rowVersion } },
+  ),
+  managedDmlFieldRules: (dmlPolicyId: string, limit = 100, offset = 0) => request<AdminManagedDmlFieldRulesResponse>(
+    `/dml-policies/${encodeURIComponent(dmlPolicyId)}/managed-fields?limit=${limit}&offset=${offset}`,
+  ),
+  allManagedDmlFieldRules: (dmlPolicyId: string) => loadAllManagedDmlFieldRules(dmlPolicyId),
+  createManagedDmlFieldRule: (dmlPolicyId: string, input: AdminManagedDmlFieldRuleCreateInput) => request<ManagedDmlFieldRuleRecord>(
+    `/dml-policies/${encodeURIComponent(dmlPolicyId)}/managed-fields`,
+    { method: 'POST', body: input },
+  ),
+  updateManagedDmlFieldRule: (
+    dmlPolicyId: string,
+    id: string,
+    input: AdminManagedDmlFieldRuleUpdateInput,
+  ) => request<ManagedDmlFieldRuleRecord>(
+    `/dml-policies/${encodeURIComponent(dmlPolicyId)}/managed-fields/${encodeURIComponent(id)}`,
+    { method: 'PUT', body: input },
+  ),
+  disableManagedDmlFieldRule: (dmlPolicyId: string, id: string, rowVersion: string) => request<ManagedDmlFieldRuleRecord>(
+    `/dml-policies/${encodeURIComponent(dmlPolicyId)}/managed-fields/${encodeURIComponent(id)}/disable`,
+    { method: 'POST', body: { rowVersion } },
+  ),
+  deleteManagedDmlFieldRule: (dmlPolicyId: string, id: string, rowVersion: string) => request<Readonly<{ deleted: true }>>(
+    `/dml-policies/${encodeURIComponent(dmlPolicyId)}/managed-fields/${encodeURIComponent(id)}`,
     { method: 'DELETE', body: { rowVersion } },
   ),
   diagnostic: () => request<DiagnosticPageDto>('/diagnostic'),
@@ -211,4 +239,21 @@ async function loadAllDmlPolicies(): Promise<readonly DmlPolicyRecord[]> {
     offset = response.nextOffset;
   }
   throw new ApiError(500, 'MCP_ADMIN_REQUEST_FAILED', 'The DML policy catalog exceeded the bounded Admin instruction-generator limit.');
+}
+
+async function loadAllManagedDmlFieldRules(dmlPolicyId: string): Promise<readonly ManagedDmlFieldRuleRecord[]> {
+  const items: ManagedDmlFieldRuleRecord[] = [];
+  let offset = 0;
+  for (let page = 0; page < 100; page += 1) {
+    const response = await request<AdminManagedDmlFieldRulesResponse>(
+      `/dml-policies/${encodeURIComponent(dmlPolicyId)}/managed-fields?limit=100&offset=${offset}`,
+    );
+    items.push(...response.items);
+    if (!response.hasMore) return Object.freeze(items);
+    if (response.nextOffset === null || response.nextOffset <= offset) {
+      throw new ApiError(500, 'MCP_ADMIN_RESPONSE_INVALID', 'The Admin API returned an invalid managed field cursor.');
+    }
+    offset = response.nextOffset;
+  }
+  throw new ApiError(500, 'MCP_ADMIN_REQUEST_FAILED', 'The managed field catalog exceeded the bounded Admin instruction-generator limit.');
 }

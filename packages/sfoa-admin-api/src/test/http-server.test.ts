@@ -10,6 +10,7 @@ import {
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type IdentityRouteListOptions,
+  type ManagedDmlFieldRuleRecord,
   type Page,
   type RuntimeSettingRecord,
   type TotalPage,
@@ -102,6 +103,29 @@ test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, 
     objectApiName: 'Lead', allowCreate: true, allowUpdate: false, allowDelete: true, enabled: true, remark: null,
   }, ORIGIN, cookie, session.csrfToken);
   assert.equal(deleteDml.status, 400);
+
+  const invalidManaged = await postJson(`${root}/dml-policies/1/managed-fields`, {
+    targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER', applyOnCreate: true,
+    applyOnUpdate: true, lookupObjectApiName: null, lookupMatchFieldApiName: null, enabled: true, remark: null,
+  }, ORIGIN, cookie, session.csrfToken);
+  assert.equal(invalidManaged.status, 400);
+  const managedInput = {
+    targetFieldApiName: 'Requested_By__c', strategy: 'PLATFORM_USER_LOOKUP', applyOnCreate: true,
+    applyOnUpdate: false, lookupObjectApiName: 'Contact', lookupMatchFieldApiName: 'Platform_User_Id__c',
+    enabled: true, remark: null,
+  } as const;
+  const managedCreated = await postJson(`${root}/dml-policies/1/managed-fields`, managedInput, ORIGIN, cookie, session.csrfToken);
+  assert.equal(managedCreated.status, 201);
+  const managedUpdated = await fetch(`${root}/dml-policies/1/managed-fields/7`, {
+    method: 'PUT', headers: mutationHeaders(cookie, session.csrfToken), body: JSON.stringify({ ...managedInput, rowVersion: '1' }),
+  });
+  assert.equal(managedUpdated.status, 200);
+  const managedDisabled = await postJson(`${root}/dml-policies/1/managed-fields/7/disable`, { rowVersion: '2' }, ORIGIN, cookie, session.csrfToken);
+  assert.equal(managedDisabled.status, 200);
+  const managedDeleted = await fetch(`${root}/dml-policies/1/managed-fields/7`, {
+    method: 'DELETE', headers: mutationHeaders(cookie, session.csrfToken), body: JSON.stringify({ rowVersion: '3' }),
+  });
+  assert.equal(managedDeleted.status, 200);
 
   const unknownTool = await fetch(`${root}/tools/future_unknown_tool`, {
     method: 'PUT',
@@ -248,6 +272,14 @@ function createOptions(password: string, repositories: ControlPlaneRepositories)
     disableDmlPolicy: async (id) => dmlRecord({
       id, objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: false, remark: null, rowVersion: '2',
     }),
+    createManagedDmlFieldRule: async (dmlPolicyId, input) => managedDmlFieldRecord({ ...input, dmlPolicyId, id: '7', rowVersion: '1' }),
+    updateManagedDmlFieldRule: async (dmlPolicyId, id, input) => managedDmlFieldRecord({ ...input, dmlPolicyId, id, rowVersion: '2' }),
+    disableManagedDmlFieldRule: async (dmlPolicyId, id) => managedDmlFieldRecord({
+      dmlPolicyId, id, targetFieldApiName: 'Requested_By__c', strategy: 'PLATFORM_USER_LOOKUP',
+      applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: 'Contact',
+      lookupMatchFieldApiName: 'Platform_User_Id__c', enabled: false, remark: null, rowVersion: '3',
+    }),
+    deleteManagedDmlFieldRule: async () => undefined,
     updateDiagnostic: async (input) => diagnosticRecord({ ...input, rowVersion: '1' }),
     recordDiagnosticVerification: async () => diagnosticRecord({ rowVersion: '2' }),
     updateRuntimeSetting: async (key, value) => Object.freeze({ settingKey: key, settingValue: value, rowVersion: '1', updatedAt: now }),
@@ -324,6 +356,15 @@ function createRepositories(
       update: async (id, input) => dmlRecord({ ...input, id, rowVersion: '2' }),
       disable: async (id) => dmlRecord({ id, objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: false, remark: null, rowVersion: '2' }),
     },
+    managedDmlFieldRules: {
+      listByDmlPolicyId: async (_dmlPolicyId, { limit, offset }) => page([], limit, offset),
+      getById: async () => undefined,
+      listEnabledByDmlPolicyIds: async () => Object.freeze([]),
+      create: async () => { throw new Error('not used'); },
+      update: async () => { throw new Error('not used'); },
+      disable: async () => { throw new Error('not used'); },
+      delete: async () => undefined,
+    },
     diagnostic: {
       get: async () => diagnosticRecord({ rowVersion: '1' }),
       upsert: async (input) => diagnosticRecord({ ...input, rowVersion: '1' }),
@@ -356,6 +397,22 @@ function routeRecord(input: Readonly<{
 function dmlRecord(input: Readonly<{
   id: string; objectApiName: string; allowCreate: boolean; allowUpdate: boolean; enabled: boolean; remark: string | null; rowVersion: string;
 }>): DmlPolicyRecord {
+  return Object.freeze({ ...input, createdAt: now, updatedAt: now });
+}
+
+function managedDmlFieldRecord(input: Readonly<{
+  id: string;
+  dmlPolicyId: string;
+  targetFieldApiName: string;
+  strategy: 'PLATFORM_USER_LOOKUP' | 'AI_CREATED_MARKER';
+  applyOnCreate: boolean;
+  applyOnUpdate: boolean;
+  lookupObjectApiName: string | null;
+  lookupMatchFieldApiName: string | null;
+  enabled: boolean;
+  remark: string | null;
+  rowVersion: string;
+}>): ManagedDmlFieldRuleRecord {
   return Object.freeze({ ...input, createdAt: now, updatedAt: now });
 }
 

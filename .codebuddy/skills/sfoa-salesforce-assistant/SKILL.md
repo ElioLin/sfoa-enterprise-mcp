@@ -5,11 +5,11 @@ description: >
   Picklist handling, record links, and diagnosis through the SFoA MCP service.
 ---
 
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.0.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.1.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Salesforce Assistant
 
-Canonical Playbook version: 1.0.0.
+Canonical Playbook version: 1.1.0.
 
 ## When to use
 
@@ -27,6 +27,10 @@ Use this Skill when a user asks for current Salesforce business data, an allowed
 - Configure `Authorization: Bearer <USER_BOUND_TOKEN>`.
 - Do not configure `X-Platform-User-Id`; the USER_BOUND token selects its Identity Route.
 - Never request Salesforce credentials or pass identity selectors to Tools.
+
+## MCP-managed fields
+
+- Read the current action context/capabilities before CREATE or UPDATE. Omit every field marked `managedBy: MCP` from questions, recommendations, and mutation payloads; the server derives or writes it and takes precedence.
 
 ## Non-retryable uncertainty
 

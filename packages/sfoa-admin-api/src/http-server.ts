@@ -13,6 +13,8 @@ import {
   adminDiagnosticConfigUpdateSchema,
   adminDmlPolicyCreateSchema,
   adminDmlPolicyUpdateSchema,
+  adminManagedDmlFieldRuleCreateSchema,
+  adminManagedDmlFieldRuleUpdateSchema,
   adminIdPathSchema,
   adminIdentityCredentialRegenerateSchema,
   adminIdentityRouteCreateSchema,
@@ -97,6 +99,10 @@ export type StartAdminApiServerOptions = Readonly<{
     | 'createDmlPolicy'
     | 'updateDmlPolicy'
     | 'disableDmlPolicy'
+    | 'createManagedDmlFieldRule'
+    | 'updateManagedDmlFieldRule'
+    | 'disableManagedDmlFieldRule'
+    | 'deleteManagedDmlFieldRule'
     | 'updateDiagnostic'
     | 'recordDiagnosticVerification'
     | 'updateRuntimeSetting'
@@ -475,6 +481,57 @@ async function dispatchAuthenticated(
     return;
   }
 
+  const managedDmlFieldMatch = matchManagedDmlFieldPath(path);
+  if (managedDmlFieldMatch) {
+    const dmlPolicyId = parseWithSchema(adminIdPathSchema, managedDmlFieldMatch.dmlPolicyId);
+    if (managedDmlFieldMatch.ruleId === null) {
+      if (request.method === 'GET') {
+        const paging = parseWithSchema(adminPaginationQuerySchema, queryObject(url));
+        writeJson(response, 200, await options.store.repositories.managedDmlFieldRules.listByDmlPolicyId(
+          dmlPolicyId,
+          { limit: paging.limit ?? 25, offset: paging.offset ?? 0 },
+        ));
+        return;
+      }
+      assertMethod(request, 'POST');
+      assertNoQuery(url);
+      const input = parseWithSchema(adminManagedDmlFieldRuleCreateSchema, await readJsonBody(request));
+      writeJson(response, 201, await options.adminService.createManagedDmlFieldRule(dmlPolicyId, {
+        ...input,
+        lookupObjectApiName: input.lookupObjectApiName ?? null,
+        lookupMatchFieldApiName: input.lookupMatchFieldApiName ?? null,
+        remark: input.remark ?? null,
+      }, session.username));
+      return;
+    }
+
+    const ruleId = parseWithSchema(adminIdPathSchema, managedDmlFieldMatch.ruleId);
+    assertNoQuery(url);
+    if (managedDmlFieldMatch.action === 'disable') {
+      assertMethod(request, 'POST');
+      const input = parseWithSchema(adminSoftDisableSchema, await readJsonBody(request));
+      writeJson(response, 200, await options.adminService.disableManagedDmlFieldRule(
+        dmlPolicyId, ruleId, input.rowVersion, session.username,
+      ));
+      return;
+    }
+    if (request.method === 'PUT') {
+      const input = parseWithSchema(adminManagedDmlFieldRuleUpdateSchema, await readJsonBody(request));
+      writeJson(response, 200, await options.adminService.updateManagedDmlFieldRule(dmlPolicyId, ruleId, {
+        ...input,
+        lookupObjectApiName: input.lookupObjectApiName ?? null,
+        lookupMatchFieldApiName: input.lookupMatchFieldApiName ?? null,
+        remark: input.remark ?? null,
+      }, session.username));
+      return;
+    }
+    assertMethod(request, 'DELETE');
+    const input = parseWithSchema(adminSoftDisableSchema, await readJsonBody(request));
+    await options.adminService.deleteManagedDmlFieldRule(dmlPolicyId, ruleId, input.rowVersion, session.username);
+    writeJson(response, 200, Object.freeze({ deleted: true }));
+    return;
+  }
+
   const dmlMatch = matchResourcePath(path, 'dml-policies');
   if (dmlMatch) {
     if (dmlMatch.action !== null) throw notFound();
@@ -813,6 +870,30 @@ function matchResourcePath(
     return Object.freeze({
       identifier: decodeURIComponent(parts[0]),
       action: parts[1] ? decodeURIComponent(parts[1]) : null,
+    });
+  } catch {
+    throw new AdminHttpError('MCP_ADMIN_REQUEST_INVALID', 'Path identifier encoding is invalid.', 400);
+  }
+}
+
+function matchManagedDmlFieldPath(path: string): Readonly<{
+  dmlPolicyId: string;
+  ruleId: string | null;
+  action: 'disable' | null;
+}> | undefined {
+  const prefix = `${ADMIN_API_PREFIX}/dml-policies/`;
+  if (!path.startsWith(prefix)) return undefined;
+  const parts = path.slice(prefix.length).split('/');
+  if (parts[1] !== 'managed-fields') return undefined;
+  const valid = parts.length === 2
+    || (parts.length === 3 && Boolean(parts[2]))
+    || (parts.length === 4 && Boolean(parts[2]) && parts[3] === 'disable');
+  if (!parts[0] || !valid) throw notFound();
+  try {
+    return Object.freeze({
+      dmlPolicyId: decodeURIComponent(parts[0]),
+      ruleId: parts[2] ? decodeURIComponent(parts[2]) : null,
+      action: parts[3] === 'disable' ? 'disable' : null,
     });
   } catch {
     throw new AdminHttpError('MCP_ADMIN_REQUEST_INVALID', 'Path identifier encoding is invalid.', 400);

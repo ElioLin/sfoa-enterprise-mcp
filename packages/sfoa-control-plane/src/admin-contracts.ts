@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
+  fieldApiNameSchema,
   idSchema,
+  managedDmlFieldStrategySchema,
   objectApiNameSchema,
   platformUserIdSchema,
   remarkSchema,
@@ -11,6 +13,7 @@ import {
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
   type IdentityRouteRecord,
+  type ManagedDmlFieldRuleRecord,
   type Page,
   type TotalPage,
   type RuntimeSettingRecord,
@@ -102,6 +105,53 @@ export const adminDmlPolicyUpdateSchema = z.object({
   }
 });
 
+const optionalApiIdentifierSchema = objectApiNameSchema.nullable().optional().transform((value) => value ?? null);
+const managedDmlFieldRuleFields = {
+  targetFieldApiName: fieldApiNameSchema,
+  strategy: managedDmlFieldStrategySchema,
+  applyOnCreate: z.boolean(),
+  applyOnUpdate: z.boolean(),
+  lookupObjectApiName: optionalApiIdentifierSchema,
+  lookupMatchFieldApiName: fieldApiNameSchema.nullable().optional().transform((value) => value ?? null),
+  enabled: z.boolean(),
+  remark: optionalRemarkSchema,
+} as const;
+
+function validateManagedDmlFieldRule(
+  value: z.infer<z.ZodObject<typeof managedDmlFieldRuleFields>>,
+  context: z.RefinementCtx,
+): void {
+  if (!value.applyOnCreate && !value.applyOnUpdate) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['applyOnCreate'], message: 'Select CREATE, UPDATE, or both.' });
+  }
+  if (value.strategy === 'PLATFORM_USER_LOOKUP') {
+    if (!value.lookupObjectApiName) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['lookupObjectApiName'], message: 'Lookup object is required.' });
+    }
+    if (!value.lookupMatchFieldApiName) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['lookupMatchFieldApiName'], message: 'Lookup match field is required.' });
+    }
+  } else {
+    if (!value.applyOnCreate || value.applyOnUpdate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['applyOnCreate'],
+        message: 'AI-created marker rules apply on CREATE only.',
+      });
+    }
+    if (value.lookupObjectApiName !== null || value.lookupMatchFieldApiName !== null) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['strategy'], message: 'AI-created marker rules do not accept lookup configuration.' });
+    }
+  }
+}
+
+export const adminManagedDmlFieldRuleCreateSchema = z.object(managedDmlFieldRuleFields).strict()
+  .superRefine(validateManagedDmlFieldRule);
+export const adminManagedDmlFieldRuleUpdateSchema = z.object({
+  ...managedDmlFieldRuleFields,
+  rowVersion: rowVersionSchema,
+}).strict().superRefine(validateManagedDmlFieldRule);
+
 // This is intentionally the same bounded set enforced by the audited P4 metadata context Tool.
 export const ADMIN_DIAGNOSTIC_METADATA_TYPES = [
   'CustomObject',
@@ -171,6 +221,8 @@ export type AdminIdentityRouteUpdateInput = z.infer<typeof adminIdentityRouteUpd
 export type AdminToolControlUpdateInput = z.infer<typeof adminToolControlUpdateSchema>;
 export type AdminDmlPolicyCreateInput = z.infer<typeof adminDmlPolicyCreateSchema>;
 export type AdminDmlPolicyUpdateInput = z.infer<typeof adminDmlPolicyUpdateSchema>;
+export type AdminManagedDmlFieldRuleCreateInput = z.infer<typeof adminManagedDmlFieldRuleCreateSchema>;
+export type AdminManagedDmlFieldRuleUpdateInput = z.infer<typeof adminManagedDmlFieldRuleUpdateSchema>;
 export type AdminDiagnosticConfigUpdateInput = z.infer<typeof adminDiagnosticConfigUpdateSchema>;
 
 export type AdminApiErrorDto = Readonly<{
@@ -326,5 +378,6 @@ export type AdminToolsResponse = Readonly<{
   controlsTruncated: boolean;
 }>;
 export type AdminDmlPoliciesResponse = Page<DmlPolicyRecord>;
+export type AdminManagedDmlFieldRulesResponse = Page<ManagedDmlFieldRuleRecord>;
 export type AdminAuditsResponse = Page<AuditRecord>;
 export type AdminRuntimeSettingsResponse = readonly RuntimeSettingRecord[];

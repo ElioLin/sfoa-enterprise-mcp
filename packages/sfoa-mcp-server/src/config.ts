@@ -47,6 +47,7 @@ export type RemoteRuntimeConfig = Readonly<{
   port: number;
   mcpPath: string;
   publicUrl?: string;
+  lightningBaseUrl?: string;
   authMode: RemoteAuthMode;
   clientToken?: string;
   platformUserHeader: string;
@@ -75,6 +76,7 @@ const rawRemoteConfigSchema = z
     MCP_PORT: z.coerce.number().int().min(1).max(65535).default(8080),
     MCP_PATH: z.string().trim().min(1).max(255).default('/mcp'),
     MCP_PUBLIC_URL: z.string().trim().url().max(2048).optional(),
+    SFOA_LIGHTNING_BASE_URL: z.string().trim().url().max(2048).optional(),
     MCP_AUTH_MODE: z.enum(['internal_bearer', 'disabled']).default('internal_bearer'),
     MCP_CLIENT_TOKEN: z.string().min(16).max(4096).optional(),
     MCP_PLATFORM_USER_HEADER: headerNameSchema.default('X-Platform-User-Id'),
@@ -108,6 +110,7 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'MCP_PORT',
   'MCP_PATH',
   'MCP_PUBLIC_URL',
+  'SFOA_LIGHTNING_BASE_URL',
   'MCP_AUTH_MODE',
   'MCP_CLIENT_TOKEN',
   'MCP_PLATFORM_USER_HEADER',
@@ -200,6 +203,9 @@ export async function loadRemoteRuntimeConfig(
   const publicUrl = parsed.data.MCP_PUBLIC_URL
     ? normalizePublicUrl(parsed.data.MCP_PUBLIC_URL)
     : undefined;
+  const lightningBaseUrl = parsed.data.SFOA_LIGHTNING_BASE_URL
+    ? normalizeLightningBaseUrl(parsed.data.SFOA_LIGHTNING_BASE_URL)
+    : undefined;
   const allowedHosts = parseHosts(parsed.data.MCP_ALLOWED_HOSTS);
   if (!loopback && allowedHosts.length === 0) {
     throw configurationError('MCP_ALLOWED_HOSTS must be explicit when MCP_BIND_HOST is not loopback.');
@@ -239,6 +245,7 @@ export async function loadRemoteRuntimeConfig(
     port: parsed.data.MCP_PORT,
     mcpPath,
     ...(publicUrl ? { publicUrl } : {}),
+    ...(lightningBaseUrl ? { lightningBaseUrl } : {}),
     authMode: parsed.data.MCP_AUTH_MODE,
     ...(parsed.data.MCP_CLIENT_TOKEN ? { clientToken: parsed.data.MCP_CLIENT_TOKEN } : {}),
     platformUserHeader: parsed.data.MCP_PLATFORM_USER_HEADER,
@@ -267,6 +274,22 @@ function normalizePublicUrl(value: string): string {
     throw configurationError('MCP_PUBLIC_URL must be a credential-free HTTP(S) URL without a query or fragment.');
   }
   return parsed.href;
+}
+
+export function normalizeLightningBaseUrl(value: string): string {
+  const parsed = new URL(value);
+  if (
+    parsed.protocol !== 'https:'
+    || parsed.username
+    || parsed.password
+    || parsed.hostname.length === 0
+    || parsed.pathname !== '/'
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw configurationError('SFOA_LIGHTNING_BASE_URL must be a credential-free HTTPS origin without a path, query, or fragment.');
+  }
+  return parsed.origin;
 }
 
 export function isLoopbackBindHost(host: string): boolean {

@@ -333,6 +333,22 @@ div.surface-card:not(.ant-card) {
   align-items: flex-start;
 }
 
+.managed-lookup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.managed-field-drawer .ant-drawer-body {
+  background: var(--sfoa-canvas);
+}
+
+.managed-field-drawer .ant-table-wrapper {
+  border: 1px solid var(--sfoa-border);
+  border-radius: 8px;
+  background: var(--sfoa-surface);
+}
+
 .form-validation {
   margin: -8px 0 18px;
   color: #dc2626;
@@ -581,8 +597,13 @@ div.surface-card:not(.ant-card) {
   }
 
   .route-search-card,
-  .credential-field {
+  .credential-field,
+  .managed-lookup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .managed-field-drawer {
+    max-width: 100vw;
   }
 
   .route-search-card .ant-btn,

@@ -24,7 +24,9 @@ export const salesforceUsernameSchema = z
   .max(320)
   .refine((value) => !/\s|[\u0000-\u001F\u007F]/u.test(value), 'must not contain whitespace or control characters');
 export const toolNameSchema = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u);
-export const objectApiNameSchema = z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,127}$/u);
+export const salesforceApiIdentifierSchema = z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,127}$/u);
+export const objectApiNameSchema = salesforceApiIdentifierSchema;
+export const fieldApiNameSchema = salesforceApiIdentifierSchema;
 export const remarkSchema = z.string().trim().max(512).nullable().default(null);
 export const rowVersionSchema = z.string().regex(/^[1-9][0-9]{0,19}$/u);
 export const idSchema = z.string().regex(/^[1-9][0-9]{0,19}$/u);
@@ -71,6 +73,26 @@ export type DmlPolicyRecord = Readonly<{
   objectApiName: string;
   allowCreate: boolean;
   allowUpdate: boolean;
+  enabled: boolean;
+  remark: string | null;
+  rowVersion: string;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export const MANAGED_DML_FIELD_STRATEGIES = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER'] as const;
+export const managedDmlFieldStrategySchema = z.enum(MANAGED_DML_FIELD_STRATEGIES);
+export type ManagedDmlFieldStrategy = z.infer<typeof managedDmlFieldStrategySchema>;
+
+export type ManagedDmlFieldRuleRecord = Readonly<{
+  id: string;
+  dmlPolicyId: string;
+  targetFieldApiName: string;
+  strategy: ManagedDmlFieldStrategy;
+  applyOnCreate: boolean;
+  applyOnUpdate: boolean;
+  lookupObjectApiName: string | null;
+  lookupMatchFieldApiName: string | null;
   enabled: boolean;
   remark: string | null;
   rowVersion: string;
@@ -152,6 +174,7 @@ export type RequestPolicySnapshot = Readonly<{
   identityRoute: IdentityRouteRecord | null;
   enabledTools: readonly string[];
   dmlPolicies: readonly DmlPolicyRecord[];
+  managedDmlFieldRules: readonly ManagedDmlFieldRuleRecord[];
   diagnostic: DiagnosticConfigRecord | null;
   runtimeSettings: Readonly<Partial<Record<RuntimeSettingKey, unknown>>>;
 }>;
@@ -165,6 +188,7 @@ export function freezeSnapshot(snapshot: RequestPolicySnapshot): RequestPolicySn
     ...snapshot,
     enabledTools: Object.freeze([...snapshot.enabledTools]),
     dmlPolicies: Object.freeze([...snapshot.dmlPolicies]),
+    managedDmlFieldRules: Object.freeze(snapshot.managedDmlFieldRules.map((rule) => Object.freeze({ ...rule }))),
     runtimeSettings: Object.freeze({ ...snapshot.runtimeSettings }),
   });
 }

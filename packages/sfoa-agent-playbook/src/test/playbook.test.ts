@@ -14,7 +14,7 @@ import {
 
 describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.0.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.1.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -27,6 +27,10 @@ describe('canonical SFoA Agent Playbook', () => {
       createAllowedObjects: ['Lead', 'Account', 'not valid!'],
       updateAllowedObjects: ['Contact', 'Contact'],
       diagnosticReady: true,
+      managedDmlFields: [
+        { objectApiName: 'Lead', fieldApiName: 'Requested_By__c', operations: ['CREATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY' },
+        { objectApiName: 'Contact', fieldApiName: 'Created_By_AI__c', operations: ['UPDATE'], managedBy: 'MCP', strategy: 'AI_CREATED_MARKER' },
+      ],
     });
 
     assert.deepEqual(capabilities.enabledTools, ['run_soql_query', 'create_record', 'update_record']);
@@ -34,6 +38,9 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.deepEqual(capabilities.updateAllowedObjects, ['Contact']);
     assert.equal(capabilities.diagnosticReady, false);
     assert.equal(capabilities.dynamicFormEvidence, 'NOT_AVAILABLE');
+    assert.deepEqual(capabilities.managedDmlFields, [{
+      objectApiName: 'Lead', fieldApiName: 'Requested_By__c', operations: ['CREATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY',
+    }]);
   });
 
   it('renders every required safety contract on every distribution surface', () => {
@@ -46,6 +53,9 @@ describe('canonical SFoA Agent Playbook', () => {
       createAllowedObjects: ['Account'],
       updateAllowedObjects: ['Contact'],
       diagnosticReady: true,
+      managedDmlFields: [{
+        objectApiName: 'Account', fieldApiName: 'Requested_By__c', operations: ['CREATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY',
+      }],
     });
     const outputs = [
       renderServerInstructions(capabilities),
@@ -60,7 +70,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.0\.0/u);
+      assert.match(output, /1\.1\.0/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -75,6 +85,9 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderWorkflow('READ', capabilities), /display\/name field and trusted link/u);
     assert.match(renderFullPlaybook(capabilities), /Do not hardcode object-specific/u);
     assert.match(renderFullPlaybook(capabilities), /Do not create a Runtime Form Engine/u);
+    assert.match(renderFullPlaybook(capabilities), /MCP-managed DML fields: `Account\.Requested_By__c`/u);
+    assert.match(renderWorkflow('CREATE', capabilities), /Exclude MCP-managed fields from required questions/u);
+    assert.match(renderServerInstructions(capabilities), /do not ask for, recommend, derive, or override them/u);
   });
 
   it('does not claim unavailable capabilities and never includes unknown or secret-shaped facts', () => {
@@ -101,7 +114,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.0\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.1\.0; DO NOT EDIT DIRECTLY/u,
     );
   });
 });

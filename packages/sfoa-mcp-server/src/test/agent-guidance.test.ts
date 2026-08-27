@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { DmlPolicyRecord, IdentityRouteRecord, RequestPolicySnapshot } from '@sfoa/control-plane';
+import type { DmlPolicyRecord, IdentityRouteRecord, ManagedDmlFieldRuleRecord, RequestPolicySnapshot } from '@sfoa/control-plane';
 import {
   AGENT_CAPABILITIES_RESOURCE_URI,
   AGENT_PLAYBOOK_RESOURCE_URI,
@@ -39,12 +39,13 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
         'get_agent_playbook',
         'get_record_links',
       ]),
+      lightningBaseUrl: 'https://lightning.example.invalid',
     }),
     identityRuntime: createTestIdentityRuntime(baseRoot, connectionFactory),
   });
   const client = await connectClient(server, TEST_PLATFORM_USER_A);
   try {
-    assert.match(client.getInstructions() ?? '', /SFoA Salesforce Agent Playbook 1\.0\.0/u);
+    assert.match(client.getInstructions() ?? '', /SFoA Salesforce Agent Playbook 1\.1\.0/u);
     assert.match(client.getInstructions() ?? '', /MCP_DML_OUTCOME_UNKNOWN/u);
     assert.match(client.getInstructions() ?? '', /Identity is MCP-owned/u);
     assert.match(client.getInstructions() ?? '', /get_record_action_context/u);
@@ -56,7 +57,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       AGENT_PLAYBOOK_RESOURCE_URI,
     ]);
     const playbook = await client.readResource({ uri: AGENT_PLAYBOOK_RESOURCE_URI });
-    assert.match(resourceText(playbook), /Playbook-Version: 1\.0\.0/u);
+    assert.match(resourceText(playbook), /Playbook-Version: 1\.1\.0/u);
     assert.match(resourceText(playbook), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
     for (const section of ['READ', 'CREATE', 'UPDATE', 'DIAGNOSIS']) {
       assert.match(resourceText(playbook), new RegExp(`## ${section} —`, 'u'));
@@ -65,12 +66,13 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       await client.readResource({ uri: AGENT_CAPABILITIES_RESOURCE_URI }),
     )) as unknown;
     assert.deepEqual(capabilities, {
-      playbookVersion: '1.0.0',
+      playbookVersion: '1.1.0',
       enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook', 'get_record_links'],
       createAllowedObjects: [],
       updateAllowedObjects: [],
       diagnosticReady: false,
       dynamicFormEvidence: 'NOT_AVAILABLE',
+      managedDmlFields: [],
     });
 
     const prompts = await client.listPrompts();
@@ -114,7 +116,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
 
     const fallback = await client.callTool({ name: 'get_agent_playbook', arguments: { workflow: 'CREATE' } });
     assert.equal(fallback.isError, undefined);
-    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.0.0');
+    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.1.0');
     assert.equal(asRecord(fallback.structuredContent).workflow, 'CREATE');
     assert.match(String(asRecord(fallback.structuredContent).guidance), /## CREATE —/u);
     assert.match(String(asRecord(fallback.structuredContent).guidance), /MCP_DML_OUTCOME_UNKNOWN/u);
@@ -135,7 +137,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       objectApiName: 'Account',
       recordId: RECORD_ID,
       displayName: 'Acme',
-      recordUrl: `https://${TEST_PLATFORM_USER_A}.my.salesforce.com/lightning/r/Account/${RECORD_ID}/view`,
+      recordUrl: `https://lightning.example.invalid/lightning/r/Account/${RECORD_ID}/view`,
     });
     assert.equal(connectionFactory.apiRequests.length, 0, 'record links must not call Salesforce UI or REST APIs');
 
@@ -154,14 +156,38 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
     );
     assert.equal(connectionFactory.apiRequests.length, 0);
 
-    connectionFactory.instanceUrlForRoute = () => 'https://trusted.example/services/data';
-    const invalidOrigin = await client.callTool({
+    connectionFactory.instanceUrlForRoute = () => 'https://evil.example/services/data';
+    const stillConfigured = await client.callTool({
       name: 'get_record_links',
       arguments: { records: [{ objectApiName: 'Account', recordId: RECORD_ID }] },
     });
-    assert.equal(invalidOrigin.isError, true);
-    assert.match(toolResultText(invalidOrigin), /MCP_TRUSTED_INSTANCE_URL_INVALID/u);
+    assert.equal(stillConfigured.isError, undefined);
+    assert.equal(
+      asRecord(asRecordArray(asRecord(stillConfigured.structuredContent).records)[0]).recordUrl,
+      `https://lightning.example.invalid/lightning/r/Account/${RECORD_ID}/view`,
+    );
     assert.equal(connectionFactory.apiRequests.length, 0);
+  } finally {
+    await client.close();
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
+test('get_record_links fails safely when SFOA_LIGHTNING_BASE_URL is not configured', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-record-link-config-'));
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({ enabledTools: Object.freeze(['get_record_links']) }),
+    identityRuntime: createTestIdentityRuntime(baseRoot, new RecordingConnectionFactory()),
+  });
+  const client = await connectClient(server, TEST_PLATFORM_USER_A);
+  try {
+    const result = await client.callTool({
+      name: 'get_record_links',
+      arguments: { records: [{ objectApiName: 'Account', recordId: RECORD_ID }] },
+    });
+    assert.equal(result.isError, true);
+    assert.match(toolResultText(result), /MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED/u);
   } finally {
     await client.close();
     await server.close();
@@ -178,11 +204,13 @@ test('request-scoped capability Resources do not leak Tool or DML policy facts a
           route('1', TEST_PLATFORM_USER_A, TEST_USERNAME_A),
           ['run_soql_query', 'create_record', 'get_agent_playbook', 'get_record_links'],
           [dmlPolicy('1', 'Account', true, false)],
+          [managedRule('11', '1', 'Created_By_AI__c', 'AI_CREATED_MARKER', true, false)],
         )
       : snapshot(
           route('2', TEST_PLATFORM_USER_B, TEST_USERNAME_B),
           ['run_soql_query', 'update_record', 'get_agent_playbook'],
           [dmlPolicy('2', 'Contact', false, true)],
+          [managedRule('22', '2', 'Requested_By__c', 'PLATFORM_USER_LOOKUP', false, true)],
         ),
   };
   const server = await startRemoteMcpServer({
@@ -201,10 +229,17 @@ test('request-scoped capability Resources do not leak Tool or DML policy facts a
     assert.deepEqual(capabilitiesA.updateAllowedObjects, []);
     assert.deepEqual(capabilitiesB.createAllowedObjects, []);
     assert.deepEqual(capabilitiesB.updateAllowedObjects, ['Contact']);
+    assert.deepEqual(capabilitiesA.managedDmlFields, [{
+      objectApiName: 'Account', fieldApiName: 'Created_By_AI__c', operations: ['CREATE'], managedBy: 'MCP', strategy: 'AI_CREATED_MARKER',
+    }]);
+    assert.deepEqual(capabilitiesB.managedDmlFields, [{
+      objectApiName: 'Contact', fieldApiName: 'Requested_By__c', operations: ['UPDATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY',
+    }]);
     assert.equal(capabilitiesA.enabledTools.includes('get_record_links'), true);
     assert.equal(capabilitiesB.enabledTools.includes('get_record_links'), false);
     assert.doesNotMatch(JSON.stringify(capabilitiesA), /Contact|user-b|user-b@example/u);
     assert.doesNotMatch(JSON.stringify(capabilitiesB), /Account|user-a|user-a@example/u);
+    assert.doesNotMatch(JSON.stringify(capabilitiesB), /Platform_User_Id__c|lookupObjectApiName|lookupMatchFieldApiName/u);
 
     const [toolsA, toolsB] = await Promise.all([clientA.listTools(), clientB.listTools()]);
     assert.equal(toolsA.tools.some((tool) => tool.name === 'get_record_links'), true);
@@ -234,6 +269,7 @@ async function readCapabilities(client: Client): Promise<Readonly<{
   enabledTools: readonly string[];
   createAllowedObjects: readonly string[];
   updateAllowedObjects: readonly string[];
+  managedDmlFields: readonly unknown[];
 }>> {
   const parsed: unknown = JSON.parse(resourceText(
     await client.readResource({ uri: AGENT_CAPABILITIES_RESOURCE_URI }),
@@ -243,6 +279,7 @@ async function readCapabilities(client: Client): Promise<Readonly<{
     enabledTools: stringArray(record.enabledTools),
     createAllowedObjects: stringArray(record.createAllowedObjects),
     updateAllowedObjects: stringArray(record.updateAllowedObjects),
+    managedDmlFields: Array.isArray(record.managedDmlFields) ? Object.freeze([...record.managedDmlFields]) : Object.freeze([]),
   });
 }
 
@@ -250,6 +287,7 @@ function snapshot(
   identityRoute: IdentityRouteRecord,
   enabledTools: readonly string[],
   dmlPolicies: readonly DmlPolicyRecord[],
+  managedDmlFieldRules: readonly ManagedDmlFieldRuleRecord[] = Object.freeze([]),
 ): RequestPolicySnapshot {
   return Object.freeze({
     mode: 'mysql',
@@ -257,8 +295,25 @@ function snapshot(
     identityRoute,
     enabledTools: Object.freeze([...enabledTools]),
     dmlPolicies: Object.freeze([...dmlPolicies]),
+    managedDmlFieldRules: Object.freeze([...managedDmlFieldRules]),
     diagnostic: null,
     runtimeSettings: Object.freeze({}),
+  });
+}
+
+function managedRule(
+  id: string,
+  dmlPolicyId: string,
+  targetFieldApiName: string,
+  strategy: 'PLATFORM_USER_LOOKUP' | 'AI_CREATED_MARKER',
+  applyOnCreate: boolean,
+  applyOnUpdate: boolean,
+): ManagedDmlFieldRuleRecord {
+  return Object.freeze({
+    id, dmlPolicyId, targetFieldApiName, strategy, applyOnCreate, applyOnUpdate,
+    lookupObjectApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Contact' : null,
+    lookupMatchFieldApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Platform_User_Id__c' : null,
+    enabled: true, remark: null, rowVersion: '1', createdAt: NOW, updatedAt: NOW,
   });
 }
 

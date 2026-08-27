@@ -16,6 +16,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
     `SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION}.`,
     'Use enabled MCP Tools for live Salesforce facts; never guess current records, Picklist values, Lookup targets, required values, or Salesforce identity.',
     'Identity is MCP-owned. Before CREATE/UPDATE use `get_record_action_context` when enabled, and send the minimum requested mutation only.',
+    'MCP-managed fields are server-owned: do not ask for, recommend, derive, or override them; omit them from mutation payloads and normal success narration.',
     'Return Salesforce Record IDs and trusted links through `get_record_links` when enabled.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
     'Read `sfoa://agent-playbook/current` for the full contract and `sfoa://agent-capabilities/current` for request capabilities; the `sfoa_salesforce_assistant` Prompt can select a workflow.',
@@ -79,6 +80,10 @@ export function renderWorkBuddySkill(): string {
     '- Configure `Authorization: Bearer <USER_BOUND_TOKEN>`.',
     '- Do not configure `X-Platform-User-Id`; the USER_BOUND token selects its Identity Route.',
     '- Never request Salesforce credentials or pass identity selectors to Tools.',
+    '',
+    '## MCP-managed fields',
+    '',
+    '- Read the current action context/capabilities before CREATE or UPDATE. Omit every field marked `managedBy: MCP` from questions, recommendations, and mutation payloads; the server derives or writes it and takes precedence.',
     '',
     '## Non-retryable uncertainty',
     '',
@@ -158,6 +163,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
     `- UPDATE allowed objects: ${codeList(capabilities.updateAllowedObjects)}.`,
     `- Diagnostic ready: \`${capabilities.diagnosticReady}\`.`,
     `- Dynamic Forms evidence: \`${capabilities.dynamicFormEvidence}\`.`,
+    `- MCP-managed DML fields: ${managedFieldList(capabilities)}.`,
   ];
 }
 
@@ -209,4 +215,10 @@ function renderSelectedReference(title: string, sectionNames: readonly PlaybookS
 
 function codeList(values: readonly string[]): string {
   return values.length > 0 ? values.map((value) => `\`${value}\``).join(', ') : '`none`';
+}
+
+function managedFieldList(capabilities: AgentCapabilities): string {
+  if (capabilities.managedDmlFields.length === 0) return '`none`';
+  return capabilities.managedDmlFields.map((field) =>
+    `\`${field.objectApiName}.${field.fieldApiName}\` (${field.operations.join('/')}; ${field.managedBy}; ${field.strategy})`).join(', ');
 }

@@ -54,6 +54,22 @@ export interface DmlPolicyTable {
   updated_at: GeneratedTimestamp;
 }
 
+export interface DmlManagedFieldRuleTable {
+  id: Generated<string>;
+  dml_policy_id: string;
+  target_field_api_name: string;
+  strategy: string;
+  apply_on_create: BooleanNumber;
+  apply_on_update: BooleanNumber;
+  lookup_object_api_name: string | null;
+  lookup_match_field_api_name: string | null;
+  enabled: BooleanNumber;
+  remark: string | null;
+  row_version: Generated<string>;
+  created_at: GeneratedTimestamp;
+  updated_at: GeneratedTimestamp;
+}
+
 export interface DiagnosticConfigTable {
   id: string;
   salesforce_username: string;
@@ -112,6 +128,7 @@ export interface ControlPlaneDatabase {
   sfoa_identity_credential: IdentityCredentialTable;
   sfoa_tool_control: ToolControlTable;
   sfoa_dml_policy: DmlPolicyTable;
+  sfoa_dml_managed_field_rule: DmlManagedFieldRuleTable;
   sfoa_diagnostic_config: DiagnosticConfigTable;
   sfoa_runtime_setting: RuntimeSettingTable;
   sfoa_audit_log: AuditLogTable;

@@ -43,7 +43,11 @@ import {
   validateExternalMcpUrl,
   type McpConnectivityConfig,
 } from '../agent/connectivity.js';
-import { deriveDifyInstructionFacts, generateDifyAgentInstruction } from '../agent/instruction-generator.js';
+import {
+  deriveDifyInstructionFacts,
+  generateDifyAgentInstruction,
+  type AdminManagedDmlFieldFact,
+} from '../agent/instruction-generator.js';
 import { ErrorState, LoadingState } from '../components/QueryState.js';
 import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
@@ -59,11 +63,27 @@ export default function AgentIntegrationPage() {
   const status = useQuery({ queryKey: ['system-status'], queryFn: adminApi.systemStatus });
   const tools = useQuery({ queryKey: ['tools'], queryFn: adminApi.tools });
   const policies = useQuery({ queryKey: ['dml-policies', 'all'], queryFn: adminApi.allDmlPolicies });
-  const generatorInput = useMemo(() => status.data && tools.data && policies.data ? Object.freeze({
+  const managedFields = useQuery({
+    queryKey: ['managed-dml-fields', 'all', policies.data?.map((policy) => `${policy.id}:${policy.rowVersion}`).join('|')],
+    enabled: policies.data !== undefined,
+    queryFn: async (): Promise<readonly AdminManagedDmlFieldFact[]> => {
+      if (!policies.data) return Object.freeze([]);
+      const pages = await Promise.all(policies.data.map(async (policy) => ({
+        policy,
+        rules: await adminApi.allManagedDmlFieldRules(policy.id),
+      })));
+      return Object.freeze(pages.flatMap(({ policy, rules }) => rules.map((rule) => Object.freeze({
+        ...rule,
+        objectApiName: policy.objectApiName,
+      }))));
+    },
+  });
+  const generatorInput = useMemo(() => status.data && tools.data && policies.data && managedFields.data ? Object.freeze({
     tools: tools.data.items,
     dmlPolicies: policies.data,
     diagnostic: status.data.diagnostic,
-  }) : null, [policies.data, status.data, tools.data]);
+    managedDmlFields: managedFields.data,
+  }) : null, [managedFields.data, policies.data, status.data, tools.data]);
   const facts = useMemo(
     () => generatorInput ? deriveDifyInstructionFacts(generatorInput) : null,
     [generatorInput],
@@ -78,10 +98,10 @@ export default function AgentIntegrationPage() {
     if (generatorInput) setInstruction(generateDifyAgentInstruction(generatorInput));
   }, [generatorInput]);
 
-  const pending = status.isPending || tools.isPending || policies.isPending;
-  const error = status.error ?? tools.error ?? policies.error;
+  const pending = status.isPending || tools.isPending || policies.isPending || (policies.data !== undefined && managedFields.isPending);
+  const error = status.error ?? tools.error ?? policies.error ?? managedFields.error;
   const refresh = async (): Promise<void> => {
-    await Promise.all([status.refetch(), tools.refetch(), policies.refetch()]);
+    await Promise.all([status.refetch(), tools.refetch(), policies.refetch(), managedFields.refetch()]);
   };
   const copy = async (value: string, successMessage: string): Promise<void> => {
     try {
@@ -96,7 +116,7 @@ export default function AgentIntegrationPage() {
     <PageFrame
       title="智能体接入"
       description={`Playbook ${AGENT_PLAYBOOK_VERSION} 统一分发 MCP 原生指引、小犇/Dify 指令与 WorkBuddy Skill；运行时能力来自当前 Tool、DML 策略和诊断状态。`}
-      action={<Button icon={<ReloadOutlined />} loading={status.isFetching || tools.isFetching || policies.isFetching} onClick={() => void refresh()}>刷新当前状态</Button>}
+      action={<Button icon={<ReloadOutlined />} loading={status.isFetching || tools.isFetching || policies.isFetching || managedFields.isFetching} onClick={() => void refresh()}>刷新当前状态</Button>}
     >
       {pending ? <LoadingState rows={8} /> : error ? <ErrorState error={error} onRetry={() => void refresh()} /> : status.data && facts && generatorInput ? (
         <Tabs
@@ -317,9 +337,16 @@ function AgentPlaybookTab({
           {facts.availableTools.length === 0 ? <Tag>无可用 Tool</Tag> : null}
           <Tag>CREATE 对象 {facts.createObjects.length}</Tag>
           <Tag>UPDATE 对象 {facts.updateObjects.length}</Tag>
+          <Tag>MCP 托管字段 {facts.managedDmlFieldCount}</Tag>
           <StatusTag label={facts.diagnosticReady ? 'READY' : facts.diagnosticEnabledButUnverified ? 'NOT_VERIFIED' : 'DISABLED'} />
         </Space>
       </Card>
+      <Alert
+        type="info"
+        showIcon
+        title="MCP 托管字段由服务端负责"
+        description="Agent 能力仅公开对象、字段、操作范围和安全策略别名，不公开 Lookup 对象、匹配字段或派生值。Agent 不询问、不推荐、不提交这些字段，普通成功回答也不展示技术标记。"
+      />
       <Space wrap>
         <Button icon={<BookOutlined />} href="#agent-playbook-full">查看完整规范</Button>
         <Button type="primary" icon={<CopyOutlined />} onClick={() => void onCopy(playbook, '已复制当前 Agent Playbook。')}>复制当前 Playbook</Button>
@@ -367,6 +394,7 @@ function DifyTab({
           {facts.availableTools.map((name) => <Tag key={name}><code>{name}</code></Tag>)}
           <Tag>CREATE 对象 {facts.createObjects.length}</Tag>
           <Tag>UPDATE 对象 {facts.updateObjects.length}</Tag>
+          <Tag>MCP 托管字段 {facts.managedDmlFieldCount}</Tag>
           <StatusTag label={facts.diagnosticReady ? 'READY' : facts.diagnosticEnabledButUnverified ? 'NOT_VERIFIED' : 'DISABLED'} />
         </Space>
       </Card>

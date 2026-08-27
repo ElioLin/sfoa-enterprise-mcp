@@ -9,6 +9,7 @@ import {
   diagnosticVerificationStatusSchema,
   freezeSnapshot,
   IDENTITY_SOURCES,
+  managedDmlFieldStrategySchema,
   normalizeSalesforceUsername,
   RUNTIME_SETTING_KEYS,
   type AuditRecord,
@@ -16,6 +17,7 @@ import {
   type DmlPolicyRecord,
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
+  type ManagedDmlFieldRuleRecord,
   type Page,
   type RequestPolicySnapshot,
   type RuntimeSettingKey,
@@ -41,6 +43,9 @@ import type {
   IdentityRouteUpdateInput,
   IdentityRouteListOptions,
   ListOptions,
+  ManagedDmlFieldRuleCreateInput,
+  ManagedDmlFieldRuleRepository,
+  ManagedDmlFieldRuleUpdateInput,
   RuntimeSettingRepository,
   ToolControlRepository,
   ToolControlWriteInput,
@@ -50,6 +55,7 @@ import type {
   AuditLogTable,
   DiagnosticConfigTable,
   DmlPolicyTable,
+  DmlManagedFieldRuleTable,
   IdentityRouteTable,
   IdentityCredentialTable,
   RuntimeSettingTable,
@@ -403,6 +409,90 @@ export class MySqlDmlPolicyRepository implements DmlPolicyRepository {
   }
 }
 
+export class MySqlManagedDmlFieldRuleRepository implements ManagedDmlFieldRuleRepository {
+  public constructor(private readonly database: Executor) {}
+
+  public async listByDmlPolicyId(dmlPolicyId: string, options: ListOptions): Promise<Page<ManagedDmlFieldRuleRecord>> {
+    const rows = await this.database.selectFrom('sfoa_dml_managed_field_rule').selectAll()
+      .where('dml_policy_id', '=', dmlPolicyId)
+      .orderBy('target_field_api_name').orderBy('id')
+      .limit(options.limit + 1).offset(options.offset).execute();
+    return page(rows.map(mapManagedDmlFieldRule), options);
+  }
+
+  public async getById(id: string): Promise<ManagedDmlFieldRuleRecord | undefined> {
+    const row = await this.database.selectFrom('sfoa_dml_managed_field_rule').selectAll()
+      .where('id', '=', id).executeTakeFirst();
+    return row ? mapManagedDmlFieldRule(row) : undefined;
+  }
+
+  public async listEnabledByDmlPolicyIds(dmlPolicyIds: readonly string[]): Promise<readonly ManagedDmlFieldRuleRecord[]> {
+    if (dmlPolicyIds.length === 0) return Object.freeze([]);
+    const rows = await this.database.selectFrom('sfoa_dml_managed_field_rule').selectAll()
+      .where('dml_policy_id', 'in', [...dmlPolicyIds]).where('enabled', '=', 1)
+      .orderBy('dml_policy_id').orderBy('target_field_api_name').orderBy('id').execute();
+    return Object.freeze(rows.map(mapManagedDmlFieldRule));
+  }
+
+  public async create(input: ManagedDmlFieldRuleCreateInput): Promise<ManagedDmlFieldRuleRecord> {
+    try {
+      const result = await this.database.insertInto('sfoa_dml_managed_field_rule').values({
+        dml_policy_id: input.dmlPolicyId,
+        target_field_api_name: input.targetFieldApiName,
+        strategy: input.strategy,
+        apply_on_create: input.applyOnCreate,
+        apply_on_update: input.applyOnUpdate,
+        lookup_object_api_name: input.lookupObjectApiName,
+        lookup_match_field_api_name: input.lookupMatchFieldApiName,
+        enabled: input.enabled,
+        remark: input.remark,
+      }).executeTakeFirstOrThrow();
+      return (await this.getById(String(result.insertId))) as ManagedDmlFieldRuleRecord;
+    } catch (error) {
+      throw mapWriteError(error, '该字段已配置 MCP 托管规则。');
+    }
+  }
+
+  public async update(id: string, input: ManagedDmlFieldRuleUpdateInput): Promise<ManagedDmlFieldRuleRecord> {
+    try {
+      const result = await this.database.updateTable('sfoa_dml_managed_field_rule').set({
+        target_field_api_name: input.targetFieldApiName,
+        strategy: input.strategy,
+        apply_on_create: input.applyOnCreate,
+        apply_on_update: input.applyOnUpdate,
+        lookup_object_api_name: input.lookupObjectApiName,
+        lookup_match_field_api_name: input.lookupMatchFieldApiName,
+        enabled: input.enabled,
+        remark: input.remark,
+        row_version: sql`row_version + 1`,
+      }).where('id', '=', id).where('row_version', '=', input.rowVersion).executeTakeFirst();
+      if (result.numUpdatedRows === 0n) {
+        if (!(await this.getById(id))) throw notFound('Managed DML field rule');
+        throw concurrentModification();
+      }
+      return (await this.getById(id)) as ManagedDmlFieldRuleRecord;
+    } catch (error) {
+      if (error instanceof ControlPlaneError) throw error;
+      throw mapWriteError(error, '该字段已配置 MCP 托管规则。');
+    }
+  }
+
+  public async disable(id: string, rowVersion: string): Promise<ManagedDmlFieldRuleRecord> {
+    const current = await this.getById(id);
+    if (!current) throw notFound('Managed DML field rule');
+    return this.update(id, { ...current, enabled: false, rowVersion });
+  }
+
+  public async delete(id: string, rowVersion: string): Promise<void> {
+    const result = await this.database.deleteFrom('sfoa_dml_managed_field_rule')
+      .where('id', '=', id).where('row_version', '=', rowVersion).executeTakeFirst();
+    if (result.numDeletedRows === 0n) {
+      if (!(await this.getById(id))) throw notFound('Managed DML field rule');
+      throw concurrentModification();
+    }
+  }
+}
+
 export class MySqlDiagnosticConfigRepository implements DiagnosticConfigRepository {
   public constructor(private readonly database: Executor) {}
 
@@ -571,6 +661,7 @@ export function createMySqlRepositories(database: Executor): ControlPlaneReposit
     identityCredentials: new MySqlIdentityCredentialRepository(database),
     tools: new MySqlToolControlRepository(database),
     dmlPolicies: new MySqlDmlPolicyRepository(database),
+    managedDmlFieldRules: new MySqlManagedDmlFieldRuleRepository(database),
     diagnostic: new MySqlDiagnosticConfigRepository(database),
     runtimeSettings: new MySqlRuntimeSettingRepository(database),
     audits: new MySqlAuditRepository(database),
@@ -591,6 +682,8 @@ export async function loadMySqlRequestPolicySnapshot(
         repositories.diagnostic.get(),
         repositories.runtimeSettings.list(),
       ]);
+      const managedDmlFieldRules = await repositories.managedDmlFieldRules
+        .listEnabledByDmlPolicyIds(dmlPolicies.map((policy) => policy.id));
       if (diagnostic?.enabled) {
         const userNames = await repositories.identityRoutes.listActiveSalesforceUsernames();
         const diagnosticName = normalizeSalesforceUsername(diagnostic.salesforceUsername);
@@ -607,6 +700,7 @@ export async function loadMySqlRequestPolicySnapshot(
         identityRoute: identityRoute ?? null,
         enabledTools,
         dmlPolicies,
+        managedDmlFieldRules,
         diagnostic: diagnostic?.enabled ? diagnostic : null,
         runtimeSettings: Object.fromEntries(runtimeSettings.map((setting) => [setting.settingKey, setting.settingValue])),
       });
@@ -658,6 +752,24 @@ function mapDml(row: Selectable<DmlPolicyTable>): DmlPolicyRecord {
     id: String(row.id), objectApiName: row.object_api_name, allowCreate: Boolean(row.allow_create),
     allowUpdate: Boolean(row.allow_update), enabled: Boolean(row.enabled), remark: row.remark,
     rowVersion: String(row.row_version), createdAt: toIso(row.created_at), updatedAt: toIso(row.updated_at),
+  });
+}
+
+function mapManagedDmlFieldRule(row: Selectable<DmlManagedFieldRuleTable>): ManagedDmlFieldRuleRecord {
+  return Object.freeze({
+    id: String(row.id),
+    dmlPolicyId: String(row.dml_policy_id),
+    targetFieldApiName: row.target_field_api_name,
+    strategy: managedDmlFieldStrategySchema.parse(row.strategy),
+    applyOnCreate: Boolean(row.apply_on_create),
+    applyOnUpdate: Boolean(row.apply_on_update),
+    lookupObjectApiName: row.lookup_object_api_name,
+    lookupMatchFieldApiName: row.lookup_match_field_api_name,
+    enabled: Boolean(row.enabled),
+    remark: row.remark,
+    rowVersion: String(row.row_version),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
   });
 }
 

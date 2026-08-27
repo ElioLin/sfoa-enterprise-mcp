@@ -135,6 +135,48 @@ describe('Admin governance pages', () => {
     expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({ objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null });
   });
 
+  it('manages trusted fields in the policy drawer with duplicate validation and disable/delete semantics', async () => {
+    const enabledRule = managedFieldRecord();
+    const disabledRule = managedFieldRecord({ id: '8', targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER', enabled: false });
+    const fetchMock = asFetchMock((url, init) => {
+      if (url.pathname.endsWith('/managed-fields') && init.method === 'POST') {
+        return jsonResponse(managedFieldRecord({ id: '9', targetFieldApiName: 'Owner_Contact__c' }));
+      }
+      if (url.pathname.endsWith('/managed-fields')) return jsonResponse(page([enabledRule, disabledRule]));
+      return jsonResponse(page([policyRecord()]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<DmlPoliciesPage />);
+
+    await user.click(await screen.findByRole('button', { name: '管理 Lead 的托管字段' }));
+    expect(await screen.findByText('值由 MCP 管理')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '停用' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: '添加规则' })[0]!);
+    const target = screen.getByLabelText('目标字段 API 名称');
+    await user.type(target, 'requested_by__c');
+    fireEvent.blur(target);
+    expect(await screen.findByText('该对象已存在同名托管字段规则。')).toBeInTheDocument();
+    await user.clear(target);
+    await user.type(target, 'Owner_Contact__c');
+    await user.type(screen.getByLabelText('Lookup 对象 API 名称'), 'Contact');
+    await user.type(screen.getByLabelText('身份匹配字段 API 名称'), 'Platform_User_Id__c');
+    await user.click(screen.getByRole('button', { name: '保存规则' }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/dml-policies/1/managed-fields') && init?.method === 'POST')).toBe(true));
+    const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/dml-policies/1/managed-fields') && init?.method === 'POST');
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      targetFieldApiName: 'Owner_Contact__c',
+      strategy: 'PLATFORM_USER_LOOKUP',
+      applyOnCreate: true,
+      applyOnUpdate: false,
+      lookupObjectApiName: 'Contact',
+      lookupMatchFieldApiName: 'Platform_User_Id__c',
+      enabled: true,
+    });
+  });
+
   it('shows the real diagnostic verification state and bounded evidence', async () => {
     const fetchMock = asFetchMock((url, init) => {
       if (url.pathname.endsWith('/diagnostic/verify') && init.method === 'POST') return jsonResponse({ config: diagnosticConfig(), verification: diagnosticVerification() });
@@ -276,6 +318,22 @@ function credentialResponse(tokenMarker = 'a') {
 
 function policyRecord() {
   return { id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null, rowVersion: '1', createdAt: NOW, updatedAt: NOW };
+}
+
+function managedFieldRecord(overrides: Readonly<Partial<{
+  id: string;
+  targetFieldApiName: string;
+  strategy: 'PLATFORM_USER_LOOKUP' | 'AI_CREATED_MARKER';
+  enabled: boolean;
+}>> = {}) {
+  const strategy = overrides.strategy ?? 'PLATFORM_USER_LOOKUP';
+  return {
+    id: overrides.id ?? '7', dmlPolicyId: '1', targetFieldApiName: overrides.targetFieldApiName ?? 'Requested_By__c',
+    strategy, applyOnCreate: true, applyOnUpdate: false,
+    lookupObjectApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Contact' : null,
+    lookupMatchFieldApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Platform_User_Id__c' : null,
+    enabled: overrides.enabled ?? true, remark: null, rowVersion: '1', createdAt: NOW, updatedAt: NOW,
+  };
 }
 
 function diagnosticConfig() {

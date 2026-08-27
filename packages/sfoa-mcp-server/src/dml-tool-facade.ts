@@ -19,7 +19,8 @@ import type {
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
-import { RemoteRuntimeError } from './errors.js';
+import type { AppliedManagedDmlField, ManagedDmlFieldResolver } from './dml-managed-fields.js';
+import { formatRemoteRuntimeError, RemoteRuntimeError } from './errors.js';
 import { remoteRuntimeErrorToolResult } from './errors.js';
 import { withTimeout } from './timeouts.js';
 
@@ -33,6 +34,8 @@ export type DmlToolFacadeOptions = Readonly<{
   toolTimeoutMs: number;
   logger: RuntimeLogger;
   clientId: string;
+  managedFieldResolver?: ManagedDmlFieldResolver;
+  redactionSecrets?: readonly string[];
   mutationStarted(): boolean;
 }>;
 
@@ -82,9 +85,18 @@ export class DmlToolFacade {
       })).catch(() => undefined);
       return remoteRuntimeErrorToolResult(error, [], this.options.context.correlationId);
     }
+    let executionInput = input;
+    let appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]);
     try {
       const result = await withTimeout(
-        Promise.resolve(this.options.tool.exec(input, extra)),
+        (async () => {
+          if (this.options.managedFieldResolver) {
+            const resolution = await this.options.managedFieldResolver.resolve(this.operation, input);
+            executionInput = resolution.input as ToolInput;
+            appliedManagedFields = resolution.applied;
+          }
+          return this.options.tool.exec(executionInput, extra);
+        })(),
         this.options.toolTimeoutMs,
         'MCP_TOOL_TIMEOUT',
         `Tool ${this.getName()} exceeded MCP_TOOL_TIMEOUT_MS. The runtime stopped waiting; Salesforce server-side cancellation is not guaranteed.`,
@@ -96,18 +108,26 @@ export class DmlToolFacade {
         elapsed(started),
         errorCode,
         errorCode === 'MCP_DML_OUTCOME_UNKNOWN' ? 'TRANSPORT' : undefined,
-        input,
+        executionInput,
         result,
+        appliedManagedFields,
       );
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
-        const result = dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error));
-        await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', input, result);
+        const result = this.options.mutationStarted()
+          ? dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error))
+          : hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+        await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', executionInput, result, appliedManagedFields);
+        return result;
+      }
+      if (error instanceof RemoteRuntimeError && isManagedDmlError(error.code) && !this.options.mutationStarted()) {
+        const result = hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, appliedManagedFields);
         return result;
       }
       const result = dmlExecutionErrorToolResult(error, this.operation);
-      await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT', input, result);
+      await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT', executionInput, result, appliedManagedFields);
       return result;
     }
   }
@@ -119,9 +139,10 @@ export class DmlToolFacade {
     terminationLayer?: 'TOOL' | 'TRANSPORT',
     input: ToolInput = {},
     response?: CallToolResult,
+    appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]),
   ): Promise<void> {
     const outcomeUnknown = errorCode === 'MCP_DML_OUTCOME_UNKNOWN';
-    const requestSummary = safeDmlRequestSummary(input, this.operation);
+    const requestSummary = safeDmlRequestSummary(input, this.operation, appliedManagedFields);
     const responseRecordId = resultRecordId(response);
     await Promise.resolve(this.options.logger.log({
       correlationId: this.options.context.correlationId,
@@ -160,9 +181,14 @@ type SafeDmlRequestSummary = Readonly<{
   recordId?: string;
   fieldNames: readonly string[];
   fieldCount: number;
+  managedFieldsApplied: readonly AppliedManagedDmlField[];
 }>;
 
-function safeDmlRequestSummary(input: ToolInput, operation: DmlOperation): SafeDmlRequestSummary {
+function safeDmlRequestSummary(
+  input: ToolInput,
+  operation: DmlOperation,
+  appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]),
+): SafeDmlRequestSummary {
   const fields = isRecord(input.fields) ? Object.keys(input.fields).sort() : [];
   return Object.freeze({
     operation,
@@ -170,7 +196,31 @@ function safeDmlRequestSummary(input: ToolInput, operation: DmlOperation): SafeD
     ...(operation === 'UPDATE' && typeof input.recordId === 'string' ? { recordId: input.recordId } : {}),
     fieldNames: Object.freeze(fields),
     fieldCount: fields.length,
+    managedFieldsApplied: Object.freeze(appliedManagedFields.map((field) => Object.freeze({ ...field }))),
   });
+}
+
+function hostDmlErrorToolResult(
+  error: RemoteRuntimeError,
+  secrets: readonly string[] = [],
+  correlationId = error.correlationId,
+): CallToolResult {
+  return {
+    isError: true,
+    content: [{ type: 'text', text: formatRemoteRuntimeError(error, secrets, correlationId) }],
+    structuredContent: {
+      success: false,
+      errorCode: error.code,
+      message: error.message.slice(0, 2_000),
+    },
+  };
+}
+
+function isManagedDmlError(code: string): boolean {
+  return code === 'MCP_DML_MANAGED_LOOKUP_NOT_FOUND'
+    || code === 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS'
+    || code === 'MCP_DML_MANAGED_LOOKUP_FAILED'
+    || code === 'MCP_DML_MANAGED_FIELD_CONFIG_INVALID';
 }
 
 function resultRecordId(result: CallToolResult | undefined): string | undefined {

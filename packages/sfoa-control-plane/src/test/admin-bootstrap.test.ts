@@ -121,6 +121,64 @@ test('Diagnostic identity remains distinct from every active USER route', async 
   );
 });
 
+test('managed DML field rules enforce strategies, parent operations, locking, audit rollback, and disable-before-delete', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
+  const policy = await service.createDmlPolicy({
+    objectApiName: 'Lead', allowCreate: true, allowUpdate: true, enabled: true, remark: null,
+  }, 'admin');
+  const created = await service.createManagedDmlFieldRule(policy.id, {
+    targetFieldApiName: 'Requested_By__c',
+    strategy: 'PLATFORM_USER_LOOKUP',
+    applyOnCreate: true,
+    applyOnUpdate: true,
+    lookupObjectApiName: 'Contact',
+    lookupMatchFieldApiName: 'Platform_User_Id__c',
+    enabled: true,
+    remark: null,
+  }, 'admin');
+  assert.equal(created.dmlPolicyId, policy.id);
+  assert.equal((await store.repositories.managedDmlFieldRules.listByDmlPolicyId(policy.id, { limit: 10, offset: 0 })).count, 1);
+  await assert.rejects(
+    service.createManagedDmlFieldRule(policy.id, {
+      targetFieldApiName: 'requested_by__c', strategy: 'PLATFORM_USER_LOOKUP',
+      applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: 'Contact',
+      lookupMatchFieldApiName: 'Platform_User_Id__c', enabled: true, remark: null,
+    }, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_CONTROL_PLANE_CONFLICT',
+  );
+  await assert.rejects(
+    service.createManagedDmlFieldRule(policy.id, {
+      targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER',
+      applyOnCreate: true, applyOnUpdate: true, lookupObjectApiName: null,
+      lookupMatchFieldApiName: null, enabled: true, remark: null,
+    }, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
+  );
+  await assert.rejects(
+    service.updateManagedDmlFieldRule(policy.id, created.id, { ...created, rowVersion: '999' }, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_CONCURRENT_MODIFICATION',
+  );
+  await assert.rejects(
+    service.deleteManagedDmlFieldRule(policy.id, created.id, created.rowVersion, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
+  );
+  const disabled = await service.disableManagedDmlFieldRule(policy.id, created.id, created.rowVersion, 'admin');
+  await service.deleteManagedDmlFieldRule(policy.id, disabled.id, disabled.rowVersion, 'admin');
+  assert.equal(await store.repositories.managedDmlFieldRules.getById(created.id), undefined);
+
+  store.setAuditFailure(true);
+  await assert.rejects(
+    service.createManagedDmlFieldRule(policy.id, {
+      targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER',
+      applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: null,
+      lookupMatchFieldApiName: null, enabled: true, remark: null,
+    }, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_AUDIT_FAILED',
+  );
+  assert.equal((await store.repositories.managedDmlFieldRules.listByDmlPolicyId(policy.id, { limit: 10, offset: 0 })).count, 0);
+});
+
 function testCredentialCipher(): IdentityCredentialCipher {
   return new IdentityCredentialCipher(Buffer.alloc(32, 7));
 }

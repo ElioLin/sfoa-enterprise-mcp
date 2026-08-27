@@ -5,6 +5,7 @@ import {
   type DmlPolicyRecord,
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
+  type ManagedDmlFieldRuleRecord,
   type Page,
   type RuntimeSettingKey,
   type RuntimeSettingRecord,
@@ -19,6 +20,8 @@ import type {
   IdentityRouteCreateInput,
   IdentityRouteUpdateInput,
   ListOptions,
+  ManagedDmlFieldRuleCreateInput,
+  ManagedDmlFieldRuleUpdateInput,
   ToolControlWriteInput,
 } from '../repositories.js';
 import type { TransactionalControlPlaneStore } from '../store.js';
@@ -30,6 +33,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   private credentials = new Map<string, IdentityCredentialRecord>();
   private tools = new Map<string, ToolControlRecord>();
   private dmlPolicies = new Map<string, DmlPolicyRecord>();
+  private managedDmlFieldRules = new Map<string, ManagedDmlFieldRuleRecord>();
   private diagnostic: DiagnosticConfigRecord | undefined;
   private settings = new Map<RuntimeSettingKey, RuntimeSettingRecord>();
   private audits: AuditRecord[] = [];
@@ -162,6 +166,31 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
           return this.updateDml(id, { ...current, enabled: false, rowVersion });
         },
       },
+      managedDmlFieldRules: {
+        listByDmlPolicyId: async (dmlPolicyId, options) => makePage(
+          [...this.managedDmlFieldRules.values()]
+            .filter((record) => record.dmlPolicyId === dmlPolicyId)
+            .sort((a, b) => a.targetFieldApiName.localeCompare(b.targetFieldApiName)),
+          options,
+        ),
+        getById: async (id) => this.managedDmlFieldRules.get(id),
+        listEnabledByDmlPolicyIds: async (dmlPolicyIds) => Object.freeze(
+          [...this.managedDmlFieldRules.values()].filter(
+            (record) => record.enabled && dmlPolicyIds.includes(record.dmlPolicyId),
+          ),
+        ),
+        create: async (input) => this.createManagedDmlFieldRule(input),
+        update: async (id, input) => this.updateManagedDmlFieldRule(id, input),
+        disable: async (id, rowVersion) => {
+          const current = this.required(this.managedDmlFieldRules.get(id), 'Managed DML field rule');
+          return this.updateManagedDmlFieldRule(id, { ...current, enabled: false, rowVersion });
+        },
+        delete: async (id, rowVersion) => {
+          const current = this.required(this.managedDmlFieldRules.get(id), 'Managed DML field rule');
+          this.assertVersion(current.rowVersion, rowVersion);
+          this.managedDmlFieldRules.delete(id);
+        },
+      },
       diagnostic: {
         get: async () => this.diagnostic,
         upsert: async (input) => this.upsertDiagnostic(input),
@@ -229,6 +258,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       credentials: new Map(this.credentials),
       tools: new Map(this.tools),
       dmlPolicies: new Map(this.dmlPolicies),
+      managedDmlFieldRules: new Map(this.managedDmlFieldRules),
       diagnostic: this.diagnostic,
       settings: new Map(this.settings),
       audits: [...this.audits],
@@ -242,6 +272,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       this.credentials = snapshot.credentials;
       this.tools = snapshot.tools;
       this.dmlPolicies = snapshot.dmlPolicies;
+      this.managedDmlFieldRules = snapshot.managedDmlFieldRules;
       this.diagnostic = snapshot.diagnostic;
       this.settings = snapshot.settings;
       this.audits = snapshot.audits;
@@ -294,6 +325,32 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
     this.assertVersion(current.rowVersion, input.rowVersion);
     const updated = Object.freeze({ ...current, ...input, rowVersion: incrementVersion(current.rowVersion), updatedAt: TEST_TIME });
     this.dmlPolicies.set(id, updated);
+    return updated;
+  }
+
+  private async createManagedDmlFieldRule(input: ManagedDmlFieldRuleCreateInput): Promise<ManagedDmlFieldRuleRecord> {
+    if ([...this.managedDmlFieldRules.values()].some((record) => record.dmlPolicyId === input.dmlPolicyId
+      && record.targetFieldApiName.toLocaleLowerCase('en-US') === input.targetFieldApiName.toLocaleLowerCase('en-US'))) {
+      throw conflict();
+    }
+    const record = Object.freeze({ ...input, id: this.entityId(), rowVersion: '1', createdAt: TEST_TIME, updatedAt: TEST_TIME });
+    this.managedDmlFieldRules.set(record.id, record);
+    return record;
+  }
+
+  private async updateManagedDmlFieldRule(
+    id: string,
+    input: ManagedDmlFieldRuleUpdateInput,
+  ): Promise<ManagedDmlFieldRuleRecord> {
+    const current = this.required(this.managedDmlFieldRules.get(id), 'Managed DML field rule');
+    this.assertVersion(current.rowVersion, input.rowVersion);
+    if ([...this.managedDmlFieldRules.values()].some((record) => record.id !== id
+      && record.dmlPolicyId === current.dmlPolicyId
+      && record.targetFieldApiName.toLocaleLowerCase('en-US') === input.targetFieldApiName.toLocaleLowerCase('en-US'))) {
+      throw conflict();
+    }
+    const updated = Object.freeze({ ...current, ...input, rowVersion: incrementVersion(current.rowVersion), updatedAt: TEST_TIME });
+    this.managedDmlFieldRules.set(id, updated);
     return updated;
   }
 

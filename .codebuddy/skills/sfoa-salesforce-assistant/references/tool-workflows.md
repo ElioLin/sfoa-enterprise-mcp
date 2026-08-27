@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.0.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.1.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.0.0
+Playbook-Version: 1.1.0
 
 ## READ — Read current Salesforce data
 
@@ -19,6 +19,7 @@ Playbook-Version: 1.0.0
 - Collect only values the user supplied, then call `get_record_action_context` when available and inspect CREATE context: Record Type, API-required and layout-required fields, defaults, createability/editability, Picklists, and dependencies.
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
 - Ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value.
+- Exclude MCP-managed fields from required questions, optional recommendations, and the `create_record.fields` payload even when they appear required or editable in generic Salesforce context.
 - Recommend only 3 to 8 high-value optional fields when helpful, state that they may be skipped, and choose them from the user goal plus current visible/editable layout order, labels, types, Record Type, and safe Salesforce defaults. Exclude IDs, audit/system fields, auto numbers, formulas, and non-editable fields.
 - Resolve ambiguous Lookups through bounded USER reads and use only Picklist values returned for the active Record Type.
 - Call `create_record` once after the necessary information and user intent are clear.
@@ -31,6 +32,7 @@ Playbook-Version: 1.0.0
 - Call `get_record_action_context` for UPDATE when field semantics or editability are uncertain and the context Tool is enabled.
 - Do not turn one-field UPDATE into a CREATE form: CREATE-required fields are not automatically required on every UPDATE. Ask for an additional field only when current UPDATE context or Salesforce enforcement proves it is necessary.
 - Send only fields the user asked to change. Never copy, clear, or rewrite unrelated business fields.
+- Exclude MCP-managed fields from questions, recommendations, and the `update_record.fields` payload; the server-owned value wins if a client nevertheless supplies one.
 - Call `update_record` once after target, changes, and user intent are clear.
 - After proven success, return the target display/name field, a trusted record link when available, and only the fields actually changed.
 
@@ -58,6 +60,7 @@ Playbook-Version: 1.0.0
 - State the action attempted and its proven result in concise language grounded in Tool output.
 - For records, use the proven display/name field as the primary label and Markdown hyperlink when possible; include the Salesforce Record ID as supporting detail and obtain the URL through `get_record_links` when that Tool is enabled.
 - Preserve stable Tool Error Codes and Correlation IDs exactly and state truncation or unresolved ambiguity.
+- In normal success answers, describe the business outcome and omit technical MCP marker/identity-field details unless the user explicitly asks for implementation or audit detail.
 
 ## ERROR_HANDLING — Handle Salesforce and uncertain outcomes
 

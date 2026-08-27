@@ -250,6 +250,7 @@ class MutableSnapshotSource implements RuntimePolicySnapshotSource {
       identityRoute: this.routes.get(platformUserId) ?? null,
       enabledTools: this.tools,
       dmlPolicies: this.dmlPolicies,
+      managedDmlFieldRules: Object.freeze([]),
       diagnostic: this.diagnostic,
       runtimeSettings: Object.freeze({}),
     });

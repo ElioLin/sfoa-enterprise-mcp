@@ -6,6 +6,8 @@ import type {
   DmlPolicyRecord,
   IdentityCredentialRecord,
   IdentityRouteRecord,
+  ManagedDmlFieldRuleRecord,
+  ManagedDmlFieldStrategy,
   Page,
   RuntimeSettingKey,
   RuntimeSettingRecord,
@@ -93,6 +95,30 @@ export interface DmlPolicyRepository {
   disable(id: string, rowVersion: string): Promise<DmlPolicyRecord>;
 }
 
+export type ManagedDmlFieldRuleCreateInput = Readonly<{
+  dmlPolicyId: string;
+  targetFieldApiName: string;
+  strategy: ManagedDmlFieldStrategy;
+  applyOnCreate: boolean;
+  applyOnUpdate: boolean;
+  lookupObjectApiName: string | null;
+  lookupMatchFieldApiName: string | null;
+  enabled: boolean;
+  remark: string | null;
+}>;
+export type ManagedDmlFieldRuleUpdateInput = Omit<ManagedDmlFieldRuleCreateInput, 'dmlPolicyId'>
+  & Readonly<{ rowVersion: string }>;
+
+export interface ManagedDmlFieldRuleRepository {
+  listByDmlPolicyId(dmlPolicyId: string, options: ListOptions): Promise<Page<ManagedDmlFieldRuleRecord>>;
+  getById(id: string): Promise<ManagedDmlFieldRuleRecord | undefined>;
+  listEnabledByDmlPolicyIds(dmlPolicyIds: readonly string[]): Promise<readonly ManagedDmlFieldRuleRecord[]>;
+  create(input: ManagedDmlFieldRuleCreateInput): Promise<ManagedDmlFieldRuleRecord>;
+  update(id: string, input: ManagedDmlFieldRuleUpdateInput): Promise<ManagedDmlFieldRuleRecord>;
+  disable(id: string, rowVersion: string): Promise<ManagedDmlFieldRuleRecord>;
+  delete(id: string, rowVersion: string): Promise<void>;
+}
+
 export type DiagnosticConfigWriteInput = Readonly<{
   salesforceUsername: string;
   enabled: boolean;
@@ -166,6 +192,7 @@ export type ControlPlaneRepositories = Readonly<{
   identityCredentials: IdentityCredentialRepository;
   tools: ToolControlRepository;
   dmlPolicies: DmlPolicyRepository;
+  managedDmlFieldRules: ManagedDmlFieldRuleRepository;
   diagnostic: DiagnosticConfigRepository;
   runtimeSettings: RuntimeSettingRepository;
   audits: AuditRepository;

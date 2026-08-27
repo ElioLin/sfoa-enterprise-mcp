@@ -149,6 +149,10 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
   sfoa_dml_policy: Object.freeze([
     'id', 'object_api_name', 'allow_create', 'allow_update', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
+  sfoa_dml_managed_field_rule: Object.freeze([
+    'id', 'dml_policy_id', 'target_field_api_name', 'strategy', 'apply_on_create', 'apply_on_update',
+    'lookup_object_api_name', 'lookup_match_field_api_name', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
+  ]),
   sfoa_diagnostic_config: Object.freeze([
     'id', 'salesforce_username', 'enabled', 'verification_status', 'last_verified_at', 'last_error_code',
     'last_error_message_safe', 'test_metadata_type', 'test_metadata_full_name', 'row_version', 'created_at', 'updated_at',
@@ -171,6 +175,12 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   idx_sfoa_tool_enabled: Object.freeze({ tableName: 'sfoa_tool_control', columns: Object.freeze(['enabled', 'tool_name']), unique: false }),
   uq_sfoa_dml_policy_object: Object.freeze({ tableName: 'sfoa_dml_policy', columns: Object.freeze(['object_api_name']), unique: true }),
   idx_sfoa_dml_enabled: Object.freeze({ tableName: 'sfoa_dml_policy', columns: Object.freeze(['enabled', 'object_api_name']), unique: false }),
+  uq_sfoa_dml_managed_field_policy_target: Object.freeze({
+    tableName: 'sfoa_dml_managed_field_rule', columns: Object.freeze(['dml_policy_id', 'target_field_api_name']), unique: true,
+  }),
+  idx_sfoa_dml_managed_field_policy_enabled: Object.freeze({
+    tableName: 'sfoa_dml_managed_field_rule', columns: Object.freeze(['dml_policy_id', 'enabled', 'id']), unique: false,
+  }),
   idx_sfoa_audit_occurred_at: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['occurred_at', 'id']), unique: false }),
   idx_sfoa_audit_correlation: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['correlation_id']), unique: false }),
   idx_sfoa_audit_platform_user: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['platform_user_id', 'occurred_at']), unique: false }),

@@ -69,3 +69,4 @@ tmp
 *.pem
 secrets/
 .workbuddy/*
+projects

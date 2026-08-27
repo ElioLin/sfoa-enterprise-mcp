@@ -40,6 +40,7 @@ import {
   OfficialMetadataComponentContextExecutor,
 } from './diagnostic-context-adapters.js';
 import { DmlToolFacade } from './dml-tool-facade.js';
+import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { DmlToolGovernancePolicy } from './dml-tool-governance.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
 import { ToolGovernancePolicy } from './tool-governance.js';
@@ -72,6 +73,8 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   mutationRequestState: MutationRequestState;
   initializedProvider: InitializedProviderRuntime;
   diagnosticReady: boolean;
+  managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
+  lightningBaseUrl?: string;
 }>;
 
 export class MutationRequestState implements MutationExecutionObserver {
@@ -159,6 +162,7 @@ export async function createGovernedMcpServer(
     options.initializedProvider.enabledTools,
     options.initializedProvider.dmlAllowlist,
     options.diagnosticReady,
+    options.managedDmlFieldRules ?? [],
   );
   const server = new McpServer(
     { name: 'sfoa-mcp-server', version: '0.1.0-p6-agent' },
@@ -199,6 +203,7 @@ export async function createGovernedMcpServer(
       capabilities: agentCapabilities,
       enabledTools: options.initializedProvider.enabledTools,
       redactionSecrets: options.redactionSecrets,
+      lightningBaseUrl: options.lightningBaseUrl,
     })];
     const adapter = new RequestScopedToolExecutionAdapter(
       options.scope.context,
@@ -277,6 +282,12 @@ export async function createGovernedMcpServer(
           toolTimeoutMs: options.toolTimeoutMs,
           logger: options.logger,
           clientId: options.clientId,
+          managedFieldResolver: new ManagedDmlFieldResolver(
+            options.scope.connection,
+            options.scope.context,
+            options.managedDmlFieldRules ?? [],
+          ),
+          redactionSecrets: options.redactionSecrets,
           mutationStarted: () => options.mutationRequestState.hasStarted(),
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
@@ -292,6 +303,7 @@ export async function createGovernedMcpServer(
           logger: options.logger,
           clientId: options.clientId,
           redactionSecrets: options.redactionSecrets,
+          managedDmlFieldRules: options.managedDmlFieldRules ?? [],
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
         registered.push(name);

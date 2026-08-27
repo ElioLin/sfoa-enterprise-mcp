@@ -5,6 +5,7 @@ export * from './context-tool-facade.js';
 export * from './diagnostic-context-adapters.js';
 export * from './diagnostic-verification.js';
 export * from './dml-tool-facade.js';
+export * from './dml-managed-fields.js';
 export * from './dml-tool-governance.js';
 export * from './errors.js';
 export * from './http-server.js';

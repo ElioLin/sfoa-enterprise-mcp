@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import {
+  fieldApiNameSchema,
   normalizeSalesforceUsername,
+  objectApiNameSchema,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
+  type ManagedDmlFieldRuleRecord,
   type RuntimeSettingKey,
   type RuntimeSettingRecord,
   type ToolControlRecord,
@@ -18,6 +21,8 @@ import type {
   DmlPolicyUpdateInput,
   IdentityRouteCreateInput,
   IdentityRouteUpdateInput,
+  ManagedDmlFieldRuleCreateInput,
+  ManagedDmlFieldRuleUpdateInput,
   ToolControlWriteInput,
 } from './repositories.js';
 import type { TransactionalControlPlaneStore } from './store.js';
@@ -233,6 +238,10 @@ export class ControlPlaneAdminService {
   public async updateDmlPolicy(id: string, input: DmlPolicyUpdateInput, actorAdmin: string): Promise<DmlPolicyRecord> {
     assertMeaningfulDml(input);
     return this.store.transaction(async (repositories) => {
+      if (input.enabled) {
+        const enabledRules = await repositories.managedDmlFieldRules.listEnabledByDmlPolicyIds([id]);
+        for (const rule of enabledRules) assertManagedRuleOperations(input, rule);
+      }
       const updated = await repositories.dmlPolicies.update(id, input);
       await appendAdminAudit(repositories, actorAdmin, 'UPDATE_DML_POLICY', id, safeDmlSummary(updated));
       return updated;
@@ -244,6 +253,112 @@ export class ControlPlaneAdminService {
       const updated = await repositories.dmlPolicies.disable(id, rowVersion);
       await appendAdminAudit(repositories, actorAdmin, 'DISABLE_DML_POLICY', id, safeDmlSummary(updated));
       return updated;
+    });
+  }
+
+  public async createManagedDmlFieldRule(
+    dmlPolicyId: string,
+    input: Omit<ManagedDmlFieldRuleCreateInput, 'dmlPolicyId'>,
+    actorAdmin: string,
+  ): Promise<ManagedDmlFieldRuleRecord> {
+    return this.store.transaction(async (repositories) => {
+        const policy = await repositories.dmlPolicies.getById(dmlPolicyId);
+        if (!policy) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'DML policy was not found.');
+        assertManagedDmlFieldRule(input);
+        assertManagedRuleOperations(policy, input);
+        await assertManagedTargetIsUnique(repositories, dmlPolicyId, input.targetFieldApiName);
+        const created = await repositories.managedDmlFieldRules.create({ ...input, dmlPolicyId });
+      await appendAdminAudit(
+        repositories,
+        actorAdmin,
+        'CREATE_DML_MANAGED_FIELD_RULE',
+        created.id,
+        safeManagedDmlFieldSummary(created, policy.objectApiName),
+      );
+      return created;
+    });
+  }
+
+  public async updateManagedDmlFieldRule(
+    dmlPolicyId: string,
+    id: string,
+    input: ManagedDmlFieldRuleUpdateInput,
+    actorAdmin: string,
+  ): Promise<ManagedDmlFieldRuleRecord> {
+    return this.store.transaction(async (repositories) => {
+      const [policy, current] = await Promise.all([
+        repositories.dmlPolicies.getById(dmlPolicyId),
+        repositories.managedDmlFieldRules.getById(id),
+      ]);
+      if (!policy || !current || current.dmlPolicyId !== dmlPolicyId) {
+        throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Managed DML field rule was not found for this policy.');
+        }
+        assertManagedDmlFieldRule(input);
+        assertManagedRuleOperations(policy, input);
+        await assertManagedTargetIsUnique(repositories, dmlPolicyId, input.targetFieldApiName, id);
+        const updated = await repositories.managedDmlFieldRules.update(id, input);
+      await appendAdminAudit(
+        repositories,
+        actorAdmin,
+        'UPDATE_DML_MANAGED_FIELD_RULE',
+        id,
+        safeManagedDmlFieldSummary(updated, policy.objectApiName),
+      );
+      return updated;
+    });
+  }
+
+  public async disableManagedDmlFieldRule(
+    dmlPolicyId: string,
+    id: string,
+    rowVersion: string,
+    actorAdmin: string,
+  ): Promise<ManagedDmlFieldRuleRecord> {
+    return this.store.transaction(async (repositories) => {
+      const [policy, current] = await Promise.all([
+        repositories.dmlPolicies.getById(dmlPolicyId),
+        repositories.managedDmlFieldRules.getById(id),
+      ]);
+      if (!policy || !current || current.dmlPolicyId !== dmlPolicyId) {
+        throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Managed DML field rule was not found for this policy.');
+      }
+      const updated = await repositories.managedDmlFieldRules.disable(id, rowVersion);
+      await appendAdminAudit(
+        repositories,
+        actorAdmin,
+        'DISABLE_DML_MANAGED_FIELD_RULE',
+        id,
+        safeManagedDmlFieldSummary(updated, policy.objectApiName),
+      );
+      return updated;
+    });
+  }
+
+  public async deleteManagedDmlFieldRule(
+    dmlPolicyId: string,
+    id: string,
+    rowVersion: string,
+    actorAdmin: string,
+  ): Promise<void> {
+    await this.store.transaction(async (repositories) => {
+      const [policy, current] = await Promise.all([
+        repositories.dmlPolicies.getById(dmlPolicyId),
+        repositories.managedDmlFieldRules.getById(id),
+      ]);
+      if (!policy || !current || current.dmlPolicyId !== dmlPolicyId) {
+        throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Managed DML field rule was not found for this policy.');
+      }
+      if (current.enabled) {
+        throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Disable the managed field rule before permanent deletion.');
+      }
+      await repositories.managedDmlFieldRules.delete(id, rowVersion);
+      await appendAdminAudit(
+        repositories,
+        actorAdmin,
+        'DELETE_DML_MANAGED_FIELD_RULE',
+        id,
+        safeManagedDmlFieldSummary(current, policy.objectApiName),
+      );
     });
   }
 
@@ -381,6 +496,73 @@ function safeDmlSummary(record: DmlPolicyRecord): unknown {
     objectApiName: record.objectApiName,
     allowCreate: record.allowCreate,
     allowUpdate: record.allowUpdate,
+    enabled: record.enabled,
+    rowVersion: record.rowVersion,
+  };
+}
+
+function assertManagedDmlFieldRule(
+  input: Pick<ManagedDmlFieldRuleCreateInput,
+    | 'targetFieldApiName'
+    | 'strategy'
+    | 'applyOnCreate'
+    | 'applyOnUpdate'
+    | 'lookupObjectApiName'
+    | 'lookupMatchFieldApiName'>,
+): void {
+  if (!fieldApiNameSchema.safeParse(input.targetFieldApiName).success) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Managed target field API name is invalid.');
+  }
+  if (!input.applyOnCreate && !input.applyOnUpdate) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'A managed field rule must apply on CREATE, UPDATE, or both.');
+  }
+  if (input.strategy === 'PLATFORM_USER_LOOKUP') {
+    if (!input.lookupObjectApiName || !objectApiNameSchema.safeParse(input.lookupObjectApiName).success
+      || !input.lookupMatchFieldApiName || !fieldApiNameSchema.safeParse(input.lookupMatchFieldApiName).success) {
+      throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Platform-user lookup rules require valid lookup object and match field API names.');
+    }
+    return;
+  }
+  if (!input.applyOnCreate || input.applyOnUpdate || input.lookupObjectApiName !== null || input.lookupMatchFieldApiName !== null) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'AI-created marker rules apply on CREATE only and do not accept lookup configuration.');
+  }
+}
+
+function assertManagedRuleOperations(
+  policy: Pick<DmlPolicyRecord, 'allowCreate' | 'allowUpdate'>,
+  rule: Pick<ManagedDmlFieldRuleCreateInput, 'applyOnCreate' | 'applyOnUpdate'>,
+): void {
+  if ((rule.applyOnCreate && !policy.allowCreate) || (rule.applyOnUpdate && !policy.allowUpdate)) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Managed field rule operations must be enabled by the parent DML policy.');
+  }
+}
+
+async function assertManagedTargetIsUnique(
+  repositories: ControlPlaneRepositories,
+  dmlPolicyId: string,
+  targetFieldApiName: string,
+  excludedRuleId?: string,
+): Promise<void> {
+  const normalizedTarget = targetFieldApiName.toLocaleLowerCase('en-US');
+  let offset = 0;
+  do {
+    const page = await repositories.managedDmlFieldRules.listByDmlPolicyId(dmlPolicyId, { limit: 100, offset });
+    if (page.items.some((rule) => rule.id !== excludedRuleId
+      && rule.targetFieldApiName.toLocaleLowerCase('en-US') === normalizedTarget)) {
+      throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFLICT', '该字段已配置 MCP 托管规则。');
+    }
+    if (!page.hasMore || page.nextOffset === null) return;
+    offset = page.nextOffset;
+  } while (true);
+}
+
+function safeManagedDmlFieldSummary(record: ManagedDmlFieldRuleRecord, objectApiName: string): unknown {
+  return {
+    objectApiName,
+    targetFieldApiName: record.targetFieldApiName,
+    strategy: record.strategy,
+    applyOnCreate: record.applyOnCreate,
+    applyOnUpdate: record.applyOnUpdate,
     enabled: record.enabled,
     rowVersion: record.rowVersion,
   };

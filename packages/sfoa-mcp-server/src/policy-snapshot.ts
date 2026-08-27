@@ -5,6 +5,8 @@ import {
 } from '@sfoa/control-plane';
 import { parseDmlAllowlistJson, type DmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { createSalesforceIdentityRoute, type SalesforceIdentityRoute } from '@sfoa/identity-runtime';
+import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
+import { RemoteRuntimeError } from './errors.js';
 
 export interface RuntimePolicySnapshotSource {
   load(platformUserId: string): Promise<RequestPolicySnapshot>;
@@ -56,4 +58,18 @@ export function snapshotDmlAllowlist(snapshot: RequestPolicySnapshot): DmlAllowl
     ],
   })).filter((entry) => entry.operations.length > 0);
   return parseDmlAllowlistJson(JSON.stringify(entries));
+}
+
+export function snapshotManagedDmlFieldRules(snapshot: RequestPolicySnapshot): readonly RuntimeManagedDmlFieldRule[] {
+  const objectsByPolicyId = new Map(snapshot.dmlPolicies.map((policy) => [policy.id, policy.objectApiName]));
+  return Object.freeze(snapshot.managedDmlFieldRules.map((rule) => {
+    const objectApiName = objectsByPolicyId.get(rule.dmlPolicyId);
+    if (!objectApiName) {
+      throw new RemoteRuntimeError(
+        'MCP_DML_MANAGED_FIELD_CONFIG_INVALID',
+        `Managed DML field rule ${rule.id} is detached from its request policy snapshot.`,
+      );
+    }
+    return Object.freeze({ ...rule, objectApiName });
+  }));
 }

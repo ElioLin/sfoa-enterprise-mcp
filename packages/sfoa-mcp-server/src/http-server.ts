@@ -53,6 +53,7 @@ import {
 import {
   snapshotDiagnosticRoute,
   snapshotDmlAllowlist,
+  snapshotManagedDmlFieldRules,
   snapshotUserRoute,
   type RuntimePolicySnapshotSource,
 } from './policy-snapshot.js';
@@ -437,6 +438,7 @@ async function executeMcpPost(
 
   let initializedProvider = options.initializedProvider;
   let diagnosticReady = false;
+  let managedDmlFieldRules: ReturnType<typeof snapshotManagedDmlFieldRules> = Object.freeze([]);
   let scope: RequestScope;
   if (options.policySnapshotSource) {
     const snapshot = await options.policySnapshotSource.load(identity.platformUserId);
@@ -454,6 +456,7 @@ async function executeMcpPost(
       snapshot.enabledTools,
       snapshotDmlAllowlist(snapshot),
     );
+    managedDmlFieldRules = snapshotManagedDmlFieldRules(snapshot);
     diagnosticReady = snapshot.diagnostic?.enabled === true
       && snapshot.diagnostic.verificationStatus === 'PASS'
       && snapshot.enabledTools.includes('run_diagnostic_tooling_query')
@@ -501,6 +504,8 @@ async function executeMcpPost(
     mutationRequestState,
     initializedProvider,
     diagnosticReady,
+    managedDmlFieldRules,
+    lightningBaseUrl: options.config.lightningBaseUrl,
   });
   await resources.attachMcpServer(created.server);
   resources.assertAvailable(signal);

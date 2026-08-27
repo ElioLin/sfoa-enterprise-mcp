@@ -14,6 +14,7 @@ import type { RequestScope, RuntimeLogger } from '@sfoa/identity-runtime';
 import type { DmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
+import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 
 export const AGENT_PLAYBOOK_RESOURCE_URI = 'sfoa://agent-playbook/current';
 export const AGENT_CAPABILITIES_RESOURCE_URI = 'sfoa://agent-capabilities/current';
@@ -42,12 +43,14 @@ export type RegisterAgentGuidanceOptions = Readonly<{
   capabilities: AgentCapabilities;
   enabledTools: readonly string[];
   redactionSecrets?: readonly string[];
+  lightningBaseUrl?: string;
 }>;
 
 export function createRuntimeAgentCapabilities(
   enabledTools: readonly string[],
   dmlAllowlist: DmlAllowlistPolicy,
   diagnosticReady: boolean,
+  managedDmlFieldRules: readonly RuntimeManagedDmlFieldRule[] = [],
 ): AgentCapabilities {
   const rules = dmlAllowlist.getRules();
   return createAgentCapabilities({
@@ -60,6 +63,16 @@ export function createRuntimeAgentCapabilities(
       .map((rule) => rule.objectApiName),
     diagnosticReady,
     dynamicFormEvidence: 'NOT_AVAILABLE',
+    managedDmlFields: managedDmlFieldRules.filter((rule) => rule.enabled).map((rule) => ({
+      objectApiName: rule.objectApiName,
+      fieldApiName: rule.targetFieldApiName,
+      operations: [
+        ...(rule.applyOnCreate ? ['CREATE' as const] : []),
+        ...(rule.applyOnUpdate ? ['UPDATE' as const] : []),
+      ],
+      managedBy: 'MCP' as const,
+      strategy: rule.strategy === 'PLATFORM_USER_LOOKUP' ? 'PLATFORM_IDENTITY' as const : 'AI_CREATED_MARKER' as const,
+    })),
   });
 }
 
@@ -81,25 +94,25 @@ export function registerAgentGuidance(
   return Object.freeze(registered);
 }
 
-export function trustedSalesforceOrigin(instanceUrl: string | undefined): string {
-  if (!instanceUrl?.trim()) {
+export function trustedLightningOrigin(lightningBaseUrl: string | undefined): string {
+  if (!lightningBaseUrl?.trim()) {
     throw new RemoteRuntimeError(
-      'MCP_TRUSTED_INSTANCE_URL_INVALID',
-      'The request-scoped Salesforce Connection did not provide a trusted instance URL.',
+      'MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED',
+      'Salesforce record links are unavailable because SFOA_LIGHTNING_BASE_URL is not configured.',
     );
   }
   let parsed: URL;
   try {
-    parsed = new URL(instanceUrl);
+    parsed = new URL(lightningBaseUrl);
   } catch (error) {
     throw new RemoteRuntimeError(
-      'MCP_TRUSTED_INSTANCE_URL_INVALID',
-      'The request-scoped Salesforce Connection provided an invalid instance URL.',
+      'MCP_RUNTIME_CONFIGURATION_INVALID',
+      'SFOA_LIGHTNING_BASE_URL is invalid.',
       { cause: error },
     );
   }
   if (
-    (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
+    parsed.protocol !== 'https:'
     || parsed.username.length > 0
     || parsed.password.length > 0
     || parsed.hostname.length === 0
@@ -108,12 +121,15 @@ export function trustedSalesforceOrigin(instanceUrl: string | undefined): string
     || parsed.hash.length > 0
   ) {
     throw new RemoteRuntimeError(
-      'MCP_TRUSTED_INSTANCE_URL_INVALID',
-      'The request-scoped Salesforce instance URL must be a credential-free HTTP(S) origin root.',
+      'MCP_RUNTIME_CONFIGURATION_INVALID',
+      'SFOA_LIGHTNING_BASE_URL must be a credential-free HTTPS origin root.',
     );
   }
   return parsed.origin;
 }
+
+/** @deprecated Use trustedLightningOrigin with SFOA_LIGHTNING_BASE_URL. */
+export const trustedSalesforceOrigin = trustedLightningOrigin;
 
 function registerResources(server: McpServer, capabilities: AgentCapabilities): void {
   server.registerResource(
@@ -219,7 +235,7 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
     'get_record_links',
     {
       title: 'Get trusted Salesforce record links',
-      description: 'Build Lightning record links from validated record descriptors and the current request Connection trusted instance origin. Performs no Salesforce API call.',
+      description: 'Build Lightning record links from validated record descriptors and the configured trusted Lightning origin. Performs no Salesforce API call.',
       inputSchema: {
         records: z.array(recordDescriptorSchema).min(1).max(50).describe('One to 50 Salesforce record descriptors.'),
       },
@@ -245,7 +261,7 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
     async ({ records }): Promise<CallToolResult> => {
       const started = performance.now();
       try {
-        const origin = trustedSalesforceOrigin(options.scope.connection.instanceUrl);
+        const origin = trustedLightningOrigin(options.lightningBaseUrl);
         const linked = records.map((record) => ({
           objectApiName: record.objectApiName,
           recordId: record.recordId,
@@ -273,8 +289,8 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
         const runtimeError = error instanceof RemoteRuntimeError
           ? error
           : new RemoteRuntimeError(
-              'MCP_TRUSTED_INSTANCE_URL_INVALID',
-              'The trusted Salesforce record origin could not be resolved.',
+              'MCP_RUNTIME_CONFIGURATION_INVALID',
+              'The configured Salesforce Lightning record origin could not be resolved.',
               { cause: error },
             );
         await logTool(options, 'get_record_links', started, 'ERROR', {
