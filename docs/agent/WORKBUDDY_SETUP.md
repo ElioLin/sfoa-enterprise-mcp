@@ -22,7 +22,7 @@ The bearer is bound to the route rather than a Salesforce username. Route remapp
 4. Confirm `get_agent_playbook` and `get_record_links` in `tools/list` before relying on their fallback/link behavior.
 5. Run a read-only Test Run before an allowed CREATE/UPDATE scenario.
 
-The prompt and Skill are generated from Playbook `1.0.0`. Do not edit generated files manually; update the canonical TypeScript definition and run:
+The prompt and Skill are generated from Playbook `1.1.0`. Do not edit generated files manually; update the canonical TypeScript definition and run:
 
 ```powershell
 yarn agent:sync

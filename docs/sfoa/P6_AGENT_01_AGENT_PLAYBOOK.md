@@ -3,7 +3,7 @@
 - Status: PASS / COMPLETE — awaiting Maintainer review
 - Date: 2026-08-26
 - Branch: `feature/p6-agent-playbook`
-- Playbook version: `1.0.0`
+- Playbook version: `1.1.0` (extended by P6-DML-01)
 
 ## Delivered components
 
@@ -27,7 +27,7 @@ Unknown Tool names and invalid object API names are filtered before rendering. C
 
 ### MCP protocol surfaces
 
-Every request-scoped MCP Server is constructed with Playbook `1.0.0` Instructions and registers:
+Every request-scoped MCP Server is constructed with Playbook `1.1.0` Instructions and registers:
 
 | Surface | Identifier | Availability |
 | --- | --- | --- |
@@ -37,19 +37,19 @@ Every request-scoped MCP Server is constructed with Playbook `1.0.0` Instruction
 | Playbook Tool fallback | `get_agent_playbook` | enabled Tool policy only |
 | Trusted record links | `get_record_links` | enabled Tool policy only |
 
-The capability Resource contains only `playbookVersion`, recognized `enabledTools`, effective CREATE/UPDATE object names, `diagnosticReady`, and `dynamicFormEvidence`. It contains no platform user, Salesforce username, route, instance host, Diagnostic username, database detail, credential, or secret. Each HTTP POST builds a fresh server and captures one immutable fact object, preserving the existing request-isolation boundary.
+The capability Resource contains only `playbookVersion`, recognized `enabledTools`, effective CREATE/UPDATE object names, safe managed-field descriptors, `diagnosticReady`, and `dynamicFormEvidence`. Managed descriptors contain object/target/strategy/operation scope but no value or Lookup result. The Resource contains no platform user, Salesforce username, route, instance host, Diagnostic username, database detail, credential, or secret. Each HTTP POST builds a fresh server and captures one immutable fact object, preserving the existing request-isolation boundary.
 
 Both Tools are SFoA-owned, USER-role, READ-classified, GA, remote-compatible, bounded, annotated read-only/non-destructive/idempotent/closed-world, and visible in Admin governance. Environment mode defaults them on; MySQL mode continues to use the next-request database enabled state.
 
 ### Trusted record links
 
-`get_record_links` accepts one to 50 strict `{ objectApiName, recordId, displayName? }` descriptors. It validates object API names and 15/18-character Salesforce IDs, obtains `Connection.instanceUrl` from the current request scope, and requires a credential-free HTTP(S) origin root. It returns:
+`get_record_links` accepts one to 50 strict `{ objectApiName, recordId, displayName? }` descriptors. It validates object API names and 15/18-character Salesforce IDs and uses only configured `SFOA_LIGHTNING_BASE_URL`, which must be a credential-free HTTPS origin root. It returns:
 
 ```text
 <trusted-origin>/lightning/r/<encoded-object>/<encoded-id>/view
 ```
 
-No input field accepts a host/origin/base URL. The Tool makes no Salesforce or external API call. Invalid or missing trusted origins return Tool-level `MCP_TRUSTED_INSTANCE_URL_INVALID`; schema-invalid record input is rejected by MCP argument validation.
+No input field accepts a host/origin/base URL. The Tool makes no Salesforce or external API call and never falls back to `Connection.instanceUrl` or a guessed domain. Missing trusted origin returns Tool-level `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; invalid configured origins fail closed during configuration validation; schema-invalid record input is rejected by MCP argument validation.
 
 ### Deterministic artifacts
 
@@ -78,7 +78,7 @@ Dify and WorkBuddy no longer receive the stale shared token plus platform Header
 ## Architecture and single source of truth
 
 ```text
-AgentPlaybookDefinition 1.0.0 (pure TypeScript)
+AgentPlaybookDefinition 1.1.0 (pure TypeScript)
                   +
 request-scoped safe capability facts
                   |

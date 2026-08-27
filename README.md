@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP
 
-This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity acquisition and a canonical MCP-native Salesforce Agent Playbook while leaving official Salesforce Tool implementations unchanged.
+This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity acquisition, canonical MCP-native Salesforce Agent Playbook `1.1.0`, two tightly bounded trusted managed-field strategies, and explicit trusted Lightning record links while leaving official Salesforce Tool implementations unchanged.
 
-Current project result: `P0–P5 = FINAL ACCEPTED`; `P6-ENTRY OPT01`, `P6-ID-01`, and `P6-ID-02` are complete; `P6-Agent-01` is implemented on `feature/p6-agent-playbook` and awaiting final Maintainer review. P6 Real-Agent Evaluation remains a separate later Gate.
+Current project result: `P0–P5 = FINAL ACCEPTED`; `P6-ENTRY OPT01`, `P6-ID-01`, and `P6-ID-02` are complete; `P6-Agent-01` and `P6-DML-01` are implemented on `feature/p6-agent-playbook` and await final Maintainer review. Live P6-DML Salesforce evidence and P6 Real-Agent Evaluation remain Maintainer-run later Gates.
 
 Project documentation:
 
@@ -13,6 +13,8 @@ Project documentation:
 - [P6 Agent Playbook design](docs/sfoa/P6_AGENT_01_DESIGN.md)
 - [P6 Agent Playbook architecture and implementation](docs/sfoa/P6_AGENT_01_AGENT_PLAYBOOK.md)
 - [P6 Agent Playbook final report](docs/sfoa/P6_AGENT_01_REPORT.md)
+- [P6 trusted managed fields and record links](docs/sfoa/P6_DML_01_MANAGED_FIELDS.md)
+- [P6-DML-01 final report](docs/sfoa/P6_DML_01_REPORT.md)
 - [Dify setup](docs/agent/DIFY_SETUP.md)
 - [WorkBuddy setup](docs/agent/WORKBUDDY_SETUP.md)
 - [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)

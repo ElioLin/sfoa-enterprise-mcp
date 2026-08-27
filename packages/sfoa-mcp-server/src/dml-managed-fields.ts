@@ -38,20 +38,25 @@ export class ManagedDmlFieldResolver {
     if (typeof input.objectApiName !== 'string' || !isRecord(input.fields)) {
       return Object.freeze({ input, applied: Object.freeze([]) });
     }
-    const applicable = this.rules.filter((rule) => rule.enabled
-      && rule.objectApiName === input.objectApiName
-      && (operation === 'CREATE' ? rule.applyOnCreate : rule.applyOnUpdate));
+    const normalizedObject = input.objectApiName.toLocaleLowerCase('en-US');
+    const candidates = this.rules.filter((rule) => rule.enabled
+      && rule.objectApiName.toLocaleLowerCase('en-US') === normalizedObject);
+    for (const rule of candidates) assertValidRule(rule);
+    const applicable = candidates.filter((rule) =>
+      operation === 'CREATE' ? rule.applyOnCreate : rule.applyOnUpdate);
     if (applicable.length === 0) return Object.freeze({ input, applied: Object.freeze([]) });
 
     const fields: Record<string, unknown> = { ...input.fields };
     const applied: AppliedManagedDmlField[] = [];
     const targets = new Set<string>();
     for (const rule of applicable) {
-      assertValidRule(rule);
       const normalizedTarget = rule.targetFieldApiName.toLocaleLowerCase('en-US');
       if (targets.has(normalizedTarget)) throw invalidConfig('Managed field rules contain a duplicate target field.');
       targets.add(normalizedTarget);
-      const agentValueOverridden = Object.hasOwn(fields, rule.targetFieldApiName);
+      const agentFieldName = Object.keys(fields).find((fieldName) =>
+        fieldName.toLocaleLowerCase('en-US') === normalizedTarget);
+      const agentValueOverridden = agentFieldName !== undefined;
+      if (agentFieldName && agentFieldName !== rule.targetFieldApiName) delete fields[agentFieldName];
       fields[rule.targetFieldApiName] = rule.strategy === 'AI_CREATED_MARKER'
         ? true
         : await this.resolvePlatformUserLookup(rule);

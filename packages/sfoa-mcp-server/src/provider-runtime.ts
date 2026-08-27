@@ -287,6 +287,7 @@ export async function createGovernedMcpServer(
             options.scope.context,
             options.managedDmlFieldRules ?? [],
           ),
+          dmlAllowlist: options.initializedProvider.dmlAllowlist,
           redactionSecrets: options.redactionSecrets,
           mutationStarted: () => options.mutationRequestState.hasStarted(),
         });

@@ -128,9 +128,6 @@ export function trustedLightningOrigin(lightningBaseUrl: string | undefined): st
   return parsed.origin;
 }
 
-/** @deprecated Use trustedLightningOrigin with SFOA_LIGHTNING_BASE_URL. */
-export const trustedSalesforceOrigin = trustedLightningOrigin;
-
 function registerResources(server: McpServer, capabilities: AgentCapabilities): void {
   server.registerResource(
     'sfoa-agent-playbook-current',

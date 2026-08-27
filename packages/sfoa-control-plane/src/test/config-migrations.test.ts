@@ -51,11 +51,16 @@ test('versioned migrations are bounded, recoverable, and contain only P5-owned s
   const directory = defaultMigrationsDirectory();
   const first = await readFile(path.join(directory, '001_p5_control_plane.sql'), 'utf8');
   const second = await readFile(path.join(directory, '002_p5_indexes.sql'), 'utf8');
+  const managedFields = await readFile(path.join(directory, '004_p6_dml_managed_field_rule.sql'), 'utf8');
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_identity_route/u);
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_audit_log/u);
   assert.doesNotMatch(first, /access_token|private_key|jwt_assertion|password/iu);
   assert.doesNotMatch(first, /allow_delete|allow_upsert/iu);
   assert.equal((second.match(/CREATE INDEX/gu) ?? []).length, 10);
+  assert.match(managedFields, /CREATE TABLE IF NOT EXISTS sfoa_dml_managed_field_rule/u);
+  assert.match(managedFields, /UNIQUE \(dml_policy_id, target_field_api_name\)/u);
+  assert.match(managedFields, /ENUM\('PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER'\)/u);
+  assert.doesNotMatch(managedFields, /constant_value|expression|source_expression|MCP_AI_Created__c|Employee_Number__c/iu);
 
   const statements = splitSqlStatements('-- comment\nCREATE TABLE x (id INT);\n\nCREATE INDEX y ON x (id);');
   assert.deepEqual(statements, ['CREATE TABLE x (id INT)', 'CREATE INDEX y ON x (id)']);

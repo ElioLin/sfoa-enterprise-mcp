@@ -151,9 +151,13 @@ describe('Admin governance pages', () => {
 
     await user.click(await screen.findByRole('button', { name: '管理 Lead 的托管字段' }));
     expect(await screen.findByText('值由 MCP 管理')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '停用' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument();
-    await user.click(screen.getAllByRole('button', { name: '添加规则' })[0]!);
+    const enabledRuleRow = screen.getByText('Requested_By__c').closest('tr');
+    const disabledRuleRow = screen.getByText('Created_By_AI__c').closest('tr');
+    expect(enabledRuleRow).not.toBeNull();
+    expect(disabledRuleRow).not.toBeNull();
+    expect(within(enabledRuleRow!).getByRole('button', { name: /停用/ })).toBeInTheDocument();
+    expect(within(disabledRuleRow!).getByRole('button', { name: /删除/ })).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: /添加规则/ })[0]!);
     const target = screen.getByLabelText('目标字段 API 名称');
     await user.type(target, 'requested_by__c');
     fireEvent.blur(target);

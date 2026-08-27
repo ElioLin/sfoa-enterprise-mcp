@@ -685,17 +685,17 @@ This matrix advances only P6-Agent-01. It preserves all historical P0–P5 and P
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Canonical Playbook | PASS | Pure `@sfoa/agent-playbook`; version `1.0.0`; ten required sections and six workflow selectors |
+| Canonical Playbook | PASS | Pure `@sfoa/agent-playbook`; current version `1.1.0`; ten required sections and six workflow selectors |
 | Single source of truth | PASS | MCP, Admin, Dify, WorkBuddy prompt/Skill, and checked-in references use deterministic renderers from the same definition |
 | Playbook unit/drift tests | PASS | 6/6; includes sync success plus an intentional temporary generated-file edit that produces nonzero drift failure |
 | `agent:sync` | PASS | Rewrote exactly five marked Dify/WorkBuddy/Skill artifacts |
 | `agent:check` | PASS | Root script explicitly invokes the workspace `run check` script; five artifacts match exact UTF-8 output |
-| Server Instructions | PASS | SDK Client initialize returns concise Playbook `1.0.0`, identity/context/link/UNKNOWN rules, and full-guidance discovery paths |
+| Server Instructions | PASS | SDK Client initialize returns concise current Playbook `1.1.0`, identity/context/managed-field/link/UNKNOWN rules, and full-guidance discovery paths |
 | Full Playbook Resource | PASS | `resources/list/read` exposes `sfoa://agent-playbook/current` with all workflows and Dynamic Forms limitation |
 | Capability Resource | PASS | `sfoa://agent-capabilities/current` contains only safe request facts; concurrent A/B snapshots prove no Tool/object-policy leakage |
 | MCP Prompt | PASS | `prompts/list/get` exposes `sfoa_salesforce_assistant`; workflow `CREATE` renders only canonical selection; invalid workflow is rejected |
 | Tool-only fallback | PASS | `get_agent_playbook` is discoverable/callable with stable structured output, annotations, bounds flags, and zero Salesforce API calls |
-| Trusted record links | PASS | `get_record_links` validates 1–50 descriptors, uses only request Connection origin, URL-encodes path segments, ignores injected host-shaped extras, rejects invalid origin, and makes zero Salesforce API calls |
+| Trusted record links | PASS | `get_record_links` validates 1–50 descriptors, uses only explicit `SFOA_LIGHTNING_BASE_URL`, URL-encodes path segments, ignores injected host-shaped extras, never falls back to `Connection.instanceUrl`, and makes zero Salesforce API calls |
 | Tool governance | PASS | Both infrastructure Tools are explicit READ/USER/GA/remote-compatible catalog entries; env defaults enable them and MySQL remains next-request DB authoritative |
 | CREATE workflow | PASS | Context-first, evidence-only required fields, reliable defaults, 3–8 skippable recommendations, Picklist/dependency/Lookup resolution, single mutation, name/link result |
 | UPDATE workflow | PASS | Unique target, relevant UPDATE context, CREATE-required distinction, minimum requested fields, single mutation, actual-change/link result |

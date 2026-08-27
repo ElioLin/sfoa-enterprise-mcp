@@ -39,6 +39,7 @@ if (!setup) {
       '001_p5_control_plane',
       '002_p5_indexes',
       '003_p6_identity_credential',
+      '004_p6_dml_managed_field_rule',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
@@ -66,12 +67,27 @@ if (!setup) {
     const dml = await store.repositories.dmlPolicies.create({
       objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null,
     });
+    const managed = await store.repositories.managedDmlFieldRules.create({
+      dmlPolicyId: dml.id,
+      targetFieldApiName: 'Requested_By__c',
+      strategy: 'PLATFORM_USER_LOOKUP',
+      applyOnCreate: true,
+      applyOnUpdate: false,
+      lookupObjectApiName: 'Contact',
+      lookupMatchFieldApiName: 'Platform_User_Id__c',
+      enabled: true,
+      remark: null,
+    });
     const first = await loadMySqlRequestPolicySnapshot(store.database, 'dynamic-user');
     assert.deepEqual(first.enabledTools, ['run_soql_query']);
     assert.equal(first.dmlPolicies[0]?.allowCreate, true);
     assert.equal(first.dmlPolicies[0]?.allowUpdate, false);
+    assert.deepEqual(first.managedDmlFieldRules.map((rule) => rule.id), [managed.id]);
+    assert.equal(Object.isFrozen(first.managedDmlFieldRules), true);
+    assert.equal(Object.isFrozen(first.managedDmlFieldRules[0]), true);
 
     await store.repositories.tools.update(tool.toolName, { enabled: false, remark: null, rowVersion: tool.rowVersion });
+    await store.repositories.managedDmlFieldRules.disable(managed.id, managed.rowVersion);
     await store.repositories.dmlPolicies.update(dml.id, {
       objectApiName: 'Lead', allowCreate: false, allowUpdate: true, enabled: true, remark: null, rowVersion: dml.rowVersion,
     });
@@ -79,6 +95,7 @@ if (!setup) {
     assert.deepEqual(second.enabledTools, []);
     assert.equal(second.dmlPolicies[0]?.allowCreate, false);
     assert.equal(second.dmlPolicies[0]?.allowUpdate, true);
+    assert.deepEqual(second.managedDmlFieldRules, []);
   });
 
   test('Admin transaction persists its audit and optimistic conflicts return the stable code', async () => {
@@ -135,6 +152,7 @@ async function cleanTestData(store: MySqlControlPlaneStore): Promise<void> {
     await transaction.deleteFrom('sfoa_identity_credential').execute();
     await transaction.deleteFrom('sfoa_runtime_setting').execute();
     await transaction.deleteFrom('sfoa_diagnostic_config').execute();
+    await transaction.deleteFrom('sfoa_dml_managed_field_rule').execute();
     await transaction.deleteFrom('sfoa_dml_policy').execute();
     await transaction.deleteFrom('sfoa_tool_control').execute();
     await transaction.deleteFrom('sfoa_identity_route').execute();

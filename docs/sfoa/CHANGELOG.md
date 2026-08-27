@@ -2,6 +2,16 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-27 — P6-DML-01 trusted managed fields and explicit record-link origin completed
+
+- Added one constrained `sfoa_dml_managed_field_rule` child model under the existing object DML policy, with parent-plus-target uniqueness, optimistic locking, durable Admin audit, and only `PLATFORM_USER_LOOKUP` plus CREATE-only `AI_CREATED_MARKER=true`. No business object/field/value seed, generic default engine, `CONSTANT`, metadata sync, or duplicated target object was added.
+- Added request-scoped host resolution after the existing object/operation allowlist and before generic CREATE/UPDATE dispatch. Platform Lookup uses immutable authenticated `platformUserId`, the same USER Connection, exact-one bounded query, no cache, safe audit, case-insensitive server-wins semantics, and four stable fail-closed error codes.
+- Closed the pre-dispatch timeout race: a slow managed Lookup that settles after the Tool deadline cannot dispatch a late mutation. Pre-dispatch failures are `FAILED`; only the existing public-SDK post-dispatch boundary can produce `MCP_DML_OUTCOME_UNKNOWN`.
+- Advanced canonical Playbook to `1.1.0` and synchronized MCP Instructions/Resources/Prompt/Tool fallback, Action Context, generated Dify/WorkBuddy/Skill artifacts, Admin preview, and source-contract tests so Agents never request, recommend, send, override, derive, or guess managed values.
+- Added Simplified-Chinese per-policy managed-rule UI with adaptive strategy forms, immediate API-name/duplicate/parent-operation validation, row-version conflict handling, disable/delete actions, mocked browser coverage, and retained screenshot evidence.
+- Changed `get_record_links` to use only explicit credential-free HTTPS origin `SFOA_LIGHTNING_BASE_URL`. Missing configuration returns `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; `Connection.instanceUrl`, Agent/client input, and guessed domains are not fallbacks.
+- Added ADR-0014 and P6-DML-01 design/report records. Official Salesforce Provider/Tool TypeScript modifications remain zero; live Salesforce USER A/USER B/record-link runs remain explicitly `PENDING MAINTAINER` until executed with real credentials.
+
 ## 2026-08-26 — P6-Agent-01 canonical MCP-native Agent Playbook completed
 
 - Added pure strict-TypeScript `@sfoa/agent-playbook` with Playbook version `1.0.0`, ten canonical sections, six workflow selectors, safe capability facts, and deterministic Server/Dify/WorkBuddy renderers.

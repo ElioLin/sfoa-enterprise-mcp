@@ -70,13 +70,18 @@ const headerNameSchema = z
   .max(128)
   .regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u, 'must be a valid HTTP header name');
 
+const optionalUrlSchema = z.preprocess(
+  (value) => typeof value === 'string' && value.trim().length === 0 ? undefined : value,
+  z.string().trim().url().max(2048).optional(),
+);
+
 const rawRemoteConfigSchema = z
   .object({
     MCP_BIND_HOST: z.string().trim().min(1).max(255).default('127.0.0.1'),
     MCP_PORT: z.coerce.number().int().min(1).max(65535).default(8080),
     MCP_PATH: z.string().trim().min(1).max(255).default('/mcp'),
     MCP_PUBLIC_URL: z.string().trim().url().max(2048).optional(),
-    SFOA_LIGHTNING_BASE_URL: z.string().trim().url().max(2048).optional(),
+    SFOA_LIGHTNING_BASE_URL: optionalUrlSchema,
     MCP_AUTH_MODE: z.enum(['internal_bearer', 'disabled']).default('internal_bearer'),
     MCP_CLIENT_TOKEN: z.string().min(16).max(4096).optional(),
     MCP_PLATFORM_USER_HEADER: headerNameSchema.default('X-Platform-User-Id'),

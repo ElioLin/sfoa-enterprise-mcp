@@ -2,7 +2,7 @@ import { expect, test, type Route } from '@playwright/test';
 
 const NOW = '2026-08-23T12:00:00.000Z';
 
-test('admin can manage the bounded control plane and logout', async ({ page }) => {
+test('admin can manage the bounded control plane and logout', async ({ page }, testInfo) => {
   const api = new StatefulAdminApi();
   await page.route('**/admin/api/**', (route) => api.handle(route));
 
@@ -10,19 +10,19 @@ test('admin can manage the bounded control plane and logout', async ({ page }) =
   await page.getByLabel('管理员用户名').fill('bootstrap-admin');
   await page.getByLabel('密码').fill('test-only-password');
   await page.getByRole('button', { name: '安全登录' }).click();
-  await expect(page.getByRole('heading', { name: '运行概览' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '运行概览' })).toBeVisible();
 
   await page.getByRole('link', { name: '用户身份路由' }).click();
-  await page.getByRole('button', { name: '新建路由' }).click();
+  await page.getByRole('button', { name: '新建身份路由' }).click();
   await page.getByLabel('平台用户 ID').fill('platform-e2e');
-  await page.getByLabel('Salesforce Username').fill('user-e2e@example.com');
+  await page.getByLabel('Salesforce Username', { exact: true }).fill('user-e2e@example.com');
   await page.getByLabel('备注').fill('created by browser test');
   await page.getByRole('button', { name: '保存路由' }).click();
   await expect(page.getByText('platform-e2e')).toBeVisible();
   await page.getByRole('button', { name: '编辑' }).click();
   await page.getByLabel('备注').fill('updated by browser test');
   await page.getByRole('button', { name: '保存路由' }).click();
-  await expect(page.getByText('updated by browser test')).toBeVisible();
+  await expect.poll(() => api.routeRemark).toBe('updated by browser test');
 
   await page.getByRole('link', { name: '工具治理' }).click();
   await page.getByRole('switch', { name: '启用 get_record_action_context' }).click();
@@ -36,6 +36,33 @@ test('admin can manage the bounded control plane and logout', async ({ page }) =
   await page.getByRole('button', { name: '保存策略' }).click();
   await expect(page.getByText('Lead')).toBeVisible();
   await expect(page.getByRole('cell', { name: '已允许' }).first()).toBeVisible();
+  await page.getByRole('button', { name: '管理 Lead 的托管字段' }).click();
+  await expect(page.getByText('值由 MCP 管理')).toBeVisible();
+
+  await page.getByRole('button', { name: '添加规则' }).click();
+  await page.getByLabel('目标字段 API 名称').fill('Bad.Field');
+  await page.getByLabel('目标字段 API 名称').blur();
+  await expect(page.getByText('请使用有效的 Salesforce 字段 API 名称。')).toBeVisible();
+  await page.getByLabel('目标字段 API 名称').fill('Owner_Contact__c');
+  await page.getByLabel('Lookup 对象 API 名称').fill('Contact');
+  await page.getByLabel('身份匹配字段 API 名称').fill('Platform_User_Id__c');
+  await page.getByRole('button', { name: '保存规则' }).click();
+  await expect(page.getByText('Owner_Contact__c')).toBeVisible();
+
+  await page.getByRole('button', { name: '添加规则' }).click();
+  await page.getByLabel('目标字段 API 名称').fill('Owner_Contact__c');
+  await page.getByLabel('目标字段 API 名称').blur();
+  await expect(page.getByText('该对象已存在同名托管字段规则。')).toBeVisible();
+  await page.getByLabel('目标字段 API 名称').fill('Created_By_AI__c');
+  await page.getByLabel('托管策略').click();
+  await page.getByText('AI 创建标记', { exact: true }).last().click();
+  await expect(page.getByText('创建（固定）')).toBeVisible();
+  await expect(page.getByText('true（固定）')).toBeVisible();
+  await expect(page.getByLabel('Lookup 对象 API 名称')).toHaveCount(0);
+  await page.getByRole('button', { name: '保存规则' }).click();
+  await expect(page.getByText('Created_By_AI__c')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('p6-dml-01-admin-managed-fields.png'), fullPage: true });
+  await page.getByLabel('Close').click();
 
   await page.getByRole('link', { name: '系统诊断' }).click();
   await page.getByRole('button', { name: '验证 Diagnostic Connection' }).click();
@@ -52,10 +79,10 @@ test('admin can manage the bounded control plane and logout', async ({ page }) =
   await expect(page.getByRole('heading', { level: 2, name: '智能体接入' })).toBeVisible();
   await expect(page.getByText('MCP_BIND_HOST', { exact: true })).toBeVisible();
   await page.getByLabel('外部 MCP 地址').fill('https://mcp.company.com/mcp');
-  await expect(page.locator('pre').filter({ hasText: 'URL:\nhttps://mcp.company.com/mcp' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Dify 指令' }).click();
-  await expect(page.locator('pre').filter({ hasText: '你是企业 Salesforce 助手。' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Skill' }).click();
+  await expect(page.getByText('MCP Server URL = https://mcp.company.com/mcp', { exact: false }).first()).toBeVisible();
+  await page.getByRole('tab', { name: '小犇 / Dify' }).click();
+  await expect(page.locator('pre').filter({ hasText: '# Dify / 小犇 SFoA Salesforce Agent Instruction' })).toBeVisible();
+  await page.getByRole('tab', { name: 'WorkBuddy' }).click();
   await expect(page.getByText('.codebuddy/skills/sfoa-salesforce-assistant/', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '退出登录' }).click();
@@ -66,8 +93,14 @@ class StatefulAdminApi {
   private loggedIn = false;
   private route: Record<string, unknown> | null = null;
   private policy: Record<string, unknown> | null = null;
+  private readonly managedRules: Record<string, unknown>[] = [];
   private toolEnabled = false;
   public lastAuditToolFilter: string | null = null;
+
+  public get routeRemark(): string | null {
+    const remark = this.route?.remark;
+    return typeof remark === 'string' ? remark : null;
+  }
 
   public async handle(route: Route): Promise<void> {
     const request = route.request();
@@ -133,6 +166,23 @@ class StatefulAdminApi {
     if (path === '/dml-policies' && method === 'POST') {
       this.policy = { id: '1', ...request.postDataJSON(), rowVersion: '1', createdAt: NOW, updatedAt: NOW };
       await respond(route, this.policy, 201);
+      return;
+    }
+    if (path === '/dml-policies/1/managed-fields' && method === 'GET') {
+      await respond(route, pageOf(this.managedRules));
+      return;
+    }
+    if (path === '/dml-policies/1/managed-fields' && method === 'POST') {
+      const created = {
+        id: String(this.managedRules.length + 1),
+        dmlPolicyId: '1',
+        ...request.postDataJSON(),
+        rowVersion: '1',
+        createdAt: NOW,
+        updatedAt: NOW,
+      };
+      this.managedRules.push(created);
+      await respond(route, created, 201);
       return;
     }
     if (path === '/diagnostic' && method === 'GET') {

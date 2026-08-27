@@ -105,7 +105,7 @@ Example SOQL call arguments:
 
 ## P6 Agent guidance and record links
 
-Initialize returns concise Server Instructions for canonical Agent Playbook `1.0.0`. Clients should prefer native discovery in this order:
+Initialize returns concise Server Instructions for canonical Agent Playbook `1.1.0`. Clients should prefer native discovery in this order:
 
 1. read `sfoa://agent-playbook/current` (`text/markdown`) for the full operating contract;
 2. read `sfoa://agent-capabilities/current` (`application/json`) for the current request's safe Tool, DML-object, Diagnostic, and Dynamic Forms evidence facts;
@@ -113,9 +113,20 @@ Initialize returns concise Server Instructions for canonical Agent Playbook `1.0
 4. only when Resource/Prompt support is absent and the Tool is listed, call `get_agent_playbook` with optional `workflow`;
 5. only when listed, call `get_record_links` for one to 50 record descriptors.
 
-`get_record_links` input has only `records[]` with `objectApiName`, a 15/18-character `recordId`, and optional `displayName`. It accepts no host, origin, base URL, identity, or credential. Output contains the same descriptor plus `recordUrl`, bounded `count`, `hasMore=false`, `nextCursor=null`, and `truncated=false`. The URL origin comes only from the current request Salesforce Connection and the Tool performs no Salesforce API call.
+`get_record_links` input has only `records[]` with `objectApiName`, a 15/18-character `recordId`, and optional `displayName`. It accepts no host, origin, base URL, identity, or credential. Output contains the same descriptor plus `recordUrl`, bounded `count`, `hasMore=false`, `nextCursor=null`, and `truncated=false`. The URL origin comes only from the operator-configured credential-free HTTPS origin `SFOA_LIGHTNING_BASE_URL`; the Tool performs no Salesforce API call and never falls back to `Connection.instanceUrl` or a guessed domain.
 
-The capability Resource contains no route, platform user, Salesforce username, Diagnostic username, instance host, credential, or secret. It is request-scoped and not an authorization replacement. Dynamic Forms evidence is `NOT_AVAILABLE` in P6-Agent-01.
+The capability Resource contains safe managed-field descriptors in addition to Tool/DML/Diagnostic facts: object API name, target field API name, strategy, and CREATE/UPDATE scope only. It contains no managed value, Lookup result, route, platform user, Salesforce username, Diagnostic username, instance host, credential, or secret. It is request-scoped and not an authorization replacement. Dynamic Forms evidence is `NOT_AVAILABLE`.
+
+## P6 trusted managed DML fields
+
+When a listed CREATE/UPDATE object has enabled `managedDmlFields`, clients and Agents must not ask for, recommend, send, override, derive, or guess those targets. The MCP host writes them after checking the ordinary object/operation allowlist and before invoking the existing generic DML Tool:
+
+- `PLATFORM_USER_LOOKUP` resolves exactly one Salesforce record from the authenticated request's immutable `platformUserId` and current USER Connection. The query is bounded to two rows.
+- `AI_CREATED_MARKER` is CREATE-only and writes Boolean `true`.
+
+The client cannot supply `platformUserId`, a Lookup result, or a marker value as authority. If it nevertheless sends a managed target, case-insensitive server ownership wins. The operation still goes through normal Salesforce CRUD/FLS/sharing/validation/Flow/Trigger enforcement.
+
+Managed-field resolution has no cache and never dispatches DML after its own deadline. A validation/Lookup/timeout failure before provider mutation start is a normal `FAILED` result. Only an interruption after the public SDK mutation is marked started may be `MCP_DML_OUTCOME_UNKNOWN`.
 
 ## HTTP and stable error contract
 
@@ -130,7 +141,8 @@ The capability Resource contains no route, platform user, Salesforce username, D
 | Whole request timeout before mutation starts, or for a read Tool | HTTP 504 | `MCP_REQUEST_TIMEOUT` |
 | Whole request timeout after `create_record` / `update_record` starts | HTTP 504 JSON-RPC error | `MCP_DML_OUTCOME_UNKNOWN` |
 | Read Tool execution timeout | MCP Tool-level `isError: true` | `MCP_TOOL_TIMEOUT` |
-| DML Tool execution timeout | MCP Tool-level `isError: true` | `MCP_DML_OUTCOME_UNKNOWN` |
+| DML Tool timeout before public SDK mutation starts | MCP Tool-level `isError: true` | `MCP_TOOL_TIMEOUT` |
+| DML Tool timeout after public SDK mutation starts | MCP Tool-level `isError: true` | `MCP_DML_OUTCOME_UNKNOWN` |
 | Runtime not ready | HTTP 503 | `MCP_RUNTIME_NOT_READY` |
 | Forbidden/unknown enabled Tool at startup | Startup failure | `MCP_TOOL_DISABLED` / `MCP_TOOL_NOT_AVAILABLE` |
 | Diagnostic Tool enabled without server username | Startup failure | `MCP_DIAGNOSTIC_CONFIGURATION_INVALID` |
@@ -138,7 +150,11 @@ The capability Resource contains no route, platform user, Salesforce username, D
 | Invalid/unsupported record context | MCP Tool-level `isError: true` | `MCP_RECORD_ACTION_CONTEXT_INVALID` / `MCP_RECORD_ACTION_CONTEXT_UNSUPPORTED` |
 | Record Type unavailable or mismatched | MCP Tool-level `isError: true` | `MCP_RECORD_TYPE_NOT_AVAILABLE` |
 | Metadata context exceeds safe bounds | MCP Tool-level `isError: true` | `MCP_METADATA_CONTEXT_TOO_LARGE` |
-| Missing/malformed/non-origin Salesforce Connection instance URL for record links | MCP Tool-level `isError: true` | `MCP_TRUSTED_INSTANCE_URL_INVALID` |
+| Managed platform-user Lookup has zero / multiple matches | MCP Tool-level `isError: true` | `MCP_DML_MANAGED_LOOKUP_NOT_FOUND` / `MCP_DML_MANAGED_LOOKUP_AMBIGUOUS` |
+| Managed platform-user Lookup query/shape/record ID fails | MCP Tool-level `isError: true` | `MCP_DML_MANAGED_LOOKUP_FAILED` |
+| Persisted managed rule is invalid | MCP Tool-level `isError: true` before mutation dispatch | `MCP_DML_MANAGED_FIELD_CONFIG_INVALID` |
+| Trusted Lightning origin is missing | MCP Tool-level `isError: true` | `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED` |
+| Configured Lightning origin is not a credential-free HTTPS origin root | Startup/runtime configuration failure | `MCP_RUNTIME_CONFIGURATION_INVALID` |
 
 The request-level unknown wire shape is:
 

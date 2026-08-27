@@ -86,12 +86,14 @@ test('P2 config uses safe defaults and refuses disabled auth away from loopback'
       CONNECTED_APP_CLIENT_ID: 'test-client',
       JWT_PRIVATE_KEY_PATH: keyPath,
       MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN,
+      SFOA_LIGHTNING_BASE_URL: '',
     };
     const config = await loadRemoteRuntimeConfig(projectRoot, baseEnvironment);
     assert.equal(config.bindHost, '127.0.0.1');
     assert.equal(config.port, 8080);
     assert.equal(config.mcpPath, '/mcp');
     assert.equal(config.publicUrl, undefined);
+    assert.equal(config.lightningBaseUrl, undefined);
     assert.equal(config.authMode, 'internal_bearer');
     assert.deepEqual(config.enabledTools, [
       'get_username',
@@ -121,6 +123,12 @@ test('P2 config uses safe defaults and refuses disabled auth away from loopback'
     assert.equal(publicUrlConfig.bindHost, '127.0.0.1');
     assert.equal(publicUrlConfig.port, 8080);
     assert.equal(publicUrlConfig.mcpPath, '/mcp');
+
+    const lightningConfig = await loadRemoteRuntimeConfig(projectRoot, {
+      ...baseEnvironment,
+      SFOA_LIGHTNING_BASE_URL: 'https://lightning.example.test',
+    });
+    assert.equal(lightningConfig.lightningBaseUrl, 'https://lightning.example.test');
 
     await assert.rejects(
       loadRemoteRuntimeConfig(projectRoot, {

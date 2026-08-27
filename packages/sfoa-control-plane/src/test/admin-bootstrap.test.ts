@@ -179,6 +179,41 @@ test('managed DML field rules enforce strategies, parent operations, locking, au
   assert.equal((await store.repositories.managedDmlFieldRules.listByDmlPolicyId(policy.id, { limit: 10, offset: 0 })).count, 0);
 });
 
+test('managed field rules are rejected when the parent DML policy disallows the matching operation', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
+  const createOnly = await service.createDmlPolicy({
+    objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null,
+  }, 'admin');
+  await assert.rejects(
+    service.createManagedDmlFieldRule(createOnly.id, {
+      targetFieldApiName: 'Requested_By__c', strategy: 'PLATFORM_USER_LOOKUP',
+      applyOnCreate: false, applyOnUpdate: true, lookupObjectApiName: 'Contact',
+      lookupMatchFieldApiName: 'Platform_User_Id__c', enabled: true, remark: null,
+    }, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
+  );
+  const updateOnly = await service.createDmlPolicy({
+    objectApiName: 'Account', allowCreate: false, allowUpdate: true, enabled: true, remark: null,
+  }, 'admin');
+  await assert.rejects(
+    service.createManagedDmlFieldRule(updateOnly.id, {
+      targetFieldApiName: 'Requested_By__c', strategy: 'PLATFORM_USER_LOOKUP',
+      applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: 'Contact',
+      lookupMatchFieldApiName: 'Platform_User_Id__c', enabled: true, remark: null,
+    }, 'admin'),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
+  );
+  const marker = await service.createManagedDmlFieldRule(createOnly.id, {
+    targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER',
+    applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: null,
+    lookupMatchFieldApiName: null, enabled: true, remark: null,
+  }, 'admin');
+  assert.equal(marker.strategy, 'AI_CREATED_MARKER');
+  assert.equal(marker.applyOnCreate, true);
+  assert.equal(marker.applyOnUpdate, false);
+});
+
 function testCredentialCipher(): IdentityCredentialCipher {
   return new IdentityCredentialCipher(Buffer.alloc(32, 7));
 }

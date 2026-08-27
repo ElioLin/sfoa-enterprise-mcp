@@ -11,6 +11,7 @@ import {
   type RuntimeLogEvent,
   type RuntimeLogger,
 } from '@sfoa/identity-runtime';
+import { StaticDmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
 import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from '../dml-managed-fields.js';
 import { DmlToolFacade } from '../dml-tool-facade.js';
@@ -43,11 +44,12 @@ test('managed resolver overrides agent values and never exposes trusted values i
 
   const result = await facade.execute({
     objectApiName: 'Lead',
-    fields: { LastName: 'Test', Requested_By__c: 'agent-supplied-value' },
+    fields: { LastName: 'Test', requested_by__c: 'agent-supplied-value' },
   }, extra());
 
   assert.equal(result.isError, undefined);
   assert.equal(fieldValue(tool.input, 'Requested_By__c'), CONTACT_A);
+  assert.equal(fieldValue(tool.input, 'requested_by__c'), undefined);
   const event = logger.events[0];
   assert(event);
   const audit = JSON.stringify(event.requestSummary);
@@ -89,6 +91,12 @@ test('managed platform lookup returns stable not-found, ambiguous, failed, and i
     [runtimeRule({ lookupObjectApiName: 'Contact WHERE Name != null' })],
   );
   await assertRejectsCode(invalid, 'MCP_DML_MANAGED_FIELD_CONFIG_INVALID');
+  const missingOperations = new ManagedDmlFieldResolver(
+    queryConnection(async () => ({ records: [{ Id: CONTACT_A }] })),
+    createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'invalid-operations' }, process.cwd()),
+    [runtimeRule({ applyOnCreate: false, applyOnUpdate: false })],
+  );
+  await assertRejectsCode(missingOperations, 'MCP_DML_MANAGED_FIELD_CONFIG_INVALID');
 });
 
 test('pre-dispatch managed lookup timeout is FAILED MCP_TOOL_TIMEOUT and never outcome unknown', async () => {
@@ -96,7 +104,10 @@ test('pre-dispatch managed lookup timeout is FAILED MCP_TOOL_TIMEOUT and never o
   const tool = new CapturingCreateTool();
   const context = createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'managed-timeout' }, process.cwd());
   const resolver = new ManagedDmlFieldResolver(
-    queryConnection(() => new Promise(() => undefined)),
+    queryConnection(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 35));
+      return { records: [{ Id: CONTACT_A }] };
+    }),
     context,
     [runtimeRule({})],
   );
@@ -115,6 +126,36 @@ test('pre-dispatch managed lookup timeout is FAILED MCP_TOOL_TIMEOUT and never o
   assert.equal(tool.executions, 0);
   assert.equal(logger.events[0]?.outcome, 'FAILED');
   assert.equal(logger.events[0]?.mutationStarted, undefined);
+  await new Promise<void>((resolve) => setTimeout(resolve, 45));
+  assert.equal(tool.executions, 0, 'a lookup that settles after timeout must not dispatch a late mutation');
+});
+
+test('DML allowlist validation runs before managed lookup resolution', async () => {
+  let lookupQueries = 0;
+  const tool = new CapturingCreateTool();
+  const context = createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'policy-before-managed' }, process.cwd());
+  const facade = new DmlToolFacade({
+    tool,
+    context,
+    route: userRoute('platform-user-a'),
+    toolTimeoutMs: 1_000,
+    logger: new RecordingLogger(),
+    clientId: 'managed-policy-order',
+    dmlAllowlist: new StaticDmlAllowlistPolicy([{ objectApiName: 'Account', operations: ['CREATE'] }]),
+    managedFieldResolver: new ManagedDmlFieldResolver(
+      queryConnection(async () => {
+        lookupQueries += 1;
+        return { records: [{ Id: CONTACT_A }] };
+      }),
+      context,
+      [runtimeRule({})],
+    ),
+    mutationStarted: () => false,
+  });
+  const result = await facade.execute({ objectApiName: 'Lead', fields: { LastName: 'Denied' } }, extra());
+  assert.equal(errorCode(result), 'MCP_DML_OBJECT_NOT_ALLOWED');
+  assert.equal(lookupQueries, 0);
+  assert.equal(tool.executions, 0);
 });
 
 test('50 delayed out-of-order requests keep platform A/B managed values isolated for one Salesforce username', async () => {
@@ -122,6 +163,37 @@ test('50 delayed out-of-order requests keep platform A/B managed values isolated
   for (let iteration = 0; iteration < 50; iteration += 1) {
     tasks.push(assertIsolatedResolution('platform-user-a', CONTACT_A, iteration % 2 === 0 ? 4 : 0));
     tasks.push(assertIsolatedResolution('platform-user-b', CONTACT_B, iteration % 2 === 0 ? 0 : 4));
+  }
+  await Promise.all(tasks);
+});
+
+test('PLATFORM_USER_LOOKUP injects the target field on UPDATE only when applyOnUpdate is enabled', async () => {
+  const context = createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'lookup-update' }, process.cwd());
+  const onUpdate = new ManagedDmlFieldResolver(
+    queryConnection(async () => ({ records: [{ Id: CONTACT_A }] })),
+    context,
+    [runtimeRule({ applyOnCreate: false, applyOnUpdate: true })],
+  );
+  const updated = await onUpdate.resolve('UPDATE', { objectApiName: 'Lead', fields: { Company: 'Changed' } });
+  assert.equal(fieldValue(updated.input, 'Requested_By__c'), CONTACT_A);
+  assert.deepEqual(updated.applied, [{ fieldApiName: 'Requested_By__c', strategy: 'PLATFORM_USER_LOOKUP', agentValueOverridden: false }]);
+
+  const createOnly = new ManagedDmlFieldResolver(
+    queryConnection(async () => { throw new Error('query must not run on an UPDATE-scoped rule'); }),
+    context,
+    [runtimeRule({ applyOnCreate: true, applyOnUpdate: false })],
+  );
+  const untouched = await createOnly.resolve('UPDATE', { objectApiName: 'Lead', fields: { Company: 'Changed' } });
+  assert.deepEqual(untouched.input, { objectApiName: 'Lead', fields: { Company: 'Changed' } });
+  assert.deepEqual(untouched.applied, []);
+});
+
+test('DML facade dispatches each final mutation payload to its own request without cross-user leakage', async () => {
+  const rounds = 40;
+  const tasks: Promise<void>[] = [];
+  for (let iteration = 0; iteration < rounds; iteration += 1) {
+    tasks.push(assertIsolatedFacadeDispatch('platform-user-a', CONTACT_A, iteration % 2 === 0 ? 3 : 0));
+    tasks.push(assertIsolatedFacadeDispatch('platform-user-b', CONTACT_B, iteration % 2 === 0 ? 0 : 3));
   }
   await Promise.all(tasks);
 });
@@ -137,6 +209,31 @@ async function assertIsolatedResolution(platformUserId: string, expectedId: stri
   );
   const result = await resolver.resolve('CREATE', { objectApiName: 'Lead', fields: { LastName: platformUserId } });
   assert.equal(fieldValue(result.input, 'Requested_By__c'), expectedId);
+}
+
+async function assertIsolatedFacadeDispatch(platformUserId: string, expectedId: string, delayMs: number): Promise<void> {
+  const tool = new CapturingCreateTool();
+  const context = createRequestContext({ platformUserId, correlationId: `facade-${platformUserId}-${delayMs}` }, process.cwd());
+  const resolver = new ManagedDmlFieldResolver(
+    queryConnection(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+      return { records: [{ Id: expectedId }] };
+    }),
+    context,
+    [runtimeRule({})],
+  );
+  const facade = new DmlToolFacade({
+    tool,
+    context,
+    route: userRoute(platformUserId),
+    toolTimeoutMs: 1_000,
+    logger: new RecordingLogger(),
+    clientId: 'facade-concurrency',
+    managedFieldResolver: resolver,
+    mutationStarted: () => false,
+  });
+  await facade.execute({ objectApiName: 'Lead', fields: { LastName: platformUserId } }, extra());
+  assert.equal(fieldValue(tool.input, 'Requested_By__c'), expectedId);
 }
 
 function queryResolver(query: (soql: string) => Promise<unknown>): ManagedDmlFieldResolver {

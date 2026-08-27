@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6-Entry OPT01, P6-ID-01 USER_BOUND, and P6-ID-02 Buntu identity complete; P6-Agent-01 Playbook `1.0.0` PASS/complete awaiting Maintainer review; P6 Real-Agent Evaluation remains unstarted
+Status: P0–P5 final accepted; P6-Entry OPT01, P6-ID-01 USER_BOUND, and P6-ID-02 Buntu identity complete; P6-Agent-01 Playbook `1.1.0` and P6-DML-01 PASS/complete awaiting Maintainer review; P6 Real-Agent Evaluation remains unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -589,37 +589,58 @@ Disabling a route makes its active token unusable on the next request; re-enabli
 
 `MCP_PUBLIC_URL` is presentation/configuration input only. It never changes Runtime binding or network policy. WorkBuddy JSON contains USER_BOUND Authorization only. 小犇/Dify sends Buntu Authorization only; `data.userId` is the authoritative platform identity. Internal/Inspector retains the shared token plus trusted platform Header.
 
-## P6-Agent-01 canonical MCP-native guidance
+## P6-Agent-01 and P6-DML-01 canonical guidance, managed fields, and trusted links
 
-ADR-0013 adds one pure authored rule source without changing execution authorization:
+ADR-0013 adds one pure authored rule source without changing execution authorization. ADR-0014 adds a bounded host-managed mutation layer and supersedes only ADR-0013's record-link origin choice:
 
 ```mermaid
 flowchart TD
-  Definition[Playbook 1.0.0<br/>ten canonical sections] --> Renderers[Pure deterministic renderers]
-  Snapshot[Request/Admin safe facts<br/>Tools + DML objects + Diagnostic readiness] --> Renderers
+  Definition[Playbook 1.1.0<br/>ten canonical sections] --> Renderers[Pure deterministic renderers]
+  Snapshot[Repeatable-read request snapshot<br/>Tools + DML objects + managed rules + Diagnostic readiness] --> Renderers
   Renderers --> Instructions[Server Instructions]
   Renderers --> Resources[Playbook + Capability Resources]
   Renderers --> Prompt[sfoa_salesforce_assistant Prompt]
   Renderers --> Fallback[get_agent_playbook Tool fallback]
   Renderers --> Dify[Dify / 小犇 instruction]
   Renderers --> Buddy[WorkBuddy Prompt + Skill]
-  Conn[Current request Connection instanceUrl] --> Links[get_record_links]
+  Snapshot --> Allowlist[Object/operation allowlist]
+  Allowlist --> Managed[Managed-field resolver]
+  Context[Immutable platformUserId] --> Managed
+  Conn[Current USER request Connection] --> Managed
+  Managed --> Generic[Existing generic create_record/update_record]
+  Origin[SFOA_LIGHTNING_BASE_URL<br/>HTTPS origin only] --> Links[get_record_links]
   Links --> Lightning[Trusted Lightning record URLs]
 ```
 
-The HTTP host already constructs a fresh MCP server for each POST. It now calculates one immutable `AgentCapabilities` object from that request's enabled Tools, effective DML allowlist, verified Diagnostic state, and `NOT_AVAILABLE` Dynamic Forms evidence. Resource/Prompt/Tool callbacks close over that object; there is no process-global policy/prompt cache and no cross-request fact mutation.
+The HTTP host already constructs a fresh MCP server for each POST. It now calculates one immutable `AgentCapabilities` object from that request's enabled Tools, effective DML allowlist, safe managed-rule descriptors, verified Diagnostic state, and `NOT_AVAILABLE` Dynamic Forms evidence. Resource/Prompt/Tool callbacks close over that object; there is no process-global policy/prompt cache and no cross-request fact mutation.
 
 `sfoa://agent-playbook/current` returns canonical Markdown; `sfoa://agent-capabilities/current` returns only safe policy facts. Prompt `sfoa_salesforce_assistant` selects `CORE | READ | CREATE | UPDATE | DIAGNOSIS | ALL`. `get_agent_playbook` and `get_record_links` are ordinary enabled/disabled SFoA-owned read Tools, so older clients retain compatibility without bypassing Tool governance.
 
-`get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from a credential-free HTTP(S) origin-root `Connection.instanceUrl`. No host/base URL is accepted from the client and no Salesforce API is called. Invalid trusted origins return Tool-level `MCP_TRUSTED_INSTANCE_URL_INVALID`.
+### Trusted managed mutation fields
 
-Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence. It does not evaluate Dynamic Forms or a complete Lightning page. The Playbook degrades by asking about uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
+`sfoa_dml_managed_field_rule` is a child of an existing object DML policy and does not duplicate the object name. Parent-plus-target is unique. Its only strategies are:
+
+- `PLATFORM_USER_LOOKUP`: CREATE/UPDATE as permitted by the parent; bounded exact-one Salesforce Lookup from immutable `RequestContext.platformUserId` through the current USER Connection;
+- `AI_CREATED_MARKER`: CREATE only; server writes Boolean `true` and Lookup configuration is forbidden.
+
+The Runtime loads enabled rules in the same repeatable-read snapshot as Tool and DML policy and deeply freezes the result. The existing allowlist is checked before any Lookup query. Enabled rules for the target object are validated before operation filtering so corrupt history fails closed. Managed targets are compared case-insensitively and the server-owned value wins over any Agent-supplied copy.
+
+Safe runtime audit records only target field API name, strategy, and whether a client value was overridden; it excludes the derived Lookup ID and platform identity. There is no Lookup/Connection/policy cache, retry queue, default-value engine, constant strategy, metadata sync, or object-specific seed.
+
+Lookup/configuration failures and timeouts before mutation dispatch return normal failed Tool results. Because an unresolved query cannot be synchronously cancelled, the facade marks a pre-dispatch deadline and blocks any late-settling resolver from continuing into mutation. Only the existing state marked immediately before public SDK CREATE/UPDATE dispatch may cross into `MCP_DML_OUTCOME_UNKNOWN`.
+
+### Trusted record-link origin
+
+`get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from `SFOA_LIGHTNING_BASE_URL`. The setting must be a credential-free HTTPS origin root with no path, query, or fragment. No host/base URL is accepted from the client, no Salesforce API is called, and `Connection.instanceUrl` is not a fallback. Missing configuration returns Tool-level `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; invalid configured origins fail closed.
+
+Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and now marks managed targets so an Agent omits them. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.1.0` instructs every MCP/Dify/WorkBuddy surface not to ask for, recommend, send, override, derive, or guess managed values. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
 
 ## Data, cache, and security baseline
 
 - P0, P0-Closure, P1, P2, P3, and P4 use no database. P5 introduces MySQL only for durable SFoA governance and audit.
 - P1 proves request-scoped identity routing with an in-memory repository. P5 supplies `MySqlIdentityRepository` behind the same authority boundary while env mode retains the historical repository.
 - A bounded MySQL connection pool is allowed. Redis, Salesforce token cache, and Salesforce Connection pool remain absent; every Salesforce request retains a fresh JWT/Connection.
+- Managed-field rules are request snapshots, not a cache; platform-user Lookup results are never cached or reused across requests.
 - Secrets remain outside Git; logs must redact tokens, USER_BOUND credentials, encryption keys, and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.
 - DELETE is absent from the initial mutation design.

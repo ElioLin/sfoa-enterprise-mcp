@@ -1,6 +1,6 @@
 # ADR-0013: P6 MCP-Native Agent Playbook
 
-- Status: Accepted for P6-Agent-01
+- Status: Accepted for P6-Agent-01; record-link origin choice superseded by ADR-0014
 - Date: 2026-08-25
 - Extends: ADR-0004 Streamable HTTP composition, ADR-0005 remote governance, ADR-0008 generic DML, ADR-0009 diagnosis context, ADR-0011 Control Plane persistence, and ADR-0012 unified identity
 
@@ -22,7 +22,7 @@ MCP-native distribution is primary:
 - workflow-selectable `sfoa_salesforce_assistant` Prompt;
 - governed `get_agent_playbook` fallback Tool for clients without Resource/Prompt support.
 
-The server also provides governed `get_record_links`, because official query results do not expose a stable URL. Links derive only from the current request Connection's credential-free HTTP(S) instance origin; clients cannot provide an origin and the Tool performs no API request.
+The server also provides governed `get_record_links`, because official query results do not expose a stable URL. This ADR originally selected the current request Connection instance origin. ADR-0014 supersedes that origin choice with explicit `SFOA_LIGHTNING_BASE_URL`; clients still cannot provide an origin and the Tool still performs no API request.
 
 Dify / 小犇 and WorkBuddy artifacts are generated from the same package. The Admin UI adapts Control Plane records into safe capability facts and uses the canonical renderers. Generated files are checked for deterministic drift in the repository Gate.
 
@@ -42,7 +42,7 @@ Dynamic Forms are explicitly `NOT_AVAILABLE` because current action context cove
 
 - Static generated artifacts must be synchronized whenever the canonical Playbook changes.
 - Capability-aware Server construction and protocol tests become part of the MCP runtime Gate.
-- Links depend on the authenticated Connection exposing a valid instance URL; a malformed runtime Connection produces a safe Tool-level failure.
+- Record links depend on the explicitly configured trusted Lightning origin established by ADR-0014; missing configuration produces a safe Tool-level failure.
 - Dynamic Forms guidance remains incomplete until an official, trustworthy evidence source exists.
 
 ## Rejected alternatives

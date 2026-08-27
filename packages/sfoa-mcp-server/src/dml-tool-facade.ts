@@ -11,6 +11,7 @@ import {
   dmlExecutionErrorToolResult,
   dmlOutcomeUnknownError,
   isSfoaDmlToolName,
+  type DmlAllowlistPolicy,
   type DmlOperation,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import type {
@@ -35,6 +36,7 @@ export type DmlToolFacadeOptions = Readonly<{
   logger: RuntimeLogger;
   clientId: string;
   managedFieldResolver?: ManagedDmlFieldResolver;
+  dmlAllowlist?: DmlAllowlistPolicy;
   redactionSecrets?: readonly string[];
   mutationStarted(): boolean;
 }>;
@@ -87,13 +89,26 @@ export class DmlToolFacade {
     }
     let executionInput = input;
     let appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]);
+    let deadlineReachedBeforeDispatch = false;
     try {
       const result = await withTimeout(
         (async () => {
+          if (typeof input.objectApiName === 'string') {
+            this.options.dmlAllowlist?.assertAllowed(input.objectApiName, this.operation);
+          }
           if (this.options.managedFieldResolver) {
             const resolution = await this.options.managedFieldResolver.resolve(this.operation, input);
             executionInput = resolution.input as ToolInput;
             appliedManagedFields = resolution.applied;
+          }
+          // Promise.race cannot cancel a Salesforce lookup. Never allow a lookup that
+          // settles after the host deadline to continue into a late mutation dispatch.
+          if (deadlineReachedBeforeDispatch) {
+            throw new RemoteRuntimeError(
+              'MCP_TOOL_TIMEOUT',
+              `Tool ${this.getName()} exceeded MCP_TOOL_TIMEOUT_MS before mutation dispatch.`,
+              { correlationId: this.options.context.correlationId },
+            );
           }
           return this.options.tool.exec(executionInput, extra);
         })(),
@@ -115,7 +130,9 @@ export class DmlToolFacade {
       return result;
     } catch (error) {
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
-        const result = this.options.mutationStarted()
+        const mutationStarted = this.options.mutationStarted();
+        deadlineReachedBeforeDispatch = !mutationStarted;
+        const result = mutationStarted
           ? dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error))
           : hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
         await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', executionInput, result, appliedManagedFields);
