@@ -21,7 +21,7 @@
 --
 -- 注意：
 --   1. 文件末尾写入 sfoa_schema_migration 的 checksum_sha256 与本仓库迁移文件
---      【逐字节一致】，应用启动会校验，请勿手工修改。
+--      【LF 规范内容一致】；运行器仅把 Git LF 与 Windows CRLF 视为等价，其他变化仍拒绝。
 --   2. 本文件只在【全新建库】时使用。后续代码升级若新增迁移
 --      （如 004_xxx.sql），不要在库上手工执行 SQL，应在服务器上运行
 --      `yarn db:migrate` 增量应用（迁移运行器会自动跳过已 APPLIED 的版本）。
@@ -198,7 +198,7 @@ CREATE INDEX idx_sfoa_audit_identity_credential
   ON sfoa_audit_log (identity_credential_id, occurred_at DESC);
 
 -- =====================================================================
--- 迁移记录（checksum_sha256 与本仓库迁移文件逐字节一致，供应用启动校验）
+-- 迁移记录（checksum_sha256 与本仓库迁移文件 LF 规范内容一致，供应用启动校验）
 -- =====================================================================
 
 INSERT INTO sfoa_schema_migration (version, checksum_sha256) VALUES

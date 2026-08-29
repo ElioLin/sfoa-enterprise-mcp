@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import {
   createSalesforceIdentityRoute,
@@ -8,11 +7,9 @@ import {
 import {
   diagnosticVerificationStatusSchema,
   freezeSnapshot,
-  IDENTITY_SOURCES,
   managedDmlFieldStrategySchema,
   normalizeSalesforceUsername,
   RUNTIME_SETTING_KEYS,
-  type AuditRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
   type IdentityCredentialRecord,
@@ -27,10 +24,8 @@ import {
 } from './contracts.js';
 import { ControlPlaneError, toControlPlaneError } from './errors.js';
 import type {
-  AuditFilter,
-  AuditRepository,
-  AuditWrite,
   ControlPlaneRepositories,
+  ControlPlaneRepositoriesWithAuditTrace,
   DiagnosticConfigRepository,
   DiagnosticConfigWriteInput,
   DmlPolicyCreateInput,
@@ -50,9 +45,11 @@ import type {
   ToolControlRepository,
   ToolControlWriteInput,
 } from './repositories.js';
+import { MySqlAuditRepository } from './mysql-audit-repository.js';
+// 保留旧模块路径的导出兼容；实现本身已按 Audit 领域拆分到独立文件。
+export { MySqlAuditRepository };
 import type { ControlPlaneDatabase } from './schema.js';
 import type {
-  AuditLogTable,
   DiagnosticConfigTable,
   DmlPolicyTable,
   DmlManagedFieldRuleTable,
@@ -580,82 +577,8 @@ export class MySqlRuntimeSettingRepository implements RuntimeSettingRepository {
   }
 }
 
-export class MySqlAuditRepository implements AuditRepository {
-  public constructor(private readonly database: Executor) {}
-
-  public async append(event: AuditWrite): Promise<AuditRecord> {
-    const inserted = await this.database.insertInto('sfoa_audit_log').values({
-      occurred_at: event.occurredAt,
-      correlation_id: event.correlationId,
-      channel: event.channel,
-      client_id: event.clientId ?? null,
-      actor_admin: event.actorAdmin ?? null,
-      platform_user_id: event.platformUserId ?? null,
-      salesforce_username: event.salesforceUsername ?? null,
-      execution_role: event.executionRole ?? null,
-      identity_source: event.identitySource ?? null,
-      identity_credential_id: event.identityCredentialId ?? null,
-      tool_name: event.toolName ?? null,
-      operation: event.operation ?? null,
-      object_api_name: event.objectApiName ?? null,
-      record_id: event.recordId ?? null,
-      result: event.result,
-      outcome: event.outcome ?? null,
-      error_code: event.errorCode ?? null,
-      duration_ms: event.durationMs ?? null,
-      request_summary_json: boundedJson(event.requestSummary),
-      response_summary_json: boundedJson(event.responseSummary),
-    }).executeTakeFirstOrThrow();
-    if (inserted.insertId === undefined) {
-      throw new ControlPlaneError(
-        'MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE',
-        'Audit persistence did not return an inserted record identifier.',
-      );
-    }
-    const row = await this.database.selectFrom('sfoa_audit_log').selectAll()
-      .where('id', '=', inserted.insertId.toString()).executeTakeFirstOrThrow();
-    return mapAudit(row);
-  }
-
-  public async getById(id: string): Promise<AuditRecord | undefined> {
-    const row = await this.database.selectFrom('sfoa_audit_log').selectAll().where('id', '=', id).executeTakeFirst();
-    return row ? mapAudit(row) : undefined;
-  }
-
-  public async search(filter: AuditFilter): Promise<Page<AuditRecord>> {
-    let query = this.database.selectFrom('sfoa_audit_log').selectAll();
-    if (filter.occurredFrom) query = query.where('occurred_at', '>=', filter.occurredFrom);
-    if (filter.occurredTo) query = query.where('occurred_at', '<=', filter.occurredTo);
-    if (filter.correlationId) query = query.where('correlation_id', '=', filter.correlationId);
-    if (filter.platformUserId) query = query.where('platform_user_id', '=', filter.platformUserId);
-    if (filter.salesforceUsername) query = query.where('salesforce_username', '=', filter.salesforceUsername);
-    if (filter.toolName) query = query.where('tool_name', '=', filter.toolName);
-    if (filter.result) query = query.where('result', '=', filter.result);
-    if (filter.errorCode) query = query.where('error_code', '=', filter.errorCode);
-    const rows = await query.orderBy('occurred_at', 'desc').orderBy('id', 'desc')
-      .limit(filter.limit + 1).offset(filter.offset).execute();
-    return page(rows.map(mapAudit), filter);
-  }
-
-  public async countSince(since: Date): Promise<Readonly<{ total: number; pass: number; blocked: number; error: number; unknown: number }>> {
-    const rows = await this.database.selectFrom('sfoa_audit_log').select([
-      sql<number>`COUNT(*)`.as('total'),
-      sql<number>`SUM(result = 'PASS')`.as('pass'),
-      sql<number>`SUM(result = 'BLOCKED')`.as('blocked'),
-      sql<number>`SUM(result = 'ERROR')`.as('error'),
-      sql<number>`SUM(outcome = 'UNKNOWN')`.as('unknown'),
-    ]).where('occurred_at', '>=', since).executeTakeFirstOrThrow();
-    return Object.freeze({
-      total: Number(rows.total ?? 0),
-      pass: Number(rows.pass ?? 0),
-      blocked: Number(rows.blocked ?? 0),
-      error: Number(rows.error ?? 0),
-      unknown: Number(rows.unknown ?? 0),
-    });
-  }
-}
-
-export function createMySqlRepositories(database: Executor): ControlPlaneRepositories {
+export function createMySqlRepositories(database: Executor): ControlPlaneRepositoriesWithAuditTrace {
+  const auditRepository = new MySqlAuditRepository(database);
   return Object.freeze({
     identityRoutes: new MySqlIdentityRouteRepository(database),
     identityCredentials: new MySqlIdentityCredentialRepository(database),
@@ -664,7 +587,8 @@ export function createMySqlRepositories(database: Executor): ControlPlaneReposit
     managedDmlFieldRules: new MySqlManagedDmlFieldRuleRepository(database),
     diagnostic: new MySqlDiagnosticConfigRepository(database),
     runtimeSettings: new MySqlRuntimeSettingRepository(database),
-    audits: new MySqlAuditRepository(database),
+    audits: auditRepository,
+    auditTraces: auditRepository,
   });
 }
 
@@ -790,23 +714,6 @@ function mapRuntimeSetting(row: Selectable<RuntimeSettingTable>): RuntimeSetting
   return Object.freeze({ settingKey: key, settingValue: parseJson(row.setting_value_json), rowVersion: String(row.row_version), updatedAt: toIso(row.updated_at) });
 }
 
-function mapAudit(row: Selectable<AuditLogTable>): AuditRecord {
-  return Object.freeze({
-    id: String(row.id), occurredAt: toIso(row.occurred_at), correlationId: row.correlation_id,
-    channel: row.channel === 'ADMIN' ? 'ADMIN' : 'MCP', clientId: row.client_id, actorAdmin: row.actor_admin,
-    platformUserId: row.platform_user_id, salesforceUsername: row.salesforce_username,
-    executionRole: row.execution_role === 'USER' || row.execution_role === 'DIAGNOSTIC' ? row.execution_role : null,
-    identitySource: IDENTITY_SOURCES.find((source) => source === row.identity_source) ?? null,
-    identityCredentialId: row.identity_credential_id === null ? null : String(row.identity_credential_id),
-    toolName: row.tool_name, operation: row.operation, objectApiName: row.object_api_name, recordId: row.record_id,
-    result: row.result === 'PASS' || row.result === 'BLOCKED' ? row.result : 'ERROR',
-    outcome: row.outcome === 'SUCCESS' || row.outcome === 'FAILED' || row.outcome === 'DENIED' || row.outcome === 'UNKNOWN' ? row.outcome : null,
-    errorCode: row.error_code, durationMs: row.duration_ms,
-    requestSummary: parseJson(row.request_summary_json), responseSummary: parseJson(row.response_summary_json),
-    createdAt: toIso(row.created_at),
-  });
-}
-
 function page<T>(rows: readonly T[], options: ListOptions): Page<T> {
   const hasMore = rows.length > options.limit;
   const items = Object.freeze(rows.slice(0, options.limit));
@@ -833,14 +740,6 @@ async function assertOptimisticResult(
   if (count > 0n) return;
   if (!(await repository.getById(id))) throw notFound('Identity route');
   throw concurrentModification();
-}
-
-function boundedJson(value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) return null;
-  if (Buffer.byteLength(encoded, 'utf8') <= 16_384) return encoded;
-  return JSON.stringify({ truncated: true, byteLength: Buffer.byteLength(encoded, 'utf8'), sha256: createHash('sha256').update(encoded).digest('hex') });
 }
 
 function parseJson(value: string | null): unknown {

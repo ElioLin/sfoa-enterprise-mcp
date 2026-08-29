@@ -2,11 +2,11 @@ import type { Kysely, Transaction } from 'kysely';
 import { databaseHealth, type ControlPlaneDatabaseClient } from './database.js';
 import { ControlPlaneError } from './errors.js';
 import { createMySqlRepositories } from './mysql-repositories.js';
-import type { ControlPlaneRepositories } from './repositories.js';
+import type { ControlPlaneRepositories, ControlPlaneRepositoriesWithAuditTrace } from './repositories.js';
 import type { ControlPlaneDatabase } from './schema.js';
 
 export class MySqlControlPlaneStore {
-  public readonly repositories: ControlPlaneRepositories;
+  public readonly repositories: ControlPlaneRepositoriesWithAuditTrace;
 
   public constructor(public readonly database: ControlPlaneDatabaseClient) {
     this.repositories = createMySqlRepositories(database);

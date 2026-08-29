@@ -132,9 +132,56 @@ export type AuditResult = 'PASS' | 'ERROR' | 'BLOCKED';
 export type AuditOutcome = 'SUCCESS' | 'FAILED' | 'DENIED' | 'UNKNOWN';
 export type AuditChannel = 'MCP' | 'ADMIN';
 
+export const AUDIT_KINDS = ['MCP_TOOL_CALL', 'ADMIN_ACTION', 'IDENTITY_VALIDATION', 'RUNTIME_EVENT'] as const;
+export const auditKindSchema = z.enum(AUDIT_KINDS);
+export type AuditKind = z.infer<typeof auditKindSchema>;
+
+export const AUDIT_INTEGRITY_STATUSES = ['COMPLETE', 'PARTIAL', 'DEGRADED'] as const;
+export const auditIntegrityStatusSchema = z.enum(AUDIT_INTEGRITY_STATUSES);
+export type AuditIntegrityStatus = z.infer<typeof auditIntegrityStatusSchema>;
+
+export const AUDIT_EVENT_CATEGORIES = [
+  'MCP', 'IDENTITY', 'ROUTING', 'GOVERNANCE', 'TOOL', 'SALESFORCE', 'INTERNAL', 'AUDIT',
+] as const;
+export const auditEventCategorySchema = z.enum(AUDIT_EVENT_CATEGORIES);
+export type AuditEventCategory = z.infer<typeof auditEventCategorySchema>;
+
+export const AUDIT_EVENT_STATUSES = ['STARTED', 'SUCCESS', 'FAILED', 'BLOCKED', 'SKIPPED', 'UNKNOWN'] as const;
+export const auditEventStatusSchema = z.enum(AUDIT_EVENT_STATUSES);
+export type AuditEventStatus = z.infer<typeof auditEventStatusSchema>;
+
+export const SALESFORCE_API_CATEGORIES = ['REST', 'DATA', 'UI', 'TOOLING', 'METADATA', 'CLI', 'WORKSPACE'] as const;
+export const salesforceApiCategorySchema = z.enum(SALESFORCE_API_CATEGORIES);
+export type SalesforceApiCategory = z.infer<typeof salesforceApiCategorySchema>;
+
+export const AUDITED_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
+export const auditedHttpMethodSchema = z.enum(AUDITED_HTTP_METHODS);
+export type AuditedHttpMethod = z.infer<typeof auditedHttpMethodSchema>;
+
+export const SALESFORCE_API_RESULTS = ['SUCCESS', 'FAILED', 'UNKNOWN'] as const;
+export const salesforceApiResultSchema = z.enum(SALESFORCE_API_RESULTS);
+export type SalesforceApiResult = z.infer<typeof salesforceApiResultSchema>;
+
+export const AUDIT_PAYLOAD_TYPES = [
+  'MCP_REQUEST', 'MCP_RESPONSE', 'SALESFORCE_REQUEST', 'SALESFORCE_RESPONSE', 'ERROR_RESPONSE',
+] as const;
+export const auditPayloadTypeSchema = z.enum(AUDIT_PAYLOAD_TYPES);
+export type AuditPayloadType = z.infer<typeof auditPayloadTypeSchema>;
+
+export const auditSequenceSchema = z.number().int().min(1).max(4_294_967_295);
+export const auditEventTypeSchema = z.string().trim().regex(/^[A-Z][A-Z0-9_]{0,63}$/u);
+export const auditEventNameSchema = z.string().trim().min(1).max(128);
+export const auditPurposeSchema = z.string().trim().min(1).max(256);
+export const auditQueryTypeSchema = z.string().trim().regex(/^[A-Z][A-Z0-9_]{0,63}$/u);
+export const auditContentTypeSchema = z.string().trim().min(1).max(128);
+
 export type AuditRecord = Readonly<{
   id: string;
+  publicAuditId: string;
+  auditKind: AuditKind;
   occurredAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
   correlationId: string;
   channel: AuditChannel;
   clientId: string | null;
@@ -151,9 +198,74 @@ export type AuditRecord = Readonly<{
   result: AuditResult;
   outcome: AuditOutcome | null;
   errorCode: string | null;
+  errorMessageSafe: string | null;
+  auditIntegrityStatus: AuditIntegrityStatus;
   durationMs: number | null;
   requestSummary: unknown;
   responseSummary: unknown;
+  createdAt: string;
+}>;
+
+export type AuditEventRecord = Readonly<{
+  id: string;
+  auditId: string;
+  sequence: number;
+  parentEventId: string | null;
+  eventCategory: AuditEventCategory;
+  eventType: string;
+  eventName: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  status: AuditEventStatus;
+  errorCode: string | null;
+  safeSummary: unknown;
+  createdAt: string;
+}>;
+
+export type SalesforceApiCallRecord = Readonly<{
+  id: string;
+  auditId: string;
+  auditEventId: string | null;
+  sequence: number;
+  salesforceUsername: string;
+  apiCategory: SalesforceApiCategory;
+  httpMethod: AuditedHttpMethod;
+  endpoint: string;
+  apiVersion: string | null;
+  purpose: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  httpStatus: number | null;
+  result: SalesforceApiResult;
+  salesforceErrorCode: string | null;
+  salesforceErrorMessageSafe: string | null;
+  queryType: string | null;
+  soqlStatementSafe: string | null;
+  totalSize: number | null;
+  returnedRecords: number | null;
+  done: boolean | null;
+  dmlOperation: 'CREATE' | 'UPDATE' | null;
+  objectApiName: string | null;
+  recordId: string | null;
+  requestedFields: unknown;
+  managedFields: unknown;
+  createdAt: string;
+}>;
+
+export type AuditPayloadEvidenceRecord = Readonly<{
+  id: string;
+  auditId: string;
+  salesforceApiCallId: string | null;
+  auditEventId: string | null;
+  payloadType: AuditPayloadType;
+  contentType: string;
+  originalSizeBytes: string;
+  storedSizeBytes: number;
+  truncated: boolean;
+  contentSha256: string | null;
+  safePayload: string | null;
   createdAt: string;
 }>;
 

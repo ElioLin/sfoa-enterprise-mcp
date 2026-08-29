@@ -5,6 +5,8 @@
 - P6-ID-02 implementation baseline: `a2aefba` (feat: add BUNTU_TOKEN identity provider (P6-ID-02))
 - Scope: minimal closure HOTFIX (安全与并发收口), not a feature expansion
 
+> **P7 security supersession (2026-08-29):** this report intentionally preserves the historical P6 HOTFIX result. P7 permanently removes the former raw-token audit switch: enabling it now fails startup, new Runtime audit never emits `rawToken`, and migration 005 scrubs the known historical field.
+
 ## Result
 
 `P6-ID-02 IMPLEMENTATION = PASS`
@@ -19,7 +21,7 @@ Provider was modified.
 
 | # | HOTFIX | Result | Where |
 | --- | --- | --- | --- |
-| 1 | Buntu raw bearer token enters request-local secret redaction (exception messages / safe errors / fallback errors → HTTP response, stdout, stderr, structured log all redacted) without breaking the rawToken audit switch | PASS | `packages/sfoa-mcp-server/src/http-server.ts` — `captureRequestBearerSecrets()` now captures **every** Bearer token (USER_BOUND `sfoa_ub1_*`, BUNTU, plus legacy `MCP_CLIENT_TOKEN` as defense in depth) and is exported for tests |
+| 1 | Buntu raw bearer token enters request-local secret redaction (exception messages / safe errors / fallback errors → HTTP response, stdout, stderr, structured log all redacted); the historical rawToken switch evidence is superseded by P7 | PASS | `packages/sfoa-mcp-server/src/http-server.ts` — `captureRequestBearerSecrets()` now captures **every** Bearer token (USER_BOUND `sfoa_ub1_*`, BUNTU, plus legacy `MCP_CLIENT_TOKEN` as defense in depth) and is exported for tests |
 | 2 | `MCP_BUNTU_IDENTITY_ENABLED=true` + `SFOA_CONTROL_PLANE_MODE != mysql` fails fast at configuration load (`MCP_RUNTIME_CONFIGURATION_INVALID`); the runtime can no longer start with a Buntu provider that was never wired | PASS | `packages/sfoa-mcp-server/src/config.ts` — added `BUNTU_TOKEN identity requires SFOA_CONTROL_PLANE_MODE=mysql.` fail-fast after `parseBuntuIdentityConfig` |
 | 3 | `user_id` accepts `string` or safe-integer `number`, normalized via `String()` into the shared `platformUserIdSchema`; floats/NaN/Infinity/boolean/object/array/null rejected; no `z.coerce.string()`, no recursive scanning, no guessing from `data.user.id` | PASS | `packages/sfoa-mcp-server/src/buntu-validator.ts` — `z.union([z.string(), z.number().refine(Number.isSafeInteger)])` + explicit normalization |
 | 4 | Deterministic three-layer concurrency isolation tests (provider / route / request-scope) plus provider no-crosstalk verification | PASS | `packages/sfoa-mcp-server/src/test/buntu-safety.test.ts` (new file, 9 tests) |
@@ -36,15 +38,16 @@ Provider was modified.
 - CASE C (`MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=false`): the `BUNTU_TOKEN_VALIDATE` audit
   event's `requestSummary` carries no `rawToken` key and the events JSON contains no
   token. **PASS**
-- CASE D (`MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` + simulated MySQL write failure): the
+- CASE D (historical P6 `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` + simulated MySQL write failure): the
   durable sink receives `requestSummary.rawToken` (DB audit boundary, opt-in only), while
   the `DatabaseRuntimeLogger` fallback events never contain the token and always carry
   `requestSummary === undefined && responseSummary === undefined` with errorCode
   `MCP_AUDIT_PERSISTENCE_FAILED`. **PASS**
 
-The rawToken audit switch is unchanged: `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` still
-persists the full token into the MySQL `BUNTU_TOKEN_VALIDATE` `requestSummary`; the
-fallback logger still prints only safe fields. No widening, no narrowing.
+At the time of this historical HOTFIX, the rawToken audit switch still persisted the full
+token only into the MySQL `BUNTU_TOKEN_VALIDATE` summary while the fallback logger stayed
+safe. P7 supersedes that behavior completely: raw-token persistence is prohibited and the
+legacy key is accepted only as `false`.
 
 ## HOTFIX 2 — configuration fail-fast matrix
 

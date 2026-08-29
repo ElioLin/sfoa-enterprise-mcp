@@ -8,6 +8,7 @@ import {
   databaseNameForTest,
   defaultMigrationsDirectory,
   loadControlPlaneConfig,
+  migrationChecksumSha256,
   parseEnvFile,
   splitSqlStatements,
 } from '../index.js';
@@ -47,11 +48,12 @@ test('env parser does not execute shell syntax and retains secret values only in
   assert.equal(values.SFOA_DB_USER, 'sfoa');
 });
 
-test('versioned migrations are bounded, recoverable, and contain only P5-owned schema', async () => {
+test('versioned migrations remain immutable and P7 adds normalized bounded audit evidence', async () => {
   const directory = defaultMigrationsDirectory();
   const first = await readFile(path.join(directory, '001_p5_control_plane.sql'), 'utf8');
   const second = await readFile(path.join(directory, '002_p5_indexes.sql'), 'utf8');
   const managedFields = await readFile(path.join(directory, '004_p6_dml_managed_field_rule.sql'), 'utf8');
+  const p7Audit = await readFile(path.join(directory, '005_p7_end_to_end_audit.sql'), 'utf8');
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_identity_route/u);
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_audit_log/u);
   assert.doesNotMatch(first, /access_token|private_key|jwt_assertion|password/iu);
@@ -61,6 +63,18 @@ test('versioned migrations are bounded, recoverable, and contain only P5-owned s
   assert.match(managedFields, /UNIQUE \(dml_policy_id, target_field_api_name\)/u);
   assert.match(managedFields, /ENUM\('PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER'\)/u);
   assert.doesNotMatch(managedFields, /constant_value|expression|source_expression|MCP_AI_Created__c|Employee_Number__c/iu);
+  assert.match(p7Audit, /ALTER TABLE sfoa_audit_log/u);
+  assert.match(p7Audit, /public_audit_id/u);
+  assert.match(p7Audit, /CREATE TABLE IF NOT EXISTS sfoa_audit_event/u);
+  assert.match(p7Audit, /CREATE TABLE IF NOT EXISTS sfoa_salesforce_api_call/u);
+  assert.match(p7Audit, /CREATE TABLE IF NOT EXISTS sfoa_audit_payload_evidence/u);
+  assert.match(p7Audit, /UNIQUE \(audit_id, sequence\)/u);
+  assert.match(p7Audit, /JSON_REMOVE\(request_summary_json, '\$\.rawToken'\)/u);
+  assert.doesNotMatch(p7Audit, /WHEN tool_name IS NOT NULL THEN 'MCP_TOOL_CALL'/u);
+  assert.match(p7Audit, /stored_size_bytes <= 262144/u);
+  assert.doesNotMatch(p7Audit, /authorization_header|bearer_token|private_key|client_secret|database_password/iu);
+  assert.equal(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 1;\r\n'));
+  assert.notEqual(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 2;\n'));
 
   const statements = splitSqlStatements('-- comment\nCREATE TABLE x (id INT);\n\nCREATE INDEX y ON x (id);');
   assert.deepEqual(statements, ['CREATE TABLE x (id INT)', 'CREATE INDEX y ON x (id)']);

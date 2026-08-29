@@ -94,7 +94,11 @@ export interface RuntimeSettingTable {
 
 export interface AuditLogTable {
   id: Generated<string>;
+  public_audit_id: Generated<string>;
+  audit_kind: string;
   occurred_at: Timestamp;
+  started_at: Timestamp | null;
+  completed_at: Timestamp | null;
   correlation_id: string;
   channel: string;
   client_id: string | null;
@@ -111,9 +115,74 @@ export interface AuditLogTable {
   result: string;
   outcome: string | null;
   error_code: string | null;
+  error_message_safe: string | null;
+  audit_integrity_status: string;
   duration_ms: number | null;
   request_summary_json: string | null;
   response_summary_json: string | null;
+  created_at: GeneratedTimestamp;
+}
+
+export interface AuditEventTable {
+  id: Generated<string>;
+  audit_id: string;
+  sequence: number;
+  parent_event_id: string | null;
+  event_category: string;
+  event_type: string;
+  event_name: string;
+  started_at: Timestamp;
+  completed_at: Timestamp | null;
+  duration_ms: number | null;
+  status: string;
+  error_code: string | null;
+  safe_summary_json: string | null;
+  created_at: GeneratedTimestamp;
+}
+
+export interface SalesforceApiCallTable {
+  id: Generated<string>;
+  audit_id: string;
+  audit_event_id: string | null;
+  sequence: number;
+  salesforce_username: string;
+  api_category: string;
+  http_method: string;
+  endpoint: string;
+  api_version: string | null;
+  purpose: string;
+  started_at: Timestamp;
+  completed_at: Timestamp | null;
+  duration_ms: number | null;
+  http_status: number | null;
+  result: string;
+  salesforce_error_code: string | null;
+  salesforce_error_message_safe: string | null;
+  query_type: string | null;
+  soql_statement_safe: string | null;
+  total_size: number | null;
+  returned_records: number | null;
+  done: BooleanNumber | null;
+  dml_operation: string | null;
+  object_api_name: string | null;
+  record_id: string | null;
+  requested_fields_json: string | null;
+  managed_fields_json: string | null;
+  created_at: GeneratedTimestamp;
+}
+
+export interface AuditPayloadEvidenceTable {
+  id: Generated<string>;
+  audit_id: string;
+  salesforce_api_call_id: string | null;
+  audit_event_id: string | null;
+  payload_type: string;
+  content_type: string;
+  original_size_bytes: string;
+  stored_size_bytes: number;
+  truncated: BooleanNumber;
+  content_sha256: string | null;
+  safe_payload: string | null;
   created_at: GeneratedTimestamp;
 }
 
@@ -132,5 +201,8 @@ export interface ControlPlaneDatabase {
   sfoa_diagnostic_config: DiagnosticConfigTable;
   sfoa_runtime_setting: RuntimeSettingTable;
   sfoa_audit_log: AuditLogTable;
+  sfoa_audit_event: AuditEventTable;
+  sfoa_salesforce_api_call: SalesforceApiCallTable;
+  sfoa_audit_payload_evidence: AuditPayloadEvidenceTable;
   sfoa_schema_migration: SchemaMigrationTable;
 }

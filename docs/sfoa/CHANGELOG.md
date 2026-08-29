@@ -2,6 +2,17 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-29 — P7-01 end-to-end Audit data model implemented
+
+- Established `P7_END_TO_END_AUDIT_BASELINE.md` as the authoritative P7-01 through P7-08 plan and added ADR-0015. P7-02 request context, asynchronous pipeline, Salesforce/MCP instrumentation, Workbench, and diagnostic Skill remain unstarted.
+- Evolved the existing `sfoa_audit_log` ledger additively with public Audit UUID, fact-based kind, optional time bounds, safe error, and integrity state. Historical Tool-named flat events remain `RUNTIME_EVENT`; only explicit `createCall()` records claim one MCP Tool invocation.
+- Added ordered `sfoa_audit_event`, typed `sfoa_salesforce_api_call` with SOQL/CREATE/UPDATE evidence, and bounded `sfoa_audit_payload_evidence` with same-Audit composite foreign keys and master-driven cascade retention semantics.
+- Split the cohesive MySQL Audit implementation out of `mysql-repositories.ts`, retained the compatible `audits` interface, and added the `auditTraces` contract without changing the current Admin Audit API/UI flow.
+- Added centralized recursive persistence sanitization, 16 KiB safe summaries, 256 KiB Payload Evidence, sanitized-content hashing, and UI defense in depth. Raw Buntu token auditing is permanently prohibited; migration 005 scrubs the known historical field.
+- Made the Admin Web project Gate use its already-proven 60-second bounded Vitest timeout; the former 30-second limit repeatedly expired in unchanged Ant Design/jsdom governance flows on this Windows host while the same assertions passed under the documented diagnostic bound.
+- Fixed MySQL migration advisory locks to keep acquisition, DDL, metadata, validation, and release on one pinned pooled connection. Checksum calculation now records Git-LF canonical SQL and accepts only LF/CRLF-equivalent historical digests, without editing migrations or metadata. Empty/P6 upgrade, repeated/concurrent migration, legacy read, public ID, sequence, DML/SOQL, cross-Audit FK, CASCADE, payload/list isolation, secret, and Runtime fail-open regressions were added.
+- Modified zero official Salesforce TypeScript files and added no dependency or lockfile change. Passing engineering Gates advances only to `IMPLEMENTED / AWAITING MAINTAINER REVIEW`, never whole-P7 completion.
+
 ## 2026-08-27 — P6-DML-01 trusted managed fields and explicit record-link origin completed
 
 - Added one constrained `sfoa_dml_managed_field_rule` child model under the existing object DML policy, with parent-plus-target uniqueness, optimistic locking, durable Admin audit, and only `PLATFORM_USER_LOOKUP` plus CREATE-only `AI_CREATED_MARKER=true`. No business object/field/value seed, generic default engine, `CONSTANT`, metadata sync, or duplicated target object was added.

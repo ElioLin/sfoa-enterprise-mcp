@@ -794,10 +794,8 @@ function toRequestHeaders(request: IncomingMessage): RequestHeaders {
  * are already covered by config-scoped redaction and are additionally captured
  * here as defense in depth.
  *
- * The captured secrets are only ever used for redaction. They must never flow
- * into the audit persistence path, where `requestSummary.rawToken` for
- * BUNTU_TOKEN_VALIDATE is governed exclusively by
- * MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED.
+ * The captured secrets are only ever used for redaction. P7 prohibits them
+ * from flowing into any audit summary, payload, log, or response.
  */
 export function captureRequestBearerSecrets(request: IncomingMessage): readonly string[] {
   const authorization = request.headers.authorization;

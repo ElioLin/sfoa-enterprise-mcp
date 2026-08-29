@@ -246,7 +246,7 @@ describe('Admin governance pages', () => {
   });
 
   it('renders the Buntu identity source label and the BUNTU_TOKEN_VALIDATE detail drawer', async () => {
-    const rawToken = 'buntu-raw-token-should-show';
+    const rawToken = 'buntu-raw-token-must-not-show';
     const record = auditRecord('77', {
       identitySource: 'BUNTU_TOKEN',
       clientId: 'xiaoben-buntu-token',
@@ -274,11 +274,12 @@ describe('Admin governance pages', () => {
     expect(await screen.findByText('小犇 Token')).toBeInTheDocument();
     fireEvent.click(screen.getByText('platform-buntu'));
     expect(await screen.findByText('小犇 Token 校验详情')).toBeInTheDocument();
-    expect(screen.getByText('原始 Token 已记录')).toBeInTheDocument();
+    expect(screen.queryByText('原始 Token 已记录')).not.toBeInTheDocument();
     expect(screen.getByText(`sha256:${'a'.repeat(64)}`)).toBeInTheDocument();
     expect(screen.getByText('wxyz')).toBeInTheDocument();
     expect(screen.getAllByText('platform-buntu', { selector: 'code' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('region', { name: '安全请求摘要' }).textContent).toContain(rawToken);
+    expect(screen.getByRole('region', { name: '安全请求摘要' }).textContent).not.toContain(rawToken);
+    expect(screen.getByRole('region', { name: '安全请求摘要' }).textContent).toContain('[REDACTED]');
   });
 
   it('renders only configured state even when an unexpected secret-shaped field exists', async () => {

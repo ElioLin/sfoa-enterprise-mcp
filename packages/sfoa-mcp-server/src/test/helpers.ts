@@ -216,7 +216,6 @@ export function createTestRemoteConfig(
     buntuIdentity: Object.freeze({
       enabled: false,
       timeoutMs: 5_000,
-      rawTokenAuditEnabled: false,
     }),
     ...overrides,
   });

@@ -205,7 +205,6 @@ export type BuntuTokenCredentialAuthenticatorOptions = Readonly<{
   /** MCP_CLIENT_TOKEN used for deterministic exclusivity; compared with timing-safe digest. */
   clientToken: string;
   validateTokenUrl: string;
-  rawTokenAuditEnabled: boolean;
 }>;
 
 export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticator {
@@ -279,7 +278,6 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
       tokenFingerprint: buntuTokenFingerprint(rawToken),
       tokenLast4: buntuTokenLast4(rawToken),
       validationUrl: this.options.validateTokenUrl,
-      ...(this.options.rawTokenAuditEnabled ? { rawToken } : {}),
     };
     const responseSummary = {
       valid: result.valid,

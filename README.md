@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP
 
-This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity acquisition, canonical MCP-native Salesforce Agent Playbook `1.1.0`, two tightly bounded trusted managed-field strategies, and explicit trusted Lightning record links while leaving official Salesforce Tool implementations unchanged.
+This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity acquisition, canonical MCP-native Salesforce Agent Playbook `1.1.0`, two tightly bounded trusted managed-field strategies, and explicit trusted Lightning record links. P7-01 evolves that Audit ledger into a compatible master-plus-details data model for future end-to-end trace evidence while leaving official Salesforce Tool implementations unchanged.
 
-Current project result: `P0–P5 = FINAL ACCEPTED`; `P6-ENTRY OPT01`, `P6-ID-01`, and `P6-ID-02` are complete; `P6-Agent-01` and `P6-DML-01` are implemented on `feature/p6-agent-playbook` and await final Maintainer review. Live P6-DML Salesforce evidence and P6 Real-Agent Evaluation remain Maintainer-run later Gates.
+Current Git fact: latest `main` commit `c849e577` already contains the P6-Agent-01 and P6-DML-01 implementation; historical review evidence is preserved in the project documents. `P7-01 = IMPLEMENTED / AWAITING MAINTAINER REVIEW` on `feature/p7-end-to-end-audit`; P7-02 through P7-08 have not started.
 
 Project documentation:
 
@@ -15,6 +15,8 @@ Project documentation:
 - [P6 Agent Playbook final report](docs/sfoa/P6_AGENT_01_REPORT.md)
 - [P6 trusted managed fields and record links](docs/sfoa/P6_DML_01_MANAGED_FIELDS.md)
 - [P6-DML-01 final report](docs/sfoa/P6_DML_01_REPORT.md)
+- [P7 end-to-end Audit authoritative baseline](docs/sfoa/P7_END_TO_END_AUDIT_BASELINE.md)
+- [P7-01 implementation report](docs/sfoa/P7_01_REPORT.md)
 - [Dify setup](docs/agent/DIFY_SETUP.md)
 - [WorkBuddy setup](docs/agent/WORKBUDDY_SETUP.md)
 - [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)

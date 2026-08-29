@@ -5,6 +5,8 @@
 - P6 implementation baseline: `45f823c` (fix: close P6 user-bound credential runtime issues)
 - Scope: add the third trusted identity source `BUNTU_TOKEN` without redesigning Salesforce identity routing
 
+> **P7 security supersession (2026-08-29):** this report preserves historical P6 Gate evidence. Its former raw-token opt-in is no longer operative: P7 permanently prohibits raw bearer persistence, `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` now fails startup, and migration 005 removes the known historical `requestSummary.rawToken` field.
+
 ## Result
 
 `P6-ID-02 = PASS` (local closure; maintainer review remains authoritative)
@@ -69,7 +71,7 @@ construction, and Tool execution are untouched).
 
 Focused new tests:
 - `buntu-validator.test.js` (7): 200 valid `user_id`; 401 -> `MCP_BUNTU_TOKEN_INVALID`; 403 -> invalid; 500 -> unavailable; timeout -> unavailable; oversized body -> `MCP_BUNTU_IDENTITY_RESPONSE_INVALID`; malformed JSON / bad `user_id` shape -> invalid/response-invalid.
-- `identity-provider.test.js` Buntu cases (6): provider routing table (USER_BOUND / client-token / Buntu / auth-invalid); Buntu success resolves route and returns `boundPlatformUserId`; missing route -> `MCP_IDENTITY_ROUTE_NOT_FOUND`; disabled route -> `MCP_IDENTITY_ROUTE_DISABLED`; validation failure -> `MCP_BUNTU_TOKEN_INVALID`; `BUNTU_TOKEN_VALIDATE` audit carries fingerprint/last4/durationMs and no raw token by default; raw token appears only when `rawTokenAuditEnabled`.
+- `identity-provider.test.js` Buntu cases (6): provider routing table (USER_BOUND / client-token / Buntu / auth-invalid); Buntu success resolves route and returns `boundPlatformUserId`; missing route -> `MCP_IDENTITY_ROUTE_NOT_FOUND`; disabled route -> `MCP_IDENTITY_ROUTE_DISABLED`; validation failure -> `MCP_BUNTU_TOKEN_INVALID`; `BUNTU_TOKEN_VALIDATE` audit carries fingerprint/last4/durationMs. The historical opt-in raw-token case is superseded and removed by P7.
 - USER_BOUND and Internal bearer regression cases remain green (no behavior change for lines A/B).
 
 ## Implementation summary

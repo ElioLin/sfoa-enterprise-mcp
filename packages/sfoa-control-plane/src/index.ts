@@ -1,5 +1,6 @@
 export * from './admin-service.js';
 export * from './admin-contracts.js';
+export * from './audit-sanitization.js';
 export * from './bootstrap.js';
 export * from './config.js';
 export * from './contracts.js';
@@ -8,6 +9,7 @@ export * from './errors.js';
 export * from './identity-credential.js';
 export * from './migrations.js';
 export * from './mysql-repositories.js';
+export * from './mysql-audit-repository.js';
 export * from './project-root.js';
 export * from './repositories.js';
 export * from './runtime-logger.js';

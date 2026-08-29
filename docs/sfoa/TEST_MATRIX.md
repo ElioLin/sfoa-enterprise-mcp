@@ -726,3 +726,59 @@ This matrix advances only P6-Agent-01. It preserves all historical P0–P5 and P
 P6-Agent-01 = PASS / COMPLETE — AWAITING MAINTAINER REVIEW
 P6 REAL-AGENT EVALUATION = READY / NOT STARTED
 ```
+
+## P7-01 End-to-End Audit Data Model Acceptance Matrix — 2026-08-29
+
+本矩阵只推进 P7-01；保留此前全部历史 Gate，不代表 P7-02～P7-08 已开始，也不代表 Maintainer 已验收。
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Latest-main baseline | PASS | `git fetch origin`; local/remote `main` 均为 `c849e577`; 从该提交创建 `feature/p7-end-to-end-audit` |
+| Control Plane lint/unit | PASS | strict TypeScript lint；21/21 unit tests |
+| MySQL clean init/P6 upgrade | PASS | 7/7 connected integration tests；空库、001～005、P6→P7、重复/并发 migration 均通过 |
+| Historical Audit compatibility | PASS | 旧 `sfoa_audit_log` 行继续由旧 DTO/列表读取；Admin Audit 页面无 schema 中断 |
+| Audit master/children | PASS | 主记录、Event、Salesforce API、Payload Evidence 创建及读取通过 |
+| Ordering/isolation/FK | PASS | audit-local sequence、同 Audit 组合 FK、cross-audit 拒绝、cascade 与 orphan 断言通过 |
+| Payload/list isolation | PASS | 256 KiB bounded payload；普通列表不读取/Join Payload Evidence |
+| Secret sanitization | PASS | secret-shaped key/value、Bearer/JWT/Authorization、历史 Buntu `rawToken` 清理与持久化拒绝测试通过 |
+| Audit fail-open regression | PASS | Repository 故障不会改变既有 Runtime Logger 结果；Salesforce mutation 原则未改变 |
+| MCP Server | PASS | full serial 66/66；P3 20/20；P4 7/7；P5 MySQL Runtime 5/5；Identity Runtime 32/32 |
+| Providers/Playbook | PASS | DML 17/17；Context 10/10；Agent Playbook 6/6 |
+| Admin API | PASS | 18/18 |
+| Admin Web | PASS | build 3,175 modules；35/35 tests（Windows/jsdom 项目级 60 秒 timeout） |
+| Mock browser E2E | PASS | Chromium 1/1 |
+| Real full-stack E2E | PASS | Chromium 1/1；React → Vite → real Admin API → MySQL；001～005；34 Audit rows |
+| Fullstack diagnostic hardening | PASS | 子进程错误保留 bounded tail 并经 secret redaction；E2E 显式关闭遗留 raw-token flag |
+| CodeGraph project support | PASS | 本地初始化；569 files、7,186 nodes、16,740 edges；数据库由 `.codegraph/.gitignore` 排除 |
+| Upstream-owned Salesforce source | PASS (`0`) | 未修改官方 Salesforce Tool 实现 |
+| Dependency/lockfile | PASS (`0`) | 未增加 P7/CodeGraph 项目运行时依赖；`yarn.lock` 无变化 |
+| Known upstream debt | KNOWN | Vite >500 kB chunk advisory；Node/Yarn `url.parse()` deprecation；Windows 并发测试时序不稳定，完整 MCP suite 以串行 Gate 通过 |
+
+实际执行命令包括：
+
+```text
+yarn workspace @sfoa/control-plane lint
+yarn workspace @sfoa/control-plane test
+yarn workspace @sfoa/control-plane test:mysql
+node --test --test-concurrency=1 --test-force-exit packages/sfoa-mcp-server/dist/test/*.test.js
+yarn workspace @sfoa/mcp-server validate:p3
+yarn workspace @sfoa/mcp-server validate:p4
+yarn workspace @sfoa/mcp-server validate:p5
+yarn workspace @sfoa/mcp-provider-sfoa-dml test
+yarn workspace @sfoa/mcp-provider-sfoa-context test
+yarn workspace @sfoa/identity-runtime test
+yarn workspace @sfoa/agent-playbook test
+yarn workspace @sfoa/admin-api test
+yarn workspace @sfoa/admin-web build
+yarn workspace @sfoa/admin-web test
+yarn p5:e2e
+yarn p5:e2e:fullstack
+yarn validate:p5
+```
+
+初次 aggregate 的最终 Fullstack 子 Gate 因本机 `.env.local` 遗留 `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` 正确 fail-fast；测试环境显式设为安全值后，独立 Fullstack Gate 以 exit 0 通过。一次后续 aggregate 暴露 Fullstack 的全局 `MySQL` strict locator 命中两个合法元素；限定到“运行概览”后，最终 `yarn validate:p5` 以 exit 0 在 619.67 秒完成，包含 Fullstack Chromium 1/1 与 34 条持久化 Audit 证据。
+
+```text
+P7-01 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-02–P7-08 = NOT STARTED
+```

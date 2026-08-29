@@ -1,6 +1,6 @@
 import { FilterOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Descriptions, Drawer, Form, Input, Pagination, Select, Space, Table, Typography } from 'antd';
+import { Button, Descriptions, Drawer, Form, Input, Pagination, Select, Space, Table, Typography } from 'antd';
 import { useState } from 'react';
 import type { AuditRecord, IdentitySource } from '@sfoa/control-plane';
 import { adminApi, type AuditFilters } from '../api/client.js';
@@ -166,19 +166,9 @@ function AuditDetail({ record }: Readonly<{ record: AuditRecord }>) {
 function BuntuValidateDetail({ record }: Readonly<{ record: AuditRecord }>) {
   const request = isRecord(record.requestSummary) ? record.requestSummary : undefined;
   const response = isRecord(record.responseSummary) ? record.responseSummary : undefined;
-  const rawToken = request?.rawToken;
   return (
     <section aria-label="小犇 Token 校验详情">
       <Typography.Title level={5}>小犇 Token 校验详情</Typography.Title>
-      {typeof rawToken === 'string' ? (
-        <Alert
-          type="warning"
-          showIcon
-          className="margin-bottom"
-          message="原始 Token 已记录"
-          description="MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true 生效，原始 Buntu Token 被写入了 MySQL 审计库。此值等同凭据本身，请按保密要求处理审计数据。"
-        />
-      ) : null}
       <Descriptions bordered size="small" column={1}>
         <Descriptions.Item label="校验结果">
           {response?.valid === true ? <StatusTag label="PASS" /> : <StatusTag label={record.errorCode ?? 'DENIED'} />}
@@ -217,10 +207,18 @@ function SafeSummary({ title, value }: Readonly<{ title: string; value: unknown 
 function safeJson(value: unknown): string {
   if (value === null || value === undefined) return '未记录摘要。';
   try {
-    return JSON.stringify(value, null, 2).slice(0, 16_384);
+    return JSON.stringify(value, redactSecretField, 2).slice(0, 16_384);
   } catch {
     return '摘要无法序列化。';
   }
+}
+
+function redactSecretField(key: string, value: unknown): unknown {
+  const canonical = key.toLocaleLowerCase('en-US').replace(/[^a-z0-9]/gu, '');
+  if (canonical === 'tokenfingerprint' || canonical === 'tokenlast4') return value;
+  return /(?:authorization|cookie|token|jwt|privatekey|secret|password|passphrase|dbpassword|apikey|credential)/u.test(canonical)
+    ? '[REDACTED]'
+    : value;
 }
 
 function compactFilters(values: AuditFilterForm): Omit<AuditFilters, 'limit' | 'offset'> {

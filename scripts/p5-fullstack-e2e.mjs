@@ -34,6 +34,7 @@ const testDatabaseConfig = Object.freeze({ ...loaded.database, database: testDat
 await createDatabaseIfMissing(testDatabaseConfig);
 const store = new MySqlControlPlaneStore(createControlPlaneDatabase(testDatabaseConfig));
 const secrets = [adminPassword, sessionSecret, identityCredentialEncryptionKey, loaded.database.password].filter(Boolean);
+const serviceOutput = new WeakMap();
 let adminProcess;
 let viteProcess;
 let adminSecurityEvidence = {};
@@ -64,6 +65,8 @@ try {
     SFOA_ADMIN_LOGIN_WINDOW_MS: '10000',
     MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY: identityCredentialEncryptionKey,
     MCP_PUBLIC_URL: 'http://127.0.0.1:18080/mcp',
+    // E2E 必须使用自包含的安全配置，不能被开发机遗留的 P6 原始 Bearer 审计开关污染。
+    MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: 'false',
   };
 
   adminProcess = startService('Admin API security gate', process.execPath, [
@@ -274,8 +277,13 @@ async function assertPersistedBrowserEvidence(controlPlaneStore) {
 
 function startService(label, command, args, cwd, environment) {
   const child = spawn(command, args, { cwd, env: environment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout?.on('data', () => undefined);
-  child.stderr?.on('data', () => undefined);
+  serviceOutput.set(child, '');
+  const capture = (chunk) => {
+    const combined = `${serviceOutput.get(child) ?? ''}${String(chunk)}`;
+    serviceOutput.set(child, combined.slice(-16_384));
+  };
+  child.stdout?.on('data', capture);
+  child.stderr?.on('data', capture);
   child.once('error', (error) => {
     process.stderr.write(`${label} failed to start: ${redact(error.message, secrets)}\n`);
   });
@@ -285,7 +293,13 @@ function startService(label, command, args, cwd, environment) {
 async function waitForHttp(url, child) {
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`Service exited before ${url} became ready (code ${child.exitCode}).`);
+    if (child.exitCode !== null) {
+      const output = redact(serviceOutput.get(child) ?? '', secrets).trim();
+      throw new Error(
+        `Service exited before ${url} became ready (code ${child.exitCode}).` +
+        (output ? `\nBounded service output:\n${output}` : ''),
+      );
+    }
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
       if (response.ok) return;

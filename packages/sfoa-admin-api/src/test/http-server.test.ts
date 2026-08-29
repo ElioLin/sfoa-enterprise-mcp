@@ -433,12 +433,22 @@ function toolRecord(toolName: string, enabled: boolean, remark: string | null): 
 
 function auditRecord(id: string, event: AuditWrite): AuditRecord {
   return Object.freeze({
-    id, occurredAt: event.occurredAt.toISOString(), correlationId: event.correlationId, channel: event.channel,
+    id,
+    publicAuditId: event.publicAuditId ?? `00000000-0000-4000-8000-${id.padStart(12, '0')}`,
+    auditKind: event.auditKind ?? (event.channel === 'ADMIN'
+      ? 'ADMIN_ACTION'
+      : event.operation === 'BUNTU_TOKEN_VALIDATE' ? 'IDENTITY_VALIDATION' : 'RUNTIME_EVENT'),
+    occurredAt: event.occurredAt.toISOString(),
+    startedAt: event.startedAt?.toISOString() ?? null,
+    completedAt: event.completedAt?.toISOString() ?? null,
+    correlationId: event.correlationId, channel: event.channel,
     clientId: event.clientId ?? null, actorAdmin: event.actorAdmin ?? null, platformUserId: event.platformUserId ?? null,
     salesforceUsername: event.salesforceUsername ?? null, executionRole: event.executionRole ?? null,
     identitySource: event.identitySource ?? null, identityCredentialId: event.identityCredentialId ?? null,
     toolName: event.toolName ?? null, operation: event.operation ?? null, objectApiName: event.objectApiName ?? null,
     recordId: event.recordId ?? null, result: event.result, outcome: event.outcome ?? null, errorCode: event.errorCode ?? null,
+    errorMessageSafe: event.errorMessageSafe ?? null,
+    auditIntegrityStatus: event.auditIntegrityStatus ?? 'PARTIAL',
     durationMs: event.durationMs ?? null, requestSummary: event.requestSummary ?? null,
     responseSummary: event.responseSummary ?? null, createdAt: now,
   });

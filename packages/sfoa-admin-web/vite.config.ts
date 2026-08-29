@@ -29,8 +29,10 @@ export default defineConfig({
     css: true,
     fileParallelism: false,
     maxWorkers: 1,
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    // 本机单 worker 的 Ant Design/jsdom 治理流程稳定需要 30s 以上；仍以 60s
+    // 有界超时拒绝真正挂起，同时与既有 P6 诊断 Gate 的通过参数保持一致。
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     restoreMocks: true,
     clearMocks: true,
   },

@@ -101,6 +101,7 @@ if (!configured) {
         NODE_ENV: 'test',
         SFOA_CONTROL_PLANE_MODE: 'mysql',
         SFOA_DB_NAME: configured.database,
+        MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: 'false',
         SFOA_INSTANCE_URL: 'https://example.test',
         CONNECTED_APP_CLIENT_ID: 'p5-real-mysql-runtime-test',
         JWT_PRIVATE_KEY_PATH: keyPath,

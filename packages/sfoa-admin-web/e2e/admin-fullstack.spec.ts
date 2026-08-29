@@ -9,7 +9,7 @@ test('real Admin browser workflow persists USER_BOUND lifecycle, governance, and
   await page.getByLabel('密码').fill(password);
   await page.getByRole('button', { name: '安全登录' }).click();
   await expect(page.getByRole('main').getByRole('heading', { name: '运行概览' })).toBeVisible();
-  await expect(page.getByText('MySQL', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('运行概览').getByText('MySQL', { exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: '用户身份路由' }).click();
   await page.getByRole('button', { name: '新建身份路由', exact: true }).click();

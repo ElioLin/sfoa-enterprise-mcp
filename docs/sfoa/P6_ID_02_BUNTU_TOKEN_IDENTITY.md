@@ -113,11 +113,11 @@ Startup logs report the wired identity sources (safe names only), e.g. `USER_BOU
 Every Buntu validation emits a `BUNTU_TOKEN_VALIDATE` audit record:
 
 - `clientId=xiaoben-buntu-token`, `identitySource=BUNTU_TOKEN`;
-- `requestSummary`: `provider: 'BUNTU'`, `tokenFingerprint` (sha256 digest), `tokenLast4`, `validationUrl`, and — only when `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` — the raw token;
+- `requestSummary`: `provider: 'BUNTU'`, `tokenFingerprint` (sha256 digest), `tokenLast4`, and `validationUrl`; raw token is never included;
 - `responseSummary`: `valid`, optional `httpStatus`, optional `upstreamSuccess` (the upstream `success` field, only when a parseable 2xx business response was received), and on success the normalized `userId` plus `userIdType` (`string` | `number`, the original JSON primitive type of `data.userId`). The upstream `userName` is never copied into the audit;
 - `durationMs` covers the remote validate round-trip; `result`/`outcome` map to PASS/SUCCESS, or BLOCKED/DENIED on `MCP_BUNTU_TOKEN_INVALID`, or ERROR/FAILED on unavailable/invalid-response.
 
-Secret boundary: the raw token may be stored only inside the MySQL `sfoa_audit_log.requestSummary` column and only under the raw-token flag. The database fallback path and every stdout/stderr/HTTP response remain token-free by construction (`DatabaseRuntimeLogger` fallback never writes `requestSummary`/`responseSummary`).
+P7 security supersession (2026-08-29): raw Bearer-token persistence is permanently prohibited. The legacy `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED` key remains accepted only as `false`; `true` fails startup validation. Migration `005_p7_end_to_end_audit.sql` removes the known historical `requestSummary.rawToken` field, while repository sanitization and the Admin UI provide defense in depth. The database fallback path and every stdout/stderr/HTTP response remain token-free by construction (`DatabaseRuntimeLogger` fallback never writes `requestSummary`/`responseSummary`).
 
 ## Admin presentation
 

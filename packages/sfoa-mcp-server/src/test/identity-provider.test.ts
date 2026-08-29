@@ -214,7 +214,7 @@ test('Buntu validation failures map to stable error codes and deny the request',
   await assert.rejects(authenticate(provider, BUNTU_TOKEN), hasRemoteCode('MCP_BUNTU_IDENTITY_RESPONSE_INVALID'));
 });
 
-test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4; the raw token is opt-in and never in summaries', async () => {
+test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4 but never the raw token', async () => {
   const events: RuntimeLogEvent[] = [];
   const logger: RuntimeLogger = { log: (event) => { void events.push(event); } };
   const fixture = new MutableIdentityFixture(logger);
@@ -229,7 +229,7 @@ test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4; the raw token is o
     userIdType: 'string',
   });
 
-  await authenticate(fixture.provider({ includeBuntu: true, rawTokenAuditEnabled: false }), BUNTU_TOKEN);
+  await authenticate(fixture.provider({ includeBuntu: true }), BUNTU_TOKEN);
   const event = events.find((entry) => entry.operation === 'BUNTU_TOKEN_VALIDATE');
   assert.ok(event, 'expected a BUNTU_TOKEN_VALIDATE audit event');
   assert.equal(event.clientId, 'xiaoben-buntu-token');
@@ -249,25 +249,6 @@ test('BUNTU_TOKEN_VALIDATE audit emits fingerprint and last4; the raw token is o
   assert.equal(responseSummary.userId, 'platform-a');
   assert.equal(responseSummary.userIdType, 'string');
 
-  const eventsRaw: RuntimeLogEvent[] = [];
-  const loggerRaw: RuntimeLogger = { log: (rawEvent) => { void eventsRaw.push(rawEvent); } };
-  const fixtureRaw = new MutableIdentityFixture(loggerRaw);
-  fixtureRaw.putRoute(route('1', 'platform-a', true));
-  fixtureRaw.validator.result = Object.freeze({
-    valid: true,
-    userId: 'platform-a',
-    httpStatus: 200,
-    durationMs: 11,
-    validatedAt: NOW,
-    upstreamSuccess: true,
-    userIdType: 'string',
-  });
-  await authenticate(fixtureRaw.provider({ includeBuntu: true, rawTokenAuditEnabled: true }), BUNTU_TOKEN);
-  const rawEvent = eventsRaw.find((entry) => entry.operation === 'BUNTU_TOKEN_VALIDATE');
-  assert.equal(
-    (rawEvent?.requestSummary as Record<string, unknown> | undefined)?.rawToken,
-    BUNTU_TOKEN,
-  );
 });
 
 test('a denied Buntu validation is audited as BLOCKED with the upstream error code', async () => {
@@ -376,7 +357,7 @@ class MutableIdentityFixture {
 
   public readonly validator = new StubBuntuTokenValidator();
 
-  public provider(options: Readonly<{ includeBuntu?: boolean; rawTokenAuditEnabled?: boolean }> = {}): UnifiedIdentityProvider {
+  public provider(options: Readonly<{ includeBuntu?: boolean }> = {}): UnifiedIdentityProvider {
     const authenticators: CredentialAuthenticator[] = [
       new UserBoundCredentialAuthenticator(this.credentialRepository, this.routeRepository, this.logger),
       new InternalServiceCredentialAuthenticator(TEST_CLIENT_TOKEN),
@@ -389,7 +370,6 @@ class MutableIdentityFixture {
           logger: this.logger,
           clientToken: TEST_CLIENT_TOKEN,
           validateTokenUrl: 'https://buntu.example.test/validate',
-          rawTokenAuditEnabled: options.rawTokenAuditEnabled ?? false,
         }),
       );
     }

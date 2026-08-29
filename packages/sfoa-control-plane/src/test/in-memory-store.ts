@@ -1,5 +1,8 @@
 import {
   ControlPlaneError,
+  encodeBoundedAuditPayload,
+  type AuditEventRecord,
+  type AuditPayloadEvidenceRecord,
   type AuditRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
@@ -9,11 +12,15 @@ import {
   type Page,
   type RuntimeSettingKey,
   type RuntimeSettingRecord,
+  type SalesforceApiCallRecord,
   type ToolControlRecord,
 } from '../index.js';
 import type {
+  AuditEventCreateInput,
+  AuditPayloadEvidenceCreateInput,
   AuditWrite,
   ControlPlaneRepositories,
+  ControlPlaneRepositoriesWithAuditTrace,
   DiagnosticConfigWriteInput,
   DmlPolicyCreateInput,
   DmlPolicyUpdateInput,
@@ -22,6 +29,7 @@ import type {
   ListOptions,
   ManagedDmlFieldRuleCreateInput,
   ManagedDmlFieldRuleUpdateInput,
+  SalesforceApiCallCreateInput,
   ToolControlWriteInput,
 } from '../repositories.js';
 import type { TransactionalControlPlaneStore } from '../store.js';
@@ -37,11 +45,15 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   private diagnostic: DiagnosticConfigRecord | undefined;
   private settings = new Map<RuntimeSettingKey, RuntimeSettingRecord>();
   private audits: AuditRecord[] = [];
+  private auditEvents: AuditEventRecord[] = [];
+  private salesforceApiCalls: SalesforceApiCallRecord[] = [];
+  private auditPayloads: AuditPayloadEvidenceRecord[] = [];
   private nextEntityId = 1;
   private nextAuditId = 1;
+  private nextAuditDetailId = 1;
   private failAudit = false;
 
-  public readonly repositories: ControlPlaneRepositories;
+  public readonly repositories: ControlPlaneRepositoriesWithAuditTrace;
 
   public constructor() {
     this.repositories = Object.freeze({
@@ -245,6 +257,25 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
           unknown: this.audits.filter((record) => record.outcome === 'UNKNOWN').length,
         }),
       },
+      auditTraces: {
+        createCall: async (input) => this.appendAudit({ ...input, channel: 'MCP', toolName: input.toolName, auditKind: 'MCP_TOOL_CALL' }),
+        getByPublicAuditId: async (publicAuditId) => this.audits.find((record) => record.publicAuditId === publicAuditId),
+        createEvent: async (input) => this.createAuditEvent(input),
+        listEvents: async (auditId, options) => makePage(
+          this.auditEvents.filter((record) => record.auditId === auditId).sort((a, b) => a.sequence - b.sequence),
+          options,
+        ),
+        createSalesforceApiCall: async (input) => this.createSalesforceApiCall(input),
+        listSalesforceApiCalls: async (auditId, options) => makePage(
+          this.salesforceApiCalls.filter((record) => record.auditId === auditId).sort((a, b) => a.sequence - b.sequence),
+          options,
+        ),
+        createPayloadEvidence: async (input) => this.createAuditPayload(input),
+        listPayloadEvidence: async (auditId, options) => makePage(
+          this.auditPayloads.filter((record) => record.auditId === auditId),
+          options,
+        ),
+      },
     });
   }
 
@@ -262,8 +293,12 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       diagnostic: this.diagnostic,
       settings: new Map(this.settings),
       audits: [...this.audits],
+      auditEvents: [...this.auditEvents],
+      salesforceApiCalls: [...this.salesforceApiCalls],
+      auditPayloads: [...this.auditPayloads],
       nextEntityId: this.nextEntityId,
       nextAuditId: this.nextAuditId,
+      nextAuditDetailId: this.nextAuditDetailId,
     };
     try {
       return await work(this.repositories);
@@ -276,8 +311,12 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       this.diagnostic = snapshot.diagnostic;
       this.settings = snapshot.settings;
       this.audits = snapshot.audits;
+      this.auditEvents = snapshot.auditEvents;
+      this.salesforceApiCalls = snapshot.salesforceApiCalls;
+      this.auditPayloads = snapshot.auditPayloads;
       this.nextEntityId = snapshot.nextEntityId;
       this.nextAuditId = snapshot.nextAuditId;
+      this.nextAuditDetailId = snapshot.nextAuditDetailId;
       throw error;
     }
   }
@@ -377,9 +416,18 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
 
   private async appendAudit(event: AuditWrite): Promise<AuditRecord> {
     if (this.failAudit) throw new Error('simulated audit persistence failure');
-    const record = Object.freeze({
-      id: String(this.nextAuditId++),
+    const id = String(this.nextAuditId++);
+    const record: AuditRecord = Object.freeze({
+      id,
+      publicAuditId: event.publicAuditId ?? `00000000-0000-4000-8000-${id.padStart(12, '0')}`,
+      auditKind: event.auditKind ?? (event.channel === 'ADMIN'
+        ? 'ADMIN_ACTION'
+        : event.operation === 'BUNTU_TOKEN_VALIDATE'
+          ? 'IDENTITY_VALIDATION'
+          : 'RUNTIME_EVENT'),
       occurredAt: event.occurredAt.toISOString(),
+      startedAt: event.startedAt?.toISOString() ?? null,
+      completedAt: event.completedAt?.toISOString() ?? null,
       correlationId: event.correlationId,
       channel: event.channel,
       clientId: event.clientId ?? null,
@@ -396,12 +444,109 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       result: event.result,
       outcome: event.outcome ?? null,
       errorCode: event.errorCode ?? null,
+      errorMessageSafe: event.errorMessageSafe ?? null,
+      auditIntegrityStatus: event.auditIntegrityStatus ?? 'PARTIAL',
       durationMs: event.durationMs ?? null,
       requestSummary: event.requestSummary ?? null,
       responseSummary: event.responseSummary ?? null,
       createdAt: TEST_TIME,
     });
     this.audits.push(record);
+    return record;
+  }
+
+  private async createAuditEvent(input: AuditEventCreateInput): Promise<AuditEventRecord> {
+    this.required(this.audits.find((record) => record.id === input.auditId && record.auditKind === 'MCP_TOOL_CALL'), 'Audit call');
+    if (this.auditEvents.some((record) => record.auditId === input.auditId && record.sequence === input.sequence)) throw conflict();
+    if (input.parentEventId) {
+      this.required(this.auditEvents.find((record) => record.id === input.parentEventId && record.auditId === input.auditId), 'Parent audit event');
+    }
+    const record: AuditEventRecord = Object.freeze({
+      id: String(this.nextAuditDetailId++),
+      auditId: input.auditId,
+      sequence: input.sequence,
+      parentEventId: input.parentEventId ?? null,
+      eventCategory: input.eventCategory,
+      eventType: input.eventType,
+      eventName: input.eventName,
+      startedAt: input.startedAt.toISOString(),
+      completedAt: input.completedAt?.toISOString() ?? null,
+      durationMs: input.durationMs ?? null,
+      status: input.status,
+      errorCode: input.errorCode ?? null,
+      safeSummary: input.safeSummary ?? null,
+      createdAt: TEST_TIME,
+    });
+    this.auditEvents.push(record);
+    return record;
+  }
+
+  private async createSalesforceApiCall(input: SalesforceApiCallCreateInput): Promise<SalesforceApiCallRecord> {
+    this.required(this.audits.find((record) => record.id === input.auditId && record.auditKind === 'MCP_TOOL_CALL'), 'Audit call');
+    if (this.salesforceApiCalls.some((record) => record.auditId === input.auditId && record.sequence === input.sequence)) throw conflict();
+    if (input.auditEventId) {
+      this.required(this.auditEvents.find((record) => record.id === input.auditEventId && record.auditId === input.auditId), 'Audit event');
+    }
+    const record: SalesforceApiCallRecord = Object.freeze({
+      id: String(this.nextAuditDetailId++),
+      auditId: input.auditId,
+      auditEventId: input.auditEventId ?? null,
+      sequence: input.sequence,
+      salesforceUsername: input.salesforceUsername,
+      apiCategory: input.apiCategory,
+      httpMethod: input.httpMethod,
+      endpoint: input.endpoint,
+      apiVersion: input.apiVersion ?? null,
+      purpose: input.purpose,
+      startedAt: input.startedAt.toISOString(),
+      completedAt: input.completedAt?.toISOString() ?? null,
+      durationMs: input.durationMs ?? null,
+      httpStatus: input.httpStatus ?? null,
+      result: input.result,
+      salesforceErrorCode: input.salesforceErrorCode ?? null,
+      salesforceErrorMessageSafe: input.salesforceErrorMessageSafe ?? null,
+      queryType: input.queryType ?? null,
+      soqlStatementSafe: input.soqlStatementSafe ?? null,
+      totalSize: input.totalSize ?? null,
+      returnedRecords: input.returnedRecords ?? null,
+      done: input.done ?? null,
+      dmlOperation: input.dmlOperation ?? null,
+      objectApiName: input.objectApiName ?? null,
+      recordId: input.recordId ?? null,
+      requestedFields: input.requestedFields ?? null,
+      managedFields: input.managedFields ?? null,
+      createdAt: TEST_TIME,
+    });
+    this.salesforceApiCalls.push(record);
+    return record;
+  }
+
+  private async createAuditPayload(input: AuditPayloadEvidenceCreateInput): Promise<AuditPayloadEvidenceRecord> {
+    this.required(this.audits.find((record) => record.id === input.auditId && record.auditKind === 'MCP_TOOL_CALL'), 'Audit call');
+    if (input.auditEventId) {
+      this.required(this.auditEvents.find((record) => record.id === input.auditEventId && record.auditId === input.auditId), 'Audit event');
+    }
+    if (input.salesforceApiCallId) {
+      this.required(this.salesforceApiCalls.find(
+        (record) => record.id === input.salesforceApiCallId && record.auditId === input.auditId,
+      ), 'Salesforce API call');
+    }
+    const encoded = encodeBoundedAuditPayload(input.safePayload);
+    const record: AuditPayloadEvidenceRecord = Object.freeze({
+      id: String(this.nextAuditDetailId++),
+      auditId: input.auditId,
+      salesforceApiCallId: input.salesforceApiCallId ?? null,
+      auditEventId: input.auditEventId ?? null,
+      payloadType: input.payloadType,
+      contentType: input.contentType,
+      originalSizeBytes: String(input.originalSizeBytes),
+      storedSizeBytes: encoded.storedSizeBytes,
+      truncated: Boolean(input.truncated || encoded.truncated),
+      contentSha256: input.contentSha256 ?? encoded.contentSha256,
+      safePayload: encoded.safePayload,
+      createdAt: TEST_TIME,
+    });
+    this.auditPayloads.push(record);
     return record;
   }
 

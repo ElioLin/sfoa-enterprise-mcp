@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6-Entry OPT01, P6-ID-01 USER_BOUND, and P6-ID-02 Buntu identity complete; P6-Agent-01 Playbook `1.1.0` and P6-DML-01 PASS/complete awaiting Maintainer review; P6 Real-Agent Evaluation remains unstarted
+Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 end-to-end Audit data model implementation is under review; P7-02–P7-08 remain unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -635,12 +635,33 @@ Lookup/configuration failures and timeouts before mutation dispatch return norma
 
 Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and now marks managed targets so an Agent omits them. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.1.0` instructs every MCP/Dify/WorkBuddy surface not to ask for, recommend, send, override, derive, or guess managed values. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
 
+## P7-01 compatible end-to-end Audit data model
+
+ADR-0015 evolves the P5/P6 flat Audit ledger without moving historical rows. `sfoa_audit_log` remains the master table consumed by the current Runtime Logger, Admin API, and React Audit page. A public UUID, fact-based Audit kind, optional start/completion bounds, safe error message, and integrity status extend each master row. Only `MCP_TOOL_CALL` represents one definite MCP Tool invocation; Admin actions, identity validations, and generic Runtime events remain distinct and are never inferred into Agent business tasks. Historical Tool-named rows remain `RUNTIME_EVENT` because timeout/disconnect paths can emit multiple flat events for one invocation; only the new `createCall()`/explicit kind establishes the one-to-one claim.
+
+```mermaid
+flowchart TD
+  Call[sfoa_audit_log<br/>compatible Audit master] --> Event[sfoa_audit_event<br/>per-Audit ordered events]
+  Call --> Api[sfoa_salesforce_api_call<br/>API + SOQL/DML facts]
+  Call --> Payload[sfoa_audit_payload_evidence<br/>bounded sanitized evidence]
+  Event --> Child[Same-Audit child event]
+  Event --> Api
+  Event --> Payload
+  Api --> Payload
+```
+
+Event and API sequences are unique within one Audit, not globally. Composite foreign keys enforce that Event parents and optional API/Payload links belong to the same master Audit. A controlled future retention operation deletes the master and cascades through evidence; P7-01 supplies no deletion scheduler. Derived trace counts are not duplicated on the master, and ordinary list queries do not join Payload Evidence.
+
+`mysql-audit-repository.ts` is the cohesive persistence boundary for both the compatible `audits` contract and the new `auditTraces` contract. It validates that trace children attach only to `MCP_TOOL_CALL` rows, applies centralized recursive sanitization to summaries/errors/endpoints/SOQL/fields/payloads, and bounds stored payloads at 256 KiB. The P7 migration removes the one known historical `rawToken` field and Runtime configuration rejects attempts to re-enable raw Buntu token auditing.
+
+P7-01 deliberately does not add the request-scoped Audit context, Collector, AsyncLocalStorage, queue/batch writer, Salesforce transport instrumentation, MCP response capture, React Workbench, or diagnostic Skill. Existing Runtime persistence remains fail-open, so audit/fallback failure cannot reverse a successful Salesforce mutation; existing Admin mutation-plus-audit transactions retain their accepted strong consistency. P7-02 and later may build only on the isolation, fail-open, and performance Gates in `P7_END_TO_END_AUDIT_BASELINE.md`.
+
 ## Data, cache, and security baseline
 
-- P0, P0-Closure, P1, P2, P3, and P4 use no database. P5 introduces MySQL only for durable SFoA governance and audit.
+- P0, P0-Closure, P1, P2, P3, and P4 use no database. P5 introduces MySQL only for durable SFoA governance and audit; P7-01 normalizes trace evidence beneath the compatible Audit master without adding Runtime capture.
 - P1 proves request-scoped identity routing with an in-memory repository. P5 supplies `MySqlIdentityRepository` behind the same authority boundary while env mode retains the historical repository.
 - A bounded MySQL connection pool is allowed. Redis, Salesforce token cache, and Salesforce Connection pool remain absent; every Salesforce request retains a fresh JWT/Connection.
 - Managed-field rules are request snapshots, not a cache; platform-user Lookup results are never cached or reused across requests.
-- Secrets remain outside Git; logs must redact tokens, USER_BOUND credentials, encryption keys, and private-key material.
+- Secrets remain outside Git; logs and Audit persistence must redact Authorization/Cookie data, tokens, USER_BOUND/Buntu credentials, JWTs, client/database secrets, encryption keys, and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.
 - DELETE is absent from the initial mutation design.

@@ -13,7 +13,12 @@ export type MigrationStatus = Readonly<{
   appliedAt: string | null;
 }>;
 
-type MigrationFile = Readonly<{ version: string; sqlText: string; checksumSha256: string }>;
+type MigrationFile = Readonly<{
+  version: string;
+  sqlText: string;
+  checksumSha256: string;
+  acceptedChecksums: readonly string[];
+}>;
 
 export function defaultMigrationsDirectory(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
@@ -23,41 +28,49 @@ export async function migrateDatabase(
   database: ControlPlaneDatabaseClient,
   migrationsDirectory = defaultMigrationsDirectory(),
 ): Promise<readonly MigrationStatus[]> {
-  await ensureMigrationTable(database);
-  const files = await loadMigrationFiles(migrationsDirectory);
-  const lock = await sql<{ acquired: number }>`SELECT GET_LOCK('sfoa_p5_schema_migration', 30) AS acquired`.execute(database);
-  if (Number(lock.rows[0]?.acquired) !== 1) {
-    throw new ControlPlaneError('MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE', 'Could not acquire the P5 schema migration lock.');
-  }
   try {
-    const applied = await appliedMigrations(database);
-    for (const migration of files) {
-      const prior = applied.get(migration.version);
-      if (prior) {
-        if (prior.checksumSha256 !== migration.checksumSha256) {
-          throw new ControlPlaneError(
-            'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
-            `Applied migration ${migration.version} checksum does not match the repository file.`,
-          );
+    await ensureMigrationTable(database);
+    const files = await loadMigrationFiles(migrationsDirectory);
+    // MySQL advisory lock 属于连接而不是连接池。整个 migration 临界区与 RELEASE_LOCK
+    // 必须固定在同一连接，否则池切换连接后会静默遗留锁，后续启动会被阻塞。
+    return await database.connection().execute(async (connection) => {
+      const lock = await sql<{ acquired: number }>`
+        SELECT GET_LOCK(CONCAT('sfoa_schema_', LEFT(SHA2(DATABASE(), 256), 48)), 30) AS acquired
+      `.execute(connection);
+      if (Number(lock.rows[0]?.acquired) !== 1) {
+        throw new ControlPlaneError('MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE', 'Could not acquire the SFoA schema migration lock.');
+      }
+      try {
+        const applied = await appliedMigrations(connection);
+        for (const migration of files) {
+          const prior = applied.get(migration.version);
+          if (prior) {
+            if (!migration.acceptedChecksums.includes(prior.checksumSha256)) {
+              throw new ControlPlaneError(
+                'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+                `Applied migration ${migration.version} checksum does not match the repository file.`,
+              );
+            }
+            continue;
+          }
+          for (const statement of splitSqlStatements(migration.sqlText)) {
+            await executeMigrationStatement(connection, statement);
+          }
+          await connection
+            .insertInto('sfoa_schema_migration')
+            .values({ version: migration.version, checksum_sha256: migration.checksumSha256 })
+            .executeTakeFirstOrThrow();
         }
-        continue;
+        return await migrationStatus(connection, migrationsDirectory);
+      } finally {
+        await sql`
+          SELECT RELEASE_LOCK(CONCAT('sfoa_schema_', LEFT(SHA2(DATABASE(), 256), 48)))
+        `.execute(connection).catch(() => undefined);
       }
-      for (const statement of splitSqlStatements(migration.sqlText)) {
-        await executeMigrationStatement(database, statement);
-      }
-      await database
-        .insertInto('sfoa_schema_migration')
-        .values({ version: migration.version, checksum_sha256: migration.checksumSha256 })
-        .executeTakeFirstOrThrow();
-    }
-    const status = await migrationStatus(database, migrationsDirectory);
-    await validateRequiredSchemaObjects(database);
-    return status;
+    });
   } catch (error) {
     if (error instanceof ControlPlaneError) throw error;
     throw toControlPlaneError(error);
-  } finally {
-    await sql`SELECT RELEASE_LOCK('sfoa_p5_schema_migration')`.execute(database).catch(() => undefined);
   }
 }
 
@@ -78,7 +91,7 @@ export async function migrationStatus(
   const status = Object.freeze(
     files.map((file) => {
       const current = applied.get(file.version);
-      if (current && current.checksumSha256 !== file.checksumSha256) {
+      if (current && !file.acceptedChecksums.includes(current.checksumSha256)) {
         throw new ControlPlaneError(
           'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
           `Applied migration ${file.version} checksum does not match the repository file.`,
@@ -105,7 +118,7 @@ export async function assertAllMigrationsApplied(
     const applied = await appliedMigrations(database);
     const status = files.map((file) => {
       const current = applied.get(file.version);
-      if (!current || current.checksumSha256 !== file.checksumSha256) {
+      if (!current || !file.acceptedChecksums.includes(current.checksumSha256)) {
         throw new ControlPlaneError(
           'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
           `Required migration ${file.version} is missing or has a checksum mismatch. Run db:migrate before startup.`,
@@ -159,9 +172,24 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
   ]),
   sfoa_runtime_setting: Object.freeze(['setting_key', 'setting_value_json', 'row_version', 'updated_at']),
   sfoa_audit_log: Object.freeze([
-    'id', 'occurred_at', 'correlation_id', 'channel', 'client_id', 'actor_admin', 'platform_user_id',
+    'id', 'public_audit_id', 'audit_kind', 'occurred_at', 'started_at', 'completed_at', 'correlation_id', 'channel', 'client_id', 'actor_admin', 'platform_user_id',
     'salesforce_username', 'execution_role', 'identity_source', 'identity_credential_id', 'tool_name', 'operation', 'object_api_name', 'record_id',
-    'result', 'outcome', 'error_code', 'duration_ms', 'request_summary_json', 'response_summary_json', 'created_at',
+    'result', 'outcome', 'error_code', 'error_message_safe', 'audit_integrity_status', 'duration_ms', 'request_summary_json', 'response_summary_json', 'created_at',
+  ]),
+  sfoa_audit_event: Object.freeze([
+    'id', 'audit_id', 'sequence', 'parent_event_id', 'event_category', 'event_type', 'event_name', 'started_at',
+    'completed_at', 'duration_ms', 'status', 'error_code', 'safe_summary_json', 'created_at',
+  ]),
+  sfoa_salesforce_api_call: Object.freeze([
+    'id', 'audit_id', 'audit_event_id', 'sequence', 'salesforce_username', 'api_category', 'http_method',
+    'endpoint', 'api_version', 'purpose', 'started_at', 'completed_at', 'duration_ms', 'http_status', 'result',
+    'salesforce_error_code', 'salesforce_error_message_safe', 'query_type', 'soql_statement_safe', 'total_size',
+    'returned_records', 'done', 'dml_operation', 'object_api_name', 'record_id', 'requested_fields_json',
+    'managed_fields_json', 'created_at',
+  ]),
+  sfoa_audit_payload_evidence: Object.freeze([
+    'id', 'audit_id', 'salesforce_api_call_id', 'audit_event_id', 'payload_type', 'content_type',
+    'original_size_bytes', 'stored_size_bytes', 'truncated', 'content_sha256', 'safe_payload', 'created_at',
   ]),
 });
 
@@ -189,6 +217,22 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   idx_sfoa_audit_result: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['result', 'occurred_at']), unique: false }),
   idx_sfoa_audit_error: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['error_code', 'occurred_at']), unique: false }),
   idx_sfoa_audit_identity_credential: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['identity_credential_id', 'occurred_at']), unique: false }),
+  uq_sfoa_audit_public_id: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['public_audit_id']), unique: true }),
+  idx_sfoa_audit_channel: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['channel', 'occurred_at', 'id']), unique: false }),
+  idx_sfoa_audit_kind: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['audit_kind', 'occurred_at', 'id']), unique: false }),
+  uq_sfoa_audit_event_sequence: Object.freeze({ tableName: 'sfoa_audit_event', columns: Object.freeze(['audit_id', 'sequence']), unique: true }),
+  uq_sfoa_audit_event_id_audit: Object.freeze({ tableName: 'sfoa_audit_event', columns: Object.freeze(['id', 'audit_id']), unique: true }),
+  idx_sfoa_audit_event_error: Object.freeze({ tableName: 'sfoa_audit_event', columns: Object.freeze(['error_code', 'started_at']), unique: false }),
+  uq_sfoa_sf_api_sequence: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['audit_id', 'sequence']), unique: true }),
+  uq_sfoa_sf_api_id_audit: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['id', 'audit_id']), unique: true }),
+  idx_sfoa_sf_api_event: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['audit_event_id', 'audit_id']), unique: false }),
+  idx_sfoa_sf_api_category: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['api_category', 'started_at']), unique: false }),
+  idx_sfoa_sf_api_http_status: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['http_status', 'started_at']), unique: false }),
+  idx_sfoa_sf_api_error: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['salesforce_error_code', 'started_at']), unique: false }),
+  idx_sfoa_payload_event: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['audit_event_id', 'audit_id']), unique: false }),
+  idx_sfoa_payload_api: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['salesforce_api_call_id', 'audit_id']), unique: false }),
+  idx_sfoa_payload_type: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['payload_type', 'created_at']), unique: false }),
+  idx_sfoa_payload_audit: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['audit_id', 'id']), unique: false }),
 });
 
 export async function validateRequiredSchemaObjects(database: ControlPlaneDatabaseClient): Promise<void> {
@@ -253,7 +297,7 @@ export async function validateRequiredSchemaObjects(database: ControlPlaneDataba
   if (defects.length > 0) {
     throw new ControlPlaneError(
       'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
-      `P5 schema validation failed: ${defects.slice(0, 20).join('; ')}. Run the reviewed migration or repair the project database.`,
+      `SFoA schema validation failed: ${defects.slice(0, 20).join('; ')}. Run the reviewed migration or repair the project database.`,
     );
   }
 }
@@ -301,10 +345,32 @@ async function loadMigrationFiles(directory: string): Promise<readonly Migration
     return Object.freeze({
       version: name.slice(0, -4),
       sqlText,
-      checksumSha256: createHash('sha256').update(sqlText).digest('hex'),
+      checksumSha256: migrationChecksumSha256(sqlText),
+      acceptedChecksums: migrationChecksumVariants(sqlText),
     });
   }));
   return Object.freeze(files);
+}
+
+/**
+ * Git 中的 migration 以 LF 为权威内容。Windows checkout 可能只把换行改成 CRLF；
+ * checksum 必须跨平台稳定，但任何非换行 SQL 变化仍要触发 fail-closed。
+ */
+export function migrationChecksumSha256(sqlText: string): string {
+  return createHash('sha256').update(normalizeMigrationLineEndings(sqlText)).digest('hex');
+}
+
+function migrationChecksumVariants(sqlText: string): readonly string[] {
+  const lf = normalizeMigrationLineEndings(sqlText);
+  const crlf = lf.replaceAll('\n', '\r\n');
+  return Object.freeze([...new Set([
+    createHash('sha256').update(lf).digest('hex'),
+    createHash('sha256').update(crlf).digest('hex'),
+  ])]);
+}
+
+function normalizeMigrationLineEndings(sqlText: string): string {
+  return sqlText.replace(/\r\n?/gu, '\n');
 }
 
 export function splitSqlStatements(text: string): readonly string[] {

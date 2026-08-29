@@ -1,6 +1,14 @@
 import type {
+  AuditEventCategory,
+  AuditEventRecord,
+  AuditEventStatus,
+  AuditIntegrityStatus,
+  AuditKind,
+  AuditPayloadEvidenceRecord,
+  AuditPayloadType,
   AuditRecord,
   AuditResult,
+  AuditedHttpMethod,
   DiagnosticConfigRecord,
   DiagnosticVerificationStatus,
   DmlPolicyRecord,
@@ -11,6 +19,9 @@ import type {
   Page,
   RuntimeSettingKey,
   RuntimeSettingRecord,
+  SalesforceApiCallRecord,
+  SalesforceApiCategory,
+  SalesforceApiResult,
   ToolControlRecord,
   TotalPage,
 } from './contracts.js';
@@ -146,6 +157,10 @@ export interface RuntimeSettingRepository {
 
 export type AuditWrite = Readonly<{
   occurredAt: Date;
+  publicAuditId?: string;
+  auditKind?: AuditKind;
+  startedAt?: Date;
+  completedAt?: Date;
   correlationId: string;
   channel: 'MCP' | 'ADMIN';
   clientId?: string;
@@ -162,6 +177,8 @@ export type AuditWrite = Readonly<{
   result: AuditResult;
   outcome?: 'SUCCESS' | 'FAILED' | 'DENIED' | 'UNKNOWN';
   errorCode?: string;
+  errorMessageSafe?: string;
+  auditIntegrityStatus?: AuditIntegrityStatus;
   durationMs?: number;
   requestSummary?: unknown;
   responseSummary?: unknown;
@@ -187,6 +204,81 @@ export interface AuditRepository {
   countSince(since: Date): Promise<Readonly<{ total: number; pass: number; blocked: number; error: number; unknown: number }>>;
 }
 
+export type AuditCallCreateInput = Omit<AuditWrite, 'auditKind' | 'channel' | 'toolName'> & Readonly<{
+  toolName: string;
+}>;
+
+export type AuditEventCreateInput = Readonly<{
+  auditId: string;
+  sequence: number;
+  parentEventId?: string;
+  eventCategory: AuditEventCategory;
+  eventType: string;
+  eventName: string;
+  startedAt: Date;
+  completedAt?: Date;
+  durationMs?: number;
+  status: AuditEventStatus;
+  errorCode?: string;
+  safeSummary?: unknown;
+}>;
+
+export type SalesforceApiCallCreateInput = Readonly<{
+  auditId: string;
+  auditEventId?: string;
+  sequence: number;
+  salesforceUsername: string;
+  apiCategory: SalesforceApiCategory;
+  httpMethod: AuditedHttpMethod;
+  endpoint: string;
+  apiVersion?: string;
+  purpose: string;
+  startedAt: Date;
+  completedAt?: Date;
+  durationMs?: number;
+  httpStatus?: number;
+  result: SalesforceApiResult;
+  salesforceErrorCode?: string;
+  salesforceErrorMessageSafe?: string;
+  queryType?: string;
+  soqlStatementSafe?: string;
+  totalSize?: number;
+  returnedRecords?: number;
+  done?: boolean;
+  dmlOperation?: 'CREATE' | 'UPDATE';
+  objectApiName?: string;
+  recordId?: string;
+  requestedFields?: unknown;
+  managedFields?: unknown;
+}>;
+
+export type AuditPayloadEvidenceCreateInput = Readonly<{
+  auditId: string;
+  salesforceApiCallId?: string;
+  auditEventId?: string;
+  payloadType: AuditPayloadType;
+  contentType: string;
+  originalSizeBytes: number;
+  truncated?: boolean;
+  contentSha256?: string;
+  safePayload?: unknown;
+}>;
+
+/**
+ * P7 明细能力与兼容 AuditRepository 分离，避免旧 Runtime Logger 为新增能力实现无意义 mock。
+ * 生产 MySQL repository 同时实现两个接口，但旧配置事务仍只依赖 AuditRepository。
+ */
+export interface AuditTraceRepository {
+  createCall(input: AuditCallCreateInput): Promise<AuditRecord>;
+  getByPublicAuditId(publicAuditId: string): Promise<AuditRecord | undefined>;
+  createEvent(input: AuditEventCreateInput): Promise<AuditEventRecord>;
+  listEvents(auditId: string, options: ListOptions): Promise<Page<AuditEventRecord>>;
+  createSalesforceApiCall(input: SalesforceApiCallCreateInput): Promise<SalesforceApiCallRecord>;
+  listSalesforceApiCalls(auditId: string, options: ListOptions): Promise<Page<SalesforceApiCallRecord>>;
+  createPayloadEvidence(input: AuditPayloadEvidenceCreateInput): Promise<AuditPayloadEvidenceRecord>;
+  listPayloadEvidence(auditId: string, options: ListOptions): Promise<Page<AuditPayloadEvidenceRecord>>;
+}
+
 export type ControlPlaneRepositories = Readonly<{
   identityRoutes: IdentityRouteRepository;
   identityCredentials: IdentityCredentialRepository;
@@ -196,4 +288,8 @@ export type ControlPlaneRepositories = Readonly<{
   diagnostic: DiagnosticConfigRepository;
   runtimeSettings: RuntimeSettingRepository;
   audits: AuditRepository;
+}>;
+
+export type ControlPlaneRepositoriesWithAuditTrace = ControlPlaneRepositories & Readonly<{
+  auditTraces: AuditTraceRepository;
 }>;
