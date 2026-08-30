@@ -69,11 +69,13 @@ MySQL 模式将既有终态 flat Runtime audit write 替换为一次 `MCP_TOOL_C
 - `packages/sfoa-identity-runtime/src/index.ts`：导出 Context API。
 - `packages/sfoa-identity-runtime/src/test/request-audit-context.test.ts`：100 路交错、重复 Correlation、缺失/恶意 metadata、稳定 ID/sequence。
 - `packages/sfoa-mcp-server/src/http-server.ts`：确定 Tool 后预建 Context，Identity/Route 补全，错误路径复用。
+- `packages/sfoa-mcp-server/src/test/http-integration.test.ts`：凭证失败仍保留 Tool/Audit Context，未知身份字段保持 null。
 - `packages/sfoa-mcp-server/src/provider-runtime.ts`：所有 Provider facade callback 的 invocation carrier。
 - `packages/sfoa-mcp-server/src/agent-guidance.ts`：两个基础设施 Tool callback 的同一 carrier。
 - `packages/sfoa-mcp-server/src/runtime.ts`：把现有 Trace Repository 注入 Runtime Logger。
 - `packages/sfoa-control-plane/src/runtime-logger.ts`：一次 Context 对应一次 Audit Call，保持 fail-open。
 - `packages/sfoa-control-plane/src/test/runtime-logger.test.ts`：Context/Audit Call ID 与身份一致性。
+- `packages/sfoa-admin-web/e2e/admin-control-plane.spec.ts`：把既有同名 Close 定位器限定到目标 Drawer，消除 Aggregate strict-mode 歧义。
 - README、Architecture、P7 baseline、Project baseline、Test Matrix：阶段状态与真实证据。
 
 ## 10. 测试
