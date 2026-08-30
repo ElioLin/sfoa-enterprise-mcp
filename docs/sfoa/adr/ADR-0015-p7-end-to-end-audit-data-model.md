@@ -24,7 +24,7 @@ The numeric master key remains the internal FK. The UUID is the stable external 
 
 Trace counts are derived from child data rather than stored on the master row. Ordinary master-list queries select only `sfoa_audit_log` and never join or select raw payload evidence.
 
-The Audit implementation moves into the cohesive `mysql-audit-repository.ts` domain module. The existing `audits` repository remains source-compatible for Runtime/Admin callers; the store additionally exposes `auditTraces` for P7 child operations. All JSON, endpoint, SOQL, error, and payload persistence crosses one centralized sanitization boundary. Historical Buntu `rawToken` evidence is removed by the migration, and new configuration cannot re-enable raw-token auditing.
+The Audit implementation moves into the cohesive `mysql-audit-repository.ts` domain module. The existing `audits` repository remains source-compatible for Runtime/Admin callers; the store additionally exposes `auditTraces` for P7 child operations. All JSON, endpoint, SOQL, error, and payload persistence crosses one centralized sanitization boundary. Historical Buntu `rawToken` evidence is removed by the migration. ADR-0016 later supersedes only this ADR's blanket rejection of opt-in raw Buntu validation evidence.
 
 The migration runner holds its MySQL advisory lock, migration statements, metadata writes, validation, and lock release on the same pinned pooled connection. This is required because MySQL advisory locks are connection-scoped. Migration checksums use Git's LF-normalized SQL as their canonical value and accept only the equivalent CRLF digest for historical Windows-run compatibility; no SQL-content checksum mismatch is waived and no applied row is rewritten.
 
@@ -53,7 +53,7 @@ The migration runner holds its MySQL advisory lock, migration statements, metada
 4. Use a process-global current Audit or global sequence: rejected because concurrent cross-request leakage tolerance is zero.
 5. Insert every event synchronously from the Tool path: rejected because Audit must not block or alter business outcomes; collection and asynchronous batch persistence belong to P7-03.
 6. Add Audit calls manually inside every Tool: rejected because transparent Salesforce execution-layer instrumentation belongs to P7-04 and must automatically cover future Tools.
-7. Retain optional raw Buntu token auditing: rejected because Authorization, bearer tokens, JWTs, private keys, secrets, passwords, and cookies are absolutely prohibited evidence.
+7. Retain optional raw Buntu token auditing: rejected by this revision. ADR-0016 later supersedes this item only, under a narrow default-off Buntu validation durable-audit boundary.
 
 ## Gate
 

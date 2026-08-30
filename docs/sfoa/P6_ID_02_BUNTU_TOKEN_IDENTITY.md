@@ -117,7 +117,7 @@ Every Buntu validation emits a `BUNTU_TOKEN_VALIDATE` audit record:
 - `responseSummary`: `valid`, optional `httpStatus`, optional `upstreamSuccess` (the upstream `success` field, only when a parseable 2xx business response was received), and on success the normalized `userId` plus `userIdType` (`string` | `number`, the original JSON primitive type of `data.userId`). The upstream `userName` is never copied into the audit;
 - `durationMs` covers the remote validate round-trip; `result`/`outcome` map to PASS/SUCCESS, or BLOCKED/DENIED on `MCP_BUNTU_TOKEN_INVALID`, or ERROR/FAILED on unavailable/invalid-response.
 
-P7 security supersession (2026-08-29): raw Bearer-token persistence is permanently prohibited. The legacy `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED` key remains accepted only as `false`; `true` fails startup validation. Migration `005_p7_end_to_end_audit.sql` removes the known historical `requestSummary.rawToken` field, while repository sanitization and the Admin UI provide defense in depth. The database fallback path and every stdout/stderr/HTTP response remain token-free by construction (`DatabaseRuntimeLogger` fallback never writes `requestSummary`/`responseSummary`).
+P7 follow-up (2026-08-30, ADR-0016): `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` is again supported as a default-off, high-risk troubleshooting option. It writes the exact value only to the dedicated `BUNTU_TOKEN_VALIDATE` durable MySQL audit summary; the generic Runtime event, database fallback path and every stdout/stderr/HTTP response remain token-free by construction. Migration `005_p7_end_to_end_audit.sql` still performs its one-time cleanup of values that existed at upgrade time.
 
 ## Admin presentation
 

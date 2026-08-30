@@ -37,6 +37,7 @@ export type BuntuIdentityConfig = Readonly<{
   enabled: boolean;
   validateTokenUrl?: string;
   timeoutMs: number;
+  rawTokenAuditEnabled: boolean;
 }>;
 
 export type RemoteRuntimeConfig = Readonly<{
@@ -316,15 +317,11 @@ type ParsedBuntuIdentityFields = Readonly<{
 }>;
 
 function parseBuntuIdentityConfig(fields: ParsedBuntuIdentityFields): BuntuIdentityConfig {
-  if (fields.MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED) {
-    throw configurationError(
-      'MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true is prohibited by the P7 audit security contract. Bearer tokens must never be persisted.',
-    );
-  }
   if (!fields.MCP_BUNTU_IDENTITY_ENABLED) {
     return Object.freeze({
       enabled: false,
       timeoutMs: fields.MCP_BUNTU_VALIDATE_TIMEOUT_MS,
+      rawTokenAuditEnabled: fields.MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED,
     });
   }
   if (!fields.MCP_BUNTU_VALIDATE_TOKEN_URL) {
@@ -350,6 +347,7 @@ function parseBuntuIdentityConfig(fields: ParsedBuntuIdentityFields): BuntuIdent
     enabled: true,
     validateTokenUrl: parsedUrl.href,
     timeoutMs: fields.MCP_BUNTU_VALIDATE_TIMEOUT_MS,
+    rawTokenAuditEnabled: fields.MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED,
   });
 }
 

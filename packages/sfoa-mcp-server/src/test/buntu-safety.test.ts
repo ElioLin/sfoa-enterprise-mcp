@@ -216,6 +216,7 @@ function buntuAuthenticator(
   validator: BuntuTokenValidator,
   routes: IdentityRouteRepository,
   logger: RuntimeLogger = new NoopRuntimeLogger(),
+  rawTokenAuditEnabled = false,
 ): BuntuTokenCredentialAuthenticator {
   return new BuntuTokenCredentialAuthenticator({
     validator,
@@ -223,6 +224,7 @@ function buntuAuthenticator(
     logger,
     clientToken: TEST_CLIENT_TOKEN,
     validateTokenUrl: VALIDATE_TOKEN_URL,
+    rawTokenAuditEnabled,
   });
 }
 
@@ -279,17 +281,13 @@ test('MCP_BUNTU_IDENTITY_ENABLED=true fails fast unless SFOA_CONTROL_PLANE_MODE=
     assert.equal(mysqlEnabled.buntuIdentity.enabled, true);
     assert.equal(mysqlEnabled.buntuIdentity.validateTokenUrl, VALIDATE_TOKEN_URL);
 
-    await assert.rejects(
-      loadRemoteRuntimeConfig(projectRoot, {
-        ...base,
-        ...mysql,
-        ...buntu,
-        MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: 'true',
-      }),
-      (error: unknown) => error instanceof RemoteRuntimeError
-        && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID'
-        && error.message.includes('prohibited by the P7 audit security contract'),
-    );
+    const rawAuditEnabled = await loadRemoteRuntimeConfig(projectRoot, {
+      ...base,
+      ...mysql,
+      ...buntu,
+      MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: 'true',
+    });
+    assert.equal(rawAuditEnabled.buntuIdentity.rawTokenAuditEnabled, true);
   } finally {
     await rm(projectRoot, { recursive: true, force: true });
   }
@@ -431,10 +429,10 @@ test('a rejected Buntu token maps to HTTP 401 with a WWW-Authenticate: Bearer ch
 });
 
 // =====================================================================
-// P7 raw-token prohibition and audit fail-open boundary (CASE C/D)
+// Explicit raw-token opt-in and audit fail-open boundary (CASE C/D)
 // =====================================================================
 
-test('P7 keeps the raw Buntu token out of every audit request summary (CASE C)', async () => {
+test('raw Buntu token auditing defaults off (CASE C)', async () => {
   const events: RuntimeLogEvent[] = [];
   const logger: RuntimeLogger = { log: (event) => { void events.push(event); } };
   const routes = new StaticRouteRepository([route('r-a', USER_A, SF_A)]);
@@ -455,7 +453,7 @@ test('P7 keeps the raw Buntu token out of every audit request summary (CASE C)',
   assert.equal(JSON.stringify(events).includes(BUNTU_TOKEN_A), false);
 });
 
-test('an audit sink failure cannot reintroduce a raw Buntu token or alter authentication (CASE D)', async () => {
+test('raw-token opt-in reaches only the durable audit write and sink failure remains fail-open (CASE D)', async () => {
   const routes = new StaticRouteRepository([route('r-a', USER_A, SF_A)]);
   const validator = new DelayedBuntuValidator(new Map([
     [BUNTU_TOKEN_A, { delayMs: 0, userId: USER_A }],
@@ -473,14 +471,14 @@ test('an audit sink failure cannot reintroduce a raw Buntu token or alter authen
   const fallback: RuntimeLogger = { log: (event) => { void fallbackEvents.push(event); } };
   const databaseLogger = new DatabaseRuntimeLogger(failingRepo as unknown as AuditRepository, fallback);
 
-  const authentication = await buntuAuthenticator(validator, routes, databaseLogger)
+  const authentication = await buntuAuthenticator(validator, routes, databaseLogger, true)
     .authenticate(BUNTU_TOKEN_A, 'audit-case-d');
   assert.equal(authentication.boundPlatformUserId, USER_A);
 
   assert.equal(failingRepo.writes.length, 1);
   const requestSummary = failingRepo.writes[0]?.requestSummary as Record<string, unknown> | undefined;
   assert.equal(Object.prototype.hasOwnProperty.call(requestSummary ?? {}, 'rawToken'), false);
-  assert.equal(JSON.stringify(failingRepo.writes).includes(BUNTU_TOKEN_A), false);
+  assert.equal(failingRepo.writes[0]?.buntuRawTokenEvidence, BUNTU_TOKEN_A);
 
   // The fallback (stdout/stderr path) never receives the raw token or the summaries.
   assert.equal(JSON.stringify(fallbackEvents).includes(BUNTU_TOKEN_A), false);

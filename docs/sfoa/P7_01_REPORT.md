@@ -43,7 +43,7 @@
 - `audit-sanitization.ts`：统一 secret-shaped key/value 与自由文本净化；禁止明显 Authorization/Bearer/JWT/private-key/secret 样本持久化。
 - `migrations.ts`：migration advisory lock 固定单连接；跨 LF/CRLF 只接受语义相同文件 checksum，实际 SQL 改动仍拒绝。
 - MySQL/unit/Admin/MCP/UI tests：覆盖迁移、兼容、关系、隔离、bounded payload、安全、fail-open 与既有页面/Runtime 回归。
-- Buntu Runtime/config/docs：永久禁止原始 Bearer 审计开关；历史已知 `rawToken` 在 migration 中净化。
+- Buntu Runtime/config/docs：ADR-0016 将原始 Bearer 审计恢复为默认关闭的专用排障开关；只有 Buntu 校验的 durable MySQL 路径可写入，通用日志/fallback/HTTP 仍脱敏。历史已知 `rawToken` 在 migration 升级时执行一次净化。
 - `.codegraph/.gitignore`：项目可使用本机 CodeGraph 索引，数据库不进入 Git；没有引入运行时依赖。
 
 ## 4. 数据库 Schema
@@ -78,7 +78,7 @@
 
 ## 6. 测试结果
 
-完整命令与逐项结果见 `TEST_MATRIX.md`。最终证据包括：Control Plane unit 21/21、MySQL 7/7、MCP full serial 66/66、P3 20/20、P4 7/7、P5 5/5、DML 17/17、Context 10/10、Identity 32/32、Playbook 6/6、Admin API 18/18、Admin Web 35/35/build、mock E2E 1/1、full-stack E2E 1/1。
+完整命令与逐项结果见 `TEST_MATRIX.md`。最终证据包括：Control Plane unit 21/21、MySQL 8/8、MCP full serial 66/66、P3 20/20、P4 7/7、P5 5/5、DML 17/17、Context 10/10、Identity 32/32、Playbook 6/6、Admin API 18/18、Admin Web 35/35/build、mock E2E 1/1、full-stack E2E 1/1。2026-08-30 follow-up 的 `yarn validate:p5` 以 exit 0 在 545.87 秒完成。
 
 已识别但不归因于 P7 的 debt：Vite 大 chunk advisory、Node/Yarn `url.parse()` deprecation、Windows 下重型 jsdom/Ant 与并发 Node tests 的时序波动。P7 修改文件的 strict TypeScript Gate 通过。首次 aggregate 最终子 Gate 暴露本机遗留 raw-token flag；隔离测试配置后真实 full-stack 通过。
 
@@ -90,7 +90,8 @@
 - **Migration**：001～004 未修改；005 通过 clean/P6 upgrade/repeated/concurrent Gate。跨平台 checksum 只兼容换行差异。
 - **索引**：依据已知列表/trace 查询设置；生产规模 selectivity 与 retention 仍需在 P7-03 benchmark 复核。
 - **Fail-open**：现有 Runtime Logger contract 未破坏；P7-01 Repository 本身仍可抛错供调用方观察，P7-03 writer 必须吞并隔离 audit side-effect failure。
-- **本机配置**：开发者应把未纳入 Git 的 `.env.local` 中 `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED` 设置为 `false` 或删除；生产启动对 `true` 会按设计拒绝。
+- **本机配置**：`MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED` 默认应为 `false`。仅在授权排障窗口设置为 `true`；这会把可直接认证的 Buntu Token 写入 MySQL 并在 Admin 审计详情显示，应在排障结束后关闭并按运维策略清理相关记录。
+- **Migration 中断恢复**：MySQL DDL 会隐式提交。若 005 的全部结构已存在但台账行缺失，迁移器在完整验证列、索引和命名约束后补登记原 checksum；任何部分完成状态仍失败关闭。
 
 ## 8. 下一步：仅 P7-02 请求级审计上下文
 

@@ -7,7 +7,7 @@ import {
   type IdentityRouteRepository,
   type IdentitySource,
 } from '@sfoa/control-plane';
-import type { RequestHeaders } from '@sfoa/identity-runtime';
+import type { RequestHeaders, RuntimeLogEvent } from '@sfoa/identity-runtime';
 import { IdentityRuntimeError, type RuntimeLogger } from '@sfoa/identity-runtime';
 import {
   buntuTokenFingerprint,
@@ -205,6 +205,11 @@ export type BuntuTokenCredentialAuthenticatorOptions = Readonly<{
   /** MCP_CLIENT_TOKEN used for deterministic exclusivity; compared with timing-safe digest. */
   clientToken: string;
   validateTokenUrl: string;
+  rawTokenAuditEnabled?: boolean;
+}>;
+
+type BuntuSensitiveAuditLogger = RuntimeLogger & Readonly<{
+  logBuntuTokenValidation?: (event: RuntimeLogEvent, rawToken: string) => void | Promise<void>;
 }>;
 
 export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticator {
@@ -287,7 +292,7 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
       ...(result.userIdType ? { userIdType: result.userIdType } : {}),
     };
     try {
-      await this.options.logger.log({
+      const event: RuntimeLogEvent = {
         correlationId,
         clientId: BUNTU_CLIENT_ID,
         ...(result.userId ? { platformUserId: result.userId } : {}),
@@ -299,7 +304,15 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
         durationMs: result.durationMs,
         requestSummary,
         responseSummary,
-      });
+      };
+      const logger = this.options.logger as BuntuSensitiveAuditLogger;
+      if (this.options.rawTokenAuditEnabled && logger.logBuntuTokenValidation) {
+        // 原始 Token 只交给具备专用 durable 方法的审计 Logger。通用 RuntimeLogger
+        // 永远只看到安全摘要，避免 stdout/stderr 或测试替代 Logger 意外输出机密。
+        await logger.logBuntuTokenValidation(event, rawToken);
+      } else {
+        await logger.log(event);
+      }
     } catch {
       // Audit persistence is observational. A validation outcome must not be
       // altered by an audit sink failure; the request-level audit path covers this.

@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.0**
+Baseline ID: **P7-E2E-AUDIT-BL-1.1**
 
-Baseline date: 2026-08-29
+Baseline date: 2026-08-30
 
 Authority: This file is the single authoritative delivery-plan baseline for SFoA Enterprise MCP.
 
@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Remote transport | Streamable HTTP, stateless first |
 | Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
 | Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.1.0`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts |
-| Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. P6-DML-01 adds one constrained managed-field child table. P7-01 compatibly evolves the Audit master and adds ordered Event/API and bounded Payload Evidence children. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions. |
+| Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. P6-DML-01 adds one constrained managed-field child table. P7-01 compatibly evolves the Audit master and adds ordered Event/API and bounded Payload Evidence children. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions, except the default-off, maintainer-authorized Buntu validation raw-token troubleshooting evidence defined by ADR-0016. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
 
@@ -408,3 +408,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P6A-BL-1.0 | 2026-08-26 | Completed P6-Agent-01 with one pure Playbook `1.0.0` source, deterministic multi-client renderers and drift Gate, request-scoped MCP Instructions/Resources/Prompt, governed Tool fallback and trusted record links, current Buntu/USER_BOUND/Internal setup, and focused identity/governance regressions. Dynamic Forms evidence remains NOT AVAILABLE; no Runtime Form Engine, object-specific rule, prompt table, permission replica, SDK upgrade, official Salesforce TypeScript change, or whole-P6 completion is claimed. |
 | P6DML-BL-1.0 | 2026-08-27 | Extended the canonical Playbook to `1.1.0` and completed P6-DML-01 with one constrained managed-rule child model, trusted request-scoped platform Lookup and CREATE-only AI marker resolution, server-wins/action-context/Agent guidance, Admin CRUD UX, pre-dispatch no-late-mutation timeout semantics, and explicit `SFOA_LIGHTNING_BASE_URL`. Generic constants/defaults, business seeds, metadata sync, cache, Runtime Form Engine, Connection-origin fallback, and official Salesforce TypeScript changes remain absent; live Salesforce Gates remain Maintainer-run. |
 | P7-E2E-AUDIT-BL-1.0 | 2026-08-29 | Established the authoritative P7-01 through P7-08 plan and entered P7-01 only: compatible Audit master evolution, ordered Event/API and bounded Payload Evidence models, centralized sanitization, historical API/UI compatibility, migration/isolation/fail-open Gates, and explicit deferral of request context, async pipeline, transport instrumentation, Workbench, and diagnostic Skill. |
+| P7-E2E-AUDIT-BL-1.1 | 2026-08-30 | Recovered fully applied MySQL 005 schemas whose migration ledger write was interrupted, and restored the explicit default-off Buntu raw-token troubleshooting audit under a narrow durable-only boundary. Generic secret sanitization and Runtime fail-open behavior remain mandatory; P7-02 is still not started. |

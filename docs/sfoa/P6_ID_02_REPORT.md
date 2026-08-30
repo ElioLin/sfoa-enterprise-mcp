@@ -5,7 +5,7 @@
 - P6 implementation baseline: `45f823c` (fix: close P6 user-bound credential runtime issues)
 - Scope: add the third trusted identity source `BUNTU_TOKEN` without redesigning Salesforce identity routing
 
-> **P7 security supersession (2026-08-29):** this report preserves historical P6 Gate evidence. Its former raw-token opt-in is no longer operative: P7 permanently prohibits raw bearer persistence, `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` now fails startup, and migration 005 removes the known historical `requestSummary.rawToken` field.
+> **P7 follow-up (2026-08-30):** this report preserves historical P6 Gate evidence. ADR-0016 restores the former raw-token opt-in under a narrower durable-only boundary; migration 005 still removes values present at upgrade time, while new explicitly enabled `BUNTU_TOKEN_VALIDATE` audits may record the value.
 
 ## Result
 

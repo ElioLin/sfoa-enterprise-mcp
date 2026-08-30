@@ -735,12 +735,12 @@ P6 REAL-AGENT EVALUATION = READY / NOT STARTED
 | --- | --- | --- |
 | Latest-main baseline | PASS | `git fetch origin`; local/remote `main` 均为 `c849e577`; 从该提交创建 `feature/p7-end-to-end-audit` |
 | Control Plane lint/unit | PASS | strict TypeScript lint；21/21 unit tests |
-| MySQL clean init/P6 upgrade | PASS | 7/7 connected integration tests；空库、001～005、P6→P7、重复/并发 migration 均通过 |
+| MySQL clean init/P6 upgrade | PASS | 8/8 connected integration tests；空库、001～005、P6→P7、重复/并发 migration 均通过 |
 | Historical Audit compatibility | PASS | 旧 `sfoa_audit_log` 行继续由旧 DTO/列表读取；Admin Audit 页面无 schema 中断 |
 | Audit master/children | PASS | 主记录、Event、Salesforce API、Payload Evidence 创建及读取通过 |
 | Ordering/isolation/FK | PASS | audit-local sequence、同 Audit 组合 FK、cross-audit 拒绝、cascade 与 orphan 断言通过 |
 | Payload/list isolation | PASS | 256 KiB bounded payload；普通列表不读取/Join Payload Evidence |
-| Secret sanitization | PASS | secret-shaped key/value、Bearer/JWT/Authorization、历史 Buntu `rawToken` 清理与持久化拒绝测试通过 |
+| Secret sanitization | PASS | 通用 secret-shaped key/value、Bearer/JWT/Authorization 与历史 Buntu `rawToken` 一次性清理测试通过；ADR-0016 仅允许显式 opt-in 的 Buntu 校验 durable 专用字段，其他 scope 会被 Repository 拒绝 |
 | Audit fail-open regression | PASS | Repository 故障不会改变既有 Runtime Logger 结果；Salesforce mutation 原则未改变 |
 | MCP Server | PASS | full serial 66/66；P3 20/20；P4 7/7；P5 MySQL Runtime 5/5；Identity Runtime 32/32 |
 | Providers/Playbook | PASS | DML 17/17；Context 10/10；Agent Playbook 6/6 |
@@ -782,3 +782,13 @@ yarn validate:p5
 P7-01 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
 P7-02–P7-08 = NOT STARTED
 ```
+
+### P7-01 startup recovery / Buntu raw-token opt-in follow-up — 2026-08-30
+
+生产开发库诊断确认 MySQL 已隐式提交完整 005 DDL，但 `sfoa_schema_migration` 缺少对应行。修复后的 runner 先验证完整 schema/index/constraint，再以仓库 checksum `d13af5565191b431bf218670bb1e9c7f071b7e5d041d56c3d5b88cd695e65013` 补登记；实际 `db:migrate` 与 `db:status` 均返回 PASS、001～005 全部 APPLIED。新增隔离库测试模拟并覆盖此状态。
+
+`MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` 现按 ADR-0016 恢复。测试必须证明：配置可启用、默认关闭、raw value 只到 durable Buntu validation write、错误 scope 被拒绝、fallback/HTTP/通用 Runtime 不含 raw value、持久化失败不改变认证结果、Admin 详情显示高敏警告。
+
+本次实际结果：Control Plane lint/build PASS、unit 21/21、MySQL 8/8；MCP lint/build PASS、focused identity/security 21/21、完整包目录 suite 66/66；Admin API 18/18；Admin Web lint/build PASS、35/35；`yarn dev:sfoa` 在进程级 `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` 下启动到 ready 并正常 SIGINT；`yarn validate:p5` exit 0（545.87 秒），含 mock Chromium 1/1、real full-stack Chromium 1/1、001～005 与 34 条 Audit 证据。Vite >500 KiB、Node/Yarn `url.parse()`、既有 Ant Design deprecation/测试 CSS 警告仍为 upstream/project debt。
+
+一次诊断命令从仓库根目录直接执行 `node --test packages/sfoa-mcp-server/dist/test/*.test.js` 得到 64/66；两项只因测试按当前目录读取包内 `src/runtime.ts`/`package.json` 而失败。改在 `packages/sfoa-mcp-server` 执行同一 suite 后为 66/66；该错误调用不作为代码 Gate PASS，也未被隐藏。

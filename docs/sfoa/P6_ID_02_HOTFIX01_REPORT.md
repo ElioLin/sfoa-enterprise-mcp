@@ -5,7 +5,7 @@
 - P6-ID-02 implementation baseline: `a2aefba` (feat: add BUNTU_TOKEN identity provider (P6-ID-02))
 - Scope: minimal closure HOTFIX (安全与并发收口), not a feature expansion
 
-> **P7 security supersession (2026-08-29):** this report intentionally preserves the historical P6 HOTFIX result. P7 permanently removes the former raw-token audit switch: enabling it now fails startup, new Runtime audit never emits `rawToken`, and migration 005 scrubs the known historical field.
+> **P7 follow-up (2026-08-30):** this report intentionally preserves the historical P6 HOTFIX result. ADR-0016 restores the raw-token switch as a default-off durable-audit opt-in. Generic Runtime events still never emit `rawToken`, fallback/HTTP/log paths remain redacted, and migration 005 still scrubs the known historical field once.
 
 ## Result
 
@@ -46,8 +46,8 @@ Provider was modified.
 
 At the time of this historical HOTFIX, the rawToken audit switch still persisted the full
 token only into the MySQL `BUNTU_TOKEN_VALIDATE` summary while the fallback logger stayed
-safe. P7 supersedes that behavior completely: raw-token persistence is prohibited and the
-legacy key is accepted only as `false`.
+safe. P7 initially prohibited that behavior; ADR-0016 later restores it only for the
+dedicated durable Buntu validation audit path while retaining all non-durable redaction.
 
 ## HOTFIX 2 — configuration fail-fast matrix
 

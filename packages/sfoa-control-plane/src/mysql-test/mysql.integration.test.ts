@@ -109,6 +109,40 @@ if (!setup) {
     });
   });
 
+  test('a fully applied 005 schema with a missing ledger row is recovered only after schema validation', { timeout: 120_000 }, async () => {
+    await withIsolatedDatabase(config, 'recover', async (database) => {
+      await migrateDatabase(database);
+      await database.deleteFrom('sfoa_schema_migration')
+        .where('version', '=', '005_p7_end_to_end_audit')
+        .execute();
+
+      const recovered = await migrateDatabase(database);
+      assert.equal(recovered.at(-1)?.version, '005_p7_end_to_end_audit');
+      assert.equal(recovered.at(-1)?.state, 'APPLIED');
+      const ledger = await database.selectFrom('sfoa_schema_migration')
+        .select(['checksum_sha256'])
+        .where('version', '=', '005_p7_end_to_end_audit')
+        .executeTakeFirstOrThrow();
+      const sqlText = await readFile(path.join(defaultMigrationsDirectory(), '005_p7_end_to_end_audit.sql'), 'utf8');
+      assert.equal(ledger.checksum_sha256, migrationChecksumSha256(sqlText));
+    });
+
+    await withIsolatedDatabase(config, 'partial', async (database) => {
+      await migrateDatabase(database);
+      await database.deleteFrom('sfoa_schema_migration')
+        .where('version', '=', '005_p7_end_to_end_audit')
+        .execute();
+      await sql.raw('ALTER TABLE sfoa_audit_log DROP CHECK chk_sfoa_audit_time_range').execute(database);
+
+      await assert.rejects(migrateDatabase(database));
+      const ledger = await database.selectFrom('sfoa_schema_migration')
+        .select(['version'])
+        .where('version', '=', '005_p7_end_to_end_audit')
+        .executeTakeFirst();
+      assert.equal(ledger, undefined);
+    });
+  });
+
   test('identity routing supports A/B, disabled denial, unknown denial, and shared Salesforce usernames', async () => {
     const shared = 'shared@example.invalid';
     const first = await store.repositories.identityRoutes.create({
@@ -210,6 +244,32 @@ if (!setup) {
       errorCode: 'MCP_REQUEST_TIMEOUT',
     });
     assert.equal(compatibleFlatEvent.auditKind, 'RUNTIME_EVENT');
+    const rawBuntuToken = 'fake-buntu-raw-token-opt-in';
+    const buntuValidation = await store.repositories.audits.append({
+      occurredAt: completedAt,
+      correlationId: 'buntu-raw-token-opt-in',
+      channel: 'MCP',
+      clientId: 'xiaoben-buntu-token',
+      identitySource: 'BUNTU_TOKEN',
+      operation: 'BUNTU_TOKEN_VALIDATE',
+      result: 'PASS',
+      outcome: 'SUCCESS',
+      requestSummary: { provider: 'BUNTU', tokenLast4: 't-in' },
+      buntuRawTokenEvidence: rawBuntuToken,
+    });
+    assert.equal((buntuValidation.requestSummary as Record<string, unknown>).rawToken, rawBuntuToken);
+    await assert.rejects(
+      store.repositories.audits.append({
+        occurredAt: completedAt,
+        correlationId: 'invalid-raw-token-scope',
+        channel: 'MCP',
+        identitySource: 'BUNTU_TOKEN',
+        operation: 'QUERY',
+        result: 'PASS',
+        buntuRawTokenEvidence: rawBuntuToken,
+      }),
+      (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
+    );
     const publicAuditId = '00000000-0000-4000-8000-000000000701';
     const callA = await store.repositories.auditTraces.createCall({
       occurredAt: completedAt,

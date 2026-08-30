@@ -53,6 +53,16 @@ export async function migrateDatabase(
             }
             continue;
           }
+          if (await canRecoverCompletedP7Migration(connection, migration.version)) {
+            // MySQL DDL 隐式提交：若进程在全部 005 DDL 完成后、写 migration ledger 前退出，
+            // 重跑会从首个 ADD COLUMN 开始并报重复列。只有完整 schema/索引/约束都已验证时
+            // 才补登记 checksum；部分 schema 仍然失败关闭，不能把残缺 migration 伪装为成功。
+            await connection
+              .insertInto('sfoa_schema_migration')
+              .values({ version: migration.version, checksum_sha256: migration.checksumSha256 })
+              .executeTakeFirstOrThrow();
+            continue;
+          }
           for (const statement of splitSqlStatements(migration.sqlText)) {
             await executeMigrationStatement(connection, statement);
           }
@@ -71,6 +81,38 @@ export async function migrateDatabase(
   } catch (error) {
     if (error instanceof ControlPlaneError) throw error;
     throw toControlPlaneError(error);
+  }
+}
+
+const P7_AUDIT_MIGRATION_VERSION = '005_p7_end_to_end_audit';
+const P7_REQUIRED_CONSTRAINTS = Object.freeze([
+  'chk_sfoa_audit_public_id', 'chk_sfoa_audit_time_range',
+  'uq_sfoa_audit_event_sequence', 'uq_sfoa_audit_event_id_audit', 'fk_sfoa_audit_event_audit',
+  'fk_sfoa_audit_event_parent', 'chk_sfoa_audit_event_sequence', 'chk_sfoa_audit_event_time',
+  'uq_sfoa_sf_api_sequence', 'uq_sfoa_sf_api_id_audit', 'fk_sfoa_sf_api_audit', 'fk_sfoa_sf_api_event',
+  'chk_sfoa_sf_api_sequence', 'chk_sfoa_sf_api_time', 'chk_sfoa_sf_api_http_status',
+  'chk_sfoa_sf_api_query_counts', 'chk_sfoa_sf_api_dml_shape',
+  'fk_sfoa_payload_audit', 'fk_sfoa_payload_api', 'fk_sfoa_payload_event',
+  'chk_sfoa_payload_stored_size', 'chk_sfoa_payload_actual_size', 'chk_sfoa_payload_sha',
+]);
+
+async function canRecoverCompletedP7Migration(
+  database: ControlPlaneDatabaseClient,
+  version: string,
+): Promise<boolean> {
+  if (version !== P7_AUDIT_MIGRATION_VERSION) return false;
+  try {
+    await validateRequiredSchemaObjects(database);
+    const constraints = await sql<{ constraintName: string }>`
+      SELECT CONSTRAINT_NAME AS constraintName
+      FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME IN ('sfoa_audit_log', 'sfoa_audit_event', 'sfoa_salesforce_api_call', 'sfoa_audit_payload_evidence')
+    `.execute(database);
+    const names = new Set(constraints.rows.map((row) => row.constraintName));
+    return P7_REQUIRED_CONSTRAINTS.every((name) => names.has(name));
+  } catch {
+    return false;
   }
 }
 

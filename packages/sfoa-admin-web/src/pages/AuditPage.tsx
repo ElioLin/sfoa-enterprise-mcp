@@ -1,6 +1,6 @@
 import { FilterOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Descriptions, Drawer, Form, Input, Pagination, Select, Space, Table, Typography } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Form, Input, Pagination, Select, Space, Table, Typography } from 'antd';
 import { useState } from 'react';
 import type { AuditRecord, IdentitySource } from '@sfoa/control-plane';
 import { adminApi, type AuditFilters } from '../api/client.js';
@@ -136,6 +136,9 @@ export default function AuditPage() {
 }
 
 function AuditDetail({ record }: Readonly<{ record: AuditRecord }>) {
+  const hasOptInBuntuRawToken = record.operation === 'BUNTU_TOKEN_VALIDATE'
+    && isRecord(record.requestSummary)
+    && typeof record.requestSummary.rawToken === 'string';
   return (
     <Space orientation="vertical" size="large" className="full-width">
       <Descriptions bordered size="small" column={1}>
@@ -157,7 +160,15 @@ function AuditDetail({ record }: Readonly<{ record: AuditRecord }>) {
         <Descriptions.Item label="Correlation ID"><Typography.Text copyable code>{record.correlationId}</Typography.Text></Descriptions.Item>
       </Descriptions>
       {record.operation === 'BUNTU_TOKEN_VALIDATE' ? <BuntuValidateDetail record={record} /> : null}
-      <SafeSummary title="安全请求摘要" value={record.requestSummary} />
+      {hasOptInBuntuRawToken ? (
+        <Alert
+          type="warning"
+          showIcon
+          title="原始 Token 已记录"
+          description="当前服务端显式启用了高敏审计开关；请仅在授权排障场景查看和复制。"
+        />
+      ) : null}
+      <SafeSummary title="安全请求摘要" value={record.requestSummary} allowBuntuRawToken={hasOptInBuntuRawToken} />
       <SafeSummary title="安全响应摘要" value={record.responseSummary} />
     </Space>
   );
@@ -195,27 +206,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function SafeSummary({ title, value }: Readonly<{ title: string; value: unknown }>) {
+function SafeSummary({
+  title,
+  value,
+  allowBuntuRawToken = false,
+}: Readonly<{ title: string; value: unknown; allowBuntuRawToken?: boolean }>) {
   return (
     <section aria-label={title}>
       <Typography.Title level={5}>{title}</Typography.Title>
-      <pre className="json-summary">{safeJson(value)}</pre>
+      <pre className="json-summary">{safeJson(value, allowBuntuRawToken)}</pre>
     </section>
   );
 }
 
-function safeJson(value: unknown): string {
+function safeJson(value: unknown, allowBuntuRawToken = false): string {
   if (value === null || value === undefined) return '未记录摘要。';
   try {
-    return JSON.stringify(value, redactSecretField, 2).slice(0, 16_384);
+    return JSON.stringify(value, (key, entry) => redactSecretField(key, entry, allowBuntuRawToken), 2).slice(0, 16_384);
   } catch {
     return '摘要无法序列化。';
   }
 }
 
-function redactSecretField(key: string, value: unknown): unknown {
+function redactSecretField(key: string, value: unknown, allowBuntuRawToken: boolean): unknown {
   const canonical = key.toLocaleLowerCase('en-US').replace(/[^a-z0-9]/gu, '');
   if (canonical === 'tokenfingerprint' || canonical === 'tokenlast4') return value;
+  if (allowBuntuRawToken && canonical === 'rawtoken') return value;
   return /(?:authorization|cookie|token|jwt|privatekey|secret|password|passphrase|dbpassword|apikey|credential)/u.test(canonical)
     ? '[REDACTED]'
     : value;

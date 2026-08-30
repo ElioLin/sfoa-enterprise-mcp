@@ -121,6 +121,7 @@ function buildCredentialAuthenticators(
         logger,
         clientToken: config.clientToken ?? '',
         validateTokenUrl,
+        rawTokenAuditEnabled: config.buntuIdentity.rawTokenAuditEnabled,
       }),
     );
   }

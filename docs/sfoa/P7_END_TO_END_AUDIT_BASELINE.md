@@ -1,8 +1,8 @@
 # P7：全链路审计与智能诊断权威基线
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.0**
+Baseline ID: **P7-E2E-AUDIT-BL-1.1**
 
-Baseline date: 2026-08-29
+Baseline date: 2026-08-30
 
 Authority: 本文件是 P7（End-to-End Audit & AI-Assisted Diagnostics）的唯一权威需求、阶段边界和验收计划基线。任何 Codex、Claude Code 或其他开发智能体在规划或修改 P7 前，必须先完整读取本文件，并继续遵守 `AGENTS.md`、`PROJECT_BASELINE.md`、`ARCHITECTURE.md`、`MCP_ENGINEERING_RULES.md` 与 `UPSTREAM_STRATEGY.md`。
 
@@ -82,14 +82,16 @@ P7-03 必须建立异步批量写入与 fail-open 路径；P7-01 只建立可支
 
 ### 3.5 安全与净化（Redaction / Sanitization Contract）
 
-任何审计表、日志、fallback、Payload Evidence 或诊断包都不得保存：
+除下述经维护者明确批准的小犇排障例外外，任何审计表、日志、fallback、Payload Evidence 或诊断包都不得保存：
 
 - Authorization Header、Bearer Token、Cookie / Set-Cookie；
 - JWT、Private Key、Client Secret；
 - 数据库密码、Admin Session Secret、MCP Client Token；
-- USER_BOUND / Buntu 原始 Token 或其他可直接认证的机密。
+- USER_BOUND 原始 Token、其他 Buntu Token 载荷或其他可直接认证的机密。
 
-P7 使用一个统一、集中、可测试的净化 Contract。明显 secret-shaped 字段和值必须在 Repository 持久化边界前被删除或替换为固定 redaction 标记。P7-01 migration 同时移除历史 Buntu `request_summary_json.rawToken` 已知字段；后续 Runtime 不得重新写入。
+`MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` 是唯一批准的高风险例外：它只允许 `channel=MCP`、`identitySource=BUNTU_TOKEN`、`operation=BUNTU_TOKEN_VALIDATE` 的 MySQL 主审计记录写入 `request_summary_json.rawToken`，默认必须为 `false`。原始值不得进入通用 RuntimeLogger、stdout/stderr、HTTP 错误响应或 audit fallback；写入失败必须 fail-open。Admin 审计详情可以在明确高敏警告下显示该值。任何其他 operation/source/channel 尝试使用此专用 Repository 字段必须拒绝。Migration 005 对升级当时的历史 `rawToken` 仍执行一次清理；显式启用后产生的新记录不受该一次性清理影响。
+
+除此窄例外外，P7 继续使用统一、集中、可测试的净化 Contract。明显 secret-shaped 字段和值必须在 Repository 持久化边界前被删除或替换为固定 redaction 标记。JWT、Authorization Header、MCP Client Token、USER_BOUND Token、密码、私钥等均不得因本例外被放宽。
 
 Salesforce 大 Payload 必须 bounded capture。不得用一个无限大 JSON 字段替代关系模型，也不得无限复制 Salesforce 数据到 MySQL。
 

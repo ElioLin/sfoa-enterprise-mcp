@@ -17,6 +17,14 @@ export class DatabaseRuntimeLogger implements RuntimeLogger {
   ) {}
 
   public async log(event: RuntimeLogEvent): Promise<void> {
+    await this.persist(event);
+  }
+
+  public async logBuntuTokenValidation(event: RuntimeLogEvent, rawToken: string): Promise<void> {
+    await this.persist(event, rawToken);
+  }
+
+  private async persist(event: RuntimeLogEvent, buntuRawTokenEvidence?: string): Promise<void> {
     try {
       await this.audits.append({
         occurredAt: new Date(),
@@ -38,6 +46,7 @@ export class DatabaseRuntimeLogger implements RuntimeLogger {
         durationMs: event.durationMs,
         requestSummary: event.requestSummary,
         responseSummary: event.responseSummary,
+        ...(buntuRawTokenEvidence === undefined ? {} : { buntuRawTokenEvidence }),
       });
     } catch {
       this.failureCount += 1;

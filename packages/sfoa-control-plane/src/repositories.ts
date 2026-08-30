@@ -182,6 +182,8 @@ export type AuditWrite = Readonly<{
   durationMs?: number;
   requestSummary?: unknown;
   responseSummary?: unknown;
+  /** 显式 opt-in 的 Buntu 原始 Token；仅允许 BUNTU_TOKEN_VALIDATE durable audit 使用。 */
+  buntuRawTokenEvidence?: string;
 }>;
 
 export type AuditFilter = Readonly<{

@@ -30,6 +30,8 @@ import {
 import {
   encodeBoundedAuditJson,
   encodeBoundedAuditPayload,
+  MAX_AUDIT_SUMMARY_BYTES,
+  sanitizeAuditValue,
   sanitizeAuditText,
 } from './audit-sanitization.js';
 import { ControlPlaneError, toControlPlaneError } from './errors.js';
@@ -98,7 +100,7 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
         error_message_safe: safeOptionalText(event.errorMessageSafe, 1024),
         audit_integrity_status: event.auditIntegrityStatus ?? 'PARTIAL',
         duration_ms: event.durationMs ?? null,
-        request_summary_json: encodeBoundedAuditJson(event.requestSummary),
+        request_summary_json: encodeAuditRequestSummary(event),
         response_summary_json: encodeBoundedAuditJson(event.responseSummary),
       }).executeTakeFirstOrThrow();
       return await this.getInsertedAudit(inserted.insertId);
@@ -498,6 +500,27 @@ function boundedRequiredText(value: string, maxLength: number, name: string): st
   const normalized = sanitizeAuditText(value).trim();
   if (normalized.length < 1 || normalized.length > maxLength) throw invalidInput(`${name} must contain 1 to ${maxLength} characters.`);
   return normalized;
+}
+
+function encodeAuditRequestSummary(event: AuditWrite): string | null {
+  if (event.buntuRawTokenEvidence === undefined) return encodeBoundedAuditJson(event.requestSummary);
+  if (
+    event.channel !== 'MCP'
+    || event.operation !== 'BUNTU_TOKEN_VALIDATE'
+    || event.identitySource !== 'BUNTU_TOKEN'
+  ) {
+    throw invalidInput('buntuRawTokenEvidence is restricted to BUNTU_TOKEN_VALIDATE identity audits.');
+  }
+  if (event.buntuRawTokenEvidence.length < 1) throw invalidInput('buntuRawTokenEvidence must not be empty.');
+  const sanitized = sanitizeAuditValue(event.requestSummary);
+  const safeSummary = typeof sanitized === 'object' && sanitized !== null && !Array.isArray(sanitized)
+    ? sanitized as Readonly<Record<string, unknown>>
+    : Object.freeze({ summary: sanitized });
+  const encoded = JSON.stringify({ ...safeSummary, rawToken: event.buntuRawTokenEvidence });
+  if (Buffer.byteLength(encoded, 'utf8') > MAX_AUDIT_SUMMARY_BYTES) {
+    throw invalidInput(`Buntu raw-token audit summary exceeds ${MAX_AUDIT_SUMMARY_BYTES} bytes.`);
+  }
+  return encoded;
 }
 
 function boundedOptionalText(value: string | undefined, maxLength: number, name: string): string | null {
