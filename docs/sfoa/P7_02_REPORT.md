@@ -82,6 +82,8 @@ MySQL 模式将既有终态 flat Runtime audit write 替换为一次 `MCP_TOOL_C
 
 最终 Aggregate 首次运行通过所有后端、MySQL、Admin API、Admin Web build/unit 后，在既有 mock E2E 因 Drawer/Modal 同名 Close strict locator 失败。定位器限定到目标 Drawer 后，按测试成本治理只重跑失败的 mock E2E（1/1）和此前尚未执行的 full-stack E2E（1/1，34 Audit rows），均通过；没有重复运行完整 Aggregate。
 
+补充 official stdio 回归两次均在 initialize 前由未修改的 official host 报 `Could not find file for command: retire` 并关闭。它属于当前本地/Upstream 安装产物 debt；P7 没有修改 official host、manifest 或 lockfile，临时补充 retire shim 也未改变结果且已删除。本报告将该项记录为 `KNOWN UPSTREAM/LOCAL INSTALL DEBT`，不虚报 PASS；生产 Streamable HTTP/MCP protocol 路径的 66/66 tests 通过。
+
 最终状态：
 
 `P7-02 请求级审计上下文（Request Audit Context） = IMPLEMENTED / AWAITING MAINTAINER REVIEW`

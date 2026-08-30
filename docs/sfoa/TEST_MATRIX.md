@@ -812,6 +812,7 @@ P7-02–P7-08 = NOT STARTED
 | Dependency/lockfile | PASS (`0`) | Node 内建 `crypto`/`async_hooks`；无 package/lockfile delta |
 | P7-03 scope | PASS (`NOT STARTED`) | 无 Collector、Queue、Batch Writer、Async Writer、Salesforce interceptor、Payload capture |
 | Final aggregate | PASS after bounded existing E2E locator fix | 首次 `yarn validate:p5` 通过全部 backend/unit/MySQL/Admin Web 35/35 后，在 mock Chromium 因 Drawer/Modal 同名 Close strict locator 失败；限定到目标 Drawer 后仅重跑失败 Gate `p5:e2e` 1/1 和未执行 `p5:e2e:fullstack` 1/1（34 Audit rows），均 exit 0；未重复完整 Aggregate |
+| Official stdio regression | KNOWN UPSTREAM/LOCAL INSTALL DEBT | `yarn workspace @sfoa/runtime-validation regress:stdio` 两次均在 initialize 前由未修改的 official host 关闭：`Could not find file for command: retire`；确认 P7 未修改 official host、package/lockfile，临时 shim 不改变结果并已删除。生产 Streamable HTTP 与 MCP protocol tests 66/66 通过；本项不虚报 PASS |
 
 实际定向命令：
 
