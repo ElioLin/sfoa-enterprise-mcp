@@ -69,7 +69,7 @@ test('a five-second Audit Writer does not delay Tool response and health exposes
 test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit binding', { timeout: 180_000 }, async () => {
   const entries: AuditQueueEntry[] = [];
   const pipeline = new AsyncAuditPipeline({ persist: async (batch) => { entries.push(...batch); } }, new NoopRuntimeLogger(), {
-    capacity: 1_000, batchSize: 50, flushIntervalMs: 20, retryAttempts: 0,
+    capacity: 1_000, batchSize: 50, flushIntervalMs: 100,
   });
   const offFixture = await startLoadFixture('OFF', new NoopRuntimeLogger());
   const onFixture = await startLoadFixture('ON', asyncLogger(pipeline));
@@ -77,19 +77,33 @@ test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit bindin
   const cpuBefore = process.cpuUsage();
   const offRounds: LoadRound[] = [];
   const onRounds: LoadRound[] = [];
+  const pairedSamples: PairedLoadSamples[] = [];
   try {
     await Promise.all([warmup(offFixture), warmup(onFixture)]);
     for (const concurrency of [50, 100, 200]) {
-      const offSamples = [await runRound(offFixture, concurrency)];
-      const onSamples = [await runRound(onFixture, concurrency), await runRound(onFixture, concurrency)];
-      offSamples.push(await runRound(offFixture, concurrency));
+      const offSamples: LoadRound[] = [];
+      const onSamples: LoadRound[] = [];
+      for (let pair = 0; pair < 3; pair += 1) {
+        if (pair % 2 === 0) {
+          offSamples.push(await runRound(offFixture, concurrency));
+          onSamples.push(await runRound(onFixture, concurrency));
+        } else {
+          onSamples.push(await runRound(onFixture, concurrency));
+          offSamples.push(await runRound(offFixture, concurrency));
+        }
+      }
+      pairedSamples.push(Object.freeze({
+        concurrency,
+        off: Object.freeze(offSamples),
+        on: Object.freeze(onSamples),
+      }));
       offRounds.push(averageRound(offSamples));
       onRounds.push(averageRound(onSamples));
     }
   } finally {
     await Promise.all([offFixture.close(), onFixture.close()]);
   }
-  await waitFor(() => pipeline.getHealth().enqueuedSnapshots === 710, 10_000);
+  await waitFor(() => pipeline.getHealth().enqueuedSnapshots === 1_060, 10_000);
   await pipeline.close(10_000);
   const cpu = process.cpuUsage(cpuBefore);
   const off = loadResult('OFF', offRounds, offFixture);
@@ -98,8 +112,8 @@ test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit bindin
   const snapshots = entries
     .filter((entry): entry is Extract<AuditQueueEntry, { kind: 'SNAPSHOT' }> => entry.kind === 'SNAPSHOT')
     .map((entry) => entry.snapshot);
-  assert.equal(snapshots.length, 710);
-  assert.equal(new Set(snapshots.map((snapshot) => snapshot.auditCall.publicAuditId)).size, 710);
+  assert.equal(snapshots.length, 1_060);
+  assert.equal(new Set(snapshots.map((snapshot) => snapshot.auditCall.publicAuditId)).size, 1_060);
   assert.equal(snapshots.filter((snapshot) => snapshot.auditCall.auditIntegrityStatus !== 'COMPLETE').length, 0);
   assert.equal(snapshots.filter((snapshot) => snapshot.auditEvents.length !== 2).length, 0);
   assert.equal(snapshots.filter((snapshot) => snapshot.auditEvents[0]?.sequence !== 1 || snapshot.auditEvents[1]?.sequence !== 2).length, 0);
@@ -122,6 +136,8 @@ test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit bindin
   process.stderr.write(`P7_03_PERFORMANCE ${JSON.stringify({
     off,
     on,
+    pairedSamples,
+    comparison: comparePerformance(off, on),
     environmentCpuUserMicros: cpu.user,
     environmentCpuSystemMicros: cpu.system,
     environmentHeapDeltaBytes: Math.max(0, process.memoryUsage().heapUsed - heapBefore),
@@ -142,6 +158,12 @@ type LoadResult = Readonly<{
   rounds: readonly LoadRound[];
   connectionCreations: number;
   restApiRequests: number;
+}>;
+
+type PairedLoadSamples = Readonly<{
+  concurrency: number;
+  off: readonly LoadRound[];
+  on: readonly LoadRound[];
 }>;
 
 type LoadFixture = Readonly<{
@@ -217,6 +239,35 @@ function loadResult(mode: 'OFF' | 'ON', rounds: readonly LoadRound[], fixture: L
     connectionCreations: fixture.connectionFactory.creations.length,
     restApiRequests: fixture.connectionFactory.apiRequests.length,
   });
+}
+
+function comparePerformance(off: LoadResult, on: LoadResult): readonly Readonly<{
+  concurrency: number;
+  p50: Readonly<{ absoluteMs: number; relativePercent: number }>;
+  p95: Readonly<{ absoluteMs: number; relativePercent: number }>;
+  p99: Readonly<{ absoluteMs: number; relativePercent: number }>;
+  throughput: Readonly<{ absolutePerSecond: number; relativePercent: number }>;
+}>[] {
+  const delta = (offValue: number, onValue: number): Readonly<{ absolute: number; relativePercent: number }> =>
+    Object.freeze({
+      absolute: Number((onValue - offValue).toFixed(2)),
+      relativePercent: Number((((onValue - offValue) / offValue) * 100).toFixed(2)),
+    });
+  return Object.freeze(off.rounds.map((offRound) => {
+    const onRound = on.rounds.find((candidate) => candidate.concurrency === offRound.concurrency);
+    assert.ok(onRound);
+    const p50 = delta(offRound.p50, onRound.p50);
+    const p95 = delta(offRound.p95, onRound.p95);
+    const p99 = delta(offRound.p99, onRound.p99);
+    const throughput = delta(offRound.throughput, onRound.throughput);
+    return Object.freeze({
+      concurrency: offRound.concurrency,
+      p50: Object.freeze({ absoluteMs: p50.absolute, relativePercent: p50.relativePercent }),
+      p95: Object.freeze({ absoluteMs: p95.absolute, relativePercent: p95.relativePercent }),
+      p99: Object.freeze({ absoluteMs: p99.absolute, relativePercent: p99.relativePercent }),
+      throughput: Object.freeze({ absolutePerSecond: throughput.absolute, relativePercent: throughput.relativePercent }),
+    });
+  }));
 }
 
 function asyncLogger(pipeline: AsyncAuditPipeline): DatabaseRuntimeLogger {

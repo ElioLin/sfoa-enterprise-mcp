@@ -87,6 +87,8 @@ export type AuditSnapshot = Readonly<{
   payloadEvidence: readonly RequestAuditPayloadEvidenceSnapshot[];
 }>;
 
+export const MAX_REQUEST_AUDIT_EVENTS = 256;
+
 type SelectedTerminal = Readonly<{
   sequence: number;
   candidate: RequestAuditTerminalCandidate;
@@ -95,7 +97,9 @@ type SelectedTerminal = Readonly<{
 export class RequestAuditCollector {
   private readonly events: RequestAuditEventSnapshot[] = [];
   private terminal: SelectedTerminal | undefined;
+  private terminalEvent: RequestAuditEventSnapshot | undefined;
   private finalized: AuditSnapshot | undefined;
+  private droppedEventCount = 0;
 
   public constructor(
     private readonly context: () => RequestAuditContext,
@@ -120,8 +124,16 @@ export class RequestAuditCollector {
       errorCode: input.errorCode ? boundedText(input.errorCode, 128, 'MCP_AUDIT_ERROR') : null,
       safeSummary,
     }) satisfies RequestAuditEventSnapshot;
+    const terminalSelected = input.terminal
+      ? this.selectTerminal(sequence, input.terminal, safeSummary)
+      : false;
+    if (terminalSelected) this.terminalEvent = event;
+
+    if (this.events.length >= MAX_REQUEST_AUDIT_EVENTS) {
+      this.droppedEventCount += 1;
+      return false;
+    }
     this.events.push(event);
-    if (input.terminal) this.selectTerminal(sequence, input.terminal, safeSummary);
     return true;
   }
 
@@ -137,6 +149,7 @@ export class RequestAuditCollector {
     });
     const finishedAt = new Date(completedAt.getTime()).toISOString();
     const durationMs = terminal.durationMs ?? Math.max(0, completedAt.getTime() - new Date(context.startedAt).getTime());
+    const auditEvents = this.finalAuditEvents();
     const requestSummary = {
       conversationId: context.conversationId,
       turnId: context.turnId,
@@ -144,6 +157,11 @@ export class RequestAuditCollector {
       agentId: context.agentId,
       modelProvider: context.modelProvider,
       modelName: context.modelName,
+      auditCapture: {
+        eventLimit: MAX_REQUEST_AUDIT_EVENTS,
+        capturedEventCount: auditEvents.length,
+        droppedEventCount: this.droppedEventCount,
+      },
       summary: terminal.requestSummary ?? null,
     };
     this.finalized = deepFreeze({
@@ -168,11 +186,11 @@ export class RequestAuditCollector {
         outcome: terminal.outcome,
         errorCode: terminal.errorCode ?? null,
         durationMs,
-        auditIntegrityStatus: selected ? 'COMPLETE' : 'PARTIAL',
+        auditIntegrityStatus: selected && this.droppedEventCount === 0 ? 'COMPLETE' : 'PARTIAL',
         requestSummary,
         responseSummary: terminal.responseSummary ?? null,
       },
-      auditEvents: [...this.events],
+      auditEvents,
       salesforceApiCalls: [],
       payloadEvidence: [],
     }) satisfies AuditSnapshot;
@@ -187,7 +205,25 @@ export class RequestAuditCollector {
     return this.events.length;
   }
 
-  private selectTerminal(sequence: number, candidate: RequestAuditTerminalCandidate, eventSummary: unknown): void {
+  public droppedEvents(): number {
+    return this.droppedEventCount;
+  }
+
+  private finalAuditEvents(): readonly RequestAuditEventSnapshot[] {
+    if (
+      this.droppedEventCount === 0 ||
+      !this.terminalEvent ||
+      this.events.some((event) => event.sequence === this.terminalEvent?.sequence)
+    ) {
+      return [...this.events];
+    }
+    const preserved = this.events.slice(0, Math.max(0, MAX_REQUEST_AUDIT_EVENTS - 1));
+    preserved.push(this.terminalEvent);
+    preserved.sort((left, right) => left.sequence - right.sequence);
+    return preserved;
+  }
+
+  private selectTerminal(sequence: number, candidate: RequestAuditTerminalCandidate, eventSummary: unknown): boolean {
     const current = this.terminal;
     if (!current || terminalPriority(candidate) > terminalPriority(current.candidate)) {
       const shared = isRecord(eventSummary) ? eventSummary : undefined;
@@ -201,7 +237,9 @@ export class RequestAuditCollector {
           : {}),
       });
       this.terminal = Object.freeze({ sequence, candidate: safeCandidate });
+      return true;
     }
+    return false;
   }
 }
 

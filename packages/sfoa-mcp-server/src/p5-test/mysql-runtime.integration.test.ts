@@ -325,7 +325,14 @@ if (!configured) {
         'request-scoped Salesforce Connections must remain fresh and unpooled',
       );
       assert.equal(fallback.events.length, 0, 'durable MySQL audit should not use the fallback logger');
-      const audits = await store.repositories.audits.search({ limit: 100, offset: 0 });
+      const audits = await waitForAudits(store, [
+        { toolName: 'run_soql_query', result: 'PASS' },
+        { toolName: 'get_record_action_context', result: 'PASS' },
+        { toolName: 'get_username', result: 'BLOCKED', errorCode: 'MCP_TOOL_DISABLED' },
+        { toolName: 'create_record', result: 'PASS' },
+        { toolName: 'create_record', result: 'ERROR', errorCode: 'MCP_DML_OBJECT_NOT_ALLOWED' },
+        { toolName: 'update_record', result: 'PASS' },
+      ]);
       assertAudit(audits.items, 'run_soql_query', 'PASS');
       assertAudit(audits.items, 'get_record_action_context', 'PASS');
       assertAudit(audits.items, 'get_username', 'BLOCKED', 'MCP_TOOL_DISABLED');
@@ -525,6 +532,27 @@ function assertAudit(
     audit.toolName === toolName && audit.result === result &&
     (errorCode === undefined || audit.errorCode === errorCode)),
   `Missing durable runtime audit: ${toolName}/${result}/${errorCode ?? 'none'}`);
+}
+
+type AuditExpectation = Readonly<{
+  toolName: string;
+  result: 'PASS' | 'BLOCKED' | 'ERROR';
+  errorCode?: string;
+}>;
+
+async function waitForAudits(
+  store: MySqlControlPlaneStore,
+  expectations: readonly AuditExpectation[],
+): Promise<Awaited<ReturnType<MySqlControlPlaneStore['repositories']['audits']['search']>>> {
+  const deadline = Date.now() + 5_000;
+  let audits = await store.repositories.audits.search({ limit: 100, offset: 0 });
+  while (Date.now() < deadline && !expectations.every((expected) => audits.items.some((audit) =>
+    audit.toolName === expected.toolName && audit.result === expected.result &&
+    (expected.errorCode === undefined || audit.errorCode === expected.errorCode)))) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    audits = await store.repositories.audits.search({ limit: 100, offset: 0 });
+  }
+  return audits;
 }
 
 function readRecord(value: unknown): Record<string, unknown> {

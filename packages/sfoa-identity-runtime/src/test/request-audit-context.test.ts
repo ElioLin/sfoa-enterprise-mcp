@@ -5,6 +5,7 @@ import {
   RequestAuditContextController,
   runWithRequestAuditContext,
 } from '../request-audit-context.js';
+import { MAX_REQUEST_AUDIT_EVENTS } from '../request-audit-collector.js';
 
 test('100 interleaved Tool invocations keep audit, correlation, user, Salesforce user, and Tool isolated', async () => {
   const count = 100;
@@ -220,3 +221,52 @@ for (const concurrency of [50, 100, 200]) {
     }
   });
 }
+
+
+test('Collector bounds per-request Event growth and preserves authoritative terminal evidence', () => {
+  const context = RequestAuditContextController.create({
+    correlationId: 'event-cap', channel: 'MCP_HTTP', toolName: 'create_record', operation: 'CREATE',
+  });
+  const collector = context.collector();
+  for (let index = 0; index < MAX_REQUEST_AUDIT_EVENTS + 100; index += 1) {
+    collector.record({
+      eventCategory: 'INTERNAL',
+      eventType: 'NOISY_EVENT',
+      eventName: `noise-${index}`,
+      status: 'SUCCESS',
+      safeSummary: { marker: index },
+    });
+  }
+  assert.equal(collector.eventCount(), MAX_REQUEST_AUDIT_EVENTS);
+  assert.equal(collector.droppedEvents(), 100);
+  assert.equal(collector.record({
+    eventCategory: 'TOOL',
+    eventType: 'DML_OUTCOME_UNKNOWN',
+    eventName: 'create_record',
+    status: 'UNKNOWN',
+    errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
+    terminal: {
+      source: 'TOOL',
+      result: 'ERROR',
+      outcome: 'UNKNOWN',
+      errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
+      mutationStarted: true,
+    },
+  }), false);
+  assert.equal(collector.eventCount(), MAX_REQUEST_AUDIT_EVENTS);
+  assert.equal(collector.droppedEvents(), 101);
+
+  const snapshot = context.finalizeAudit();
+  assert.ok(snapshot);
+  assert.equal(snapshot.auditEvents.length, MAX_REQUEST_AUDIT_EVENTS);
+  assert.equal(snapshot.auditCall.auditIntegrityStatus, 'PARTIAL');
+  assert.equal(snapshot.auditCall.outcome, 'UNKNOWN');
+  assert.equal(snapshot.auditCall.errorCode, 'MCP_DML_OUTCOME_UNKNOWN');
+  assert.equal(snapshot.auditEvents.some((event) => event.eventType === 'DML_OUTCOME_UNKNOWN'), true);
+  const requestSummary = snapshot.auditCall.requestSummary as {
+    auditCapture?: { eventLimit?: number; capturedEventCount?: number; droppedEventCount?: number };
+  };
+  assert.equal(requestSummary.auditCapture?.eventLimit, MAX_REQUEST_AUDIT_EVENTS);
+  assert.equal(requestSummary.auditCapture?.capturedEventCount, MAX_REQUEST_AUDIT_EVENTS);
+  assert.equal(requestSummary.auditCapture?.droppedEventCount, 101);
+});
