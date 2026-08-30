@@ -303,7 +303,21 @@ function createOptions(password: string, repositories: ControlPlaneRepositories)
       buildPhase: 'P6-ID-01',
       capabilities: Object.freeze(['USER_BOUND_CREDENTIAL', 'IDENTITY_ROUTE_SEARCH', 'IDENTITY_ROUTE_PERMANENT_DELETE']),
     }),
-    auditPersistenceHealth: () => Object.freeze({ status: 'UP', failureCount: 0, lastFailureAt: null }),
+    auditPersistenceHealth: () => Object.freeze({
+      status: 'UP',
+      failureCount: 0,
+      lastFailureAt: null,
+      lastDropAt: null,
+      queueDepth: 0,
+      queueCapacity: 0,
+      enqueuedSnapshots: 0,
+      persistedSnapshots: 0,
+      droppedSnapshots: 0,
+      writerFailureCount: 0,
+      queueFullCount: 0,
+      lastSuccessAt: null,
+      writerState: 'SYNCHRONOUS',
+    }),
     probeMcpHealth: async () => Object.freeze({ status: 'UP', auditPersistence: Object.freeze({ status: 'UP', failureCount: 0 }) }),
   });
 }

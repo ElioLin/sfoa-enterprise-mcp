@@ -7,6 +7,7 @@ import {
   type RuntimeLogger,
 } from '@sfoa/identity-runtime';
 import { DatabaseRuntimeLogger } from '../runtime-logger.js';
+import { AsyncAuditPipeline, type AuditQueueEntry } from '../audit-pipeline.js';
 import type { AuditRepository, AuditWrite } from '../repositories.js';
 import { InMemoryControlPlaneStore } from './in-memory-store.js';
 
@@ -27,7 +28,12 @@ test('database logger writes safe structured runtime events', async () => {
   assert.equal(page.items.length, 1);
   assert.deepEqual(page.items[0]?.requestSummary, { fieldNames: ['Company', 'LastName'], fieldCount: 2 });
   assert.equal(fallbackEvents.length, 0);
-  assert.deepEqual(logger.getHealth(), { status: 'UP', failureCount: 0, lastFailureAt: null });
+  assert.deepEqual(logger.getHealth(), {
+    status: 'UP', failureCount: 0, lastFailureAt: null, lastDropAt: null,
+    queueDepth: 0, queueCapacity: 0, enqueuedSnapshots: 0, persistedSnapshots: 0,
+    droppedSnapshots: 0, writerFailureCount: 0, queueFullCount: 0,
+    lastSuccessAt: null, writerState: 'SYNCHRONOUS',
+  });
 });
 
 test('request audit context public Audit ID is the Audit Call authority', async () => {
@@ -109,4 +115,75 @@ test('durable and fallback logger failure still cannot escape into mutation outc
   }));
   assert.equal(logger.getHealth().status, 'DEGRADED');
   assert.equal(logger.getHealth().failureCount, 1);
+});
+
+test('async runtime logger produces one master Snapshot plus N Events without request-path repository writes', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const entries: AuditQueueEntry[] = [];
+  const pipeline = new AsyncAuditPipeline({ persist: async (batch) => { entries.push(...batch); } }, { log: () => undefined }, {
+    batchSize: 10, flushIntervalMs: 10, retryAttempts: 0,
+  });
+  const logger = new DatabaseRuntimeLogger(
+    store.repositories.audits,
+    { log: () => undefined },
+    store.repositories.auditTraces,
+    pipeline,
+  );
+  const context = RequestAuditContextController.create({
+    correlationId: 'corr-one-master', channel: 'MCP_HTTP', toolName: 'create_record', operation: 'CREATE',
+  }).withResolvedIdentity({
+    platformUserId: 'platform-one', identitySource: 'USER_BOUND_TOKEN', identityCredentialId: '7',
+  }).withSalesforceRoute({ salesforceUsername: 'one@example.invalid', executionRole: 'USER' });
+  await runWithRequestAuditContext(context, async () => {
+    await logger.log({
+      correlationId: 'corr-one-master', result: 'PASS', outcome: 'SUCCESS',
+      auditEvent: { eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: 'create_record', terminalSource: 'TOOL' },
+    });
+    await logger.log({
+      correlationId: 'corr-one-master', result: 'ERROR', errorCode: 'MCP_REQUEST_CLEANUP_FAILED',
+      auditEvent: { eventCategory: 'INTERNAL', eventType: 'CLEANUP_FAILURE', eventName: 'cleanup failed' },
+    });
+  });
+  logger.finalizeRequestAudit(context);
+  logger.finalizeRequestAudit(context);
+  const durableBeforeWriter = await store.repositories.audits.search({ correlationId: 'corr-one-master', limit: 10, offset: 0 });
+  assert.equal(durableBeforeWriter.items.length, 0);
+  await pipeline.close(1_000);
+  const snapshots = entries.filter((entry): entry is Extract<AuditQueueEntry, { kind: 'SNAPSHOT' }> => entry.kind === 'SNAPSHOT');
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0]?.snapshot.auditCall.publicAuditId, context.snapshot().auditId);
+  assert.equal(snapshots[0]?.snapshot.auditCall.outcome, 'SUCCESS');
+  assert.equal(snapshots[0]?.snapshot.auditEvents.length, 2);
+});
+
+test('Buntu raw Token remains only in the dedicated legacy IDENTITY_VALIDATION write', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const entries: AuditQueueEntry[] = [];
+  const pipeline = new AsyncAuditPipeline({ persist: async (batch) => { entries.push(...batch); } }, { log: () => undefined }, {
+    batchSize: 10, flushIntervalMs: 10, retryAttempts: 0,
+  });
+  const logger = new DatabaseRuntimeLogger(
+    store.repositories.audits, { log: () => undefined }, store.repositories.auditTraces, pipeline,
+  );
+  const rawToken = 'sensitive-buntu-token-value';
+  const context = RequestAuditContextController.create({
+    correlationId: 'corr-buntu', channel: 'MCP_HTTP', toolName: 'get_username',
+  });
+  await runWithRequestAuditContext(context, () => logger.logBuntuTokenValidation({
+    correlationId: 'corr-buntu', identitySource: 'BUNTU_TOKEN', operation: 'BUNTU_TOKEN_VALIDATE',
+    result: 'PASS', outcome: 'SUCCESS', requestSummary: { tokenFingerprint: 'safe-fingerprint' },
+    auditEvent: { eventCategory: 'IDENTITY', eventType: 'IDENTITY_VALIDATION', eventName: 'Buntu token validation' },
+  }, rawToken));
+  await runWithRequestAuditContext(context, () => logger.log({
+    correlationId: 'corr-buntu', result: 'PASS', outcome: 'SUCCESS',
+    auditEvent: { eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: 'get_username', terminalSource: 'TOOL' },
+  }));
+  logger.finalizeRequestAudit(context);
+  await pipeline.close(1_000);
+  const legacy = entries.find((entry): entry is Extract<AuditQueueEntry, { kind: 'LEGACY_RUNTIME' }> => entry.kind === 'LEGACY_RUNTIME');
+  const snapshotEntry = entries.find((entry): entry is Extract<AuditQueueEntry, { kind: 'SNAPSHOT' }> => entry.kind === 'SNAPSHOT');
+  assert.equal(legacy?.write.auditKind, 'IDENTITY_VALIDATION');
+  assert.equal(legacy?.write.buntuRawTokenEvidence, rawToken);
+  assert.ok(snapshotEntry);
+  assert.equal(JSON.stringify(snapshotEntry.snapshot).includes(rawToken), false);
 });

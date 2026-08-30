@@ -254,7 +254,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
   const logTransportTermination = (operation: DmlOperation): void => {
     if (transportTerminationLogged) return;
     transportTerminationLogged = true;
-    void Promise.resolve(options.logger.log({
+    const write = (): void | Promise<void> => options.logger.log({
       correlationId: observation.correlationId,
       ...(observation.clientId ? { clientId: observation.clientId } : {}),
       ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
@@ -269,7 +269,17 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       durationMs: elapsed(started),
       result: 'ERROR',
       errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
-    })).catch(() => undefined);
+      auditEvent: {
+        eventCategory: 'MCP',
+        eventType: 'TRANSPORT_TERMINAL',
+        eventName: 'Client disconnected after mutation dispatch',
+        terminalSource: 'TRANSPORT',
+      },
+    });
+    const logged = observation.auditContext
+      ? runWithRequestAuditContext(observation.auditContext, write)
+      : write();
+    void Promise.resolve(logged).catch(() => undefined);
   };
   const mutationRequestState = new MutationRequestState((operation) => {
     if (clientDisconnected) logTransportTermination(operation);
@@ -387,6 +397,12 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         durationMs: elapsed(started),
         result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
         errorCode: normalized.code,
+        auditEvent: {
+          eventCategory: requestErrorCategory(normalized.code),
+          eventType: outcomeUnknown ? 'DML_OUTCOME_UNKNOWN' : 'REQUEST_TERMINAL',
+          eventName: 'MCP request terminal outcome',
+          terminalSource: requestErrorTerminalSource(normalized.code),
+        },
       })).catch(() => undefined);
       if (observation.auditContext) {
         await runWithRequestAuditContext(observation.auditContext, errorAuditLog);
@@ -415,6 +431,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
     } catch (error) {
       logCleanupFailure(error, observation, options.logger, options.onCleanupFailure);
     }
+    if (observation.auditContext) options.logger.finalizeRequestAudit?.(observation.auditContext);
   }
 }
 
@@ -437,8 +454,15 @@ async function executeMcpPost(
       toolName: requestedToolName,
       clientMetadata: readAuditClientMetadata(headers),
     });
+    observation.auditContext.collector().record({
+      eventCategory: 'MCP',
+      eventType: 'TOOL_INVOCATION_STARTED',
+      eventName: requestedToolName,
+      status: 'STARTED',
+    });
   }
-  resources.assertAvailable(signal);
+  const executeInAuditScope = async (): Promise<void> => {
+    resources.assertAvailable(signal);
 
   const principal = await options.identityProvider.authenticate(
     headers,
@@ -559,7 +583,13 @@ async function executeMcpPost(
   resources.assertAvailable(signal);
   const responseCompleted = waitForResponseCompletion(options.response);
   await transport.handleRequest(options.request, options.response, parsedBody);
-  if (!options.response.writableEnded && !options.response.destroyed) await responseCompleted;
+    if (!options.response.writableEnded && !options.response.destroyed) await responseCompleted;
+  };
+  if (observation.auditContext) {
+    await runWithRequestAuditContext(observation.auditContext, executeInAuditScope);
+  } else {
+    await executeInAuditScope();
+  }
 }
 
 export function getRequestedExecutionRole(
@@ -950,7 +980,7 @@ function logCleanupFailure(
     'Request resource cleanup failed.',
     observation.correlationId,
   );
-  void Promise.resolve(logger.log({
+  const write = (): void | Promise<void> => logger.log({
     correlationId: observation.correlationId,
     ...(observation.clientId ? { clientId: observation.clientId } : {}),
     ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
@@ -959,7 +989,16 @@ function logCleanupFailure(
     ...(observation.identityCredentialId ? { identityCredentialId: observation.identityCredentialId } : {}),
     result: 'ERROR',
     errorCode: runtimeError.code,
-  })).catch(() => undefined);
+    auditEvent: {
+      eventCategory: 'INTERNAL',
+      eventType: 'CLEANUP_FAILURE',
+      eventName: 'Request resource cleanup failed',
+    },
+  });
+  const logged = observation.auditContext
+    ? runWithRequestAuditContext(observation.auditContext, write)
+    : write();
+  void Promise.resolve(logged).catch(() => undefined);
 }
 
 function createIdentityProvider(config: RemoteRuntimeConfig, authenticator?: ClientAuthenticator): IdentityProvider {
@@ -968,7 +1007,7 @@ function createIdentityProvider(config: RemoteRuntimeConfig, authenticator?: Cli
 
 function readAuditPersistenceHealth(
   logger: RuntimeLogger,
-): Readonly<{ status: 'UP' | 'DEGRADED'; failureCount: number }> | undefined {
+): Readonly<Record<string, unknown>> | undefined {
   const candidate = logger as RuntimeLogger & Readonly<{ getHealth?: () => unknown }>;
   if (typeof candidate.getHealth !== 'function') return undefined;
   const health = candidate.getHealth();
@@ -986,7 +1025,28 @@ function readAuditPersistenceHealth(
     !Number.isInteger(failureCount) ||
     failureCount < 0
   ) return undefined;
-  return Object.freeze({ status, failureCount });
+  const healthRecord = health as Readonly<Record<string, unknown>>;
+  const optionalMetrics = [
+    'queueDepth',
+    'queueCapacity',
+    'enqueuedSnapshots',
+    'persistedSnapshots',
+    'droppedSnapshots',
+    'writerFailureCount',
+    'queueFullCount',
+  ] as const;
+  const metrics: Record<string, unknown> = { status, failureCount };
+  for (const name of optionalMetrics) {
+    const value = healthRecord[name];
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+      metrics[name] = value;
+    }
+  }
+  for (const name of ['lastFailureAt', 'lastDropAt', 'lastSuccessAt', 'writerState'] as const) {
+    const value = healthRecord[name];
+    if (typeof value === 'string' || value === null) metrics[name] = value;
+  }
+  return Object.freeze(metrics);
 }
 
 function assertDiagnosticSnapshotValid(
@@ -1026,7 +1086,25 @@ async function auditDisabledToolAttempt(
     outcome: 'DENIED',
     errorCode: 'MCP_TOOL_DISABLED',
     requestSummary: { toolName: name.slice(0, 128) },
+    auditEvent: {
+      eventCategory: 'GOVERNANCE',
+      eventType: 'GOVERNANCE_DENIED',
+      eventName: 'Disabled Tool invocation denied',
+      terminalSource: 'GOVERNANCE',
+    },
   })).catch(() => undefined);
+}
+
+function requestErrorCategory(code: string): 'IDENTITY' | 'GOVERNANCE' | 'MCP' {
+  if (code.startsWith('MCP_IDENTITY_') || code.startsWith('MCP_CLIENT_') || code.startsWith('MCP_BUNTU_')) {
+    return 'IDENTITY';
+  }
+  return isBlocked(code) ? 'GOVERNANCE' : 'MCP';
+}
+
+function requestErrorTerminalSource(code: string): 'IDENTITY' | 'GOVERNANCE' | 'REQUEST' {
+  const category = requestErrorCategory(code);
+  return category === 'IDENTITY' ? 'IDENTITY' : category === 'GOVERNANCE' ? 'GOVERNANCE' : 'REQUEST';
 }
 
 function bindPrincipalLogger(logger: RuntimeLogger, principal: AuthenticatedPrincipal): RuntimeLogger {

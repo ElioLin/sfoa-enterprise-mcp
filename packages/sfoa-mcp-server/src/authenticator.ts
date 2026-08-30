@@ -304,6 +304,11 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
         durationMs: result.durationMs,
         requestSummary,
         responseSummary,
+        auditEvent: {
+          eventCategory: 'IDENTITY',
+          eventType: 'IDENTITY_VALIDATION',
+          eventName: 'Buntu token validation',
+        },
       };
       const logger = this.options.logger as BuntuSensitiveAuditLogger;
       if (this.options.rawTokenAuditEnabled && logger.logBuntuTokenValidation) {

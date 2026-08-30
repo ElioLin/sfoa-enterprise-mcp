@@ -1,4 +1,17 @@
+import type { RequestAuditContextController } from './request-audit-context.js';
+import type {
+  RequestAuditEventCategory,
+  RequestAuditTerminalSource,
+} from './request-audit-collector.js';
+
 export type RuntimeLogResult = 'PASS' | 'ERROR' | 'BLOCKED';
+
+export type RuntimeAuditEventDescriptor = Readonly<{
+  eventCategory: RequestAuditEventCategory;
+  eventType: string;
+  eventName: string;
+  terminalSource?: RequestAuditTerminalSource;
+}>;
 
 export type RuntimeLogEvent = Readonly<{
   correlationId: string;
@@ -20,10 +33,12 @@ export type RuntimeLogEvent = Readonly<{
   errorCode?: string;
   requestSummary?: unknown;
   responseSummary?: unknown;
+  auditEvent?: RuntimeAuditEventDescriptor;
 }>;
 
 export interface RuntimeLogger {
   log(event: RuntimeLogEvent): void | Promise<void>;
+  finalizeRequestAudit?(context: RequestAuditContextController): void;
 }
 
 export class JsonLineRuntimeLogger implements RuntimeLogger {

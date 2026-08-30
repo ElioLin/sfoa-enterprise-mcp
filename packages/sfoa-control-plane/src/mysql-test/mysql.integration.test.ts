@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 import test, { after, beforeEach } from 'node:test';
 import { sql } from 'kysely';
 import { createPool } from 'mysql2/promise';
+import { RequestAuditContextController, type AuditSnapshot } from '@sfoa/identity-runtime';
 import {
+  auditDatabaseConfig,
   assertAllMigrationsApplied,
   containsObviousAuditSecret,
   ControlPlaneAdminService,
@@ -20,6 +22,7 @@ import {
   loadMySqlRequestPolicySnapshot,
   migrationChecksumSha256,
   migrateDatabase,
+  MySqlAuditBatchSink,
   MySqlAuditRepository,
   MySqlControlPlaneStore,
   splitSqlStatements,
@@ -229,6 +232,53 @@ if (!setup) {
       }, 'bootstrap-admin'),
       (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_CONTROL_PLANE_CONFLICT',
     );
+  });
+
+  test('dedicated Audit pool batch-persists 50/100/200 isolated Snapshots with zero orphan or cross binding', { timeout: 120_000 }, async () => {
+    const auditConfig = auditDatabaseConfig(config);
+    assert.equal(auditConfig.connectionLimit, 2);
+    const auditDatabase = createControlPlaneDatabase(auditConfig);
+    const sink = new MySqlAuditBatchSink(auditDatabase);
+    try {
+      for (const [gateIndex, concurrency] of [50, 100, 200].entries()) {
+        const snapshots = Array.from({ length: concurrency }, (_, index) =>
+          mysqlSnapshot(1_000 + gateIndex * 1_000 + index, concurrency, index));
+        await sink.persist(snapshots.map((snapshot) => Object.freeze({ kind: 'SNAPSHOT' as const, snapshot })));
+        const publicIds = snapshots.map((snapshot) => snapshot.auditCall.publicAuditId);
+        const calls = await store.database.selectFrom('sfoa_audit_log')
+          .select(['id', 'public_audit_id', 'platform_user_id', 'salesforce_username', 'tool_name'])
+          .where('public_audit_id', 'in', publicIds)
+          .execute();
+        assert.equal(calls.length, concurrency);
+        assert.equal(new Set(calls.map((call) => call.public_audit_id)).size, concurrency);
+        const events = await store.database.selectFrom('sfoa_audit_event')
+          .innerJoin('sfoa_audit_log', 'sfoa_audit_log.id', 'sfoa_audit_event.audit_id')
+          .select([
+            'sfoa_audit_event.audit_id', 'sfoa_audit_event.sequence', 'sfoa_audit_event.event_name',
+            'sfoa_audit_log.public_audit_id',
+          ])
+          .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
+          .execute();
+        assert.equal(events.length, concurrency * 2);
+        for (const snapshot of snapshots) {
+          const marker = snapshot.auditCall.platformUserId?.replace('platform_', '');
+          assert.ok(marker);
+          const owned = events.filter((event) => event.public_audit_id === snapshot.auditCall.publicAuditId);
+          assert.equal(owned.length, 2);
+          assert.deepEqual(owned.map((event) => event.sequence).sort((a, b) => a - b), [1, 2]);
+          assert.equal(owned.every((event) => event.event_name.includes(marker)), true);
+        }
+      }
+      const orphan = await sql<{ count: string }>`
+        SELECT COUNT(*) AS count
+        FROM sfoa_audit_event event
+        LEFT JOIN sfoa_audit_log call_record ON call_record.id = event.audit_id
+        WHERE call_record.id IS NULL
+      `.execute(store.database);
+      assert.equal(Number(orphan.rows[0]?.count), 0);
+    } finally {
+      await auditDatabase.destroy();
+    }
   });
 
   test('P7 Audit Call, Event, Salesforce API, and bounded Payload preserve per-audit isolation', async () => {
@@ -545,6 +595,28 @@ if (!setup) {
     assert.equal(remainingApiCalls.length, 0);
     assert.equal(remainingPayloads.length, 0);
   });
+}
+
+function mysqlSnapshot(unique: number, concurrency: number, index: number): AuditSnapshot {
+  const marker = `MYSQL_${concurrency}_${index}_ONLY`;
+  const auditId = `00000000-0000-4000-8000-${String(unique).padStart(12, '0')}`;
+  const context = RequestAuditContextController.create({
+    correlationId: `mysql-shared-${index % 5}`,
+    channel: 'MCP_HTTP',
+    toolName: `tool_${index % 9}`,
+  }, () => auditId, () => new Date('2026-08-30T01:00:00.000Z'))
+    .withResolvedIdentity({ platformUserId: `platform_${marker}`, identitySource: 'USER_BOUND_TOKEN' })
+    .withSalesforceRoute({ salesforceUsername: `sf_${marker}@example.invalid`, executionRole: 'USER' });
+  context.collector().record({
+    eventCategory: 'MCP', eventType: 'TOOL_INVOCATION_STARTED', eventName: `${marker} started`, status: 'STARTED',
+  });
+  context.collector().record({
+    eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: `${marker} terminal`, status: 'SUCCESS',
+    terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
+  });
+  const snapshot = context.finalizeAudit(new Date('2026-08-30T01:00:00.010Z'));
+  assert.ok(snapshot);
+  return snapshot;
 }
 
 async function loadTestConfig(): Promise<Readonly<{ config: DatabaseConfig }> | undefined> {

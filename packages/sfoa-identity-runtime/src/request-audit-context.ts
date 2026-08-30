@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
+import { RequestAuditCollector, type AuditSnapshot } from './request-audit-collector.js';
 
 export type RequestAuditChannel = 'MCP_HTTP' | 'MCP_STDIO';
 export type RequestAuditIdentitySource = 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
@@ -54,9 +55,11 @@ export class RequestAuditContextController {
   private context: RequestAuditContext;
   private sequence = 0;
   private auditCallClaimed = false;
+  private readonly auditCollector: RequestAuditCollector;
 
   private constructor(context: RequestAuditContext) {
     this.context = context;
+    this.auditCollector = new RequestAuditCollector(() => this.snapshot(), () => this.nextSequence());
   }
 
   public static create(
@@ -144,6 +147,14 @@ export class RequestAuditContextController {
     if (this.auditCallClaimed) return false;
     this.auditCallClaimed = true;
     return true;
+  }
+
+  public collector(): RequestAuditCollector {
+    return this.auditCollector;
+  }
+
+  public finalizeAudit(completedAt?: Date): AuditSnapshot | undefined {
+    return this.auditCollector.finalize(completedAt);
   }
 }
 

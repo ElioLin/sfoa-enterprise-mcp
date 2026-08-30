@@ -137,6 +137,7 @@ export class RemoteToolFacade {
           this.options.context.correlationId,
         );
       }
+      await this.log('ERROR', elapsed(started), 'MCP_TOOL_EXECUTION_FAILED', input);
       throw error;
     }
   }
@@ -179,6 +180,12 @@ export class RemoteToolFacade {
       ...(errorCode ? { errorCode } : {}),
       requestSummary: safeOfficialRequestSummary(this.getName(), input),
       responseSummary: { isError: response?.isError === true },
+      auditEvent: {
+        eventCategory: 'TOOL',
+        eventType: 'TOOL_TERMINAL',
+        eventName: this.getName(),
+        terminalSource: result === 'BLOCKED' ? 'GOVERNANCE' : 'TOOL',
+      },
     })).catch(() => undefined);
   }
 }

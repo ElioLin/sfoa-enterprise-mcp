@@ -4,12 +4,18 @@ import {
   seedSfdxLocalAuthStore,
   type CreateIdentityRuntimeOverrides,
 } from '@sfoa/identity-runtime';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
+  AsyncAuditPipeline,
   assertAllMigrationsApplied,
+  auditDatabaseConfig,
   createControlPlaneDatabase,
   DatabaseRuntimeLogger,
+  DEFAULT_AUDIT_FLUSH_TIMEOUT_MS,
+  MySqlAuditBatchSink,
   MySqlControlPlaneStore,
   MySqlIdentityRepository,
+  type ControlPlaneDatabaseClient,
 } from '@sfoa/control-plane';
 import {
   BuntuTokenCredentialAuthenticator,
@@ -25,6 +31,8 @@ import { startRemoteMcpServer, type RemoteMcpServer } from './http-server.js';
 import { MySqlRuntimePolicySnapshotSource } from './policy-snapshot.js';
 import { loadMySqlSfdxSeedUsernames } from './runtime-sfdx-seed-usernames.js';
 
+const AUDIT_POOL_CLOSE_TIMEOUT_MS = 1_000;
+
 export async function startConfiguredRemoteRuntime(
   projectRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
@@ -39,14 +47,17 @@ export async function startConfiguredRemoteRuntime(
   const databaseConfig = config.controlPlane.database;
   if (!databaseConfig) throw new Error('MySQL Control Plane mode did not load database configuration.');
   const database = createControlPlaneDatabase(databaseConfig);
+  const auditDatabase = createControlPlaneDatabase(auditDatabaseConfig(databaseConfig));
   const store = new MySqlControlPlaneStore(database);
+  const fallbackLogger = identityOverrides.logger ?? new JsonLineRuntimeLogger();
+  const auditPipeline = new AsyncAuditPipeline(new MySqlAuditBatchSink(auditDatabase), fallbackLogger);
   try {
     await assertAllMigrationsApplied(database);
-    const fallbackLogger = identityOverrides.logger ?? new JsonLineRuntimeLogger();
     const databaseLogger = new DatabaseRuntimeLogger(
       store.repositories.audits,
       fallbackLogger,
       store.repositories.auditTraces,
+      auditPipeline,
     );
     const identityRuntime = createIdentityRuntime(config.identity, {
       ...identityOverrides,
@@ -65,18 +76,29 @@ export async function startConfiguredRemoteRuntime(
     return Object.freeze({
       ...server,
       close: async () => {
-        const result = await server.close();
-        if (!closed) {
-          closed = true;
-          await store.close();
+        try {
+          return await server.close();
+        } finally {
+          if (!closed) {
+            closed = true;
+            await auditPipeline.close(DEFAULT_AUDIT_FLUSH_TIMEOUT_MS);
+            await closeAuditDatabaseBounded(auditDatabase);
+            await store.close();
+          }
         }
-        return result;
       },
     });
   } catch (error) {
+    await auditPipeline.close(DEFAULT_AUDIT_FLUSH_TIMEOUT_MS).catch(() => undefined);
+    await closeAuditDatabaseBounded(auditDatabase);
     await store.close().catch(() => undefined);
     throw error;
   }
+}
+
+async function closeAuditDatabaseBounded(database: ControlPlaneDatabaseClient): Promise<void> {
+  const closing = database.destroy().catch(() => undefined);
+  await Promise.race([closing, delay(AUDIT_POOL_CLOSE_TIMEOUT_MS).then(() => undefined)]);
 }
 
 function createInternalCredentialAuthenticator(

@@ -84,6 +84,12 @@ export class DmlToolFacade {
         outcome: 'DENIED',
         errorCode: error.code,
         requestSummary: safeDmlRequestSummary(input, this.operation),
+        auditEvent: {
+          eventCategory: 'GOVERNANCE',
+          eventType: 'TOOL_TERMINAL',
+          eventName: this.getName(),
+          terminalSource: 'GOVERNANCE',
+        },
       })).catch(() => undefined);
       return remoteRuntimeErrorToolResult(error, [], this.options.context.correlationId);
     }
@@ -187,6 +193,12 @@ export class DmlToolFacade {
         success: result === 'PASS',
         ...(responseRecordId ? { recordId: responseRecordId } : {}),
         ...(errorCode ? { errorCode } : {}),
+      },
+      auditEvent: {
+        eventCategory: 'TOOL',
+        eventType: outcomeUnknown ? 'DML_OUTCOME_UNKNOWN' : 'TOOL_TERMINAL',
+        eventName: this.getName(),
+        terminalSource: terminationLayer === 'TRANSPORT' ? 'TRANSPORT' : 'TOOL',
       },
     })).catch(() => undefined);
   }

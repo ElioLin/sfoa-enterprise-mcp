@@ -368,6 +368,12 @@ async function logTool(
     ...(errorCode ? { errorCode } : {}),
     requestSummary,
     responseSummary,
+    auditEvent: {
+      eventCategory: 'TOOL',
+      eventType: 'TOOL_TERMINAL',
+      eventName: toolName,
+      terminalSource: 'TOOL',
+    },
   })).catch(() => undefined);
 }
 

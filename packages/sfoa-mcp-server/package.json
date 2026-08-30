@@ -20,6 +20,7 @@
     "test:p3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p3-test/*.test.js",
     "test:p4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p4-test/*.test.js",
     "test:p5": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p5-test/*.test.js",
+    "test:p7": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p7-test/*.test.js",
     "test:p5:mysql": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p5-test/mysql-runtime.integration.test.js",
     "validate:upstream": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/upstream-compatibility.js",
     "validate:p2": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/main.js",

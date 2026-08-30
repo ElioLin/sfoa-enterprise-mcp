@@ -10,6 +10,7 @@ export * from './org-service.js';
 export * from './provider-tools.js';
 export * from './request-context.js';
 export * from './request-audit-context.js';
+export * from './request-audit-collector.js';
 export * from './request-scope.js';
 export * from './runtime-logger.js';
 export * from './runtime.js';

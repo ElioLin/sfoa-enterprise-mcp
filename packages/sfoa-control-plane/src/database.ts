@@ -3,6 +3,7 @@ import { createPool, type PoolOptions } from 'mysql2';
 import type { DatabaseConfig } from './config.js';
 import { ControlPlaneError, toControlPlaneError } from './errors.js';
 import type { ControlPlaneDatabase } from './schema.js';
+import { DEFAULT_AUDIT_DB_CONNECTION_LIMIT } from './audit-pipeline.js';
 
 export type ControlPlaneDatabaseClient = Kysely<ControlPlaneDatabase>;
 
@@ -27,6 +28,18 @@ export function createControlPlaneDatabase(config: DatabaseConfig): ControlPlane
       : { ssl: { rejectUnauthorized: config.sslMode === 'verify_identity' } }),
   };
   return new Kysely<ControlPlaneDatabase>({ dialect: new MysqlDialect({ pool: createPool(poolOptions) }) });
+}
+
+export function auditDatabaseConfig(
+  config: DatabaseConfig,
+  connectionLimit = DEFAULT_AUDIT_DB_CONNECTION_LIMIT,
+): DatabaseConfig {
+  const boundedLimit = Math.max(1, Math.min(connectionLimit, DEFAULT_AUDIT_DB_CONNECTION_LIMIT));
+  return Object.freeze({
+    ...config,
+    connectionLimit: boundedLimit,
+    queueLimit: Math.max(boundedLimit, Math.min(config.queueLimit, 20)),
+  });
 }
 
 export async function createDatabaseIfMissing(config: DatabaseConfig): Promise<void> {

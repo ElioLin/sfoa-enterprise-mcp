@@ -113,6 +113,7 @@ export class ContextToolFacade {
           this.options.context.correlationId,
         );
       }
+      await this.log('ERROR', elapsed(started), 'MCP_TOOL_EXECUTION_FAILED', input);
       throw error;
     }
   }
@@ -137,6 +138,12 @@ export class ContextToolFacade {
       ...(errorCode ? { errorCode } : {}),
       requestSummary: safeContextRequestSummary(this.getName(), input),
       responseSummary: safeContextResponseSummary(response, errorCode),
+      auditEvent: {
+        eventCategory: 'TOOL',
+        eventType: 'TOOL_TERMINAL',
+        eventName: this.getName(),
+        terminalSource: result === 'BLOCKED' ? 'GOVERNANCE' : 'TOOL',
+      },
     })).catch(() => undefined);
   }
 }
