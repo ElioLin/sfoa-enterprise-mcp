@@ -6,6 +6,8 @@ P7-01 evolves the existing `sfoa_audit_log` ledger without moving historical row
 
 P7-02 lets `DatabaseRuntimeLogger` consume the active request audit context and create exactly one `MCP_TOOL_CALL` with the context's server-generated public Audit ID. This reuses the existing final Runtime audit write; it adds no stage writes, Event insert, queue, batch writer, Salesforce API, Workbench API/UI, or diagnostic MCP Tool.
 
+P7-03 production Runtime logging no longer awaits `AuditRepository.append` or `AuditTraceRepository.createCall`. It appends to the request Collector, offers one immutable Snapshot to a capacity-1000 Queue, and persists batches of up to 50 in a background Writer. The Writer uses a separate MySQL pool capped at two connections, retries twice with bounded exponential backoff, isolates non-retryable poison snapshots after batch rollback, and exposes bounded health counters. Admin transactional audit remains synchronous and unchanged.
+
 From the repository root:
 
 ```powershell

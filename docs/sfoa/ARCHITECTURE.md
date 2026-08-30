@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 and P7-02 are implemented and awaiting Maintainer review; P7-03–P7-08 remain unstarted
+Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 and P7-02 are complete; P7-03 is implemented and awaiting Maintainer review; P7-04–P7-08 remain unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -656,7 +656,13 @@ Event and API sequences are unique within one Audit, not globally. Composite for
 
 The migration runner also handles MySQL's implicit DDL commits safely. If all 005 schema objects, indexes, and named constraints exist but its ledger row is absent, it validates the complete schema before recording the repository checksum. A partially applied schema is never marked complete.
 
-P7-02 adds `RequestAuditContextController` at the definite Tool invocation boundary. It generates a server UUID, keeps Correlation ID separate, bounds optional client observability metadata, and exposes only typed identity/route/operation enrichment plus request-local sequence allocation. A thin Node.js `AsyncLocalStorage` carrier spans the existing MCP SDK callback and Promise/EventEmitter lifecycle so `DatabaseRuntimeLogger` can create one `MCP_TOOL_CALL` with the same public Audit ID. This carrier contains no Collector, Event buffer, queue, writer, batch, or Salesforce interceptor. Existing Runtime persistence remains fail-open, and Admin transaction audit semantics are unchanged.
+P7-02 adds `RequestAuditContextController` at the definite Tool invocation boundary. It generates a server UUID, keeps Correlation ID separate, bounds optional client observability metadata, and exposes only typed identity/route/operation enrichment plus request-local sequence allocation. A thin Node.js `AsyncLocalStorage` carrier spans the existing MCP SDK callback and Promise/EventEmitter lifecycle. P7-03 extends that same Controller—without a second ALS—with one request-bound pure-memory `RequestAuditCollector`.
+
+The Collector records ordered execution facts and chooses terminal outcome by explicit authority instead of logger order. It finalizes once into a deeply immutable, bounded `AuditSnapshot` containing one `MCP_TOOL_CALL`, N Events, and currently empty future Salesforce API/Payload arrays. HTTP termination and cleanup callbacks capture the Controller explicitly before leaving ALS scope; they never reconstruct ownership from user, time, or Correlation ID.
+
+`DatabaseRuntimeLogger` in configured MySQL Runtime mode performs only Collector append or Queue offer. A capacity-1000 non-blocking in-memory Queue feeds one background Writer using batch size 50 and a 100 ms flush interval. Each batch is one MySQL transaction: masters are bulk inserted, public Audit IDs resolve database PKs, then Events are bulk inserted. A non-retryable malformed batch rolls back and is isolated per Snapshot so poison input cannot block valid entries; retryable failures receive two background exponential-backoff retries and then drop/degrade. The Writer uses a separate Kysely/mysql2 pool capped at two connections, so it cannot consume the Control Plane identity/governance pool budget. Shutdown first drains MCP requests, then attempts a five-second bounded Audit flush, then closes the Audit pool. Admin transaction auditing remains on its existing synchronous transaction path.
+
+The request path never awaits Audit MySQL, retry, batch, or file I/O. Queue Full drops the Snapshot, increments bounded health metrics, and emits only a secret-free operational fallback. Runtime Audit failure cannot alter Tool/Salesforce outcomes or trigger DML retry. P7-03 adds no Salesforce API and does not implement P7-04 interception, P7-05 evidence, or P7-06 payload capture.
 
 ## Data, cache, and security baseline
 

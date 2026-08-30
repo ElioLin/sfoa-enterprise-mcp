@@ -837,3 +837,70 @@ yarn workspace @sfoa/mcp-server lint
 P7-02 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
 P7-03–P7-08 = NOT STARTED
 ```
+
+## P7-03 Request Isolation & Asynchronous Audit Pipeline Acceptance Matrix — 2026-08-30
+
+Maintainer 已确认 `P7-01 = COMPLETE`、`P7-02 = COMPLETE` 并授权 P7-03。本节只记录 P7-03 真实实现和 Gate；不表示 P7-04～P7-08 已开始。
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Remote/branch baseline | PASS | `git fetch --all --prune`; 开发起点 `feature/p7-end-to-end-audit` 与 origin 同为 `09782ef30c9e85abe9085769e11b59cff2b68bdb`，起始 working tree clean |
+| CodeGraph navigation/impact | PASS | 同步后 571 files、7,225 nodes、16,757 edges；分析 Tool entry、Context、Runtime Logger、Identity、Salesforce route、DB pool 及 callers；最终事实以源码/diff 为准 |
+| Request Collector/immutability | PASS | Identity Runtime 42/42；one Collector/controller、request-local sequence、deep immutable/bounded JSON Snapshot、finalize once、late append rejected |
+| Collector concurrency 50/100/200 | PASS | Audit ID collision 0；Cross Audit/User/Salesforce User/Tool/Object/Record/Correlation/Event leak 全部 0 |
+| Queue/Writer/fail-open | PASS | Control Plane 31/31；capacity/full、batch、retry/backoff、poison isolation、sync/async fallback failure、DB down、5s slow sink、bounded shutdown/in-flight drop 全通过 |
+| Runtime main/Event collapse | PASS | async logger test：同一 Context 两次 Runtime log → 1 Snapshot、1 master、2 Events；第二次 finalize 不 enqueue；request path repository writes 0 |
+| Buntu raw-token exception | PASS | raw Token 只存在于 queued `IDENTITY_VALIDATION` legacy write；普通 Tool Snapshot JSON 不含 raw value；既有 security suite 保持通过 |
+| Dedicated Audit DB pool | PASS | `auditDatabaseConfig()` connectionLimit=2；生产单独 Kysely/mysql2 client；Control Plane 主 pool 未复用 |
+| MySQL batch consistency 50/100/200 | PASS | connected MySQL 9/9；350 masters、700 Events；orphan 0、duplicate public ID 0、cross Snapshot/Event binding 0 |
+| DML fail-open | PASS | P3 22/22；CREATE success + Writer throw 仍 SUCCESS 且 create=1；UNKNOWN + Writer throw 仍 `MCP_DML_OUTCOME_UNKNOWN` 且 create=1；client disconnect UNKNOWN regression PASS |
+| HTTP 5s slow Writer | PASS | mock Tool response `< 2000 ms` assertion while Snapshot sink delays 5000 ms；health metrics visible；Tool failure 0 |
+| HTTP concurrency/performance | PASS with raw metrics retained | paired OFF→ON→ON→OFF, 50/100/200；ON 710 unique Snapshots，Cross binding/orphan/duplicate/tool failure 0；详见 `P7_03_REPORT.md` |
+| HTTP P7 OFF/ON Salesforce work | PASS | connection creations OFF=714 / ON=714；additional REST API OFF=0 / ON=0；P7-03 added Salesforce API=0 |
+| MCP full package | PASS after bounded flaky-test rerun | initial 65/66；唯一失败为 Windows temp workspace cleanup `rmdir EPERM`，无断言失败；只重跑该用例 1/1 PASS，未重复 full suite |
+| P4/P5 regressions | PASS | P4 7/7；P5 MySQL Runtime 5/5 |
+| Admin API/Web compatibility | PASS | Admin API lint + 18/18；Admin Web build 3,175 modules + 35/35；Admin transaction audit remains synchronous |
+| Strict changed-code lint | PASS | Identity Runtime、Control Plane、MCP Server strict TypeScript lint exit 0；Admin API affected lint exit 0 |
+| Dependency/lockfile | PASS (`0`) | 无新 dependency；`yarn.lock` 无变化；只增加 MCP Server `test:p7` script |
+| Official Salesforce source | PASS (`0`) | 官方 Tool implementation 修改 0；无透明 Salesforce interceptor |
+| Final Aggregate attempt 1 | FAIL EARLY / FIXED | `yarn validate:p5` 在第二个 Admin API lint Gate 因 health test fixture 仍为旧 3 字段类型停止；生产失败 0；更新受影响 mock 后 Admin API lint + 18/18 PASS |
+| Final Aggregate required restart | PASS | `yarn validate:p5` exit 0，570.78s；Control 31/31、MySQL 9/9、Identity 42/42、MCP P5 5/5、Admin 18/18、Web 35/35、mock Chromium 1/1、real full-stack Chromium 1/1、001–005、34 Audit rows |
+
+最终 paired HTTP 原始数据：
+
+| 并发 | OFF p50/p95/p99 ms | ON p50/p95/p99 ms | OFF/ON throughput | failures |
+| ---: | --- | --- | --- | ---: |
+| 50 | 152.56 / 157.18 / 157.77 | 193.68 / 199.66 / 200.09 | 315.20 / 249.28 | 0 / 0 |
+| 100 | 366.32 / 376.81 / 377.59 | 392.81 / 427.94 / 428.81 | 265.00 / 232.19 | 0 / 0 |
+| 200 | 737.91 / 768.02 / 769.49 | 768.27 / 831.60 / 833.04 | 259.28 / 239.05 | 0 / 0 |
+
+实际执行命令：
+
+```text
+git fetch --all --prune
+yarn workspace @sfoa/identity-runtime build
+yarn workspace @sfoa/identity-runtime test
+yarn workspace @sfoa/identity-runtime lint
+yarn workspace @sfoa/control-plane build
+yarn workspace @sfoa/control-plane test
+yarn workspace @sfoa/control-plane test:mysql
+yarn workspace @sfoa/control-plane lint
+yarn workspace @sfoa/mcp-server build
+yarn workspace @sfoa/mcp-server test
+node --test --test-name-pattern="P2 HTTP runtime enforces" packages/sfoa-mcp-server/dist/test/http-integration.test.js
+yarn workspace @sfoa/mcp-server test:p3
+yarn workspace @sfoa/mcp-server test:p4
+yarn workspace @sfoa/mcp-server test:p5
+yarn workspace @sfoa/mcp-server test:p7
+yarn workspace @sfoa/mcp-server lint
+yarn workspace @sfoa/admin-api lint
+yarn workspace @sfoa/admin-api test
+yarn validate:p5
+```
+
+```text
+P7-01 = COMPLETE
+P7-02 = COMPLETE
+P7-03 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-04–P7-08 = NOT STARTED
+```

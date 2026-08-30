@@ -1,6 +1,6 @@
 # ADR-0016: Explicit Buntu Raw-Token Audit Opt-In
 
-- Status: Implemented; awaiting Maintainer review
+- Status: Accepted for the authorized development/test exception
 - Date: 2026-08-30
 - Supersedes in part: ADR-0015's blanket rejection of optional raw Buntu token auditing
 

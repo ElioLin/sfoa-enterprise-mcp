@@ -1,6 +1,6 @@
 # P7：全链路审计与智能诊断权威基线
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.2**
+Baseline ID: **P7-E2E-AUDIT-BL-1.3**
 
 Baseline date: 2026-08-30
 
@@ -228,7 +228,7 @@ P7-01 只实现模型、Contract、bounded Repository 持久化与安全测试�
 
 不做：异步 Queue、Salesforce transport 全面插桩、UI 工作台、诊断 Skill。
 
-实施结果（2026-08-30）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。Runtime 在确定的 `tools/call` 入口生成 UUID Audit ID，Correlation ID 独立继承/生成；身份与 Salesforce Route 通过类型化 API 补全。一个极薄的 Node.js `AsyncLocalStorage` 仅把 Context 传入现有 Tool callback/Runtime Logger，未实现 Collector、Event、Queue、Writer 或 Batch。100 路 Promise 交错 Gate 的 Audit ID collision 与所有 cross-context leak 均为 0。
+Maintainer 结果（2026-08-30）：`COMPLETE`。Runtime 在确定的 `tools/call` 入口生成 UUID Audit ID，Correlation ID 独立继承/生成；身份与 Salesforce Route 通过类型化 API 补全。一个极薄的 Node.js `AsyncLocalStorage` 仅把 Context 传入现有 Tool callback/Runtime Logger。100 路 Promise 交错 Gate 的 Audit ID collision 与所有 cross-context leak 均为 0。
 
 ### P7-03 请求级隔离与异步审计管道
 
@@ -241,6 +241,8 @@ P7-01 只实现模型、Contract、bounded Repository 持久化与安全测试�
 验收 Gate：第 6 节并发、故障和性能 Gate 全部通过；Queue Full 不反压业务；审计失败不改变 Tool/Mutation outcome。
 
 不做：UI 工作台、AI 诊断 Tool、可靠性评分。
+
+实施结果（2026-08-30）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。P7-02 Controller 直接持有唯一纯内存 Collector；Runtime Log 映射为 request-local Event，并依据显式 `IDENTITY < GOVERNANCE < TOOL < REQUEST < TRANSPORT` 权威层级及 post-dispatch UNKNOWN 最高优先级选择主终态。HTTP 请求完成时最多 finalize/enqueue 一次深度冻结、bounded、JSON-safe Snapshot。容量 1000 的非阻塞 Queue、batch 50 / interval 100 ms 的后台 Writer、2 次指数退避、5 秒有界 shutdown flush、独立最多 2 连接 Audit Pool 和完整 health metrics 已接入。正常 Tool 路径只做内存 append/finalize/offer，不等待 Audit DB。P7-04/P7-05 数组保持空；Admin 同事务审计保持同步。
 
 ### P7-04 Salesforce API 透明审计
 
@@ -360,20 +362,20 @@ P7-01 至少覆盖：
 
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
-| P7-01 全链路审计数据模型 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | Schema、Contract、Repository、兼容性与工程 Gate 已完成；等待 Maintainer 独立审查 |
-| P7-02 请求级审计上下文 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | Server Audit ID、受控 enrichment、薄 ALS carrier、Audit Call 衔接及 100 路隔离 Gate 已实现 |
-| P7-03 请求级隔离与异步审计管道 | NOT STARTED | 依赖 P7-02 |
+| P7-01 全链路审计数据模型 | COMPLETE | Maintainer 独立审查通过 |
+| P7-02 请求级审计上下文 | COMPLETE | Maintainer 独立审查通过 |
+| P7-03 请求级隔离与异步审计管道 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | Collector、Snapshot、Queue、Writer、独立 Pool、health 及隔离/故障/性能 Gate 已实现 |
 | P7-04 Salesforce API 透明审计 | NOT STARTED | 依赖 P7-03 |
 | P7-05 SOQL 与 DML 审计证据 | NOT STARTED | 依赖 P7-04 |
 | P7-06 MCP 入口与响应审计 | NOT STARTED | 依赖 P7-03～P7-05 Contract |
 | P7-07 审计调用链工作台 | NOT STARTED | 依赖完整后端证据/API |
 | P7-08 智能诊断接口与排障技能 | NOT STARTED | 依赖 P7-07 与运维授权 |
 
-本次所有 P7-01 工程 Gate 通过后，状态只能更新为：
+本次所有 P7-03 工程 Gate 通过后，状态只能更新为：
 
-`P7-01 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
+`P7-03 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
-只有 Maintainer Review 通过后，P7-01 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
+只有 Maintainer Review 通过后，P7-03 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
 
 ## 9. 变更管理
 

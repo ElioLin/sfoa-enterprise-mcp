@@ -1,6 +1,6 @@
 # ADR-0015: P7 End-to-End Audit Data Model
 
-- Status: Implemented for P7-01; awaiting Maintainer review
+- Status: Accepted / COMPLETE after Maintainer review
 - Date: 2026-08-29
 - Extends: ADR-0011 Control Plane persistence, ADR-0012 unified identity, and ADR-0014 trusted managed DML fields
 

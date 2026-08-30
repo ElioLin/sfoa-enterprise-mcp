@@ -27,3 +27,4 @@ yarn workspace @sfoa/identity-runtime start:p1
 Configure local values in the ignored repository-root `.env.local`. Real usernames, tokens, JWT assertions, private keys, and Salesforce record contents are never written by the validator.
 
 See `docs/sfoa/P1_USER_TEST.md` for the Chinese environment, Inspector/Postman, forgery, metadata, and PASS/FAIL procedure. The authoritative result is `docs/sfoa/P1_FINAL_REPORT.md`.
+P7-03 attaches one pure in-memory `RequestAuditCollector` to the existing P7-02 `RequestAuditContextController`. It allocates request-local Event sequences, applies an explicit terminal-outcome authority rule, bounds JSON-safe summaries, and finalizes at most one deeply frozen `AuditSnapshot`. The existing single `AsyncLocalStorage<RequestAuditContextController>` remains the only async carrier; no process-global current request or second context exists.

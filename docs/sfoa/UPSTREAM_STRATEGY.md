@@ -119,6 +119,8 @@ No third-party dependency, root manifest entry, or lockfile resolution changes f
 
 P7-01 also modifies **zero official Salesforce TypeScript implementation files**. The additive migration, Audit contracts/sanitization/MySQL repository, compatibility changes, tests, and authoritative P7 documentation live in SFoA-owned paths. Existing official Tools, Provider API, dx-core, JSforce, stdio host, registry, and Salesforce packages remain unchanged. No dependency, root manifest, or `yarn.lock` change is introduced. The only upstream-owned documentation delta is covered by the existing root `README.md` matrix row. Official source merge risk remains LOW.
 
+P7-03 modifies **zero official Salesforce TypeScript implementation files**. Request collection, immutable Snapshot creation, Queue/Writer batching, dedicated Audit database budget, Runtime lifecycle integration, tests, and authoritative documentation remain in SFoA-owned identity-runtime, control-plane, and MCP server composition paths. It introduces no dependency or lockfile change and no Salesforce API. The upstream-owned root `README.md` receives only the existing SFoA extension/status/link inventory update; no upstream runtime contract changes. Official source merge risk remains LOW.
+
 ## Changes that require a new matrix entry
 
 - Root/package workspace configuration.
