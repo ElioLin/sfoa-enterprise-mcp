@@ -43,7 +43,11 @@ export async function startConfiguredRemoteRuntime(
   try {
     await assertAllMigrationsApplied(database);
     const fallbackLogger = identityOverrides.logger ?? new JsonLineRuntimeLogger();
-    const databaseLogger = new DatabaseRuntimeLogger(store.repositories.audits, fallbackLogger);
+    const databaseLogger = new DatabaseRuntimeLogger(
+      store.repositories.audits,
+      fallbackLogger,
+      store.repositories.auditTraces,
+    );
     const identityRuntime = createIdentityRuntime(config.identity, {
       ...identityOverrides,
       identityRepository: new MySqlIdentityRepository(database),

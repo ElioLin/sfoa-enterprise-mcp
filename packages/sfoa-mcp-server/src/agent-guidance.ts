@@ -10,7 +10,14 @@ import {
   type AgentCapabilities,
   type AgentWorkflow,
 } from '@sfoa/agent-playbook';
-import type { RequestScope, RuntimeLogger } from '@sfoa/identity-runtime';
+import {
+  RequestAuditContextController,
+  runWithRequestAuditContext,
+  type RequestAuditClientMetadata,
+  type RequestAuditIdentitySource,
+  type RequestScope,
+  type RuntimeLogger,
+} from '@sfoa/identity-runtime';
 import type { DmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
@@ -44,6 +51,12 @@ export type RegisterAgentGuidanceOptions = Readonly<{
   enabledTools: readonly string[];
   redactionSecrets?: readonly string[];
   lightningBaseUrl?: string;
+  auditIdentity: Readonly<{
+    identitySource: RequestAuditIdentitySource;
+    identityCredentialId?: string;
+  }>;
+  auditClientMetadata?: RequestAuditClientMetadata;
+  requestAuditContext?: RequestAuditContextController;
 }>;
 
 export function createRuntimeAgentCapabilities(
@@ -200,7 +213,7 @@ function registerPlaybookTool(server: McpServer, options: RegisterAgentGuidanceO
         openWorldHint: false,
       },
     },
-    async ({ workflow }): Promise<CallToolResult> => {
+    async ({ workflow }): Promise<CallToolResult> => withAgentAudit(options, 'get_agent_playbook', async () => {
       const started = performance.now();
       const selected: AgentWorkflow = workflow ?? 'ALL';
       const guidance = renderWorkflow(selected, options.capabilities);
@@ -223,7 +236,7 @@ function registerPlaybookTool(server: McpServer, options: RegisterAgentGuidanceO
         content: [{ type: 'text', text: `SFoA Agent Playbook ${AGENT_PLAYBOOK_VERSION} (${selected}) returned in structuredContent.guidance.` }],
         structuredContent,
       };
-    },
+    }),
   );
 }
 
@@ -255,7 +268,7 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
         openWorldHint: false,
       },
     },
-    async ({ records }): Promise<CallToolResult> => {
+    async ({ records }): Promise<CallToolResult> => withAgentAudit(options, 'get_record_links', async () => {
       const started = performance.now();
       try {
         const origin = trustedLightningOrigin(options.lightningBaseUrl);
@@ -302,8 +315,35 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
           options.scope.context.correlationId,
         );
       }
-    },
+    }),
   );
+}
+
+function withAgentAudit<T>(
+  options: RegisterAgentGuidanceOptions,
+  toolName: string,
+  callback: () => T,
+): T {
+  const context = options.requestAuditContext ?? RequestAuditContextController.create({
+    correlationId: options.scope.context.correlationId,
+    channel: 'MCP_HTTP',
+    clientId: options.clientId,
+    toolName,
+    clientMetadata: options.auditClientMetadata,
+  });
+  context
+    .withResolvedIdentity({
+      platformUserId: options.scope.context.platformUserId,
+      identitySource: options.auditIdentity.identitySource,
+      ...(options.auditIdentity.identityCredentialId
+        ? { identityCredentialId: options.auditIdentity.identityCredentialId }
+        : {}),
+    })
+    .withSalesforceRoute({
+      salesforceUsername: options.scope.route.salesforceUsername,
+      executionRole: options.scope.route.connectionRole,
+    });
+  return runWithRequestAuditContext(context, callback);
 }
 
 async function logTool(

@@ -20,6 +20,8 @@ import {
 import {
   formatRuntimeError,
   IdentityRuntimeError,
+  RequestAuditContextController,
+  runWithRequestAuditContext,
   type IdentityRuntime,
   type RequestHeaders,
   type RequestScope,
@@ -103,6 +105,7 @@ type RequestObservation = {
   salesforceUsername?: string;
   identitySource?: AuthenticatedPrincipal['identitySource'];
   identityCredentialId?: string;
+  auditContext?: RequestAuditContextController;
 };
 
 export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions): Promise<RemoteMcpServer> {
@@ -361,7 +364,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
     const mutationOperation = mutationRequestState.getOperation();
     const outcomeUnknown = normalized.code === 'MCP_DML_OUTCOME_UNKNOWN';
     if (!transportTerminationLogged) {
-      await Promise.resolve(options.logger.log({
+      const errorAuditLog = () => Promise.resolve(options.logger.log({
         correlationId: observation.correlationId,
         ...(observation.clientId ? { clientId: observation.clientId } : {}),
         ...(observation.platformUserId ? { platformUserId: observation.platformUserId } : {}),
@@ -385,6 +388,11 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
         errorCode: normalized.code,
       })).catch(() => undefined);
+      if (observation.auditContext) {
+        await runWithRequestAuditContext(observation.auditContext, errorAuditLog);
+      } else {
+        await errorAuditLog();
+      }
     }
     if (!options.response.headersSent) {
       writeNormalizedError(
@@ -434,6 +442,20 @@ async function executeMcpPost(
   });
   assertContentType(options.request);
   const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
+  const requestedToolName = getSingleToolName(parsedBody);
+  if (requestedToolName) {
+    observation.auditContext = RequestAuditContextController.create({
+      correlationId: principal.correlationId,
+      channel: 'MCP_HTTP',
+      clientId: principal.clientId,
+      toolName: requestedToolName,
+      clientMetadata: readAuditClientMetadata(headers),
+    }).withResolvedIdentity({
+      platformUserId: principal.platformUserId,
+      identitySource: principal.identitySource,
+      ...(principal.credentialId ? { identityCredentialId: principal.credentialId } : {}),
+    });
+  }
   resources.assertAvailable(signal);
 
   let initializedProvider = options.initializedProvider;
@@ -461,7 +483,12 @@ async function executeMcpPost(
       && snapshot.diagnostic.verificationStatus === 'PASS'
       && snapshot.enabledTools.includes('run_diagnostic_tooling_query')
       && snapshot.enabledTools.includes('get_metadata_component_context');
-    await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, principal, options.logger);
+    if (observation.auditContext) {
+      await runWithRequestAuditContext(observation.auditContext, () =>
+        auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, principal, options.logger));
+    } else {
+      await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, principal, options.logger);
+    }
     const requestedRole = getRequestedExecutionRole(parsedBody, initializedProvider.enabledTools);
     if (requestedRole === 'DIAGNOSTIC') {
       const diagnosticRoute = snapshotDiagnosticRoute(snapshot, identity.platformUserId);
@@ -488,6 +515,10 @@ async function executeMcpPost(
   await resources.attachScope(scope);
   resources.assertAvailable(signal);
   observation.salesforceUsername = scope.route.salesforceUsername;
+  observation.auditContext?.withSalesforceRoute({
+    salesforceUsername: scope.route.salesforceUsername,
+    executionRole: scope.route.connectionRole,
+  });
 
   const created = await createGovernedMcpServer({
     scope,
@@ -506,6 +537,12 @@ async function executeMcpPost(
     diagnosticReady,
     managedDmlFieldRules,
     lightningBaseUrl: options.config.lightningBaseUrl,
+    auditIdentity: {
+      identitySource: principal.identitySource,
+      ...(principal.credentialId ? { identityCredentialId: principal.credentialId } : {}),
+    },
+    auditClientMetadata: readAuditClientMetadata(headers),
+    requestAuditContext: observation.auditContext,
   });
   await resources.attachMcpServer(created.server);
   resources.assertAvailable(signal);
@@ -785,6 +822,27 @@ function parseCorrelationId(request: IncomingMessage): string {
 
 function toRequestHeaders(request: IncomingMessage): RequestHeaders {
   return Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name, value]));
+}
+
+function readAuditClientMetadata(headers: RequestHeaders): Readonly<Record<string, unknown>> {
+  const single = (name: string): unknown => {
+    const value = headers[name];
+    return typeof value === 'string' ? value : undefined;
+  };
+  return Object.freeze({
+    conversationId: single('x-conversation-id'),
+    turnId: single('x-turn-id'),
+    externalRunId: single('x-external-run-id'),
+    agentId: single('x-agent-id'),
+    modelProvider: single('x-model-provider'),
+    modelName: single('x-model-name'),
+  });
+}
+
+function getSingleToolName(body: unknown): string | undefined {
+  if (!isRecord(body) || body.method !== 'tools/call' || !isRecord(body.params)) return undefined;
+  const name = body.params.name;
+  return typeof name === 'string' && name.trim().length > 0 ? name.slice(0, 128) : undefined;
 }
 
 /**

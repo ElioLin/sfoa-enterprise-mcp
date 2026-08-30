@@ -792,3 +792,46 @@ P7-02–P7-08 = NOT STARTED
 本次实际结果：Control Plane lint/build PASS、unit 21/21、MySQL 8/8；MCP lint/build PASS、focused identity/security 21/21、完整包目录 suite 66/66；Admin API 18/18；Admin Web lint/build PASS、35/35；`yarn dev:sfoa` 在进程级 `MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED=true` 下启动到 ready 并正常 SIGINT；`yarn validate:p5` exit 0（545.87 秒），含 mock Chromium 1/1、real full-stack Chromium 1/1、001～005 与 34 条 Audit 证据。Vite >500 KiB、Node/Yarn `url.parse()`、既有 Ant Design deprecation/测试 CSS 警告仍为 upstream/project debt。
 
 一次诊断命令从仓库根目录直接执行 `node --test packages/sfoa-mcp-server/dist/test/*.test.js` 得到 64/66；两项只因测试按当前目录读取包内 `src/runtime.ts`/`package.json` 而失败。改在 `packages/sfoa-mcp-server` 执行同一 suite 后为 66/66；该错误调用不作为代码 Gate PASS，也未被隐藏。
+
+## P7-02 Request Audit Context Acceptance Matrix — 2026-08-30
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Remote/branch baseline | PASS | `git fetch --all --prune`; `feature/p7-end-to-end-audit` 与 origin 同为 `e29a92b3b02c10734da35a9a8bfca725f011214b` 开发起点 |
+| CodeGraph navigation/impact | PASS | 索引同步；Tool entry、IdentityResolver、DatabaseRuntimeLogger 影响分析及 affected tests 已执行；最终事实以源码/diff 为准 |
+| Request Context unit/concurrency | PASS | Identity Runtime 35/35；100 路 Promise 交错，Audit ID collision 0，Cross Audit/User/Salesforce User/Tool/Correlation leak 0 |
+| Optional/malicious client metadata | PASS | 全缺失为 null；部分提供可保留；控制字符删除；每字段 256 字符上限；不进入 Salesforce Tool schema |
+| Audit ID/Correlation semantics | PASS | UUID 由服务器生成；客户端无覆盖入口；5 个重复 Correlation ID 对应 100 个唯一 Audit ID |
+| Audit Call consistency | PASS | Control Plane 22/22；按 public Audit ID 回读，Context 与 Audit Call 的 ID/平台身份/source/credential/Salesforce username/role 完全一致 |
+| MySQL Audit Repository | PASS | 8/8 connected tests，P7-01 master/Event/API/Payload isolation 保持通过 |
+| MCP Runtime | PASS | full 66/66；Tool callback carrier、Identity/Governance/exception/timeout regressions 通过 |
+| Identity/DML/Diagnostic route | PASS | P3 20/20；P4 7/7；P5 MySQL Runtime 5/5 |
+| Changed-code build/lint | PASS | Identity Runtime、Control Plane、MCP Server strict TypeScript build/lint 全部 exit 0 |
+| Added Salesforce API | PASS (`0`) | Context 仅复用已知 request/route/input 事实 |
+| Added Event/stage DB INSERT | PASS (`0`) | 现有 Tool 终态一次写入改为 `createCall()`；无 Identity/Route/Event 阶段写入 |
+| Dependency/lockfile | PASS (`0`) | Node 内建 `crypto`/`async_hooks`；无 package/lockfile delta |
+| P7-03 scope | PASS (`NOT STARTED`) | 无 Collector、Queue、Batch Writer、Async Writer、Salesforce interceptor、Payload capture |
+| Final aggregate | PASS after bounded existing E2E locator fix | 首次 `yarn validate:p5` 通过全部 backend/unit/MySQL/Admin Web 35/35 后，在 mock Chromium 因 Drawer/Modal 同名 Close strict locator 失败；限定到目标 Drawer 后仅重跑失败 Gate `p5:e2e` 1/1 和未执行 `p5:e2e:fullstack` 1/1（34 Audit rows），均 exit 0；未重复完整 Aggregate |
+
+实际定向命令：
+
+```text
+yarn workspace @sfoa/identity-runtime build
+yarn workspace @sfoa/identity-runtime test
+yarn workspace @sfoa/identity-runtime lint
+yarn workspace @sfoa/control-plane build
+yarn workspace @sfoa/control-plane test
+yarn workspace @sfoa/control-plane test:mysql
+yarn workspace @sfoa/control-plane lint
+yarn workspace @sfoa/mcp-server build
+yarn workspace @sfoa/mcp-server test
+yarn workspace @sfoa/mcp-server test:p3
+yarn workspace @sfoa/mcp-server test:p4
+yarn workspace @sfoa/mcp-server test:p5
+yarn workspace @sfoa/mcp-server lint
+```
+
+```text
+P7-02 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-03–P7-08 = NOT STARTED
+```

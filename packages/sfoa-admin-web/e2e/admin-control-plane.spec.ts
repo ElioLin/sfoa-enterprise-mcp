@@ -62,7 +62,7 @@ test('admin can manage the bounded control plane and logout', async ({ page }, t
   await page.getByRole('button', { name: '保存规则' }).click();
   await expect(page.getByText('Created_By_AI__c')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('p6-dml-01-admin-managed-fields.png'), fullPage: true });
-  await page.getByLabel('Close').click();
+  await page.getByRole('dialog', { name: 'Lead · MCP 托管字段' }).getByRole('button', { name: '关闭' }).click();
 
   await page.getByRole('link', { name: '系统诊断' }).click();
   await page.getByRole('button', { name: '验证 Diagnostic Connection' }).click();

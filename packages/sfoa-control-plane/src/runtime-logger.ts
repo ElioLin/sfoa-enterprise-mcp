@@ -1,5 +1,9 @@
-import type { RuntimeLogEvent, RuntimeLogger } from '@sfoa/identity-runtime';
-import type { AuditRepository } from './repositories.js';
+import {
+  currentRequestAuditContext,
+  type RuntimeLogEvent,
+  type RuntimeLogger,
+} from '@sfoa/identity-runtime';
+import type { AuditRepository, AuditTraceRepository } from './repositories.js';
 
 export type AuditPersistenceHealth = Readonly<{
   status: 'UP' | 'DEGRADED';
@@ -14,6 +18,7 @@ export class DatabaseRuntimeLogger implements RuntimeLogger {
   public constructor(
     private readonly audits: AuditRepository,
     private readonly fallback: RuntimeLogger,
+    private readonly auditTraces?: AuditTraceRepository,
   ) {}
 
   public async log(event: RuntimeLogEvent): Promise<void> {
@@ -26,6 +31,43 @@ export class DatabaseRuntimeLogger implements RuntimeLogger {
 
   private async persist(event: RuntimeLogEvent, buntuRawTokenEvidence?: string): Promise<void> {
     try {
+      const requestAudit = currentRequestAuditContext();
+      if (requestAudit && this.auditTraces && requestAudit.claimAuditCallPersistence()) {
+        const context = requestAudit.snapshot();
+        await this.auditTraces.createCall({
+          occurredAt: new Date(context.startedAt),
+          publicAuditId: context.auditId,
+          startedAt: new Date(context.startedAt),
+          completedAt: new Date(),
+          correlationId: context.correlationId,
+          clientId: context.clientId ?? event.clientId,
+          platformUserId: context.platformUserId ?? event.platformUserId,
+          salesforceUsername: context.salesforceUsername ?? event.salesforceUsername,
+          executionRole: context.executionRole ?? event.executionRole,
+          identitySource: context.identitySource ?? event.identitySource,
+          identityCredentialId: context.identityCredentialId ?? event.identityCredentialId,
+          toolName: context.toolName,
+          operation: context.operation ?? event.operation,
+          objectApiName: context.objectApiName ?? event.objectApiName,
+          recordId: context.recordId ?? event.recordId,
+          result: event.result,
+          outcome: event.outcome ?? (event.result === 'PASS' ? 'SUCCESS' : event.result === 'BLOCKED' ? 'DENIED' : 'FAILED'),
+          errorCode: event.errorCode,
+          durationMs: event.durationMs,
+          auditIntegrityStatus: 'PARTIAL',
+          requestSummary: {
+            conversationId: context.conversationId,
+            turnId: context.turnId,
+            externalRunId: context.externalRunId,
+            agentId: context.agentId,
+            modelProvider: context.modelProvider,
+            modelName: context.modelName,
+            summary: event.requestSummary,
+          },
+          responseSummary: event.responseSummary,
+        });
+        return;
+      }
       await this.audits.append({
         occurredAt: new Date(),
         correlationId: event.correlationId,

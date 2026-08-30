@@ -22,7 +22,9 @@ import {
 import {
   NoopRuntimeLogger,
   OfficialDxCoreToolSource,
+  RequestAuditContextController,
   RequestScopedToolExecutionAdapter,
+  runWithRequestAuditContext,
   type CwdExecutionGuard,
   type RequestScope,
   type RequestToolSource,
@@ -75,6 +77,19 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   diagnosticReady: boolean;
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
   lightningBaseUrl?: string;
+  requestAuditContext?: RequestAuditContextController;
+  auditIdentity: Readonly<{
+    identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
+    identityCredentialId?: string;
+  }>;
+  auditClientMetadata?: Readonly<{
+    conversationId?: unknown;
+    turnId?: unknown;
+    externalRunId?: unknown;
+    agentId?: unknown;
+    modelProvider?: unknown;
+    modelName?: unknown;
+  }>;
 }>;
 
 export class MutationRequestState implements MutationExecutionObserver {
@@ -204,6 +219,9 @@ export async function createGovernedMcpServer(
       enabledTools: options.initializedProvider.enabledTools,
       redactionSecrets: options.redactionSecrets,
       lightningBaseUrl: options.lightningBaseUrl,
+      auditIdentity: options.auditIdentity,
+      auditClientMetadata: options.auditClientMetadata,
+      requestAuditContext: options.requestAuditContext,
     })];
     const adapter = new RequestScopedToolExecutionAdapter(
       options.scope.context,
@@ -291,7 +309,8 @@ export async function createGovernedMcpServer(
           redactionSecrets: options.redactionSecrets,
           mutationStarted: () => options.mutationRequestState.hasStarted(),
         });
-        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
+        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
+          runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));
         registered.push(name);
         continue;
       }
@@ -306,7 +325,8 @@ export async function createGovernedMcpServer(
           redactionSecrets: options.redactionSecrets,
           managedDmlFieldRules: options.managedDmlFieldRules ?? [],
         });
-        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
+        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
+          runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));
         registered.push(name);
         continue;
       }
@@ -322,7 +342,8 @@ export async function createGovernedMcpServer(
         clientId: options.clientId,
         redactionSecrets: options.redactionSecrets,
       });
-      server.registerTool(facade.getName(), facade.getConfig(), (input, extra) => facade.execute(input, extra));
+      server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
+        runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));
       registered.push(name);
     }
 
@@ -331,4 +352,43 @@ export async function createGovernedMcpServer(
     await server.close().catch(() => undefined);
     throw error;
   }
+}
+
+function runAuditedToolInvocation<T>(
+  options: CreateGovernedMcpServerOptions,
+  toolName: string,
+  input: unknown,
+  callback: () => T,
+): T {
+  const auditContext = options.requestAuditContext ?? RequestAuditContextController.create({
+    correlationId: options.scope.context.correlationId,
+    channel: 'MCP_HTTP',
+    clientId: options.clientId,
+    toolName,
+    clientMetadata: options.auditClientMetadata,
+  });
+  auditContext
+    .withResolvedIdentity({
+      platformUserId: options.scope.context.platformUserId,
+      identitySource: options.auditIdentity.identitySource,
+      ...(options.auditIdentity.identityCredentialId
+        ? { identityCredentialId: options.auditIdentity.identityCredentialId }
+        : {}),
+    })
+    .withSalesforceRoute({
+      salesforceUsername: options.scope.route.salesforceUsername,
+      executionRole: options.scope.route.connectionRole,
+    });
+  if (isRecord(input)) {
+    auditContext.withOperation({
+      operation: toolName === 'create_record' ? 'CREATE' : toolName === 'update_record' ? 'UPDATE' : undefined,
+      objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : undefined,
+      recordId: typeof input.recordId === 'string' ? input.recordId : undefined,
+    });
+  }
+  return runWithRequestAuditContext(auditContext, callback);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

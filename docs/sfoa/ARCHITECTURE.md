@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 end-to-end Audit data model implementation is under review; P7-02–P7-08 remain unstarted
+Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 and P7-02 are implemented and awaiting Maintainer review; P7-03–P7-08 remain unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -656,7 +656,7 @@ Event and API sequences are unique within one Audit, not globally. Composite for
 
 The migration runner also handles MySQL's implicit DDL commits safely. If all 005 schema objects, indexes, and named constraints exist but its ledger row is absent, it validates the complete schema before recording the repository checksum. A partially applied schema is never marked complete.
 
-P7-01 deliberately does not add the request-scoped Audit context, Collector, AsyncLocalStorage, queue/batch writer, Salesforce transport instrumentation, MCP response capture, React Workbench, or diagnostic Skill. Existing Runtime persistence remains fail-open, so audit/fallback failure cannot reverse a successful Salesforce mutation; existing Admin mutation-plus-audit transactions retain their accepted strong consistency. P7-02 and later may build only on the isolation, fail-open, and performance Gates in `P7_END_TO_END_AUDIT_BASELINE.md`.
+P7-02 adds `RequestAuditContextController` at the definite Tool invocation boundary. It generates a server UUID, keeps Correlation ID separate, bounds optional client observability metadata, and exposes only typed identity/route/operation enrichment plus request-local sequence allocation. A thin Node.js `AsyncLocalStorage` carrier spans the existing MCP SDK callback and Promise/EventEmitter lifecycle so `DatabaseRuntimeLogger` can create one `MCP_TOOL_CALL` with the same public Audit ID. This carrier contains no Collector, Event buffer, queue, writer, batch, or Salesforce interceptor. Existing Runtime persistence remains fail-open, and Admin transaction audit semantics are unchanged.
 
 ## Data, cache, and security baseline
 

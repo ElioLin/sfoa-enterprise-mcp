@@ -1,6 +1,6 @@
 # P7：全链路审计与智能诊断权威基线
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.1**
+Baseline ID: **P7-E2E-AUDIT-BL-1.2**
 
 Baseline date: 2026-08-30
 
@@ -228,6 +228,8 @@ P7-01 只实现模型、Contract、bounded Repository 持久化与安全测试�
 
 不做：异步 Queue、Salesforce transport 全面插桩、UI 工作台、诊断 Skill。
 
+实施结果（2026-08-30）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。Runtime 在确定的 `tools/call` 入口生成 UUID Audit ID，Correlation ID 独立继承/生成；身份与 Salesforce Route 通过类型化 API 补全。一个极薄的 Node.js `AsyncLocalStorage` 仅把 Context 传入现有 Tool callback/Runtime Logger，未实现 Collector、Event、Queue、Writer 或 Batch。100 路 Promise 交错 Gate 的 Audit ID collision 与所有 cross-context leak 均为 0。
+
 ### P7-03 请求级隔离与异步审计管道
 
 目标：建立 Request-bound Collector、Snapshot、异步 Queue、Batch Persistence 与完整 fail-open/performance 隔离。
@@ -359,7 +361,7 @@ P7-01 至少覆盖：
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
 | P7-01 全链路审计数据模型 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | Schema、Contract、Repository、兼容性与工程 Gate 已完成；等待 Maintainer 独立审查 |
-| P7-02 请求级审计上下文 | NOT STARTED | P7-01 Maintainer review 前禁止开始 |
+| P7-02 请求级审计上下文 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | Server Audit ID、受控 enrichment、薄 ALS carrier、Audit Call 衔接及 100 路隔离 Gate 已实现 |
 | P7-03 请求级隔离与异步审计管道 | NOT STARTED | 依赖 P7-02 |
 | P7-04 Salesforce API 透明审计 | NOT STARTED | 依赖 P7-03 |
 | P7-05 SOQL 与 DML 审计证据 | NOT STARTED | 依赖 P7-04 |

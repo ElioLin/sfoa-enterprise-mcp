@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { RuntimeLogEvent, RuntimeLogger } from '@sfoa/identity-runtime';
+import {
+  RequestAuditContextController,
+  runWithRequestAuditContext,
+  type RuntimeLogEvent,
+  type RuntimeLogger,
+} from '@sfoa/identity-runtime';
 import { DatabaseRuntimeLogger } from '../runtime-logger.js';
 import type { AuditRepository, AuditWrite } from '../repositories.js';
 import { InMemoryControlPlaneStore } from './in-memory-store.js';
@@ -23,6 +28,47 @@ test('database logger writes safe structured runtime events', async () => {
   assert.deepEqual(page.items[0]?.requestSummary, { fieldNames: ['Company', 'LastName'], fieldCount: 2 });
   assert.equal(fallbackEvents.length, 0);
   assert.deepEqual(logger.getHealth(), { status: 'UP', failureCount: 0, lastFailureAt: null });
+});
+
+test('request audit context public Audit ID is the Audit Call authority', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const logger = new DatabaseRuntimeLogger(
+    store.repositories.audits,
+    { log: () => undefined },
+    store.repositories.auditTraces,
+  );
+  const context = RequestAuditContextController.create({
+    correlationId: 'corr-request-audit',
+    channel: 'MCP_HTTP',
+    clientId: 'client-a',
+    toolName: 'create_record',
+    operation: 'CREATE',
+    objectApiName: 'Lead',
+  }).withResolvedIdentity({
+    platformUserId: 'platform-a',
+    identitySource: 'USER_BOUND_TOKEN',
+    identityCredentialId: 'credential-a',
+  }).withSalesforceRoute({
+    salesforceUsername: 'user@example.invalid',
+    executionRole: 'USER',
+  });
+
+  await runWithRequestAuditContext(context, () => logger.log({
+    correlationId: 'corr-request-audit',
+    result: 'PASS',
+    outcome: 'SUCCESS',
+    durationMs: 12,
+  }));
+
+  const call = await store.repositories.auditTraces.getByPublicAuditId(context.snapshot().auditId);
+  assert.ok(call);
+  assert.equal(call.publicAuditId, context.snapshot().auditId);
+  assert.equal(call.auditKind, 'MCP_TOOL_CALL');
+  assert.equal(call.platformUserId, 'platform-a');
+  assert.equal(call.identitySource, 'USER_BOUND_TOKEN');
+  assert.equal(call.identityCredentialId, 'credential-a');
+  assert.equal(call.salesforceUsername, 'user@example.invalid');
+  assert.equal(call.executionRole, 'USER');
 });
 
 test('audit persistence failure never changes an already determined mutation outcome', async () => {
