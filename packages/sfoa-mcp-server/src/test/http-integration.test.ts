@@ -13,7 +13,12 @@ import {
   type IdentityRouteRecord,
   type IdentityRouteRepository,
 } from '@sfoa/control-plane';
-import type { RuntimeLogEvent, RuntimeLogger } from '@sfoa/identity-runtime';
+import {
+  currentRequestAuditContext,
+  type RequestAuditContext,
+  type RuntimeLogEvent,
+  type RuntimeLogger,
+} from '@sfoa/identity-runtime';
 import {
   InternalServiceCredentialAuthenticator,
   UnifiedIdentityProvider,
@@ -42,7 +47,8 @@ const USER_BOUND_TOKEN_A2 = `sfoa_ub1_${'c'.repeat(43)}`;
 test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and isolates 50 A/B calls', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-http-'));
   const connectionFactory = new RecordingConnectionFactory();
-  const identityRuntime = createTestIdentityRuntime(baseRoot, connectionFactory);
+  const logger = new RecordingLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, connectionFactory, logger);
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({ maxBodyBytes: 512 }),
     identityRuntime,
@@ -70,6 +76,18 @@ test('P2 HTTP runtime enforces auth/bounds, hides disabled/host-owned Tools, and
     assert.equal(wrongBearer.status, 401);
     assert.equal(wrongBearer.headers.get('www-authenticate'), 'Bearer');
     assert.equal(await responseErrorCode(wrongBearer), 'MCP_CLIENT_AUTH_INVALID');
+
+    const wrongToolBearer = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: mcpHeaders(TEST_PLATFORM_USER_A, 'wrong-bearer-token'),
+      body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'get_username', arguments: {} } }),
+    });
+    assert.equal(wrongToolBearer.status, 401);
+    assert.equal(await responseErrorCode(wrongToolBearer), 'MCP_CLIENT_AUTH_INVALID');
+    const failedIdentityAudit = logger.auditSnapshots.at(-1);
+    assert.equal(failedIdentityAudit?.toolName, 'get_username');
+    assert.equal(failedIdentityAudit?.platformUserId, null);
+    assert.equal(failedIdentityAudit?.salesforceUsername, null);
 
     const noPlatformUser = await fetch(server.mcpUrl, {
       method: 'POST',
@@ -355,7 +373,12 @@ async function withStage<T>(stage: string, operation: Promise<T>): Promise<T> {
 
 class RecordingLogger implements RuntimeLogger {
   public readonly events: RuntimeLogEvent[] = [];
-  public log(event: RuntimeLogEvent): void { this.events.push(event); }
+  public readonly auditSnapshots: RequestAuditContext[] = [];
+  public log(event: RuntimeLogEvent): void {
+    this.events.push(event);
+    const context = currentRequestAuditContext();
+    if (context) this.auditSnapshots.push(context.snapshot());
+  }
 }
 
 function createMutableCredentialRepositories(): Readonly<{

@@ -802,6 +802,7 @@ P7-02–P7-08 = NOT STARTED
 | Request Context unit/concurrency | PASS | Identity Runtime 35/35；100 路 Promise 交错，Audit ID collision 0，Cross Audit/User/Salesforce User/Tool/Correlation leak 0 |
 | Optional/malicious client metadata | PASS | 全缺失为 null；部分提供可保留；控制字符删除；每字段 256 字符上限；不进入 Salesforce Tool schema |
 | Audit ID/Correlation semantics | PASS | UUID 由服务器生成；客户端无覆盖入口；5 个重复 Correlation ID 对应 100 个唯一 Audit ID |
+| Identity failure context | PASS | bounded `tools/call` body 在 Identity Provider 前预建 Context；错误 Bearer 的 HTTP test 断言 Tool=`get_username`、platformUserId/salesforceUsername 均为 null，Audit ID 不被替换 |
 | Audit Call consistency | PASS | Control Plane 22/22；按 public Audit ID 回读，Context 与 Audit Call 的 ID/平台身份/source/credential/Salesforce username/role 完全一致 |
 | MySQL Audit Repository | PASS | 8/8 connected tests，P7-01 master/Event/API/Payload isolation 保持通过 |
 | MCP Runtime | PASS | full 66/66；Tool callback carrier、Identity/Governance/exception/timeout regressions 通过 |

@@ -12,7 +12,7 @@ Streamable HTTP 入口为 `handleRemoteRequest()` → `executeMcpPost()` → `St
 
 结构包含 `auditId`、`correlationId`、`startedAt`、`channel`、`clientId`、`toolName`、可空 operation/object/record、可空平台身份/credential/source、可空 Salesforce username/role，以及可空 conversation/turn/external run/agent/model provider/model name。Controller 只暴露 `withResolvedIdentity()`、`withSalesforceRoute()`、`withOperation()`、`nextSequence()` 和只读 `snapshot()`；不允许任意 key/value 注入。
 
-HTTP body 确定 Tool 后由 Runtime 创建；Identity Provider 补全平台身份，Request Scope 补全 Salesforce Route，Tool input 只补充已经存在的 operation/object/record 事实。现有 Salesforce Tool schema 未增加 observability 参数。
+Host/Origin/Method/Content-Type 与 bounded body 校验后，HTTP body 一旦确定 Tool 就由 Runtime 创建 Context；此时平台身份可为 null。Identity Provider 成功后补全平台身份，Request Scope 补全 Salesforce Route，Tool input 只补充已经存在的 operation/object/record 事实。Identity Provider、Identity Route 或 Salesforce Connection 失败均沿用预建 Audit ID，未知身份保持 null。现有 Salesforce Tool schema 未增加 observability 参数。
 
 ## 3. Audit ID 与 Correlation ID
 

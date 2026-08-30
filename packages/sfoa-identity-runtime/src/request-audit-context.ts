@@ -94,12 +94,14 @@ export class RequestAuditContextController {
   }
 
   public withResolvedIdentity(input: Readonly<{
+    clientId?: string;
     platformUserId: string;
     identitySource: RequestAuditIdentitySource;
     identityCredentialId?: string;
   }>): this {
     this.context = Object.freeze({
       ...this.context,
+      clientId: boundedText(input.clientId, 128) ?? this.context.clientId,
       platformUserId: boundedText(input.platformUserId, 128),
       identitySource: input.identitySource,
       identityCredentialId: boundedText(input.identityCredentialId, 128),

@@ -77,9 +77,12 @@ test('controlled enrichment keeps audit identity stable and sequences request-lo
     correlationId: 'corr-controlled', channel: 'MCP_HTTP', toolName: 'create_record',
   });
   const auditId = context.snapshot().auditId;
-  context.withResolvedIdentity({ platformUserId: 'platform-a', identitySource: 'BUNTU_TOKEN' });
+  assert.equal(context.snapshot().platformUserId, null);
+  assert.equal(context.snapshot().salesforceUsername, null);
+  context.withResolvedIdentity({ clientId: 'client-a', platformUserId: 'platform-a', identitySource: 'BUNTU_TOKEN' });
   context.withSalesforceRoute({ salesforceUsername: 'user@example.invalid', executionRole: 'USER' });
   context.withOperation({ operation: 'CREATE', objectApiName: 'Lead' });
   assert.equal(context.snapshot().auditId, auditId);
+  assert.equal(context.snapshot().clientId, 'client-a');
   assert.deepEqual([context.nextSequence(), context.nextSequence(), context.nextSequence()], [1, 2, 3]);
 });

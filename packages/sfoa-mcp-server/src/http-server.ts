@@ -427,6 +427,19 @@ async function executeMcpPost(
   requestSecrets: readonly string[],
 ): Promise<void> {
   const headers = toRequestHeaders(options.request);
+  assertContentType(options.request);
+  const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
+  const requestedToolName = getSingleToolName(parsedBody);
+  if (requestedToolName) {
+    observation.auditContext = RequestAuditContextController.create({
+      correlationId: observation.correlationId,
+      channel: 'MCP_HTTP',
+      toolName: requestedToolName,
+      clientMetadata: readAuditClientMetadata(headers),
+    });
+  }
+  resources.assertAvailable(signal);
+
   const principal = await options.identityProvider.authenticate(
     headers,
     options.config.platformUserHeader,
@@ -436,28 +449,16 @@ async function executeMcpPost(
   observation.platformUserId = principal.platformUserId;
   observation.identitySource = principal.identitySource;
   observation.identityCredentialId = principal.credentialId;
+  observation.auditContext?.withResolvedIdentity({
+    clientId: principal.clientId,
+    platformUserId: principal.platformUserId,
+    identitySource: principal.identitySource,
+    ...(principal.credentialId ? { identityCredentialId: principal.credentialId } : {}),
+  });
   const identity: TrustedRequestIdentity = Object.freeze({
     platformUserId: principal.platformUserId,
     correlationId: principal.correlationId,
   });
-  assertContentType(options.request);
-  const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
-  const requestedToolName = getSingleToolName(parsedBody);
-  if (requestedToolName) {
-    observation.auditContext = RequestAuditContextController.create({
-      correlationId: principal.correlationId,
-      channel: 'MCP_HTTP',
-      clientId: principal.clientId,
-      toolName: requestedToolName,
-      clientMetadata: readAuditClientMetadata(headers),
-    }).withResolvedIdentity({
-      platformUserId: principal.platformUserId,
-      identitySource: principal.identitySource,
-      ...(principal.credentialId ? { identityCredentialId: principal.credentialId } : {}),
-    });
-  }
-  resources.assertAvailable(signal);
-
   let initializedProvider = options.initializedProvider;
   let diagnosticReady = false;
   let managedDmlFieldRules: ReturnType<typeof snapshotManagedDmlFieldRules> = Object.freeze([]);
