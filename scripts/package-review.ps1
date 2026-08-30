@@ -1,8 +1,5 @@
 [CmdletBinding()]
-param(
-  [string]$OutputDirectory,
-  [string[]]$IncludeIgnored = @()
-)
+param([string]$OutputDirectory)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -10,38 +7,10 @@ Set-StrictMode -Version Latest
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $repositoryName = Split-Path $repositoryRoot -Leaf
 $requiredLocalEnvironment = '.env.local'
-
-function Invoke-GitLines {
-  param([Parameter(Mandatory)][string[]]$Arguments)
-
-  $lines = @(& git -C $repositoryRoot @Arguments)
-  if ($LASTEXITCODE -ne 0) {
-    throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
-  }
-  return $lines
-}
-
-function Resolve-RepositoryFile {
-  param([Parameter(Mandatory)][string]$RelativePath)
-
-  if ([IO.Path]::IsPathRooted($RelativePath)) {
-    throw "Additional paths must be repository-relative: $RelativePath"
-  }
-  $normalized = $RelativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)
-  $fullPath = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $normalized))
-  $rootPrefix = $repositoryRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
-  if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Additional path escapes the repository: $RelativePath"
-  }
-  if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
-    throw "Review package file does not exist: $RelativePath"
-  }
-  return $fullPath
-}
-
 $requiredEnvironmentPath = Join-Path $repositoryRoot $requiredLocalEnvironment
+
 if (-not (Test-Path -LiteralPath $requiredEnvironmentPath -PathType Leaf)) {
-  throw "$requiredLocalEnvironment is required for this sensitive review package but was not found."
+  throw "$requiredLocalEnvironment is required for this sensitive local review package but was not found."
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -55,55 +24,96 @@ if ($resolvedOutputDirectory.Equals($repositoryRoot, [StringComparison]::Ordinal
 }
 [IO.Directory]::CreateDirectory($resolvedOutputDirectory) | Out-Null
 
-$trackedAndVisible = Invoke-GitLines -Arguments @('ls-files', '--cached', '--others', '--exclude-standard')
-$relativeFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-foreach ($relativePath in $trackedAndVisible) {
-  if (-not [string]::IsNullOrWhiteSpace($relativePath)) {
-    [void]$relativeFiles.Add($relativePath.Replace('\', '/'))
+$excludedDirectoryNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+foreach ($name in @(
+  '.git', 'node_modules', 'dist', 'lib', 'coverage', '.nyc_output',
+  'playwright-report', 'test-results', '.sfdx', '.codegraph', '.firecrawl',
+  '.cursor', '.idea', '.wireit', 'Library', 'tmp', '.temp', 'projects', 'secrets'
+)) {
+  [void]$excludedDirectoryNames.Add($name)
+}
+
+function Test-IncludedLocalFile {
+  param([Parameter(Mandatory)][IO.FileInfo]$File)
+
+  if (($File.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+  if ($File.Extension -in @('.pem', '.key')) { return $false }
+  if ($File.Name -in @('.DS_Store', '.eslintcache', 'npm-error.log', 'yarn-error.log', 'lerna-debug.log')) {
+    return $false
   }
-}
-[void]$relativeFiles.Add($requiredLocalEnvironment)
-
-foreach ($relativePath in $IncludeIgnored) {
-  $fullPath = Resolve-RepositoryFile -RelativePath $relativePath
-  $normalizedRelative = [IO.Path]::GetRelativePath($repositoryRoot, $fullPath).Replace('\', '/')
-  [void]$relativeFiles.Add($normalizedRelative)
+  if ($File.Name.EndsWith('.tsbuildinfo', [StringComparison]::OrdinalIgnoreCase)) { return $false }
+  if ($File.Name -match '(?i)(xunit|checkstyle)\.xml$|unitcoverage$') { return $false }
+  return $true
 }
 
-$branch = (Invoke-GitLines -Arguments @('branch', '--show-current') | Select-Object -First 1)
-$commit = (Invoke-GitLines -Arguments @('rev-parse', 'HEAD') | Select-Object -First 1)
-$shortCommit = (Invoke-GitLines -Arguments @('rev-parse', '--short=12', 'HEAD') | Select-Object -First 1)
-$safeBranch = if ([string]::IsNullOrWhiteSpace($branch)) { 'detached' } else { $branch -replace '[^A-Za-z0-9._-]+', '-' }
-$timestamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss')
-$archiveName = "$repositoryName-$safeBranch-$shortCommit-$timestamp-SENSITIVE.zip"
+function Get-LocalReviewFiles {
+  $files = [Collections.Generic.List[IO.FileInfo]]::new()
+  $directories = [Collections.Generic.Stack[IO.DirectoryInfo]]::new()
+  $directories.Push((Get-Item -LiteralPath $repositoryRoot))
+  while ($directories.Count -gt 0) {
+    $directory = $directories.Pop()
+    foreach ($entry in (Get-ChildItem -LiteralPath $directory.FullName -Force)) {
+      if ($entry.PSIsContainer) {
+        if ($excludedDirectoryNames.Contains($entry.Name)) { continue }
+        if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+        $directories.Push([IO.DirectoryInfo]$entry)
+      } elseif (Test-IncludedLocalFile -File ([IO.FileInfo]$entry)) {
+        $files.Add([IO.FileInfo]$entry)
+      }
+    }
+  }
+  return $files
+}
+
+function Get-GitMetadata {
+  param([Parameter(Mandatory)][string[]]$Arguments, [string]$Fallback = 'UNKNOWN')
+
+  try {
+    $value = @(& git -C $repositoryRoot @Arguments 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -eq 0 -and $value.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($value[0])) {
+      return [string]$value[0]
+    }
+  } catch {
+    # Git metadata is informational only; local filesystem content remains authoritative.
+  }
+  return $Fallback
+}
+
+$localFiles = @(Get-LocalReviewFiles)
+$relativeFiles = [Collections.Generic.List[string]]::new()
+foreach ($file in $localFiles) {
+  $relativeFiles.Add($file.FullName.Substring($repositoryPrefix.Length).Replace('\', '/'))
+}
+$relativeFiles.Sort([StringComparer]::OrdinalIgnoreCase)
+
+$branch = Get-GitMetadata -Arguments @('branch', '--show-current') -Fallback 'DETACHED_OR_UNAVAILABLE'
+$commit = Get-GitMetadata -Arguments @('rev-parse', 'HEAD')
+$archiveName = "$repositoryName-local-current-SENSITIVE.zip"
 $archivePath = Join-Path $resolvedOutputDirectory $archiveName
-$stagingDirectory = Join-Path ([IO.Path]::GetTempPath()) "sfoa-review-$([Guid]::NewGuid().ToString('N'))"
+$temporaryArchivePath = Join-Path $resolvedOutputDirectory ".$archiveName.$([Guid]::NewGuid().ToString('N')).tmp.zip"
+$stagingDirectory = Join-Path ([IO.Path]::GetTempPath()) "sfoa-local-review-$([Guid]::NewGuid().ToString('N'))"
 
 try {
   [IO.Directory]::CreateDirectory($stagingDirectory) | Out-Null
-  $copiedFiles = [Collections.Generic.List[string]]::new()
-  foreach ($relativePath in ($relativeFiles | Sort-Object)) {
-    $sourcePath = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $relativePath))
-    # Deleted tracked files represent the current working tree by remaining absent.
-    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { continue }
+  foreach ($relativePath in $relativeFiles) {
+    $sourcePath = Join-Path $repositoryRoot $relativePath
     $destinationPath = Join-Path $stagingDirectory $relativePath
     [IO.Directory]::CreateDirectory((Split-Path $destinationPath -Parent)) | Out-Null
     [IO.File]::Copy($sourcePath, $destinationPath, $true)
-    $copiedFiles.Add($relativePath.Replace('\', '/'))
   }
 
   $manifestPath = Join-Path $stagingDirectory 'REVIEW_PACKAGE_MANIFEST.txt'
   $manifest = @(
-    'SFoA Enterprise MCP sensitive review package',
+    'SFoA Enterprise MCP sensitive current-local review package',
     "Created: $([DateTimeOffset]::Now.ToString('o'))",
     "Repository: $repositoryName",
-    "Branch: $branch",
-    "Commit: $commit",
-    "Files copied: $($copiedFiles.Count)",
+    'Content source: current local filesystem (not a Git commit/archive)',
+    "Git branch metadata: $branch",
+    "Git commit metadata: $commit",
+    "Local files copied: $($relativeFiles.Count)",
     '.env.local included unchanged: YES',
-    "Additional ignored files: $($IncludeIgnored.Count)",
     '',
-    'Default ignored exclusions: node_modules, build output, coverage/test reports, caches, .codegraph, .sfdx, private keys, secrets.',
+    'Excluded: .git, dependencies, build/test output, caches, .codegraph, .sfdx, private keys, secrets, symlinks.',
     'WARNING: This archive contains local credentials and must be handled as a secret.'
   )
   [IO.File]::WriteAllLines($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
@@ -111,35 +121,44 @@ try {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   [IO.Compression.ZipFile]::CreateFromDirectory(
     $stagingDirectory,
-    $archivePath,
+    $temporaryArchivePath,
     [IO.Compression.CompressionLevel]::Optimal,
     $false
   )
 
-  $zip = [IO.Compression.ZipFile]::OpenRead($archivePath)
-  try {
-    $entryNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($entry in $zip.Entries) { [void]$entryNames.Add($entry.FullName.Replace('\', '/')) }
-    if (-not $entryNames.Contains($requiredLocalEnvironment)) {
-      throw "Archive verification failed: $requiredLocalEnvironment is missing."
-    }
-    foreach ($relativePath in $copiedFiles) {
-      if (-not $entryNames.Contains($relativePath)) {
-        throw "Archive verification failed: $relativePath is missing."
-      }
-    }
-  } finally {
-    $zip.Dispose()
+  $zip = [IO.Compression.ZipFile]::OpenRead($temporaryArchivePath)
+  $entryNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  foreach ($entry in $zip.Entries) { [void]$entryNames.Add($entry.FullName.Replace('\', '/')) }
+  $zip.Dispose()
+  if (-not $entryNames.Contains($requiredLocalEnvironment)) {
+    throw "Archive verification failed: $requiredLocalEnvironment is missing."
   }
+  foreach ($relativePath in $relativeFiles) {
+    if (-not $entryNames.Contains($relativePath)) {
+      throw "Archive verification failed: $relativePath is missing."
+    }
+  }
+
+  # Replace old project packages only after the new archive passes verification.
+  $oldArchives = @(Get-ChildItem -LiteralPath $resolvedOutputDirectory -File -Filter ($repositoryName + '-*-SENSITIVE.zip'))
+  foreach ($oldArchive in $oldArchives) {
+    Remove-Item -LiteralPath $oldArchive.FullName -Force
+  }
+  Move-Item -LiteralPath $temporaryArchivePath -Destination $archivePath
 
   $archive = Get-Item -LiteralPath $archivePath
   Write-Output 'REVIEW_PACKAGE=PASS'
+  Write-Output 'CONTENT_SOURCE=current_local_filesystem'
   Write-Output "ARCHIVE=$($archive.FullName)"
-  Write-Output "FILES=$($copiedFiles.Count + 1)"
+  Write-Output "FILES=$($relativeFiles.Count + 1)"
   Write-Output "SIZE_BYTES=$($archive.Length)"
   Write-Output 'SENSITIVE_ENV_LOCAL_INCLUDED=true'
+  Write-Output 'OUTPUT_ZIP_COUNT=1'
 } finally {
   if (Test-Path -LiteralPath $stagingDirectory) {
     Remove-Item -LiteralPath $stagingDirectory -Recurse -Force
+  }
+  if (Test-Path -LiteralPath $temporaryArchivePath) {
+    Remove-Item -LiteralPath $temporaryArchivePath -Force
   }
 }

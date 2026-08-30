@@ -26,21 +26,18 @@ The SFoA services start together with `yarn p5:dev`; default local endpoints are
 
 ### Create a sensitive ChatGPT review package
 
-Run `yarn review:package` from the repository root. The command creates a
-`*-SENSITIVE.zip` under the sibling directory `../sfoa-review-packages`. It
-includes every tracked file, every non-ignored untracked file, and the root
-`.env.local` unchanged. Ignored dependencies, build/test output, caches,
-`.codegraph`, `.sfdx`, private keys, and `secrets/` remain excluded.
+Run `yarn review:package` from the repository root. The command directly scans
+the current local filesystem rather than using a Git file list, so committed,
+modified, untracked, ignored local environment, source, test, documentation,
+and configuration files are copied as they exist now. It writes exactly one
+`sfoa-enterprise-mcp-local-current-SENSITIVE.zip` under the sibling directory
+`../sfoa-review-packages`, replacing older review packages only after the new
+archive passes its completeness check.
 
-Add a specific ignored file for one review only when necessary:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-review.ps1 `
-  -IncludeIgnored .env.test.local
-```
-
-The archive contains live local credentials. The tool verifies `.env.local` is
-present but never prints its contents.
+Dependencies, build/test output, caches, `.git`, `.codegraph`, `.sfdx`, private
+keys, `secrets/`, and symlinks remain excluded. The archive contains live local
+credentials: `.env.local` is required, included unchanged, verified present,
+and never printed by the tool.
 
 ---
 
