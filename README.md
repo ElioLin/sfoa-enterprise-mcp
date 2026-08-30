@@ -24,6 +24,24 @@ Project documentation:
 
 The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` to regenerate Dify/WorkBuddy artifacts and `yarn agent:check` to reject drift. Run `yarn validate:p5` for the repeatable P5 regression Gate. Real credentials belong only in ignored local environment files or secret injection.
 
+### Create a sensitive ChatGPT review package
+
+Run `yarn review:package` from the repository root. The command creates a
+`*-SENSITIVE.zip` under the sibling directory `../sfoa-review-packages`. It
+includes every tracked file, every non-ignored untracked file, and the root
+`.env.local` unchanged. Ignored dependencies, build/test output, caches,
+`.codegraph`, `.sfdx`, private keys, and `secrets/` remain excluded.
+
+Add a specific ignored file for one review only when necessary:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-review.ps1 `
+  -IncludeIgnored .env.test.local
+```
+
+The archive contains live local credentials. The tool verifies `.env.local` is
+present but never prints its contents.
+
 ---
 
 # mcp

@@ -23,6 +23,7 @@
   "scripts": {
     "agent:sync": "yarn workspace @sfoa/agent-playbook run sync",
     "agent:check": "yarn workspace @sfoa/agent-playbook run check",
+    "review:package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-review.ps1",
     "build": "yarn workspaces run build",
     "clean": "yarn workspaces run clean",
     "clean-all": "yarn workspaces run clean-all && rimraf node_modules",
