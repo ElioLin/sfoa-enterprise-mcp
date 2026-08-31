@@ -17,6 +17,7 @@ import type {
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
+import { runWithSalesforceApiPurpose, type SalesforceApiPurpose } from '@sfoa/identity-runtime';
 import { z } from 'zod';
 import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
@@ -94,7 +95,8 @@ export class ContextToolFacade {
 
     try {
       const result = await withTimeout(
-        Promise.resolve(this.options.tool.exec(input, extra)),
+        runWithSalesforceApiPurpose(contextPurpose(name), () =>
+          Promise.resolve(this.options.tool.exec(input, extra))),
         this.options.toolTimeoutMs,
         'MCP_TOOL_TIMEOUT',
         `Tool ${name} exceeded MCP_TOOL_TIMEOUT_MS. The runtime stopped waiting; Salesforce server-side cancellation is not guaranteed.`,
@@ -145,6 +147,15 @@ export class ContextToolFacade {
         terminalSource: result === 'BLOCKED' ? 'GOVERNANCE' : 'TOOL',
       },
     })).catch(() => undefined);
+  }
+}
+
+function contextPurpose(toolName: string): SalesforceApiPurpose {
+  switch (toolName) {
+    case 'get_record_action_context': return 'RECORD_ACTION_CONTEXT';
+    case 'run_diagnostic_tooling_query': return 'DIAGNOSTIC_TOOLING';
+    case 'get_metadata_component_context': return 'METADATA_RETRIEVE';
+    default: return 'UNKNOWN';
   }
 }
 

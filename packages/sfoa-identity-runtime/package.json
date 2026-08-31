@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.18.2",
+    "@jsforce/jsforce-node": "3.10.13",
     "@salesforce/core": "8.29.0",
     "@salesforce/mcp-provider-api": "0.6.0",
     "@salesforce/mcp-provider-dx-core": "0.10.0",

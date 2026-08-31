@@ -142,13 +142,20 @@ export interface AuditEventTable {
 
 export interface SalesforceApiCallTable {
   id: Generated<string>;
+  public_api_call_id: string;
   audit_id: string;
   audit_event_id: string | null;
   sequence: number;
-  salesforce_username: string;
+  salesforce_username: string | null;
+  transport_kind: string;
+  visibility: string;
   api_category: string;
-  http_method: string;
-  endpoint: string;
+  http_method: string | null;
+  endpoint: string | null;
+  request_url: string | null;
+  host: string | null;
+  endpoint_path: string | null;
+  operation_name: string | null;
   api_version: string | null;
   purpose: string;
   started_at: Timestamp;
@@ -158,6 +165,9 @@ export interface SalesforceApiCallTable {
   result: string;
   salesforce_error_code: string | null;
   salesforce_error_message_safe: string | null;
+  request_size_bytes: string | null;
+  response_size_bytes: string | null;
+  content_type: string | null;
   query_type: string | null;
   soql_statement_safe: string | null;
   total_size: number | null;

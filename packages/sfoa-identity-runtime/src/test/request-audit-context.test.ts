@@ -5,7 +5,11 @@ import {
   RequestAuditContextController,
   runWithRequestAuditContext,
 } from '../request-audit-context.js';
-import { MAX_REQUEST_AUDIT_EVENTS } from '../request-audit-collector.js';
+import {
+  MAX_REQUEST_AUDIT_EVENTS,
+  MAX_SALESFORCE_API_CALLS_PER_REQUEST,
+  type RequestAuditSalesforceApiCallSnapshot,
+} from '../request-audit-collector.js';
 
 test('100 interleaved Tool invocations keep audit, correlation, user, Salesforce user, and Tool isolated', async () => {
   const count = 100;
@@ -270,3 +274,71 @@ test('Collector bounds per-request Event growth and preserves authoritative term
   assert.equal(requestSummary.auditCapture?.capturedEventCount, MAX_REQUEST_AUDIT_EVENTS);
   assert.equal(requestSummary.auditCapture?.droppedEventCount, 101);
 });
+
+test('Salesforce API collection is bounded and deterministically preserves a late critical failure', () => {
+  const context = RequestAuditContextController.create({ channel: 'MCP_HTTP', toolName: 'run_soql_query' });
+  context.withSalesforceRoute({ salesforceUsername: 'bounded@example.invalid', executionRole: 'USER' });
+  const collector = context.collector();
+  for (let index = 0; index < MAX_SALESFORCE_API_CALLS_PER_REQUEST; index += 1) {
+    assert.equal(collector.recordSalesforceApiCall(apiCall(context, index, 'SUCCESS')), true);
+  }
+  assert.equal(collector.recordSalesforceApiCall(apiCall(context, 999, 'FAILED')), true);
+  assert.equal(collector.salesforceApiCallCount(), MAX_SALESFORCE_API_CALLS_PER_REQUEST);
+  assert.equal(collector.droppedSalesforceApiCalls(), 1);
+  collector.record({
+    eventCategory: 'TOOL',
+    eventType: 'TOOL_TERMINAL',
+    eventName: 'run_soql_query',
+    status: 'FAILED',
+    terminal: { source: 'TOOL', result: 'ERROR', outcome: 'FAILED' },
+  });
+  const snapshot = context.finalizeAudit();
+  assert.ok(snapshot);
+  assert.equal(snapshot.salesforceApiCalls.length, MAX_SALESFORCE_API_CALLS_PER_REQUEST);
+  assert.equal(snapshot.salesforceApiCalls.filter((call) => call.result === 'FAILED').length, 1);
+  assert.equal(snapshot.auditCall.auditIntegrityStatus, 'PARTIAL');
+  const summary = snapshot.auditCall.requestSummary as {
+    auditCapture?: {
+      salesforceApiCallLimit?: number;
+      capturedSalesforceApiCallCount?: number;
+      droppedSalesforceApiCallCount?: number;
+    };
+  };
+  assert.equal(summary.auditCapture?.salesforceApiCallLimit, MAX_SALESFORCE_API_CALLS_PER_REQUEST);
+  assert.equal(summary.auditCapture?.capturedSalesforceApiCallCount, MAX_SALESFORCE_API_CALLS_PER_REQUEST);
+  assert.equal(summary.auditCapture?.droppedSalesforceApiCallCount, 1);
+});
+
+function apiCall(
+  context: RequestAuditContextController,
+  marker: number,
+  result: 'SUCCESS' | 'FAILED',
+): RequestAuditSalesforceApiCallSnapshot {
+  const timestamp = new Date(1_700_000_000_000 + marker).toISOString();
+  return Object.freeze({
+    publicApiCallId: `00000000-0000-4000-8000-${marker.toString().padStart(12, '0').slice(-12)}`,
+    auditId: context.snapshot().auditId,
+    sequence: context.nextSequence(),
+    salesforceUsername: 'bounded@example.invalid',
+    transportKind: 'JSFORCE',
+    visibility: 'EXACT_HTTP',
+    apiCategory: 'REST_API',
+    apiVersion: '65.0',
+    httpMethod: 'GET',
+    requestUrl: `https://example.invalid/services/data/v65.0/query?marker=${marker}`,
+    host: 'example.invalid',
+    endpointPath: `/services/data/v65.0/query?marker=${marker}`,
+    operationName: null,
+    purpose: 'USER_QUERY',
+    startedAt: timestamp,
+    completedAt: timestamp,
+    durationMs: 0,
+    httpStatus: result === 'SUCCESS' ? 200 : 503,
+    result,
+    salesforceErrorCode: result === 'FAILED' ? 'SERVER_UNAVAILABLE' : null,
+    salesforceErrorMessage: result === 'FAILED' ? 'Unavailable' : null,
+    requestSizeBytes: null,
+    responseSizeBytes: null,
+    contentType: 'application/json',
+  });
+}

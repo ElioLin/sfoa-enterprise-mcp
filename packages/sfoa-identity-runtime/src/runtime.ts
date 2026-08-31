@@ -7,6 +7,7 @@ import {
 } from './config.js';
 import { CwdExecutionGuard } from './cwd-execution-guard.js';
 import { IdentityResolver } from './identity-resolver.js';
+import { installJsforceAuditAdapter } from './jsforce-audit-adapter.js';
 import { InMemoryIdentityRepository, type IdentityRepository } from './identity-repository.js';
 import { DiagnosticRequestScopeFactory, RequestScopeFactory } from './request-scope.js';
 import { JsonLineRuntimeLogger, type RuntimeLogger } from './runtime-logger.js';
@@ -34,6 +35,7 @@ export function createIdentityRuntime(
   config: IdentityRuntimeConfig,
   overrides: CreateIdentityRuntimeOverrides = {},
 ): IdentityRuntime {
+  installJsforceAuditAdapter();
   // Must precede any @salesforce/core crypto use: without the generic-unix
   // keychain on headless Linux, auth store persistence silently no-ops and
   // dx-core store lookups fail with NamedOrgNotFoundError.

@@ -1,6 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import { RequestAuditCollector, type AuditSnapshot } from './request-audit-collector.js';
+import {
+  RequestAuditCollector,
+  type AuditSnapshot,
+  type SalesforceApiPurpose,
+} from './request-audit-collector.js';
 
 export type RequestAuditChannel = 'MCP_HTTP' | 'MCP_STDIO';
 export type RequestAuditIdentitySource = 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
@@ -158,17 +162,35 @@ export class RequestAuditContextController {
   }
 }
 
-const requestAuditStorage = new AsyncLocalStorage<RequestAuditContextController>();
+type RequestAuditStore = Readonly<{
+  controller: RequestAuditContextController;
+  salesforceApiPurpose: SalesforceApiPurpose;
+}>;
+
+const requestAuditStorage = new AsyncLocalStorage<RequestAuditStore>();
 
 export function runWithRequestAuditContext<T>(
   context: RequestAuditContextController,
   callback: () => T,
 ): T {
-  return requestAuditStorage.run(context, callback);
+  return requestAuditStorage.run(Object.freeze({
+    controller: context,
+    salesforceApiPurpose: 'UNKNOWN',
+  }), callback);
 }
 
 export function currentRequestAuditContext(): RequestAuditContextController | undefined {
-  return requestAuditStorage.getStore();
+  return requestAuditStorage.getStore()?.controller;
+}
+
+export function currentSalesforceApiPurpose(): SalesforceApiPurpose {
+  return requestAuditStorage.getStore()?.salesforceApiPurpose ?? 'UNKNOWN';
+}
+
+export function runWithSalesforceApiPurpose<T>(purpose: SalesforceApiPurpose, callback: () => T): T {
+  const store = requestAuditStorage.getStore();
+  if (!store) return callback();
+  return requestAuditStorage.run(Object.freeze({ ...store, salesforceApiPurpose: purpose }), callback);
 }
 
 function validCorrelationId(value: string | undefined): string | undefined {

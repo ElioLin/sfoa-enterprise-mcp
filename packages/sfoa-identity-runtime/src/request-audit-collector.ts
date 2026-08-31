@@ -75,8 +75,61 @@ export type RequestAuditCallSnapshot = Readonly<{
   responseSummary: unknown;
 }>;
 
-/** P7-04/P7-05 fill these arrays through the same request-bound Collector. */
-export type RequestAuditSalesforceApiCallSnapshot = Readonly<Record<string, never>>;
+export type SalesforceApiTransportKind = 'HTTP' | 'JSFORCE' | 'SALESFORCE_CLI' | 'OFFICIAL_PROVIDER' | 'OTHER';
+export type SalesforceApiVisibility = 'EXACT_HTTP' | 'OPERATION_ONLY';
+export type SalesforceApiCategory =
+  | 'OAUTH'
+  | 'REST_API'
+  | 'UI_API'
+  | 'TOOLING_API'
+  | 'COMPOSITE_API'
+  | 'BULK_API'
+  | 'APEX_REST_API'
+  | 'METADATA_API'
+  | 'SOAP_API'
+  | 'SALESFORCE_CLI'
+  | 'UNKNOWN';
+export type SalesforceApiPurpose =
+  | 'IDENTITY_AUTHENTICATION'
+  | 'IDENTITY_TOKEN_EXCHANGE'
+  | 'CONNECTION_INITIALIZATION'
+  | 'USER_QUERY'
+  | 'RECORD_ACTION_CONTEXT'
+  | 'SERVER_MANAGED_LOOKUP'
+  | 'DML_CREATE'
+  | 'DML_UPDATE'
+  | 'DIAGNOSTIC_TOOLING'
+  | 'METADATA_RETRIEVE'
+  | 'OBJECT_SCHEMA'
+  | 'UNKNOWN';
+export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
+
+export type RequestAuditSalesforceApiCallSnapshot = Readonly<{
+  publicApiCallId: string;
+  auditId: string;
+  sequence: number;
+  salesforceUsername: string | null;
+  transportKind: SalesforceApiTransportKind;
+  visibility: SalesforceApiVisibility;
+  apiCategory: SalesforceApiCategory;
+  apiVersion: string | null;
+  httpMethod: string | null;
+  requestUrl: string | null;
+  host: string | null;
+  endpointPath: string | null;
+  operationName: string | null;
+  purpose: SalesforceApiPurpose;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  httpStatus: number | null;
+  result: SalesforceApiCallResult;
+  salesforceErrorCode: string | null;
+  salesforceErrorMessage: string | null;
+  requestSizeBytes: number | null;
+  responseSizeBytes: number | null;
+  contentType: string | null;
+}>;
 export type RequestAuditPayloadEvidenceSnapshot = Readonly<Record<string, never>>;
 
 export type AuditSnapshot = Readonly<{
@@ -88,6 +141,7 @@ export type AuditSnapshot = Readonly<{
 }>;
 
 export const MAX_REQUEST_AUDIT_EVENTS = 256;
+export const MAX_SALESFORCE_API_CALLS_PER_REQUEST = 256;
 
 type SelectedTerminal = Readonly<{
   sequence: number;
@@ -100,6 +154,9 @@ export class RequestAuditCollector {
   private terminalEvent: RequestAuditEventSnapshot | undefined;
   private finalized: AuditSnapshot | undefined;
   private droppedEventCount = 0;
+  private readonly salesforceApiCalls: RequestAuditSalesforceApiCallSnapshot[] = [];
+  private droppedSalesforceApiCallCount = 0;
+  private salesforceApiCaptureFailureCount = 0;
 
   public constructor(
     private readonly context: () => RequestAuditContext,
@@ -137,6 +194,34 @@ export class RequestAuditCollector {
     return true;
   }
 
+  public recordSalesforceApiCall(input: RequestAuditSalesforceApiCallSnapshot): boolean {
+    if (this.finalized) return false;
+    const context = this.context();
+    if (input.auditId !== context.auditId) {
+      this.salesforceApiCaptureFailureCount += 1;
+      return false;
+    }
+    const call = deepFreeze({ ...input }) satisfies RequestAuditSalesforceApiCallSnapshot;
+    if (this.salesforceApiCalls.length < MAX_SALESFORCE_API_CALLS_PER_REQUEST) {
+      this.salesforceApiCalls.push(call);
+      return true;
+    }
+
+    this.droppedSalesforceApiCallCount += 1;
+    if (call.result === 'FAILED') {
+      const replaceIndex = this.salesforceApiCalls.findIndex((candidate) => candidate.result === 'SUCCESS');
+      if (replaceIndex >= 0) {
+        this.salesforceApiCalls[replaceIndex] = call;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public recordSalesforceApiCaptureFailure(): void {
+    if (!this.finalized) this.salesforceApiCaptureFailureCount += 1;
+  }
+
   public finalize(completedAt: Date = this.now()): AuditSnapshot | undefined {
     if (this.finalized) return undefined;
     const context = this.context();
@@ -161,6 +246,10 @@ export class RequestAuditCollector {
         eventLimit: MAX_REQUEST_AUDIT_EVENTS,
         capturedEventCount: auditEvents.length,
         droppedEventCount: this.droppedEventCount,
+        salesforceApiCallLimit: MAX_SALESFORCE_API_CALLS_PER_REQUEST,
+        capturedSalesforceApiCallCount: this.salesforceApiCalls.length,
+        droppedSalesforceApiCallCount: this.droppedSalesforceApiCallCount,
+        salesforceApiCaptureFailureCount: this.salesforceApiCaptureFailureCount,
       },
       summary: terminal.requestSummary ?? null,
     };
@@ -186,12 +275,18 @@ export class RequestAuditCollector {
         outcome: terminal.outcome,
         errorCode: terminal.errorCode ?? null,
         durationMs,
-        auditIntegrityStatus: selected && this.droppedEventCount === 0 ? 'COMPLETE' : 'PARTIAL',
+        auditIntegrityStatus:
+          selected &&
+          this.droppedEventCount === 0 &&
+          this.droppedSalesforceApiCallCount === 0 &&
+          this.salesforceApiCaptureFailureCount === 0
+            ? 'COMPLETE'
+            : 'PARTIAL',
         requestSummary,
         responseSummary: terminal.responseSummary ?? null,
       },
       auditEvents,
-      salesforceApiCalls: [],
+      salesforceApiCalls: [...this.salesforceApiCalls].sort((left, right) => left.sequence - right.sequence),
       payloadEvidence: [],
     }) satisfies AuditSnapshot;
     return this.finalized;
@@ -207,6 +302,14 @@ export class RequestAuditCollector {
 
   public droppedEvents(): number {
     return this.droppedEventCount;
+  }
+
+  public salesforceApiCallCount(): number {
+    return this.salesforceApiCalls.length;
+  }
+
+  public droppedSalesforceApiCalls(): number {
+    return this.droppedSalesforceApiCallCount;
   }
 
   private finalAuditEvents(): readonly RequestAuditEventSnapshot[] {

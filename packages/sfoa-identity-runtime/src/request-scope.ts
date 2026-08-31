@@ -5,6 +5,7 @@ import type { SalesforceConnectionFactory } from './connection-factory.js';
 import { IdentityRuntimeError, toIdentityRuntimeError, withCorrelation } from './errors.js';
 import type { IdentityResolver } from './identity-resolver.js';
 import { RequestScopedOrgService } from './org-service.js';
+import { currentRequestAuditContext } from './request-audit-context.js';
 import {
   createRequestContext,
   parseTrustedRequestHeaders,
@@ -66,6 +67,10 @@ export class RequestScopeFactory {
         );
       }
 
+      currentRequestAuditContext()?.withSalesforceRoute({
+        salesforceUsername: route.salesforceUsername,
+        executionRole: route.connectionRole,
+      });
       const connection = await this.options.connectionFactory.create(route);
       workspace = await this.options.workspaceFactory.create(identity.correlationId, connection.getApiVersion());
       const context = createRequestContext(identity, workspace.root);
@@ -105,6 +110,10 @@ export class DiagnosticRequestScopeFactory {
         credentialProfile: 'sfoa-shared-jwt-diagnostic',
         connectionRole: 'DIAGNOSTIC',
         aliases: [],
+      });
+      currentRequestAuditContext()?.withSalesforceRoute({
+        salesforceUsername: route.salesforceUsername,
+        executionRole: route.connectionRole,
       });
       const connection = await this.options.connectionFactory.create(route);
       workspace = await this.options.workspaceFactory.create(identity.correlationId, connection.getApiVersion());

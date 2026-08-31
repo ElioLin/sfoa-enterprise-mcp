@@ -901,6 +901,52 @@ yarn validate:p5
 ```text
 P7-01 = COMPLETE
 P7-02 = COMPLETE
-P7-03 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-04–P7-08 = NOT STARTED
+P7-03 = COMPLETE
+P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-05–P7-08 = NOT STARTED
+```
+
+## P7-04 Salesforce API Transparent Auditing Acceptance Matrix — 2026-08-31
+
+Maintainer 已确认 `P7-03 = COMPLETE` 并授权 P7-04。本节记录 P7-04 实现与实际 Gate；不表示 P7-04 已由 Maintainer 标记 `COMPLETE`，也不表示 P7-05 已开始。
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Source + CodeGraph Call Path Matrix | PASS | 571 files / 7,225 nodes / 16,757 edges；OAuth、Core discovery、SOQL、UI、Tooling、managed lookup、CREATE、UPDATE、Metadata SOAP、raw fetch/CLI 全盘点；详见 `P7_04_REPORT.md` |
+| JSforce Contract Drift | PASS | actual `@jsforce/jsforce-node@3.10.13`；internal Transport seam 可解析；原始 StreamPromise / ClientRequest 保持；private use 集中一个 adapter |
+| Per-wire-attempt uniqueness | PASS | query/request/create/update/tooling/Metadata：6 real requests = 6 Evidence；GET 503 + 2 retries：3 real attempts = 3 Evidence；Duplicate Capture = 0 |
+| API classifier | PASS | table-driven OAuth/REST/UI/Tooling/Composite/Bulk/Apex REST/Metadata SOAP/SOAP/Unknown + API version/host/path + malformed URL |
+| Failure semantics | PASS | 400/401/403/404/429/500/503 保存真实 status；timeout/reset/abort 保存 `httpStatus=NULL`；原始 result/error 未替换 |
+| OAuth security | PASS | URL/POST/200/duration captured；Authorization/access token/JWT assertion/client secret/response token 全部不存在于 Evidence |
+| Bounded Collector | PASS | max 256；drop count + PARTIAL；late failure replaces earliest success；all-failure saturation remains bounded |
+| Migration 006 | PASS | 005 unchanged；new exact/operation/public UUID fields；legacy row → OTHER/OPERATION_ONLY/NULL method，不伪造 HTTP；empty/P6/P7-03 upgrade Gate PASS |
+| Async persistence | PASS | existing P7-03 Queue/Writer only；master+Events+API Calls one transaction；payload guard retained；request-side DB await = 0 |
+| MySQL concurrency 50/100/200 | PASS | Cross API/User/URL/Tool/Audit Binding = 0；Orphan API = 0；Duplicate = 0；每 Snapshot 1 API row |
+| Salesforce call count | PASS | every OFF/ON round mock server count equals requested concurrency；P7-04 added Salesforce API = 0 |
+| Paired performance | PASS with raw regression disclosed | proxy-disabled isolated Gate，3 rounds each at 50/100/200；100 ON median p95 +13.7% / throughput -19.9%，200 ON p95 +8.7% / throughput -12.9%；all raw values retained in report/test output |
+| Identity Runtime focused/aggregate | PASS | classifier/adapter/collector/retry/OAuth/failure/concurrency tests pass |
+| Control Plane | PASS | unit 31/31；MySQL 10/10 |
+| MCP Server regression | PASS | 66/66 |
+| Aggregate attempt 1 | FAIL EARLY / FIXED | local `HTTP_PROXY=127.0.0.1:9910` contaminated the 200-concurrency OFF mock fixture；explicit `httpProxy:''` 后 focused Gate 与 Identity 53/53 PASS |
+| Aggregate attempt 2 | PARTIAL / infrastructure worker failure | five lint、Control 31/31、MySQL 10/10、Identity 53/53、MCP P5 5/5、Admin API 18/18、Admin Web build PASS；Web 6 files / 28 tests 后 fork worker failed to start，无 assertion failure |
+| Bounded continuation | PASS | Admin Web standalone 7 files / 35 tests、focused missing file 7/7、build 3,175 modules、mock Chromium 1/1、real full-stack Chromium 1/1（001–006，34 Admin Audit rows）；遵循测试成本治理未第三次重跑完整 Aggregate |
+| Official Salesforce Provider modifications | PASS (`0`) | official/upstream Tool source unchanged |
+
+实际命令：
+
+```text
+codegraph sync .
+yarn workspace @sfoa/identity-runtime test
+yarn workspace @sfoa/control-plane test
+yarn workspace @sfoa/control-plane test:mysql
+yarn workspace @sfoa/mcp-server test
+yarn validate:p5
+```
+
+```text
+P7-01 = COMPLETE
+P7-02 = COMPLETE
+P7-03 = COMPLETE
+P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-05–P7-08 = NOT STARTED
 ```

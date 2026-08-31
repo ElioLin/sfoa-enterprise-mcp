@@ -150,9 +150,20 @@ export const AUDIT_EVENT_STATUSES = ['STARTED', 'SUCCESS', 'FAILED', 'BLOCKED', 
 export const auditEventStatusSchema = z.enum(AUDIT_EVENT_STATUSES);
 export type AuditEventStatus = z.infer<typeof auditEventStatusSchema>;
 
-export const SALESFORCE_API_CATEGORIES = ['REST', 'DATA', 'UI', 'TOOLING', 'METADATA', 'CLI', 'WORKSPACE'] as const;
+export const SALESFORCE_API_CATEGORIES = [
+  'OAUTH', 'REST_API', 'UI_API', 'TOOLING_API', 'COMPOSITE_API', 'BULK_API',
+  'APEX_REST_API', 'METADATA_API', 'SOAP_API', 'SALESFORCE_CLI', 'UNKNOWN',
+] as const;
 export const salesforceApiCategorySchema = z.enum(SALESFORCE_API_CATEGORIES);
 export type SalesforceApiCategory = z.infer<typeof salesforceApiCategorySchema>;
+
+export const SALESFORCE_API_TRANSPORT_KINDS = ['HTTP', 'JSFORCE', 'SALESFORCE_CLI', 'OFFICIAL_PROVIDER', 'OTHER'] as const;
+export const salesforceApiTransportKindSchema = z.enum(SALESFORCE_API_TRANSPORT_KINDS);
+export type SalesforceApiTransportKind = z.infer<typeof salesforceApiTransportKindSchema>;
+
+export const SALESFORCE_API_VISIBILITIES = ['EXACT_HTTP', 'OPERATION_ONLY'] as const;
+export const salesforceApiVisibilitySchema = z.enum(SALESFORCE_API_VISIBILITIES);
+export type SalesforceApiVisibility = z.infer<typeof salesforceApiVisibilitySchema>;
 
 export const AUDITED_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
 export const auditedHttpMethodSchema = z.enum(AUDITED_HTTP_METHODS);
@@ -225,13 +236,20 @@ export type AuditEventRecord = Readonly<{
 
 export type SalesforceApiCallRecord = Readonly<{
   id: string;
+  publicApiCallId: string;
   auditId: string;
   auditEventId: string | null;
   sequence: number;
-  salesforceUsername: string;
+  salesforceUsername: string | null;
+  transportKind: SalesforceApiTransportKind;
+  visibility: SalesforceApiVisibility;
   apiCategory: SalesforceApiCategory;
-  httpMethod: AuditedHttpMethod;
-  endpoint: string;
+  httpMethod: AuditedHttpMethod | null;
+  endpoint: string | null;
+  requestUrl: string | null;
+  host: string | null;
+  endpointPath: string | null;
+  operationName: string | null;
   apiVersion: string | null;
   purpose: string;
   startedAt: string;
@@ -241,6 +259,9 @@ export type SalesforceApiCallRecord = Readonly<{
   result: SalesforceApiResult;
   salesforceErrorCode: string | null;
   salesforceErrorMessageSafe: string | null;
+  requestSizeBytes: string | null;
+  responseSizeBytes: string | null;
+  contentType: string | null;
   queryType: string | null;
   soqlStatementSafe: string | null;
   totalSize: number | null;

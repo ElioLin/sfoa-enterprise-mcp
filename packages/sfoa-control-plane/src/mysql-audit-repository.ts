@@ -18,6 +18,8 @@ import {
   objectApiNameSchema,
   salesforceApiCategorySchema,
   salesforceApiResultSchema,
+  salesforceApiTransportKindSchema,
+  salesforceApiVisibilitySchema,
   salesforceUsernameSchema,
   toolNameSchema,
   type AuditEventRecord,
@@ -205,13 +207,22 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
     validateApiEvidence(input);
     try {
       const inserted = await this.database.insertInto('sfoa_salesforce_api_call').values({
+        public_api_call_id: parsePublicAuditId(input.publicApiCallId ?? randomUUID()),
         audit_id: auditId,
         audit_event_id: input.auditEventId ?? null,
         sequence,
-        salesforce_username: salesforceUsernameSchema.parse(sanitizeAuditText(input.salesforceUsername)),
+        salesforce_username: input.salesforceUsername === undefined
+          ? null
+          : salesforceUsernameSchema.parse(sanitizeAuditText(input.salesforceUsername)),
+        transport_kind: salesforceApiTransportKindSchema.parse(input.transportKind),
+        visibility: salesforceApiVisibilitySchema.parse(input.visibility),
         api_category: salesforceApiCategorySchema.parse(input.apiCategory),
-        http_method: auditedHttpMethodSchema.parse(input.httpMethod),
-        endpoint: safeRequiredText(input.endpoint, 1024, 'endpoint'),
+        http_method: input.httpMethod === undefined ? null : auditedHttpMethodSchema.parse(input.httpMethod),
+        endpoint: input.endpoint === undefined ? null : safeRequiredText(input.endpoint, 1024, 'endpoint'),
+        request_url: input.requestUrl === undefined ? null : safeRequiredText(input.requestUrl, 16_384, 'requestUrl'),
+        host: boundedOptionalText(input.host, 512, 'host'),
+        endpoint_path: input.endpointPath === undefined ? null : safeRequiredText(input.endpointPath, 16_384, 'endpointPath'),
+        operation_name: boundedOptionalText(input.operationName, 256, 'operationName'),
         api_version: boundedOptionalText(input.apiVersion, 32, 'apiVersion'),
         purpose: auditPurposeSchema.parse(sanitizeAuditText(input.purpose)),
         started_at: input.startedAt,
@@ -221,6 +232,9 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
         result: salesforceApiResultSchema.parse(input.result),
         salesforce_error_code: boundedOptionalText(input.salesforceErrorCode, 128, 'salesforceErrorCode'),
         salesforce_error_message_safe: safeOptionalText(input.salesforceErrorMessageSafe, 1024),
+        request_size_bytes: input.requestSizeBytes?.toString() ?? null,
+        response_size_bytes: input.responseSizeBytes?.toString() ?? null,
+        content_type: boundedOptionalText(input.contentType, 256, 'contentType'),
         query_type: input.queryType === undefined ? null : auditQueryTypeSchema.parse(sanitizeAuditText(input.queryType)),
         soql_statement_safe: safeOptionalText(input.soqlStatementSafe, 65_535),
         total_size: input.totalSize ?? null,
@@ -380,13 +394,20 @@ function mapAuditEvent(row: Selectable<AuditEventTable>): AuditEventRecord {
 function mapSalesforceApiCall(row: Selectable<SalesforceApiCallTable>): SalesforceApiCallRecord {
   return Object.freeze({
     id: String(row.id),
+    publicApiCallId: parsePublicAuditId(row.public_api_call_id),
     auditId: String(row.audit_id),
     auditEventId: row.audit_event_id === null ? null : String(row.audit_event_id),
     sequence: Number(row.sequence),
     salesforceUsername: row.salesforce_username,
+    transportKind: salesforceApiTransportKindSchema.parse(row.transport_kind),
+    visibility: salesforceApiVisibilitySchema.parse(row.visibility),
     apiCategory: salesforceApiCategorySchema.parse(row.api_category),
-    httpMethod: auditedHttpMethodSchema.parse(row.http_method),
+    httpMethod: row.http_method === null ? null : auditedHttpMethodSchema.parse(row.http_method),
     endpoint: row.endpoint,
+    requestUrl: row.request_url,
+    host: row.host,
+    endpointPath: row.endpoint_path,
+    operationName: row.operation_name,
     apiVersion: row.api_version,
     purpose: row.purpose,
     startedAt: toIso(row.started_at),
@@ -396,6 +417,9 @@ function mapSalesforceApiCall(row: Selectable<SalesforceApiCallTable>): Salesfor
     result: salesforceApiResultSchema.parse(row.result),
     salesforceErrorCode: row.salesforce_error_code,
     salesforceErrorMessageSafe: row.salesforce_error_message_safe,
+    requestSizeBytes: row.request_size_bytes,
+    responseSizeBytes: row.response_size_bytes,
+    contentType: row.content_type,
     queryType: row.query_type,
     soqlStatementSafe: row.soql_statement_safe,
     totalSize: row.total_size,
@@ -460,6 +484,21 @@ function validateApiEvidence(input: SalesforceApiCallCreateInput): void {
   }
   if (input.dmlOperation !== undefined && input.objectApiName === undefined) {
     throw invalidInput('DML evidence requires objectApiName.');
+  }
+  for (const [name, value] of [['requestSizeBytes', input.requestSizeBytes], ['responseSizeBytes', input.responseSizeBytes]] as const) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+      throw invalidInput(`${name} must be a non-negative safe integer.`);
+    }
+  }
+  if (input.visibility === 'EXACT_HTTP') {
+    if (!input.httpMethod || !input.requestUrl || !input.host || !input.endpointPath || input.operationName !== undefined) {
+      throw invalidInput('EXACT_HTTP evidence requires method, requestUrl, host, and endpointPath only.');
+    }
+  } else if (
+    !input.operationName || input.httpMethod !== undefined || input.requestUrl !== undefined ||
+    input.host !== undefined || input.endpointPath !== undefined
+  ) {
+    throw invalidInput('OPERATION_ONLY evidence requires operationName and no HTTP facts.');
   }
 }
 

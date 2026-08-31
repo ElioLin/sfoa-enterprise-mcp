@@ -13,6 +13,7 @@ import type {
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
+import { runWithSalesforceApiPurpose } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
 import type { OfficialToolPolicyRecord } from './official-tool-catalog.js';
@@ -117,7 +118,9 @@ export class RemoteToolFacade {
       );
     }
     const officialInput = { ...input, ...this.hostOwnedInput() };
-    const operation = this.options.adapter.execute(this.options.tool, officialInput, extra);
+    const purpose = this.getName() === 'retrieve_metadata' ? 'METADATA_RETRIEVE' : 'USER_QUERY';
+    const operation = runWithSalesforceApiPurpose(purpose, () =>
+      this.options.adapter.execute(this.options.tool, officialInput, extra));
     try {
       const result = await withTimeout(
         operation,

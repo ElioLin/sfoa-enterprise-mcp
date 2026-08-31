@@ -2,6 +2,7 @@ import { AuthInfo, Connection } from '@salesforce/core';
 import { z } from 'zod';
 import type { SalesforceIdentityRoute } from './contracts.js';
 import { IdentityRuntimeError } from './errors.js';
+import { runWithSalesforceApiPurpose } from './request-audit-context.js';
 
 const jwtCredentialConfigSchema = z
   .object({
@@ -47,12 +48,13 @@ export class JwtConnectionFactory implements SalesforceConnectionFactory {
   public async create(route: SalesforceIdentityRoute): Promise<Connection> {
     let authInfo: AuthInfo;
     try {
-      authInfo = await this.dependencies.createAuthInfo({
-        username: route.salesforceUsername,
-        clientId: this.config.clientId,
-        privateKeyFile: this.config.privateKeyPath,
-        loginUrl: this.config.instanceUrl,
-      });
+      authInfo = await runWithSalesforceApiPurpose('IDENTITY_AUTHENTICATION', () =>
+        this.dependencies.createAuthInfo({
+          username: route.salesforceUsername,
+          clientId: this.config.clientId,
+          privateKeyFile: this.config.privateKeyPath,
+          loginUrl: this.config.instanceUrl,
+        }));
     } catch (error) {
       throw new IdentityRuntimeError(
         'MCP_SALESFORCE_AUTH_FAILED',
@@ -62,7 +64,8 @@ export class JwtConnectionFactory implements SalesforceConnectionFactory {
     }
 
     try {
-      return await this.dependencies.createConnection(authInfo);
+      return await runWithSalesforceApiPurpose('CONNECTION_INITIALIZATION', () =>
+        this.dependencies.createConnection(authInfo));
     } catch (error) {
       throw new IdentityRuntimeError(
         'MCP_SALESFORCE_CONNECTION_FAILED',

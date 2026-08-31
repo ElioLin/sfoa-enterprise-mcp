@@ -242,7 +242,7 @@ Maintainer 结果（2026-08-30）：`COMPLETE`。Runtime 在确定的 `tools/cal
 
 不做：UI 工作台、AI 诊断 Tool、可靠性评分。
 
-实施结果（2026-08-30）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。P7-02 Controller 直接持有唯一纯内存 Collector；Runtime Log 映射为 request-local Event，并依据显式 `IDENTITY < GOVERNANCE < TOOL < REQUEST < TRANSPORT` 权威层级及 post-dispatch UNKNOWN 最高优先级选择主终态。HTTP 请求完成时最多 finalize/enqueue 一次深度冻结、bounded、JSON-safe Snapshot。容量 1000 的非阻塞 Queue、batch 50 / interval 100 ms 的后台 Writer、2 次指数退避、5 秒有界 shutdown flush、独立最多 2 连接 Audit Pool 和完整 health metrics 已接入。正常 Tool 路径只做内存 append/finalize/offer，不等待 Audit DB。P7-04/P7-05 数组保持空；Admin 同事务审计保持同步。
+Maintainer 结果（2026-08-31）：`COMPLETE`（包含 HOTFIX01 收口验证）。P7-02 Controller 直接持有唯一纯内存 Collector；Runtime Log 映射为 request-local Event，并依据显式 `IDENTITY < GOVERNANCE < TOOL < REQUEST < TRANSPORT` 权威层级及 post-dispatch UNKNOWN 最高优先级选择主终态。HTTP 请求完成时最多 finalize/enqueue 一次深度冻结、bounded、JSON-safe Snapshot。容量 1000 的非阻塞 Queue、batch 50 / interval 100 ms 的后台 Writer、2 次指数退避、5 秒有界 shutdown flush、独立最多 2 连接 Audit Pool 和完整 health metrics 已接入。正常 Tool 路径只做内存 append/finalize/offer，不等待 Audit DB。P7-04 正式启用 Salesforce API 数组；Payload 数组仍保持空；Admin 同事务审计保持同步。
 
 ### P7-04 Salesforce API 透明审计
 
@@ -255,6 +255,8 @@ Maintainer 结果（2026-08-30）：`COMPLETE`。Runtime 在确定的 `tools/cal
 验收 Gate：覆盖各 API category 的成功、失败、超时、UNKNOWN、身份隔离和零额外 Salesforce API；官方 Tool 实现修改为 0。
 
 不做：每个 Tool 手工重复 Audit、复制官方 Tool、业务分析 Tool。
+
+实施结果（2026-08-31）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。源码 + CodeGraph + pinned dependency 盘点确认 request-scoped OAuth、REST/Data、UI、Tooling、DML 和 Metadata SOAP 都进入 JSforce 3.10.13。单一 SFoA adapter 以 `Transport.httpRequest()` 建立 JSforce-only scope，并按真实 Node HTTP attempt 捕获 retry/redirect；高层只提供 Purpose。每 attempt 在开始时绑定 Audit UUID 与共享 request-local sequence。独立 classifier、256 条上限、失败优先替换、migration 006、同一 P7-03 Async Writer persistence 及 OAuth/failure/duplicate/50-100-200/MySQL/performance Gates 已实现。完整路径矩阵、性能原始数字和限制见 `P7_04_REPORT.md`。
 
 ### P7-05 SOQL 与 DML 审计证据
 
@@ -364,22 +366,22 @@ P7-01 至少覆盖：
 | --- | --- | --- |
 | P7-01 全链路审计数据模型 | COMPLETE | Maintainer 独立审查通过 |
 | P7-02 请求级审计上下文 | COMPLETE | Maintainer 独立审查通过 |
-| P7-03 请求级隔离与异步审计管道 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | Collector、Snapshot、Queue、Writer、独立 Pool、health 及隔离/故障/性能 Gate 已实现 |
-| P7-04 Salesforce API 透明审计 | NOT STARTED | 依赖 P7-03 |
+| P7-03 请求级隔离与异步审计管道 | COMPLETE | Maintainer 已完成主体实现及 HOTFIX01 收口验证 |
+| P7-04 Salesforce API 透明审计 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | per-wire-attempt capture、分类、bounded Collector、migration 006、异步 persistence 与 focused Gates 已实现 |
 | P7-05 SOQL 与 DML 审计证据 | NOT STARTED | 依赖 P7-04 |
 | P7-06 MCP 入口与响应审计 | NOT STARTED | 依赖 P7-03～P7-05 Contract |
 | P7-07 审计调用链工作台 | NOT STARTED | 依赖完整后端证据/API |
 | P7-08 智能诊断接口与排障技能 | NOT STARTED | 依赖 P7-07 与运维授权 |
 
-本次所有 P7-03 工程 Gate 通过后，状态只能更新为：
+本次所有 P7-04 工程 Gate 通过后，状态只能更新为：
 
-`P7-03 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
+`P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
-只有 Maintainer Review 通过后，P7-03 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
+只有 Maintainer Review 通过后，P7-04 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
 
 ## 9. 变更管理
 
-- 已发布 migration 001～004 永不修改；P7-01 使用下一个序号 `005_p7_end_to_end_audit.sql`；
+- 已发布 migration 001～005 永不修改；P7-04 使用下一序号 `006_p7_salesforce_api_observability.sql`；
 - 任何本基线冲突必须在同一变更更新本文件、`PROJECT_BASELINE.md`、`TEST_MATRIX.md`、`CHANGELOG.md`，架构决策改变时新增或 supersede ADR；
 - P7-01 不修改官方 Salesforce TypeScript；如不可避免，必须先更新 `UPSTREAM_STRATEGY.md` 修改矩阵并接受 Maintainer review；
 - 所有真实 secret 继续只存在于 ignored local environment 或部署 secret store；测试只能使用明显虚构且必须被净化的样本。

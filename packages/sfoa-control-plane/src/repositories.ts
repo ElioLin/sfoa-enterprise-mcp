@@ -22,6 +22,8 @@ import type {
   SalesforceApiCallRecord,
   SalesforceApiCategory,
   SalesforceApiResult,
+  SalesforceApiTransportKind,
+  SalesforceApiVisibility,
   ToolControlRecord,
   TotalPage,
 } from './contracts.js';
@@ -226,13 +228,20 @@ export type AuditEventCreateInput = Readonly<{
 }>;
 
 export type SalesforceApiCallCreateInput = Readonly<{
+  publicApiCallId?: string;
   auditId: string;
   auditEventId?: string;
   sequence: number;
-  salesforceUsername: string;
+  salesforceUsername?: string;
+  transportKind: SalesforceApiTransportKind;
+  visibility: SalesforceApiVisibility;
   apiCategory: SalesforceApiCategory;
-  httpMethod: AuditedHttpMethod;
-  endpoint: string;
+  httpMethod?: AuditedHttpMethod;
+  endpoint?: string;
+  requestUrl?: string;
+  host?: string;
+  endpointPath?: string;
+  operationName?: string;
   apiVersion?: string;
   purpose: string;
   startedAt: Date;
@@ -242,6 +251,9 @@ export type SalesforceApiCallCreateInput = Readonly<{
   result: SalesforceApiResult;
   salesforceErrorCode?: string;
   salesforceErrorMessageSafe?: string;
+  requestSizeBytes?: number;
+  responseSizeBytes?: number;
+  contentType?: string;
   queryType?: string;
   soqlStatementSafe?: string;
   totalSize?: number;

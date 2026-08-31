@@ -1,4 +1,5 @@
 import type { Connection } from '@salesforce/core';
+import { runWithSalesforceApiPurpose } from '@sfoa/identity-runtime';
 import {
   fieldApiNameSchema,
   objectApiNameSchema,
@@ -80,7 +81,8 @@ export class ManagedDmlFieldResolver {
     const soql = `SELECT Id FROM ${rule.lookupObjectApiName} WHERE ${rule.lookupMatchFieldApiName} = '${escapeSoqlString(platformUserId.data)}' LIMIT 2`;
     let response: unknown;
     try {
-      response = await this.connection.query(soql);
+      response = await runWithSalesforceApiPurpose('SERVER_MANAGED_LOOKUP', async () =>
+        await this.connection.query(soql));
     } catch (error) {
       throw new RemoteRuntimeError(
         'MCP_DML_MANAGED_LOOKUP_FAILED',

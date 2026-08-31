@@ -54,6 +54,7 @@ test('versioned migrations remain immutable and P7 adds normalized bounded audit
   const second = await readFile(path.join(directory, '002_p5_indexes.sql'), 'utf8');
   const managedFields = await readFile(path.join(directory, '004_p6_dml_managed_field_rule.sql'), 'utf8');
   const p7Audit = await readFile(path.join(directory, '005_p7_end_to_end_audit.sql'), 'utf8');
+  const p704 = await readFile(path.join(directory, '006_p7_salesforce_api_observability.sql'), 'utf8');
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_identity_route/u);
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_audit_log/u);
   assert.doesNotMatch(first, /access_token|private_key|jwt_assertion|password/iu);
@@ -73,6 +74,12 @@ test('versioned migrations remain immutable and P7 adds normalized bounded audit
   assert.doesNotMatch(p7Audit, /WHEN tool_name IS NOT NULL THEN 'MCP_TOOL_CALL'/u);
   assert.match(p7Audit, /stored_size_bytes <= 262144/u);
   assert.doesNotMatch(p7Audit, /authorization_header|bearer_token|private_key|client_secret|database_password/iu);
+  assert.match(p704, /public_api_call_id/u);
+  assert.match(p704, /EXACT_HTTP/u);
+  assert.match(p704, /OPERATION_ONLY/u);
+  assert.match(p704, /request_url/u);
+  assert.match(p704, /MODIFY COLUMN http_method[\s\S]*NULL/u);
+  assert.doesNotMatch(p704, /https:\/\/salesforce\/metadata/u);
   assert.equal(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 1;\r\n'));
   assert.notEqual(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 2;\n'));
 

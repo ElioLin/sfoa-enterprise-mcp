@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   ControlPlaneError,
   encodeBoundedAuditPayload,
@@ -489,13 +490,20 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
     }
     const record: SalesforceApiCallRecord = Object.freeze({
       id: String(this.nextAuditDetailId++),
+      publicApiCallId: input.publicApiCallId ?? randomUUID(),
       auditId: input.auditId,
       auditEventId: input.auditEventId ?? null,
       sequence: input.sequence,
-      salesforceUsername: input.salesforceUsername,
+      salesforceUsername: input.salesforceUsername ?? null,
+      transportKind: input.transportKind,
+      visibility: input.visibility,
       apiCategory: input.apiCategory,
-      httpMethod: input.httpMethod,
-      endpoint: input.endpoint,
+      httpMethod: input.httpMethod ?? null,
+      endpoint: input.endpoint ?? null,
+      requestUrl: input.requestUrl ?? null,
+      host: input.host ?? null,
+      endpointPath: input.endpointPath ?? null,
+      operationName: input.operationName ?? null,
       apiVersion: input.apiVersion ?? null,
       purpose: input.purpose,
       startedAt: input.startedAt.toISOString(),
@@ -505,6 +513,9 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       result: input.result,
       salesforceErrorCode: input.salesforceErrorCode ?? null,
       salesforceErrorMessageSafe: input.salesforceErrorMessageSafe ?? null,
+      requestSizeBytes: input.requestSizeBytes?.toString() ?? null,
+      responseSizeBytes: input.responseSizeBytes?.toString() ?? null,
+      contentType: input.contentType ?? null,
       queryType: input.queryType ?? null,
       soqlStatementSafe: input.soqlStatementSafe ?? null,
       totalSize: input.totalSize ?? null,

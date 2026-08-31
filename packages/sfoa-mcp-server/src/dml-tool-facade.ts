@@ -19,6 +19,7 @@ import type {
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
+import { runWithSalesforceApiPurpose } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import type { AppliedManagedDmlField, ManagedDmlFieldResolver } from './dml-managed-fields.js';
 import { formatRemoteRuntimeError, RemoteRuntimeError } from './errors.js';
@@ -116,7 +117,10 @@ export class DmlToolFacade {
               { correlationId: this.options.context.correlationId },
             );
           }
-          return this.options.tool.exec(executionInput, extra);
+          return runWithSalesforceApiPurpose(
+            this.operation === 'CREATE' ? 'DML_CREATE' : 'DML_UPDATE',
+            () => this.options.tool.exec(executionInput, extra),
+          );
         })(),
         this.options.toolTimeoutMs,
         'MCP_TOOL_TIMEOUT',

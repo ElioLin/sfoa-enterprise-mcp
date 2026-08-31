@@ -85,6 +85,7 @@ export async function migrateDatabase(
 }
 
 const P7_AUDIT_MIGRATION_VERSION = '005_p7_end_to_end_audit';
+const P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION = '006_p7_salesforce_api_observability';
 const P7_REQUIRED_CONSTRAINTS = Object.freeze([
   'chk_sfoa_audit_public_id', 'chk_sfoa_audit_time_range',
   'uq_sfoa_audit_event_sequence', 'uq_sfoa_audit_event_id_audit', 'fk_sfoa_audit_event_audit',
@@ -95,14 +96,17 @@ const P7_REQUIRED_CONSTRAINTS = Object.freeze([
   'fk_sfoa_payload_audit', 'fk_sfoa_payload_api', 'fk_sfoa_payload_event',
   'chk_sfoa_payload_stored_size', 'chk_sfoa_payload_actual_size', 'chk_sfoa_payload_sha',
 ]);
+const P7_SALESFORCE_OBSERVABILITY_REQUIRED_CONSTRAINTS = Object.freeze([
+  'uq_sfoa_sf_api_public_id', 'chk_sfoa_sf_api_public_id', 'chk_sfoa_sf_api_visibility',
+]);
 
 async function canRecoverCompletedP7Migration(
   database: ControlPlaneDatabaseClient,
   version: string,
 ): Promise<boolean> {
-  if (version !== P7_AUDIT_MIGRATION_VERSION) return false;
+  if (version !== P7_AUDIT_MIGRATION_VERSION && version !== P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION) return false;
   try {
-    await validateRequiredSchemaObjects(database);
+    await validateRequiredSchemaObjects(database, version === P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION);
     const constraints = await sql<{ constraintName: string }>`
       SELECT CONSTRAINT_NAME AS constraintName
       FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
@@ -110,7 +114,10 @@ async function canRecoverCompletedP7Migration(
         AND TABLE_NAME IN ('sfoa_audit_log', 'sfoa_audit_event', 'sfoa_salesforce_api_call', 'sfoa_audit_payload_evidence')
     `.execute(database);
     const names = new Set(constraints.rows.map((row) => row.constraintName));
-    return P7_REQUIRED_CONSTRAINTS.every((name) => names.has(name));
+    const required = version === P7_AUDIT_MIGRATION_VERSION
+      ? P7_REQUIRED_CONSTRAINTS
+      : P7_SALESFORCE_OBSERVABILITY_REQUIRED_CONSTRAINTS;
+    return required.every((name) => names.has(name));
   } catch {
     return false;
   }
@@ -223,9 +230,11 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
     'completed_at', 'duration_ms', 'status', 'error_code', 'safe_summary_json', 'created_at',
   ]),
   sfoa_salesforce_api_call: Object.freeze([
-    'id', 'audit_id', 'audit_event_id', 'sequence', 'salesforce_username', 'api_category', 'http_method',
-    'endpoint', 'api_version', 'purpose', 'started_at', 'completed_at', 'duration_ms', 'http_status', 'result',
-    'salesforce_error_code', 'salesforce_error_message_safe', 'query_type', 'soql_statement_safe', 'total_size',
+    'id', 'public_api_call_id', 'audit_id', 'audit_event_id', 'sequence', 'salesforce_username', 'transport_kind',
+    'visibility', 'api_category', 'http_method', 'endpoint', 'request_url', 'host', 'endpoint_path', 'operation_name',
+    'api_version', 'purpose', 'started_at', 'completed_at', 'duration_ms', 'http_status', 'result',
+    'salesforce_error_code', 'salesforce_error_message_safe', 'request_size_bytes', 'response_size_bytes',
+    'content_type', 'query_type', 'soql_statement_safe', 'total_size',
     'returned_records', 'done', 'dml_operation', 'object_api_name', 'record_id', 'requested_fields_json',
     'managed_fields_json', 'created_at',
   ]),
@@ -266,6 +275,7 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   uq_sfoa_audit_event_id_audit: Object.freeze({ tableName: 'sfoa_audit_event', columns: Object.freeze(['id', 'audit_id']), unique: true }),
   idx_sfoa_audit_event_error: Object.freeze({ tableName: 'sfoa_audit_event', columns: Object.freeze(['error_code', 'started_at']), unique: false }),
   uq_sfoa_sf_api_sequence: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['audit_id', 'sequence']), unique: true }),
+  uq_sfoa_sf_api_public_id: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['public_api_call_id']), unique: true }),
   uq_sfoa_sf_api_id_audit: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['id', 'audit_id']), unique: true }),
   idx_sfoa_sf_api_event: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['audit_event_id', 'audit_id']), unique: false }),
   idx_sfoa_sf_api_category: Object.freeze({ tableName: 'sfoa_salesforce_api_call', columns: Object.freeze(['api_category', 'started_at']), unique: false }),
@@ -277,7 +287,15 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   idx_sfoa_payload_audit: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['audit_id', 'id']), unique: false }),
 });
 
-export async function validateRequiredSchemaObjects(database: ControlPlaneDatabaseClient): Promise<void> {
+const P7_04_COLUMNS = new Set([
+  'public_api_call_id', 'transport_kind', 'visibility', 'request_url', 'host', 'endpoint_path',
+  'operation_name', 'request_size_bytes', 'response_size_bytes', 'content_type',
+]);
+
+export async function validateRequiredSchemaObjects(
+  database: ControlPlaneDatabaseClient,
+  includeP704 = true,
+): Promise<void> {
   const [tablesResult, columnsResult, indexesResult] = await Promise.all([
     sql<{ tableName: string; engine: string | null }>`
       SELECT TABLE_NAME AS tableName, ENGINE AS engine
@@ -320,9 +338,13 @@ export async function validateRequiredSchemaObjects(database: ControlPlaneDataba
     }
     if (engine !== 'INNODB') defects.push(`table ${tableName} engine is ${engine ?? 'UNKNOWN'}, expected INNODB`);
     const actualColumns = columnsByTable.get(tableName) ?? new Set<string>();
-    for (const column of requiredColumns) if (!actualColumns.has(column)) defects.push(`missing column ${tableName}.${column}`);
+    for (const column of requiredColumns) {
+      if (!includeP704 && tableName === 'sfoa_salesforce_api_call' && P7_04_COLUMNS.has(column)) continue;
+      if (!actualColumns.has(column)) defects.push(`missing column ${tableName}.${column}`);
+    }
   }
   for (const [indexName, expected] of Object.entries(REQUIRED_INDEXES)) {
+    if (!includeP704 && indexName === 'uq_sfoa_sf_api_public_id') continue;
     const actual = indexColumns.get(`${expected.tableName}\u0000${indexName}`);
     if (!actual) {
       defects.push(`missing index ${indexName}`);

@@ -6,8 +6,15 @@ import {
   auditEventStatusSchema,
   auditEventTypeSchema,
   auditIntegrityStatusSchema,
+  auditPurposeSchema,
+  auditSequenceSchema,
+  auditedHttpMethodSchema,
   IDENTITY_SOURCES,
   objectApiNameSchema,
+  salesforceApiCategorySchema,
+  salesforceApiResultSchema,
+  salesforceApiTransportKindSchema,
+  salesforceApiVisibilitySchema,
   salesforceUsernameSchema,
   toolNameSchema,
 } from './contracts.js';
@@ -20,7 +27,12 @@ import {
 import type { ControlPlaneDatabaseClient } from './database.js';
 import { ControlPlaneError } from './errors.js';
 import { MySqlAuditRepository } from './mysql-audit-repository.js';
-import type { AuditEventTable, AuditLogTable, ControlPlaneDatabase } from './schema.js';
+import type {
+  AuditEventTable,
+  AuditLogTable,
+  ControlPlaneDatabase,
+  SalesforceApiCallTable,
+} from './schema.js';
 
 export class MySqlAuditBatchSink implements AuditBatchSink {
   public constructor(private readonly database: ControlPlaneDatabaseClient) {}
@@ -57,8 +69,8 @@ async function persistSnapshots(
   if (new Set(publicIds).size !== publicIds.length) {
     throw new AuditBatchPersistenceError('An Audit batch contains duplicate public Audit IDs.', false);
   }
-  if (snapshots.some((snapshot) => snapshot.salesforceApiCalls.length > 0 || snapshot.payloadEvidence.length > 0)) {
-    throw new AuditBatchPersistenceError('P7-03 snapshots cannot contain P7-04/P7-05 evidence.', false);
+  if (snapshots.some((snapshot) => snapshot.payloadEvidence.length > 0)) {
+    throw new AuditBatchPersistenceError('P7-04 snapshots cannot contain P7-05/P7-06 payload evidence.', false);
   }
 
   await database.insertInto('sfoa_audit_log').values(
@@ -74,6 +86,7 @@ async function persistSnapshots(
   }
 
   const eventRows: Insertable<AuditEventTable>[] = [];
+  const apiRows: Insertable<SalesforceApiCallTable>[] = [];
   for (const snapshot of snapshots) {
     const auditId = ids.get(parsePublicAuditId(snapshot.auditCall.publicAuditId));
     if (!auditId) throw new AuditBatchPersistenceError('An inserted Audit master ID is missing.', true);
@@ -93,9 +106,58 @@ async function persistSnapshots(
         safe_summary_json: encodeBoundedAuditJson(event.safeSummary),
       });
     }
+    for (const apiCall of snapshot.salesforceApiCalls) {
+      if (parsePublicAuditId(apiCall.auditId) !== parsePublicAuditId(snapshot.auditCall.publicAuditId)) {
+        throw new AuditBatchPersistenceError('A Salesforce API call is bound to the wrong Audit ID.', false);
+      }
+      validateApiVisibility(apiCall);
+      apiRows.push({
+        public_api_call_id: parsePublicAuditId(apiCall.publicApiCallId),
+        audit_id: auditId,
+        audit_event_id: null,
+        sequence: auditSequenceSchema.parse(apiCall.sequence),
+        salesforce_username: apiCall.salesforceUsername === null
+          ? null
+          : salesforceUsernameSchema.parse(sanitizeAuditText(apiCall.salesforceUsername)),
+        transport_kind: salesforceApiTransportKindSchema.parse(apiCall.transportKind),
+        visibility: salesforceApiVisibilitySchema.parse(apiCall.visibility),
+        api_category: salesforceApiCategorySchema.parse(apiCall.apiCategory),
+        http_method: apiCall.httpMethod === null ? null : auditedHttpMethodSchema.parse(apiCall.httpMethod),
+        endpoint: optionalText(apiCall.endpointPath, 1024),
+        request_url: optionalText(apiCall.requestUrl, 16_384),
+        host: optionalText(apiCall.host, 512),
+        endpoint_path: optionalText(apiCall.endpointPath, 16_384),
+        operation_name: optionalText(apiCall.operationName, 256),
+        api_version: optionalText(apiCall.apiVersion, 32),
+        purpose: auditPurposeSchema.parse(sanitizeAuditText(apiCall.purpose)),
+        started_at: parseDate(apiCall.startedAt),
+        completed_at: parseDate(apiCall.completedAt),
+        duration_ms: apiCall.durationMs,
+        http_status: apiCall.httpStatus,
+        result: salesforceApiResultSchema.parse(apiCall.result),
+        salesforce_error_code: optionalText(apiCall.salesforceErrorCode, 128),
+        salesforce_error_message_safe: optionalText(apiCall.salesforceErrorMessage, 1024),
+        request_size_bytes: optionalSize(apiCall.requestSizeBytes),
+        response_size_bytes: optionalSize(apiCall.responseSizeBytes),
+        content_type: optionalText(apiCall.contentType, 256),
+        query_type: null,
+        soql_statement_safe: null,
+        total_size: null,
+        returned_records: null,
+        done: null,
+        dml_operation: null,
+        object_api_name: null,
+        record_id: null,
+        requested_fields_json: null,
+        managed_fields_json: null,
+      });
+    }
   }
   if (eventRows.length > 0) {
     await database.insertInto('sfoa_audit_event').values(eventRows).executeTakeFirstOrThrow();
+  }
+  if (apiRows.length > 0) {
+    await database.insertInto('sfoa_salesforce_api_call').values(apiRows).executeTakeFirstOrThrow();
   }
 }
 
@@ -159,6 +221,27 @@ function requiredText(value: string, maximum: number, name: string): string {
 
 function optionalText(value: string | null, maximum: number): string | null {
   return value === null ? null : requiredText(value, maximum, 'Audit text');
+}
+
+function optionalSize(value: number | null): string | null {
+  if (value === null) return null;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new AuditBatchPersistenceError('Salesforce API byte size is invalid.', false);
+  }
+  return value.toString();
+}
+
+function validateApiVisibility(apiCall: AuditSnapshot['salesforceApiCalls'][number]): void {
+  if (apiCall.visibility === 'EXACT_HTTP') {
+    if (!apiCall.httpMethod || !apiCall.requestUrl || !apiCall.host || !apiCall.endpointPath || apiCall.operationName !== null) {
+      throw new AuditBatchPersistenceError('EXACT_HTTP Salesforce evidence is incomplete.', false);
+    }
+  } else if (
+    !apiCall.operationName || apiCall.httpMethod !== null || apiCall.requestUrl !== null ||
+    apiCall.host !== null || apiCall.endpointPath !== null
+  ) {
+    throw new AuditBatchPersistenceError('OPERATION_ONLY Salesforce evidence contains invented HTTP facts.', false);
+  }
 }
 
 function numericId(value: string): string {

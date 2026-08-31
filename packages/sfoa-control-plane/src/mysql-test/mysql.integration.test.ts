@@ -64,11 +64,12 @@ if (!setup) {
       '003_p6_identity_credential',
       '004_p6_dml_managed_field_rule',
       '005_p7_end_to_end_audit',
+      '006_p7_salesforce_api_observability',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
 
-  test('an empty database initializes through 005 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
+  test('an empty database initializes through 006 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
     await withIsolatedDatabase(config, 'empty', async (database) => {
       const migrations = await migrateDatabase(database);
       assert.deepEqual(migrations.map((entry) => entry.version), [
@@ -77,6 +78,7 @@ if (!setup) {
         '003_p6_identity_credential',
         '004_p6_dml_managed_field_rule',
         '005_p7_end_to_end_audit',
+        '006_p7_salesforce_api_observability',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -93,7 +95,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '005_p7_end_to_end_audit');
+      assert.equal(migrations.at(-1)?.version, '006_p7_salesforce_api_observability');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -120,8 +122,7 @@ if (!setup) {
         .execute();
 
       const recovered = await migrateDatabase(database);
-      assert.equal(recovered.at(-1)?.version, '005_p7_end_to_end_audit');
-      assert.equal(recovered.at(-1)?.state, 'APPLIED');
+      assert.equal(recovered.find((entry) => entry.version === '005_p7_end_to_end_audit')?.state, 'APPLIED');
       const ledger = await database.selectFrom('sfoa_schema_migration')
         .select(['checksum_sha256'])
         .where('version', '=', '005_p7_end_to_end_audit')
@@ -143,6 +144,42 @@ if (!setup) {
         .where('version', '=', '005_p7_end_to_end_audit')
         .executeTakeFirst();
       assert.equal(ledger, undefined);
+    });
+  });
+
+  test('006 upgrades legacy P7-03 API rows without inventing exact HTTP facts', { timeout: 120_000 }, async () => {
+    await withIsolatedDatabase(config, 'legacyapi', async (database) => {
+      await installP6Schema(database);
+      const p703Sql = await readFile(path.join(defaultMigrationsDirectory(), '005_p7_end_to_end_audit.sql'), 'utf8');
+      for (const statement of splitSqlStatements(p703Sql)) await sql.raw(statement).execute(database);
+      await database.insertInto('sfoa_schema_migration').values({
+        version: '005_p7_end_to_end_audit',
+        checksum_sha256: migrationChecksumSha256(p703Sql),
+      }).executeTakeFirstOrThrow();
+      await sql.raw(`INSERT INTO sfoa_audit_log (
+        public_audit_id, audit_kind, occurred_at, started_at, completed_at, correlation_id, channel,
+        tool_name, result, outcome, audit_integrity_status
+      ) VALUES (
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'MCP_TOOL_CALL', NOW(3), NOW(3), NOW(3),
+        'legacy-api-upgrade', 'MCP', 'run_soql_query', 'PASS', 'SUCCESS', 'COMPLETE'
+      )`).execute(database);
+      await sql.raw(`INSERT INTO sfoa_salesforce_api_call (
+        audit_id, sequence, salesforce_username, api_category, http_method, endpoint, purpose,
+        started_at, completed_at, duration_ms, http_status, result
+      ) SELECT id, 1, 'legacy@example.invalid', 'DATA', 'GET', '/services/data/v65.0/query',
+        'LEGACY_QUERY', NOW(3), NOW(3), 1, 200, 'SUCCESS'
+      FROM sfoa_audit_log WHERE public_audit_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`).execute(database);
+
+      await migrateDatabase(database);
+      const row = await database.selectFrom('sfoa_salesforce_api_call').selectAll().executeTakeFirstOrThrow();
+      assert.equal(row.api_category, 'REST_API');
+      assert.equal(row.visibility, 'OPERATION_ONLY');
+      assert.equal(row.transport_kind, 'OTHER');
+      assert.equal(row.http_method, null);
+      assert.equal(row.request_url, null);
+      assert.equal(row.operation_name, 'LEGACY_API_EVIDENCE');
+      assert.equal(row.endpoint, '/services/data/v65.0/query');
+      assert.match(row.public_api_call_id, /^[0-9a-f-]{36}$/u);
     });
   });
 
@@ -259,14 +296,30 @@ if (!setup) {
           ])
           .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
           .execute();
+        const apiCalls = await store.database.selectFrom('sfoa_salesforce_api_call')
+          .innerJoin('sfoa_audit_log', 'sfoa_audit_log.id', 'sfoa_salesforce_api_call.audit_id')
+          .select([
+            'sfoa_salesforce_api_call.audit_id', 'sfoa_salesforce_api_call.sequence',
+            'sfoa_salesforce_api_call.salesforce_username', 'sfoa_salesforce_api_call.request_url',
+            'sfoa_audit_log.public_audit_id', 'sfoa_audit_log.platform_user_id', 'sfoa_audit_log.tool_name',
+          ])
+          .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
+          .execute();
         assert.equal(events.length, concurrency * 2);
+        assert.equal(apiCalls.length, concurrency);
         for (const snapshot of snapshots) {
           const marker = snapshot.auditCall.platformUserId?.replace('platform_', '');
           assert.ok(marker);
           const owned = events.filter((event) => event.public_audit_id === snapshot.auditCall.publicAuditId);
           assert.equal(owned.length, 2);
-          assert.deepEqual(owned.map((event) => event.sequence).sort((a, b) => a - b), [1, 2]);
+          assert.deepEqual(owned.map((event) => event.sequence).sort((a, b) => a - b), [1, 3]);
           assert.equal(owned.every((event) => event.event_name.includes(marker)), true);
+          const ownedApi = apiCalls.filter((call) => call.public_audit_id === snapshot.auditCall.publicAuditId);
+          assert.equal(ownedApi.length, 1);
+          assert.equal(ownedApi[0]?.salesforce_username, `sf_${marker}@example.invalid`);
+          assert.equal(ownedApi[0]?.request_url?.includes(marker), true);
+          assert.equal(ownedApi[0]?.platform_user_id, `platform_${marker}`);
+          assert.equal(ownedApi[0]?.tool_name, snapshot.auditCall.toolName);
         }
       }
       const orphan = await sql<{ count: string }>`
@@ -276,6 +329,13 @@ if (!setup) {
         WHERE call_record.id IS NULL
       `.execute(store.database);
       assert.equal(Number(orphan.rows[0]?.count), 0);
+      const orphanApi = await sql<{ count: string }>`
+        SELECT COUNT(*) AS count
+        FROM sfoa_salesforce_api_call api_call
+        LEFT JOIN sfoa_audit_log call_record ON call_record.id = api_call.audit_id
+        WHERE call_record.id IS NULL
+      `.execute(store.database);
+      assert.equal(Number(orphanApi.rows[0]?.count), 0);
     } finally {
       await auditDatabase.destroy();
     }
@@ -433,9 +493,14 @@ if (!setup) {
       auditEventId: childA.id,
       sequence: 1,
       salesforceUsername: 'sf-a@example.invalid',
-      apiCategory: 'DATA',
+      transportKind: 'JSFORCE',
+      visibility: 'EXACT_HTTP',
+      apiCategory: 'REST_API',
       httpMethod: 'GET',
       endpoint: `https://example.invalid/services/data/v65.0/query?access_token=fake-api-secret`,
+      requestUrl: `https://example.invalid/services/data/v65.0/query?access_token=fake-api-secret`,
+      host: 'example.invalid',
+      endpointPath: '/services/data/v65.0/query?access_token=fake-api-secret',
       apiVersion: '65.0',
       purpose: '查询 Account',
       startedAt,
@@ -454,9 +519,14 @@ if (!setup) {
       auditEventId: eventB.id,
       sequence: 1,
       salesforceUsername: 'sf-b@example.invalid',
-      apiCategory: 'DATA',
+      transportKind: 'JSFORCE',
+      visibility: 'EXACT_HTTP',
+      apiCategory: 'REST_API',
       httpMethod: 'GET',
       endpoint: 'https://example.invalid/services/data/v65.0/query',
+      requestUrl: 'https://example.invalid/services/data/v65.0/query',
+      host: 'example.invalid',
+      endpointPath: '/services/data/v65.0/query',
       purpose: '查询 Contact',
       startedAt,
       completedAt,
@@ -474,9 +544,14 @@ if (!setup) {
       auditEventId: childA.id,
       sequence: 2,
       salesforceUsername: 'sf-a@example.invalid',
-      apiCategory: 'DATA',
+      transportKind: 'JSFORCE',
+      visibility: 'EXACT_HTTP',
+      apiCategory: 'REST_API',
       httpMethod: 'PATCH',
       endpoint: 'https://example.invalid/services/data/v65.0/sobjects/Account/001fake',
+      requestUrl: 'https://example.invalid/services/data/v65.0/sobjects/Account/001fake',
+      host: 'example.invalid',
+      endpointPath: '/services/data/v65.0/sobjects/Account/001fake',
       apiVersion: '65.0',
       purpose: '更新 Account',
       startedAt,
@@ -497,9 +572,14 @@ if (!setup) {
         auditId: callA.id,
         sequence: 2,
         salesforceUsername: 'sf-a@example.invalid',
-        apiCategory: 'REST',
+        transportKind: 'JSFORCE',
+        visibility: 'EXACT_HTTP',
+        apiCategory: 'REST_API',
         httpMethod: 'GET',
         endpoint: 'https://example.invalid/services/data/v65.0/',
+        requestUrl: 'https://example.invalid/services/data/v65.0/',
+        host: 'example.invalid',
+        endpointPath: '/services/data/v65.0/',
         purpose: '重复 API 序号',
         startedAt,
         result: 'FAILED',
@@ -512,9 +592,14 @@ if (!setup) {
         auditEventId: eventB.id,
         sequence: 2,
         salesforceUsername: 'sf-a@example.invalid',
-        apiCategory: 'REST',
+        transportKind: 'JSFORCE',
+        visibility: 'EXACT_HTTP',
+        apiCategory: 'REST_API',
         httpMethod: 'GET',
         endpoint: 'https://example.invalid/services/data/v65.0/',
+        requestUrl: 'https://example.invalid/services/data/v65.0/',
+        host: 'example.invalid',
+        endpointPath: '/services/data/v65.0/',
         purpose: '跨审计关联',
         startedAt,
         result: 'FAILED',
@@ -610,6 +695,32 @@ function mysqlSnapshot(unique: number, concurrency: number, index: number): Audi
   context.collector().record({
     eventCategory: 'MCP', eventType: 'TOOL_INVOCATION_STARTED', eventName: `${marker} started`, status: 'STARTED',
   });
+  context.collector().recordSalesforceApiCall(Object.freeze({
+    publicApiCallId: `10000000-0000-4000-8000-${String(unique).padStart(12, '0')}`,
+    auditId,
+    sequence: context.nextSequence(),
+    salesforceUsername: `sf_${marker}@example.invalid`,
+    transportKind: 'JSFORCE',
+    visibility: 'EXACT_HTTP',
+    apiCategory: 'REST_API',
+    apiVersion: '65.0',
+    httpMethod: 'GET',
+    requestUrl: `https://example.invalid/services/data/v65.0/query?marker=${marker}`,
+    host: 'example.invalid',
+    endpointPath: `/services/data/v65.0/query?marker=${marker}`,
+    operationName: null,
+    purpose: 'USER_QUERY',
+    startedAt: '2026-08-30T01:00:00.001Z',
+    completedAt: '2026-08-30T01:00:00.005Z',
+    durationMs: 4,
+    httpStatus: 200,
+    result: 'SUCCESS',
+    salesforceErrorCode: null,
+    salesforceErrorMessage: null,
+    requestSizeBytes: null,
+    responseSizeBytes: 64,
+    contentType: 'application/json',
+  }));
   context.collector().record({
     eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: `${marker} terminal`, status: 'SUCCESS',
     terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
