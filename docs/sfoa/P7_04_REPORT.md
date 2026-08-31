@@ -147,4 +147,11 @@ Focused mock Salesforce server 实际结果：
 
 Aggregate attempt 2 的 Admin Web worker 错误为 `Failed to start forks worker for InstructionGenerator.test.ts`；同一完整 suite standalone 随后 7/7 files、35/35 tests 通过，该文件 focused 1/1 file、7/7 tests 通过。首次 full-stack continuation 因 25 个 `.invalid` 分页身份逐个执行 auth-store seed，超过固定 90 秒 readiness 窗口；将该测试专用 Salesforce 请求 timeout 限为 100 ms 后，Admin security、real Chromium 1/1、001–006 migration 与 34 条 Admin Audit 持久化全部 PASS。这里按测试成本治理完整披露基础设施波动，不将 aggregate attempt 2 虚报为整体 exit 0。
 
-Git branch：`feature/p7-end-to-end-audit`。实现提交、push 与最终 working tree 由提交后的 Maintainer handoff 提供（提交不能在自身内容中可靠记录自身 hash）。官方 Salesforce Provider Source Modifications = 0。
+## 11. Git 证据
+
+- Branch：`feature/p7-end-to-end-audit`
+- Implementation commit：`4d5ba94`（`feat: add transparent Salesforce API auditing`）
+- Changed files：31（Identity Runtime adapter/classifier/Collector；MCP purpose scopes；Control Plane migration/persistence/contracts；focused/concurrency/failure tests；P7 baseline/report docs）
+- Migration：新增 `006_p7_salesforce_api_observability.sql`；`005_p7_end_to_end_audit.sql` diff = 0
+- Official Salesforce Provider Source Modifications：0
+- Push 与最终 clean working tree：由该报告之后的纯文档证据提交及 Maintainer handoff 确认
