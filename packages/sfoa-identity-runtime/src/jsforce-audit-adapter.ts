@@ -48,6 +48,7 @@ type PendingResponse = Readonly<{
   statusCode: number;
   completedAtMs: number;
   contentType: string | null;
+  responseSizeBytes: number | null;
 }>;
 
 const jsforceObservationStorage = new AsyncLocalStorage<JsforceObservation>();
@@ -119,6 +120,7 @@ function auditedNodeRequest(original: typeof http.request, defaultProtocol: 'htt
         statusCode: response.statusCode ?? 0,
         completedAtMs: Date.now(),
         contentType: nodeHeaderValue(response, 'content-type'),
+        responseSizeBytes: nodeContentLength(response),
       });
     });
     request.once('error', (error: unknown) => {
@@ -137,6 +139,7 @@ function completeObservation(observation: JsforceObservation, response: HttpResp
       statusCode: response.statusCode,
       completedAtMs: Date.now(),
       contentType: headerValue(response.headers, 'content-type'),
+      responseSizeBytes: responseContentLength(response.headers),
       responseBody: response.body,
     });
   }
@@ -145,6 +148,7 @@ function completeObservation(observation: JsforceObservation, response: HttpResp
       statusCode: response.statusCode,
       completedAtMs: Date.now(),
       contentType: headerValue(response.headers, 'content-type'),
+      responseSizeBytes: responseContentLength(response.headers),
       responseBody: response.body,
     });
   }
@@ -165,6 +169,7 @@ function flushPendingResponse(observation: JsforceObservation): void {
     statusCode: pending.statusCode,
     completedAtMs: pending.completedAtMs,
     contentType: pending.contentType,
+    responseSizeBytes: pending.responseSizeBytes,
   });
 }
 
@@ -175,6 +180,7 @@ function captureAttempt(
     statusCode?: number;
     completedAtMs: number;
     contentType?: string | null;
+    responseSizeBytes?: number | null;
     responseBody?: string;
     error?: unknown;
   }>,
@@ -211,7 +217,9 @@ function captureAttempt(
       salesforceErrorCode: salesforceError?.code ?? null,
       salesforceErrorMessage: salesforceError?.message ?? null,
       requestSizeBytes: attempt.requestSizeBytes,
-      responseSizeBytes: outcome.responseBody === undefined ? null : Buffer.byteLength(outcome.responseBody),
+      // 不为审计重新扫描大型 Salesforce Response Body。
+      // Content-Length 能低成本获得时记录；未知时保持 NULL。
+      responseSizeBytes: outcome.responseSizeBytes ?? null,
       contentType: outcome.contentType ?? null,
     } satisfies RequestAuditSalesforceApiCallSnapshot;
   });
@@ -362,11 +370,37 @@ function xmlElement(xml: string, name: string, maxLength: number): string | null
   return safeErrorText(match?.[1], maxLength);
 }
 
+const MAX_AUDIT_INLINE_SIZE_SCAN = 8_192;
+
 function byteLength(body: HttpRequest['body']): number | null {
-  if (typeof body === 'string') return Buffer.byteLength(body);
   if (Buffer.isBuffer(body)) return body.byteLength;
-  if (body instanceof URLSearchParams) return Buffer.byteLength(body.toString());
+  if (typeof body === 'string') {
+    return body.length <= MAX_AUDIT_INLINE_SIZE_SCAN ? Buffer.byteLength(body) : null;
+  }
+  // URLSearchParams 没有 O(1) size。即使结果最终超过阈值，先 toString() 仍会
+  // 扫描并分配整个 body，因此普通审计路径不为它计算 size。
+  if (body instanceof URLSearchParams) return null;
   return null;
+}
+
+function nodeContentLength(response: IncomingMessage): number | null {
+  const value = response.headers['content-length'];
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return parseContentLength(candidate);
+}
+
+function responseContentLength(headers: HttpResponse['headers']): number | null {
+  const value = Object.entries(headers).find(([name]) => name.toLowerCase() === 'content-length')?.[1];
+  return parseContentLength(value);
+}
+
+function parseContentLength(value: unknown): number | null {
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && /^\d+$/u.test(value.trim())
+      ? Number(value)
+      : Number.NaN;
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function headerValue(headers: HttpResponse['headers'], requestedName: string): string | null {

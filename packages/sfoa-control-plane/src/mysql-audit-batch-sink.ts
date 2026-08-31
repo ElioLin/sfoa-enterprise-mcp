@@ -123,7 +123,10 @@ async function persistSnapshots(
         visibility: salesforceApiVisibilitySchema.parse(apiCall.visibility),
         api_category: salesforceApiCategorySchema.parse(apiCall.apiCategory),
         http_method: apiCall.httpMethod === null ? null : auditedHttpMethodSchema.parse(apiCall.httpMethod),
-        endpoint: optionalText(apiCall.endpointPath, 1024),
+        // endpoint 是 P7-01 兼容字段，历史 schema 只有 1024 字符。
+        // P7-04 的完整事实保存在 request_url / endpoint_path；这里必须截断而不是
+        // 因长 SOQL URL 让整个 Snapshot 落库失败。
+        endpoint: optionalTruncatedText(apiCall.endpointPath, 1024),
         request_url: optionalText(apiCall.requestUrl, 16_384),
         host: optionalText(apiCall.host, 512),
         endpoint_path: optionalText(apiCall.endpointPath, 16_384),
@@ -136,7 +139,9 @@ async function persistSnapshots(
         http_status: apiCall.httpStatus,
         result: salesforceApiResultSchema.parse(apiCall.result),
         salesforce_error_code: optionalText(apiCall.salesforceErrorCode, 128),
-        salesforce_error_message_safe: optionalText(apiCall.salesforceErrorMessage, 1024),
+        // Salesforce Validation/Flow 错误可能很长。主表字段仍是 1024 字符，
+        // 审计摘要允许安全截断，不能让“错误信息太长”反过来导致整条审计丢失。
+        salesforce_error_message_safe: optionalTruncatedText(apiCall.salesforceErrorMessage, 1024),
         request_size_bytes: optionalSize(apiCall.requestSizeBytes),
         response_size_bytes: optionalSize(apiCall.responseSizeBytes),
         content_type: optionalText(apiCall.contentType, 256),
@@ -221,6 +226,13 @@ function requiredText(value: string, maximum: number, name: string): string {
 
 function optionalText(value: string | null, maximum: number): string | null {
   return value === null ? null : requiredText(value, maximum, 'Audit text');
+}
+
+function optionalTruncatedText(value: string | null, maximum: number): string | null {
+  if (value === null) return null;
+  const sanitized = sanitizeAuditText(value).trim();
+  if (sanitized.length === 0) return null;
+  return sanitized.slice(0, maximum);
 }
 
 function optionalSize(value: number | null): string | null {

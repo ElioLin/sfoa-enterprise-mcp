@@ -301,6 +301,8 @@ if (!setup) {
           .select([
             'sfoa_salesforce_api_call.audit_id', 'sfoa_salesforce_api_call.sequence',
             'sfoa_salesforce_api_call.salesforce_username', 'sfoa_salesforce_api_call.request_url',
+            'sfoa_salesforce_api_call.endpoint', 'sfoa_salesforce_api_call.endpoint_path',
+            'sfoa_salesforce_api_call.salesforce_error_message_safe',
             'sfoa_audit_log.public_audit_id', 'sfoa_audit_log.platform_user_id', 'sfoa_audit_log.tool_name',
           ])
           .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
@@ -320,6 +322,19 @@ if (!setup) {
           assert.equal(ownedApi[0]?.request_url?.includes(marker), true);
           assert.equal(ownedApi[0]?.platform_user_id, `platform_${marker}`);
           assert.equal(ownedApi[0]?.tool_name, snapshot.auditCall.toolName);
+          if (snapshot.auditCall.platformUserId?.endsWith('_0_ONLY')) {
+            const expectedApi = snapshot.salesforceApiCalls[0];
+            assert.equal((expectedApi?.endpointPath?.length ?? 0) > 1_024, true);
+            assert.equal(ownedApi[0]?.request_url, expectedApi?.requestUrl);
+            assert.equal(ownedApi[0]?.endpoint_path, expectedApi?.endpointPath);
+            assert.equal(ownedApi[0]?.request_url?.endsWith(`long_url_end_marker=${marker}`), true);
+            assert.equal(ownedApi[0]?.endpoint, expectedApi?.endpointPath?.slice(0, 1_024));
+            assert.equal(ownedApi[0]?.endpoint?.length, 1_024);
+          }
+          if (snapshot.auditCall.platformUserId?.endsWith('_1_ONLY')) {
+            assert.equal(ownedApi[0]?.salesforce_error_message_safe?.length, 1_024);
+            assert.equal(ownedApi[0]?.salesforce_error_message_safe, 'E'.repeat(1_024));
+          }
         }
       }
       const orphan = await sql<{ count: string }>`
@@ -695,6 +710,9 @@ function mysqlSnapshot(unique: number, concurrency: number, index: number): Audi
   context.collector().record({
     eventCategory: 'MCP', eventType: 'TOOL_INVOCATION_STARTED', eventName: `${marker} started`, status: 'STARTED',
   });
+  const longQuerySuffix = index === 0
+    ? `&soql=${'X'.repeat(1_500)}&long_url_end_marker=${marker}`
+    : '';
   context.collector().recordSalesforceApiCall(Object.freeze({
     publicApiCallId: `10000000-0000-4000-8000-${String(unique).padStart(12, '0')}`,
     auditId,
@@ -705,18 +723,18 @@ function mysqlSnapshot(unique: number, concurrency: number, index: number): Audi
     apiCategory: 'REST_API',
     apiVersion: '65.0',
     httpMethod: 'GET',
-    requestUrl: `https://example.invalid/services/data/v65.0/query?marker=${marker}`,
+    requestUrl: `https://example.invalid/services/data/v65.0/query?marker=${marker}${longQuerySuffix}`,
     host: 'example.invalid',
-    endpointPath: `/services/data/v65.0/query?marker=${marker}`,
+    endpointPath: `/services/data/v65.0/query?marker=${marker}${longQuerySuffix}`,
     operationName: null,
     purpose: 'USER_QUERY',
     startedAt: '2026-08-30T01:00:00.001Z',
     completedAt: '2026-08-30T01:00:00.005Z',
     durationMs: 4,
-    httpStatus: 200,
-    result: 'SUCCESS',
-    salesforceErrorCode: null,
-    salesforceErrorMessage: null,
+    httpStatus: index === 1 ? 400 : 200,
+    result: index === 1 ? 'FAILED' : 'SUCCESS',
+    salesforceErrorCode: index === 1 ? 'LONG_VALIDATION_ERROR' : null,
+    salesforceErrorMessage: index === 1 ? 'E'.repeat(1_500) : null,
     requestSizeBytes: null,
     responseSizeBytes: 64,
     contentType: 'application/json',

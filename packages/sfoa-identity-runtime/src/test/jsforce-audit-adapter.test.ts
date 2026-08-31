@@ -130,6 +130,67 @@ test('OAuth evidence records the real endpoint but never its assertion, token, c
   assert.doesNotMatch(JSON.stringify(calls), /access-token-secret|jwt-secret|client-secret/u);
 });
 
+test('size evidence uses Content-Length and leaves unknown or large request sizes null', async (t) => {
+  const payload = JSON.stringify({ records: 'X'.repeat(32_768) });
+  const server = createServer((request, response) => {
+    const headers = request.url?.endsWith('/with-content-length')
+      ? { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(payload)) }
+      : { 'content-type': 'application/json' };
+    response.writeHead(200, headers);
+    response.end(payload);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => closeServer(server));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+
+  const controller = auditController('size-user@example.invalid');
+  await runWithRequestAuditContext(controller, async () => {
+    await new Transport().httpRequest({
+      method: 'GET',
+      url: `http://127.0.0.1:${address.port}/services/data/v65.0/with-content-length`,
+    }, { httpProxy: '' });
+    await new Transport().httpRequest({
+      method: 'POST',
+      url: `http://127.0.0.1:${address.port}/services/data/v65.0/without-content-length`,
+      body: 'R'.repeat(32_768),
+    }, { httpProxy: '' });
+  });
+  finishAudit(controller);
+
+  const calls = apiCalls(controller);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.responseSizeBytes, Buffer.byteLength(payload));
+  assert.equal(calls[1]?.responseSizeBytes, null);
+  assert.equal(calls[1]?.requestSizeBytes, null);
+});
+
+test('a 1500-character Salesforce error preserves the original JSforce error semantics', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('long-error-user@example.invalid');
+  const connection = new Connection({
+    instanceUrl: server.url,
+    accessToken: 'long-error-test-token',
+    version: '65.0',
+    httpProxy: '',
+  });
+
+  const originalError = await runWithRequestAuditContext(controller, () =>
+    connection.request(`${server.url}/services/data/v65.0/long-error`)
+      .then(() => undefined, (error: unknown) => error));
+  assert.ok(originalError instanceof Error);
+  assert.equal(originalError.message, 'E'.repeat(1_500));
+  assert.equal((originalError as Error & { errorCode?: string }).errorCode, 'LONG_VALIDATION_ERROR');
+  finishAudit(controller);
+
+  const calls = apiCalls(controller);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.httpStatus, 400);
+  assert.equal(calls[0]?.salesforceErrorCode, 'LONG_VALIDATION_ERROR');
+  assert.equal(calls[0]?.salesforceErrorMessage, 'E'.repeat(1_500));
+});
+
 test('each JSforce retry attempt is captured exactly once with its real HTTP status', async (t) => {
   const server = await mockSalesforceServer();
   t.after(() => closeServer(server.server));
@@ -260,6 +321,11 @@ async function mockSalesforceServer(): Promise<Readonly<{
       return;
     }
     if (path.endsWith('/timeout') || path.endsWith('/abort')) return;
+    if (path.endsWith('/long-error')) {
+      response.writeHead(400, { 'content-type': 'application/json' });
+      response.end(JSON.stringify([{ errorCode: 'LONG_VALIDATION_ERROR', message: 'E'.repeat(1_500) }]));
+      return;
+    }
     const statusMatch = /\/failure\/(\d{3})$/u.exec(path);
     if (statusMatch?.[1]) {
       const status = Number(statusMatch[1]);
