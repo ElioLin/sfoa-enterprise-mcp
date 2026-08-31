@@ -1,11 +1,18 @@
-import type { AuditSnapshot } from '@sfoa/identity-runtime';
+import { createHash } from 'node:crypto';
+import {
+  MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST,
+  MAX_PAYLOAD_EVIDENCE_PER_REQUEST,
+  type AuditSnapshot,
+} from '@sfoa/identity-runtime';
 import type { Insertable, Transaction } from 'kysely';
 import {
   auditEventCategorySchema,
   auditEventNameSchema,
   auditEventStatusSchema,
   auditEventTypeSchema,
+  auditContentTypeSchema,
   auditIntegrityStatusSchema,
+  auditPayloadTypeSchema,
   auditPurposeSchema,
   auditSequenceSchema,
   auditedHttpMethodSchema,
@@ -18,7 +25,7 @@ import {
   salesforceUsernameSchema,
   toolNameSchema,
 } from './contracts.js';
-import { encodeBoundedAuditJson, sanitizeAuditText } from './audit-sanitization.js';
+import { encodeBoundedAuditJson, encodeBoundedAuditPayload, sanitizeAuditText } from './audit-sanitization.js';
 import {
   AuditBatchPersistenceError,
   type AuditBatchSink,
@@ -30,6 +37,7 @@ import { MySqlAuditRepository } from './mysql-audit-repository.js';
 import type {
   AuditEventTable,
   AuditLogTable,
+  AuditPayloadEvidenceTable,
   ControlPlaneDatabase,
   SalesforceApiCallTable,
 } from './schema.js';
@@ -69,9 +77,7 @@ async function persistSnapshots(
   if (new Set(publicIds).size !== publicIds.length) {
     throw new AuditBatchPersistenceError('An Audit batch contains duplicate public Audit IDs.', false);
   }
-  if (snapshots.some((snapshot) => snapshot.payloadEvidence.length > 0)) {
-    throw new AuditBatchPersistenceError('P7-04 snapshots cannot contain P7-05/P7-06 payload evidence.', false);
-  }
+  validatePayloadSnapshotBounds(snapshots);
 
   await database.insertInto('sfoa_audit_log').values(
     snapshots.map((snapshot) => callRow(snapshot)),
@@ -165,6 +171,74 @@ async function persistSnapshots(
   }
   if (apiRows.length > 0) {
     await database.insertInto('sfoa_salesforce_api_call').values(apiRows).executeTakeFirstOrThrow();
+  }
+  const auditIds = [...ids.values()];
+  const [persistedEvents, persistedApiCalls] = await Promise.all([
+    database.selectFrom('sfoa_audit_event').select(['id', 'audit_id', 'sequence'])
+      .where('audit_id', 'in', auditIds).execute(),
+    database.selectFrom('sfoa_salesforce_api_call').select(['id', 'audit_id', 'public_api_call_id'])
+      .where('audit_id', 'in', auditIds).execute(),
+  ]);
+  const eventIds = new Map(persistedEvents.map((event) => [
+    `${String(event.audit_id)}:${String(event.sequence)}`,
+    String(event.id),
+  ]));
+  const apiIds = new Map(persistedApiCalls.map((apiCall) => [
+    parsePublicAuditId(apiCall.public_api_call_id),
+    Object.freeze({ id: String(apiCall.id), auditId: String(apiCall.audit_id) }),
+  ]));
+  const payloadRows: Insertable<AuditPayloadEvidenceTable>[] = [];
+  for (const snapshot of snapshots) {
+    const auditId = ids.get(parsePublicAuditId(snapshot.auditCall.publicAuditId));
+    if (!auditId) throw new AuditBatchPersistenceError('An inserted Audit master ID is missing for payload evidence.', true);
+    for (const payload of snapshot.payloadEvidence) {
+      if (Buffer.byteLength(payload.safePayload, 'utf8') !== payload.storedSizeBytes) {
+        throw new AuditBatchPersistenceError('Payload snapshot storedSizeBytes does not match safePayload.', false);
+      }
+      const eventId = payload.auditEventSequence === null
+        ? null
+        : eventIds.get(`${auditId}:${String(payload.auditEventSequence)}`);
+      if (payload.auditEventSequence !== null && !eventId) {
+        throw new AuditBatchPersistenceError('Payload evidence references an event outside its Audit.', false);
+      }
+      const apiBinding = payload.salesforceApiCallPublicId === null
+        ? undefined
+        : apiIds.get(parsePublicAuditId(payload.salesforceApiCallPublicId));
+      if (payload.salesforceApiCallPublicId !== null && (!apiBinding || apiBinding.auditId !== auditId)) {
+        throw new AuditBatchPersistenceError('Payload evidence references a Salesforce API call outside its Audit.', false);
+      }
+      const encoded = encodeBoundedAuditPayload(payload.safePayload);
+      const persistedPayload = encoded.safePayload ?? '';
+      payloadRows.push({
+        audit_id: auditId,
+        salesforce_api_call_id: apiBinding?.id ?? null,
+        audit_event_id: eventId ?? null,
+        payload_type: auditPayloadTypeSchema.parse(payload.payloadType),
+        content_type: auditContentTypeSchema.parse(sanitizeAuditText(payload.contentType)),
+        original_size_bytes: payload.originalSizeBytes === null ? null : optionalSize(payload.originalSizeBytes),
+        stored_size_bytes: Buffer.byteLength(persistedPayload, 'utf8'),
+        truncated: payload.truncated || encoded.truncated,
+        // Hash semantics: SHA-256 of the exact secret-safe payload persisted below,
+        // never a claim about an omitted/truncated original body.
+        content_sha256: createHash('sha256').update(persistedPayload, 'utf8').digest('hex'),
+        safe_payload: persistedPayload,
+      });
+    }
+  }
+  if (payloadRows.length > 0) {
+    await database.insertInto('sfoa_audit_payload_evidence').values(payloadRows).executeTakeFirstOrThrow();
+  }
+}
+
+function validatePayloadSnapshotBounds(snapshots: readonly AuditSnapshot[]): void {
+  for (const snapshot of snapshots) {
+    if (snapshot.payloadEvidence.length > MAX_PAYLOAD_EVIDENCE_PER_REQUEST) {
+      throw new AuditBatchPersistenceError('An Audit snapshot exceeds the payload evidence count limit.', false);
+    }
+    const total = snapshot.payloadEvidence.reduce((sum, payload) => sum + payload.storedSizeBytes, 0);
+    if (total > MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST) {
+      throw new AuditBatchPersistenceError('An Audit snapshot exceeds the payload evidence byte budget.', false);
+    }
   }
 }
 

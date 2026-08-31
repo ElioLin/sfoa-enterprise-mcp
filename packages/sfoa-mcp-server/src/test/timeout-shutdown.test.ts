@@ -7,13 +7,25 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
+  AsyncAuditPipeline,
+  DatabaseRuntimeLogger,
+  type AuditRepository,
+} from '@sfoa/control-plane';
+import {
   McpTool,
   type McpToolConfig,
   ReleaseState,
   type Services,
   Toolset,
 } from '@salesforce/mcp-provider-api';
-import type { RequestToolSource } from '@sfoa/identity-runtime';
+import type {
+  AuditSnapshot,
+  RequestAuditContextController,
+  RequestToolSource,
+  RuntimeLogEvent,
+  RuntimeLogger,
+} from '@sfoa/identity-runtime';
+import { NoopRuntimeLogger } from '@sfoa/identity-runtime';
 import { z } from 'zod';
 import { startRemoteMcpServer, type RemoteMcpServer } from '../http-server.js';
 import { installGracefulShutdown } from '../shutdown.js';
@@ -21,6 +33,7 @@ import {
   createTestIdentityRuntime,
   createTestRemoteConfig,
   mcpHeaders,
+  RecordingConnectionFactory,
   TEST_CLIENT_TOKEN,
   TEST_PLATFORM_USER_A,
   toolResultText,
@@ -49,6 +62,7 @@ class ControlledToolSource implements RequestToolSource {
     private readonly delayMs: number,
     private readonly waitForRelease = false,
     private readonly provideDelayMs = 0,
+    private readonly failureMessage?: string,
   ) {}
 
   public async provideTools(_services: Services): Promise<McpTool[]> {
@@ -63,6 +77,7 @@ class ControlledToolSource implements RequestToolSource {
     this.startResolver?.();
     if (this.waitForRelease) await this.gate;
     else await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    if (this.failureMessage) throw new Error(this.failureMessage);
     return { content: [{ type: 'text', text: 'controlled official result' }] };
   }
 
@@ -109,7 +124,8 @@ class ControlledGetUsernameTool extends McpTool<ControlledInputShape, z.ZodRawSh
 test('MCP_TOOL_TIMEOUT returns a stable Tool-level failure and cleans request resources', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-tool-timeout-'));
   const toolSource = new ControlledToolSource(150);
-  const identityRuntime = createTestIdentityRuntime(baseRoot);
+  const logger = new FinalSnapshotLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, new RecordingConnectionFactory(), logger);
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({
       enabledTools: Object.freeze(['get_username']),
@@ -125,12 +141,43 @@ test('MCP_TOOL_TIMEOUT returns a stable Tool-level failure and cleans request re
     const result = await client.callTool({ name: 'get_username', arguments: {} });
     assert.equal(result.isError, true);
     assert.match(toolResultText(result), /MCP_TOOL_TIMEOUT/u);
+    await waitFor(() => logger.snapshots.length === 1);
+    assertMcpPayloadTerminal(logger.snapshots[0], 'MCP_TOOL_TIMEOUT', 'FAILED');
     await waitFor(() => identityRuntime.workspaceFactory.getMetrics().active === 0);
     assert.equal(server.getMetrics().cleanupFailures, 0);
   } finally {
     await client?.close().catch(() => undefined);
     await server.close();
+    await logger.close();
     await new Promise((resolve) => setTimeout(resolve, 170));
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
+test('Tool execution error retains logical failure plus finished MCP request/response evidence', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p7-tool-error-'));
+  const logger = new FinalSnapshotLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, new RecordingConnectionFactory(), logger);
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({ enabledTools: Object.freeze(['get_username']) }),
+    identityRuntime,
+    toolSource: new ControlledToolSource(0, false, 0, 'controlled Tool failure'),
+  });
+  let client: Client | undefined;
+  try {
+    client = await connectClient(server);
+    const result = await client.callTool({ name: 'get_username', arguments: {} });
+    assert.equal(result.isError, true);
+    await waitFor(() => logger.snapshots.length === 1);
+    const snapshot = logger.snapshots[0];
+    assert.equal(snapshot?.auditCall.outcome, 'FAILED');
+    assert.deepEqual(snapshot?.payloadEvidence.map((payload) => payload.payloadType), ['MCP_REQUEST', 'MCP_RESPONSE']);
+    assert.match(snapshot?.payloadEvidence[1]?.safePayload ?? '', /isError/u);
+    assertTransportFinished(snapshot);
+  } finally {
+    await client?.close().catch(() => undefined);
+    await server.close();
+    await logger.close();
     await rm(baseRoot, { recursive: true, force: true });
   }
 });
@@ -138,7 +185,8 @@ test('MCP_TOOL_TIMEOUT returns a stable Tool-level failure and cleans request re
 test('MCP_REQUEST_TIMEOUT stops waiting, returns 504, and closes the request workspace', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-request-timeout-'));
   const toolSource = new ControlledToolSource(1_000, false, 300);
-  const identityRuntime = createTestIdentityRuntime(baseRoot);
+  const logger = new FinalSnapshotLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, new RecordingConnectionFactory(), logger);
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({
       enabledTools: Object.freeze(['get_username']),
@@ -166,15 +214,82 @@ test('MCP_REQUEST_TIMEOUT stops waiting, returns 504, and closes the request wor
     assert.equal(response.status, 504);
     assert.match(body, /MCP_REQUEST_TIMEOUT/u);
     assert.equal(toolSource.invocations, 1, 'the read-only Tool must have started before the request timeout');
+    await waitFor(() => logger.snapshots.length === 1);
+    assertMcpPayloadTerminal(logger.snapshots[0], 'MCP_REQUEST_TIMEOUT', 'FAILED');
     await waitFor(() => identityRuntime.workspaceFactory.getMetrics().active === 0);
     assert.equal(identityRuntime.workspaceFactory.getMetrics().created, identityRuntime.workspaceFactory.getMetrics().cleaned);
     assert.equal(server.getMetrics().cleanupFailures, 0);
   } finally {
     await server.close();
+    await logger.close();
     await new Promise((resolve) => setTimeout(resolve, 1_050));
     await rm(baseRoot, { recursive: true, force: true });
   }
 });
+
+class FinalSnapshotLogger implements RuntimeLogger {
+  public readonly snapshots: AuditSnapshot[] = [];
+  private readonly pipeline = new AsyncAuditPipeline({
+    persist: async (entries) => {
+      for (const entry of entries) {
+        if (entry.kind === 'SNAPSHOT') this.snapshots.push(entry.snapshot);
+      }
+    },
+  }, new NoopRuntimeLogger(), { flushIntervalMs: 0 });
+  private readonly delegate = new DatabaseRuntimeLogger(
+    unusedAuditRepository(),
+    new NoopRuntimeLogger(),
+    undefined,
+    this.pipeline,
+  );
+
+  public log(event: RuntimeLogEvent): Promise<void> {
+    return this.delegate.log(event);
+  }
+
+  public finalizeRequestAudit(context: RequestAuditContextController): void {
+    this.delegate.finalizeRequestAudit(context);
+  }
+
+  public async close(): Promise<void> {
+    await this.pipeline.close(2_000);
+  }
+}
+
+function unusedAuditRepository(): AuditRepository {
+  return {
+    append: async () => { throw new Error('request path must not call AuditRepository.append'); },
+    getById: async () => undefined,
+    search: async (filter) => Object.freeze({
+      items: Object.freeze([]), total: 0, limit: filter.limit, offset: filter.offset,
+      count: 0, hasMore: false, nextOffset: null,
+    }),
+    countSince: async () => Object.freeze({ total: 0, pass: 0, blocked: 0, error: 0, unknown: 0 }),
+  };
+}
+
+function assertMcpPayloadTerminal(
+  snapshot: AuditSnapshot | undefined,
+  errorCode: string,
+  outcome: AuditSnapshot['auditCall']['outcome'],
+): void {
+  assert.ok(snapshot);
+  assert.equal(snapshot.auditCall.errorCode, errorCode);
+  assert.equal(snapshot.auditCall.outcome, outcome);
+  assert.deepEqual(snapshot.payloadEvidence.map((payload) => payload.payloadType), ['MCP_REQUEST', 'MCP_RESPONSE']);
+  assert.match(snapshot.payloadEvidence[1]?.safePayload ?? '', new RegExp(errorCode, 'u'));
+  assertTransportFinished(snapshot);
+}
+
+function assertTransportFinished(snapshot: AuditSnapshot | undefined): void {
+  assert.ok(snapshot);
+  const transport = snapshot.auditEvents.find((event) => event.eventType === 'MCP_TRANSPORT_TERMINAL');
+  assert.ok(transport);
+  const summary = transport.safeSummary as Record<string, unknown>;
+  assert.equal(summary.transportStatus, 'RESPONSE_FINISHED');
+  assert.equal(summary.responseFinished, true);
+  assert.equal(summary.clientReceiptConfirmed, false);
+}
 
 test('graceful shutdown stops listening and drains an in-flight request before closing', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p2-shutdown-'));

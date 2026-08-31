@@ -22,6 +22,7 @@ import type {
   SalesforceApiSemanticEvidence,
   SalesforceApiPurpose,
 } from './request-audit-collector.js';
+import type { RequestAuditPayloadEvidenceInput } from './audit-payload.js';
 import { classifySalesforceApiUrl } from './salesforce-api-classifier.js';
 
 const INSTALL_MARKER = Symbol.for('@sfoa/identity-runtime/jsforce-audit-adapter-installed');
@@ -51,6 +52,7 @@ type WireAttempt = Readonly<{
   startedAtMs: number;
   request: HttpRequest;
   requestSizeBytes: number | null;
+  requestPayload?: RequestAuditPayloadEvidenceInput;
   semanticEvidence: SalesforceApiSemanticEvidence;
 }>;
 
@@ -198,9 +200,12 @@ function captureAttempt(
   }>,
 ): void {
   observation.capturedAttempts += 1;
-  safelyCapture(observation.controller, () => {
-    const classification = classifySalesforceApiUrl(attempt.request.url);
-    if (!classification) throw new Error('JSforce emitted an invalid absolute request URL.');
+  const classification = classifySalesforceApiUrl(attempt.request.url);
+  if (!classification) {
+    observation.controller.collector().recordSalesforceApiCaptureFailure();
+    return;
+  }
+  const captured = safelyCapture(observation.controller, () => {
     const httpStatus = outcome.statusCode && outcome.statusCode >= 100 ? outcome.statusCode : null;
     const failed = outcome.error !== undefined || (httpStatus !== null && httpStatus >= 400);
     const salesforceError = failed && outcome.responseBody !== undefined
@@ -236,6 +241,21 @@ function captureAttempt(
       ...attempt.semanticEvidence,
     } satisfies RequestAuditSalesforceApiCallSnapshot;
   });
+  if (!captured || classification.apiCategory === 'OAUTH') return;
+  if (attempt.requestPayload) {
+    observation.controller.collector().recordPayloadEvidence(attempt.requestPayload);
+  }
+  if (outcome.responseBody !== undefined && outcome.responseBody.length > 0) {
+    const failed = outcome.error !== undefined || (outcome.statusCode !== undefined && outcome.statusCode >= 400);
+    observation.controller.collector().recordPayloadEvidence({
+      payloadType: failed ? 'ERROR_RESPONSE' : 'SALESFORCE_RESPONSE',
+      contentType: outcome.contentType ?? 'application/octet-stream',
+      payload: outcome.responseBody,
+      originalSizeBytes: outcome.responseSizeBytes ?? boundedStringByteLength(outcome.responseBody),
+      salesforceApiCallPublicId: attempt.publicApiCallId,
+      priority: failed ? 'ERROR' : 'GENERAL',
+    });
+  }
 }
 
 function createWireAttempt(
@@ -248,13 +268,15 @@ function createWireAttempt(
   const options = requestOptions(args);
   const method = auditedMethod(options?.method) ?? observation.logicalRequest.method;
   const publicApiCallId = randomUUID();
+  const request = Object.freeze({ ...observation.logicalRequest, url: actualUrl, method });
   return Object.freeze({
     publicApiCallId,
     sequence: observation.controller.nextSequence(),
     startedAt: new Date(startedAtMs).toISOString(),
     startedAtMs,
-    request: Object.freeze({ url: actualUrl, method }),
+    request,
     requestSizeBytes: contentLength(options) ?? byteLength(observation.logicalRequest.body),
+    requestPayload: salesforceRequestPayload(request, publicApiCallId, options),
     semanticEvidence: semanticEvidenceForAttempt(observation, publicApiCallId, actualUrl),
   });
 }
@@ -269,6 +291,7 @@ function createLogicalFallbackAttempt(observation: JsforceObservation): WireAtte
     startedAtMs,
     request: observation.logicalRequest,
     requestSizeBytes: byteLength(observation.logicalRequest.body),
+    requestPayload: salesforceRequestPayload(observation.logicalRequest, publicApiCallId),
     semanticEvidence: semanticEvidenceForAttempt(observation, publicApiCallId, observation.logicalRequest.url),
   });
 }
@@ -348,12 +371,57 @@ function emptySemanticEvidence(): SalesforceApiSemanticEvidence {
 function safelyCapture(
   controller: RequestAuditContextController,
   factory: () => RequestAuditSalesforceApiCallSnapshot,
-): void {
+): boolean {
   try {
-    controller.collector().recordSalesforceApiCall(factory());
+    return controller.collector().recordSalesforceApiCall(factory());
   } catch {
     controller.collector().recordSalesforceApiCaptureFailure();
+    return false;
   }
+}
+
+function salesforceRequestPayload(
+  request: HttpRequest,
+  publicApiCallId: string,
+  options?: RequestOptions,
+): RequestAuditPayloadEvidenceInput | undefined {
+  const body = request.body;
+  if (body === undefined || body === null || request.method === 'GET' || request.method === 'HEAD') return undefined;
+  if (typeof body !== 'string' && !Buffer.isBuffer(body)) return undefined;
+  const boundedPayload = typeof body === 'string'
+    ? body.slice(0, MAX_AUDIT_PAYLOAD_CAPTURE_SOURCE)
+    : Buffer.from(body.subarray(0, MAX_AUDIT_PAYLOAD_CAPTURE_SOURCE));
+  return Object.freeze({
+    payloadType: 'SALESFORCE_REQUEST',
+    contentType: requestContentType(request, options),
+    payload: boundedPayload,
+    originalSizeBytes: contentLength(options) ?? byteLength(body),
+    truncated: typeof body === 'string'
+      ? body.length > MAX_AUDIT_PAYLOAD_CAPTURE_SOURCE
+      : body.byteLength > MAX_AUDIT_PAYLOAD_CAPTURE_SOURCE,
+    salesforceApiCallPublicId: publicApiCallId,
+    priority: 'GENERAL',
+  });
+}
+
+function requestContentType(request: HttpRequest, options?: RequestOptions): string {
+  const fromOptions = options?.headers && !Array.isArray(options.headers)
+    ? Object.entries(options.headers).find(([name]) => name.toLowerCase() === 'content-type')?.[1]
+    : undefined;
+  const optionValue = Array.isArray(fromOptions) ? fromOptions[0] : fromOptions;
+  if (typeof optionValue === 'string') return optionValue.slice(0, 128);
+  if (typeof optionValue === 'number') return String(optionValue);
+  const headers = isRecord(request.headers) ? request.headers : undefined;
+  const logicalValue = headers
+    ? Object.entries(headers).find(([name]) => name.toLowerCase() === 'content-type')?.[1]
+    : undefined;
+  return typeof logicalValue === 'string' ? logicalValue.slice(0, 128) : 'application/octet-stream';
+}
+
+const MAX_AUDIT_PAYLOAD_CAPTURE_SOURCE = 262_144;
+
+function boundedStringByteLength(value: string): number | null {
+  return value.length <= MAX_AUDIT_PAYLOAD_CAPTURE_SOURCE ? Buffer.byteLength(value, 'utf8') : null;
 }
 
 function nodeRequestUrl(args: readonly unknown[], defaultProtocol: 'http:' | 'https:'): string | undefined {

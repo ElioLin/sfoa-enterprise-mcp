@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 through P7-03 are complete; P7-04 and P7-05 are implemented awaiting review; P7-06–P7-08 remain unstarted
+Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 through P7-05 are complete; P7-06 is implemented awaiting review; P7-07–P7-08 remain unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -670,7 +670,13 @@ The adapter returns the original StreamPromise, ClientRequest, Response, Query r
 
 P7-05 adds a semantic child scope to the existing P7-02 Request Audit AsyncLocalStorage store; it does not create a second Request Context. Query/DML facades contribute the original business SOQL or requested/managed fields, the DML executor contributes the exact final dispatch fields, and the P7-04 adapter binds that immutable evidence to the UUID allocated for the real wire attempt. JSforce Query's already-parsed `response` event contributes only `totalSize`, `records.length`, `done`, and `nextRecordsUrl` existence; the adapter never parses or clones the response body for semantic auditing. Result and CREATE ID enrichment updates only the matching `publicApiCallId`; it never searches for the last Audit row and never creates a row. ALS `run()` nesting isolates managed lookup SOQL from the following mutation, and parallel branches receive separate semantic scopes.
 
-SOQL is capped at 65,535 characters. Requested, managed, and submitted DML evidence is independently copied as scalar-only audit data with at most 200 fields, 4,096 characters per string, and 16 KiB per field map. Truncation, parser/encoder loss, URL-only fallback, missing binding, or a dropped P7-04 row marks integrity `PARTIAL` and remains fail-open. Migration 007 adds `has_next_records` and `submitted_fields_json`; the existing P7-03 Queue/Writer/Batch Sink remains the only persistence path. P7-06 MCP payload capture remains unimplemented.
+SOQL is capped at 65,535 characters. Requested, managed, and submitted DML evidence is independently copied as scalar-only audit data with at most 200 fields, 4,096 characters per string, and 16 KiB per field map. Truncation, parser/encoder loss, URL-only fallback, missing binding, or a dropped P7-04 row marks integrity `PARTIAL` and remains fail-open. Migration 007 adds `has_next_records` and `submitted_fields_json`; the existing P7-03 Queue/Writer/Batch Sink remains the only persistence path.
+
+P7-06 reuses the definite-`tools/call` bounded body read. The same parse operation returns the raw request source and size, so `MCP_REQUEST` is recorded before Identity without reading the request stream twice. A request-local bounded recorder wraps only that `ServerResponse` instance: original `write/end` executes first and retains its return/backpressure/error behavior, while Audit copies at most the remaining prefix budget. `finish` records only `RESPONSE_FINISHED` and `clientReceiptConfirmed=false`; `close` before finish is `CLIENT_DISCONNECTED`. The logical Tool terminal `responseSummary` is retained independently from the actual `MCP_RESPONSE` wire prefix and any higher-authority request/transport terminal.
+
+The P7-04 JSforce adapter now captures non-GET/HEAD request bodies from the already-built `HttpRequest` and only the final logically returned `HttpResponse.body`. It never adds a Salesforce `IncomingMessage.data` listener. Intermediate retries therefore retain HTTP facts but no unprovable response body; the final body binds only to its exact `publicApiCallId`. OAuth payload capture remains zero. Runtime association uses request-local Event sequence and public API UUID; the background transaction resolves both to same-Audit database IDs before inserting Payload rows.
+
+Payload collection is capped at 262,144 UTF-8 bytes per evidence, 64 evidence per Audit, and 1 MiB total, with 256 KiB reserved for critical errors and another 256 KiB for MCP core request/response evidence. Drop, truncation, or capture failure marks integrity `PARTIAL` and never changes Tool/Salesforce results. Unknown original size remains NULL via migration 008. SHA-256 is computed only by the background Writer over the exact secret-safe persisted prefix. Ordinary Audit search/count still queries only the master table; Payload is available only through explicit per-Audit/per-ID trace repository reads. No React Workbench is part of P7-06.
 
 ## Data, cache, and security baseline
 

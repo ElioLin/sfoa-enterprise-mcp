@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   AUDIT_REDACTION_MARKER,
@@ -39,7 +40,7 @@ test('audit sanitization recursively removes obvious authentication secrets whil
   assert.equal(containsObviousAuditSecret('SFOA_UB1_fake-secret-token'), true);
 });
 
-test('bounded payload capture never exceeds 256 KiB and hashes the complete sanitized evidence', () => {
+test('bounded payload capture never exceeds 256 KiB and hashes the persisted safe prefix', () => {
   const payload = `Bearer fake-secret ${'测'.repeat(100_000)}`;
   const encoded = encodeBoundedAuditPayload(payload);
 
@@ -47,6 +48,10 @@ test('bounded payload capture never exceeds 256 KiB and hashes the complete sani
   assert.equal(encoded.storedSizeBytes <= MAX_AUDIT_PAYLOAD_BYTES, true);
   assert.equal(Buffer.byteLength(encoded.safePayload ?? '', 'utf8'), encoded.storedSizeBytes);
   assert.match(encoded.contentSha256 ?? '', /^[0-9a-f]{64}$/u);
+  assert.equal(
+    encoded.contentSha256,
+    createHash('sha256').update(encoded.safePayload ?? '', 'utf8').digest('hex'),
+  );
   assert.equal((encoded.safePayload ?? '').includes('fake-secret'), false);
   assert.equal(containsObviousAuditSecret(encoded.safePayload ?? ''), false);
 });

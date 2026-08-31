@@ -1,4 +1,9 @@
 import type { RequestAuditContext } from './request-audit-context.js';
+import {
+  MAX_AUDIT_PAYLOAD_BYTES,
+  prepareRequestAuditPayload,
+  type RequestAuditPayloadEvidenceInput,
+} from './audit-payload.js';
 
 export type RequestAuditTerminalOutcome = 'SUCCESS' | 'FAILED' | 'DENIED' | 'UNKNOWN';
 export type RequestAuditTerminalSource = 'IDENTITY' | 'GOVERNANCE' | 'TOOL' | 'REQUEST' | 'TRANSPORT';
@@ -154,7 +159,18 @@ export type SalesforceApiSemanticEnrichment = Partial<Pick<
   SalesforceApiSemanticEvidence,
   'totalSize' | 'returnedRecords' | 'done' | 'hasNextRecords' | 'recordId'
 >>;
-export type RequestAuditPayloadEvidenceSnapshot = Readonly<Record<string, never>>;
+export type RequestAuditPayloadEvidenceSnapshot = Readonly<{
+  payloadType: 'MCP_REQUEST' | 'MCP_RESPONSE' | 'SALESFORCE_REQUEST' | 'SALESFORCE_RESPONSE' | 'ERROR_RESPONSE';
+  contentType: string;
+  safePayload: string;
+  originalSizeBytes: number | null;
+  storedSizeBytes: number;
+  truncated: boolean;
+  /** Computed by the background Writer over the persisted safePayload. */
+  contentSha256: null;
+  salesforceApiCallPublicId: string | null;
+  auditEventSequence: number | null;
+}>;
 
 export type AuditSnapshot = Readonly<{
   version: 1;
@@ -166,6 +182,10 @@ export type AuditSnapshot = Readonly<{
 
 export const MAX_REQUEST_AUDIT_EVENTS = 256;
 export const MAX_SALESFORCE_API_CALLS_PER_REQUEST = 256;
+export const MAX_PAYLOAD_EVIDENCE_PER_REQUEST = 64;
+export const MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST = 1_048_576;
+export const ERROR_PAYLOAD_RESERVATION_BYTES = 262_144;
+export const MCP_CORE_PAYLOAD_RESERVATION_BYTES = 262_144;
 
 type SelectedTerminal = Readonly<{
   sequence: number;
@@ -175,12 +195,18 @@ type SelectedTerminal = Readonly<{
 export class RequestAuditCollector {
   private readonly events: RequestAuditEventSnapshot[] = [];
   private terminal: SelectedTerminal | undefined;
+  private logicalToolResponseSummary: unknown | undefined;
   private terminalEvent: RequestAuditEventSnapshot | undefined;
   private finalized: AuditSnapshot | undefined;
   private droppedEventCount = 0;
   private readonly salesforceApiCalls: RequestAuditSalesforceApiCallSnapshot[] = [];
   private droppedSalesforceApiCallCount = 0;
   private salesforceApiCaptureFailureCount = 0;
+  private readonly payloadEvidence: RequestAuditPayloadEvidenceSnapshot[] = [];
+  private payloadStoredSizeBytes = 0;
+  private droppedPayloadCount = 0;
+  private truncatedPayloadCount = 0;
+  private payloadCaptureFailureCount = 0;
 
   public constructor(
     private readonly context: () => RequestAuditContext,
@@ -189,7 +215,11 @@ export class RequestAuditCollector {
   ) {}
 
   public record(input: RequestAuditEventInput): boolean {
-    if (this.finalized) return false;
+    return this.recordEvent(input) !== null;
+  }
+
+  public recordEvent(input: RequestAuditEventInput): number | null {
+    if (this.finalized) return null;
     const sequence = this.nextSequence();
     const completedAt = input.completedAt ?? this.now().toISOString();
     const safeSummary = cloneAuditValue(input.safeSummary);
@@ -212,10 +242,10 @@ export class RequestAuditCollector {
 
     if (this.events.length >= MAX_REQUEST_AUDIT_EVENTS) {
       this.droppedEventCount += 1;
-      return false;
+      return null;
     }
     this.events.push(event);
-    return true;
+    return sequence;
   }
 
   public recordSalesforceApiCall(input: RequestAuditSalesforceApiCallSnapshot): boolean {
@@ -244,6 +274,57 @@ export class RequestAuditCollector {
 
   public recordSalesforceApiCaptureFailure(): void {
     if (!this.finalized) this.salesforceApiCaptureFailureCount += 1;
+  }
+
+  public recordPayloadEvidence(input: RequestAuditPayloadEvidenceInput): boolean {
+    if (this.finalized) return false;
+    try {
+      if (
+        input.salesforceApiCallPublicId !== undefined
+        && !isUuid(input.salesforceApiCallPublicId)
+      ) {
+        this.payloadCaptureFailureCount += 1;
+        return false;
+      }
+      const priority = input.priority
+        ?? (input.payloadType === 'ERROR_RESPONSE'
+          ? 'ERROR'
+          : input.payloadType === 'MCP_REQUEST' || input.payloadType === 'MCP_RESPONSE' ? 'CORE' : 'GENERAL');
+      const countCeiling = priority === 'ERROR'
+        ? MAX_PAYLOAD_EVIDENCE_PER_REQUEST
+        : priority === 'CORE' ? MAX_PAYLOAD_EVIDENCE_PER_REQUEST - 1 : MAX_PAYLOAD_EVIDENCE_PER_REQUEST - 2;
+      const byteCeiling = priority === 'ERROR'
+        ? MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST
+        : priority === 'CORE'
+          ? MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST - ERROR_PAYLOAD_RESERVATION_BYTES
+          : MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST
+            - ERROR_PAYLOAD_RESERVATION_BYTES
+            - MCP_CORE_PAYLOAD_RESERVATION_BYTES;
+      const remainingBytes = byteCeiling - this.payloadStoredSizeBytes;
+      if (this.payloadEvidence.length >= countCeiling || remainingBytes <= 0) {
+        this.droppedPayloadCount += 1;
+        return false;
+      }
+      const prepared = prepareRequestAuditPayload(input, Math.min(MAX_AUDIT_PAYLOAD_BYTES, remainingBytes));
+      const snapshot = deepFreeze({
+        payloadType: prepared.payloadType,
+        contentType: prepared.contentType,
+        safePayload: prepared.safePayload,
+        originalSizeBytes: prepared.originalSizeBytes,
+        storedSizeBytes: prepared.storedSizeBytes,
+        truncated: prepared.truncated,
+        contentSha256: null,
+        salesforceApiCallPublicId: prepared.salesforceApiCallPublicId,
+        auditEventSequence: prepared.auditEventSequence,
+      }) satisfies RequestAuditPayloadEvidenceSnapshot;
+      this.payloadEvidence.push(snapshot);
+      this.payloadStoredSizeBytes += snapshot.storedSizeBytes;
+      if (snapshot.truncated) this.truncatedPayloadCount += 1;
+      return true;
+    } catch {
+      this.payloadCaptureFailureCount += 1;
+      return false;
+    }
   }
 
   /** Enrich exactly one already-captured wire attempt. Never creates or reorders an API row. */
@@ -294,6 +375,13 @@ export class RequestAuditCollector {
         capturedSalesforceApiCallCount: this.salesforceApiCalls.length,
         droppedSalesforceApiCallCount: this.droppedSalesforceApiCallCount,
         salesforceApiCaptureFailureCount: this.salesforceApiCaptureFailureCount,
+        payloadEvidenceLimit: MAX_PAYLOAD_EVIDENCE_PER_REQUEST,
+        payloadEvidenceByteLimit: MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST,
+        capturedPayloadCount: this.payloadEvidence.length,
+        capturedPayloadBytes: this.payloadStoredSizeBytes,
+        droppedPayloadCount: this.droppedPayloadCount,
+        truncatedPayloadCount: this.truncatedPayloadCount,
+        payloadCaptureFailureCount: this.payloadCaptureFailureCount,
       },
       summary: terminal.requestSummary ?? null,
     };
@@ -323,15 +411,20 @@ export class RequestAuditCollector {
           selected &&
           this.droppedEventCount === 0 &&
           this.droppedSalesforceApiCallCount === 0 &&
-          this.salesforceApiCaptureFailureCount === 0
+          this.salesforceApiCaptureFailureCount === 0 &&
+          this.droppedPayloadCount === 0 &&
+          this.truncatedPayloadCount === 0 &&
+          this.payloadCaptureFailureCount === 0
             ? 'COMPLETE'
             : 'PARTIAL',
         requestSummary,
-        responseSummary: terminal.responseSummary ?? null,
+        // A higher-authority transport terminal may change the master outcome,
+        // but it must not erase a Tool result that the server already formed.
+        responseSummary: this.logicalToolResponseSummary ?? terminal.responseSummary ?? null,
       },
       auditEvents,
       salesforceApiCalls: [...this.salesforceApiCalls].sort((left, right) => left.sequence - right.sequence),
-      payloadEvidence: [],
+      payloadEvidence: [...this.payloadEvidence],
     }) satisfies AuditSnapshot;
     return this.finalized;
   }
@@ -356,6 +449,14 @@ export class RequestAuditCollector {
     return this.droppedSalesforceApiCallCount;
   }
 
+  public payloadEvidenceCount(): number {
+    return this.payloadEvidence.length;
+  }
+
+  public droppedPayloads(): number {
+    return this.droppedPayloadCount;
+  }
+
   private finalAuditEvents(): readonly RequestAuditEventSnapshot[] {
     if (
       this.droppedEventCount === 0 ||
@@ -371,6 +472,10 @@ export class RequestAuditCollector {
   }
 
   private selectTerminal(sequence: number, candidate: RequestAuditTerminalCandidate, eventSummary: unknown): boolean {
+    if (candidate.source === 'TOOL' && candidate.responseSummary !== undefined) {
+      const shared = isRecord(eventSummary) ? eventSummary : undefined;
+      this.logicalToolResponseSummary = shared?.response ?? cloneAuditValue(candidate.responseSummary);
+    }
     const current = this.terminal;
     if (!current || terminalPriority(candidate) > terminalPriority(current.candidate)) {
       const shared = isRecord(eventSummary) ? eventSummary : undefined;
@@ -420,6 +525,10 @@ function boundedText(value: string, maxLength: number, fallback: string): string
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value.trim());
 }
 
 function cloneAuditValue(value: unknown): unknown {

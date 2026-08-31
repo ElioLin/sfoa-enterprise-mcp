@@ -63,7 +63,38 @@ test('a five-second Audit Writer does not delay Tool response and health exposes
   }
   const snapshots = entries.filter((entry): entry is Extract<AuditQueueEntry, { kind: 'SNAPSHOT' }> => entry.kind === 'SNAPSHOT');
   assert.equal(snapshots.length, 1);
-  assert.equal(snapshots[0]?.snapshot.auditEvents.length, 2);
+  assert.equal(snapshots[0]?.snapshot.auditEvents.length, 3);
+  assert.deepEqual(
+    snapshots[0]?.snapshot.payloadEvidence.map((payload) => payload.payloadType),
+    ['MCP_REQUEST', 'MCP_RESPONSE'],
+  );
+});
+
+test('identity failure and governance block retain MCP request/response evidence without credential leakage', async () => {
+  const identity = await runFailedAuditRequest({
+    enabledTools: createTestRemoteConfig().enabledTools,
+    token: 'invalid-client-token-must-not-persist',
+    toolName: 'get_username',
+    marker: 'IDENTITY_FAILURE_REQUEST_ONLY',
+  });
+  assert.equal(identity.httpStatus, 401);
+  assert.equal(identity.snapshot.auditCall.outcome, 'DENIED');
+  assert.match(identity.snapshot.payloadEvidence[0]?.safePayload ?? '', /IDENTITY_FAILURE_REQUEST_ONLY/u);
+  assert.match(identity.snapshot.payloadEvidence[1]?.safePayload ?? '', /MCP_CLIENT_AUTH_INVALID/u);
+  assert.doesNotMatch(JSON.stringify(identity.snapshot), /invalid-client-token-must-not-persist/u);
+  assert.equal((identity.snapshot.auditEvents.at(-1)?.safeSummary as Record<string, unknown>).transportStatus, 'RESPONSE_FINISHED');
+
+  const governance = await runFailedAuditRequest({
+    enabledTools: Object.freeze(['get_username']),
+    token: TEST_CLIENT_TOKEN,
+    toolName: 'run_soql_query',
+    marker: 'GOVERNANCE_BLOCK_REQUEST_ONLY',
+  });
+  assert.equal(governance.snapshot.auditCall.outcome, 'DENIED');
+  assert.equal(governance.snapshot.auditCall.errorCode, 'MCP_TOOL_DISABLED');
+  assert.match(governance.snapshot.payloadEvidence[0]?.safePayload ?? '', /GOVERNANCE_BLOCK_REQUEST_ONLY/u);
+  assert.equal(governance.snapshot.payloadEvidence.some((payload) => payload.payloadType === 'MCP_RESPONSE'), true);
+  assert.equal(governance.snapshot.salesforceApiCalls.length, 0);
 });
 
 test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit binding', { timeout: 180_000 }, async () => {
@@ -114,13 +145,27 @@ test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit bindin
     .map((entry) => entry.snapshot);
   assert.equal(snapshots.length, 1_060);
   assert.equal(new Set(snapshots.map((snapshot) => snapshot.auditCall.publicAuditId)).size, 1_060);
-  assert.equal(snapshots.filter((snapshot) => snapshot.auditCall.auditIntegrityStatus !== 'COMPLETE').length, 0);
-  assert.equal(snapshots.filter((snapshot) => snapshot.auditEvents.length !== 2).length, 0);
-  assert.equal(snapshots.filter((snapshot) => snapshot.auditEvents[0]?.sequence !== 1 || snapshot.auditEvents[1]?.sequence !== 2).length, 0);
+  assert.equal(
+    snapshots.filter((snapshot) => snapshot.auditCall.auditIntegrityStatus !== 'COMPLETE').length,
+    0,
+    JSON.stringify(snapshots.find((snapshot) => snapshot.auditCall.auditIntegrityStatus !== 'COMPLETE')?.auditCall.requestSummary),
+  );
+  assert.equal(snapshots.filter((snapshot) => snapshot.auditEvents.length !== 3).length, 0);
+  assert.equal(snapshots.filter((snapshot) =>
+    snapshot.auditEvents[0]?.sequence !== 1
+    || snapshot.auditEvents[1]?.sequence !== 2
+    || snapshot.auditEvents[2]?.sequence !== 3).length, 0);
   assert.equal(snapshots.filter((snapshot) => !validIdentityBinding(snapshot.auditCall.platformUserId, snapshot.auditCall.salesforceUsername)).length, 0);
   assert.equal(snapshots.filter((snapshot) => !validCorrelationBinding(snapshot.auditCall.platformUserId, snapshot.auditCall.correlationId)).length, 0);
   assert.equal(snapshots.filter((snapshot) =>
-    snapshot.auditEvents.some((event) => event.eventName !== snapshot.auditCall.toolName)).length, 0);
+    snapshot.auditEvents.slice(0, 2).some((event) => event.eventName !== snapshot.auditCall.toolName)).length, 0);
+  assert.equal(snapshots.filter((snapshot) =>
+    snapshot.auditEvents[2]?.eventType !== 'MCP_TRANSPORT_TERMINAL'
+    || (snapshot.auditEvents[2]?.safeSummary as Record<string, unknown>).transportStatus !== 'RESPONSE_FINISHED').length, 0);
+  assert.equal(snapshots.filter((snapshot) => snapshot.payloadEvidence.length !== 2).length, 0);
+  assert.equal(snapshots.filter((snapshot) =>
+    snapshot.payloadEvidence[0]?.payloadType !== 'MCP_REQUEST'
+    || snapshot.payloadEvidence[1]?.payloadType !== 'MCP_RESPONSE').length, 0);
   assert.equal(pipeline.getHealth().droppedSnapshots, 0);
   assert.equal(on.connectionCreations, off.connectionCreations);
   assert.equal(on.restApiRequests, off.restApiRequests);
@@ -172,6 +217,49 @@ type LoadFixture = Readonly<{
   connectionFactory: RecordingConnectionFactory;
   close(): Promise<void>;
 }>;
+
+async function runFailedAuditRequest(input: Readonly<{
+  enabledTools: readonly string[];
+  token: string;
+  toolName: string;
+  marker: string;
+}>): Promise<Readonly<{ httpStatus: number; snapshot: Extract<AuditQueueEntry, { kind: 'SNAPSHOT' }>['snapshot'] }>> {
+  const root = await mkdtemp(path.join(tmpdir(), 'sfoa-p7-entry-evidence-'));
+  const entries: AuditQueueEntry[] = [];
+  const pipeline = new AsyncAuditPipeline({ persist: async (batch) => { entries.push(...batch); } }, new NoopRuntimeLogger(), {
+    flushIntervalMs: 0,
+  });
+  const server = await startRemoteMcpServer({
+    config: Object.freeze({ ...createTestRemoteConfig(), enabledTools: input.enabledTools }),
+    identityRuntime: createTestIdentityRuntime(root, new RecordingConnectionFactory(), asyncLogger(pipeline)),
+  });
+  try {
+    const response = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${input.token}`,
+        'content-type': 'application/json',
+        'x-platform-user-id': TEST_PLATFORM_USER_A,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 7, method: 'tools/call',
+        params: { name: input.toolName, arguments: { marker: input.marker } },
+      }),
+    });
+    await response.text();
+    await waitFor(() => pipeline.getHealth().enqueuedSnapshots === 1, 2_000);
+    await pipeline.close(2_000);
+    const snapshotEntry = entries.find(
+      (entry): entry is Extract<AuditQueueEntry, { kind: 'SNAPSHOT' }> => entry.kind === 'SNAPSHOT',
+    );
+    assert.ok(snapshotEntry);
+    return Object.freeze({ httpStatus: response.status, snapshot: snapshotEntry.snapshot });
+  } finally {
+    await server.close();
+    await pipeline.close(2_000);
+    await rm(root, { recursive: true, force: true });
+  }
+}
 
 async function startLoadFixture(mode: 'OFF' | 'ON', logger: RuntimeLogger): Promise<LoadFixture> {
   const root = await mkdtemp(path.join(tmpdir(), `sfoa-p7-perf-${mode.toLowerCase()}-`));

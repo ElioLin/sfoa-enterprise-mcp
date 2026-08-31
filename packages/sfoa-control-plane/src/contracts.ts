@@ -284,7 +284,7 @@ export type AuditPayloadEvidenceRecord = Readonly<{
   auditEventId: string | null;
   payloadType: AuditPayloadType;
   contentType: string;
-  originalSizeBytes: string;
+  originalSizeBytes: string | null;
   storedSizeBytes: number;
   truncated: boolean;
   contentSha256: string | null;

@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.2**
+Baseline ID: **P7-MCP-PAYLOAD-BL-1.0**
 
-Baseline date: 2026-08-30
+Baseline date: 2026-09-01
 
 Authority: This file is the single authoritative delivery-plan baseline for SFoA Enterprise MCP.
 
@@ -64,7 +64,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context plus the independent live DIAGNOSTIC chain, and the P5 full-stack Control Plane all pass. P6 USER_BOUND/Buntu identity, Playbook `1.1.0`, and trusted managed-field/link implementation are present on `main` at `c849e577`. P7-01 through P7-03 are Maintainer-complete. P7-04 Salesforce API transparent auditing is implemented for review with request-bound per-wire-attempt evidence, deterministic classification, bounded failure-preserving collection, and asynchronous MySQL persistence through the existing P7-03 pipeline. Original stdio and Streamable HTTP regressions remain required. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn execution debt remain explicitly isolated.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context plus the independent live DIAGNOSTIC chain, and the P5 full-stack Control Plane all pass. P6 USER_BOUND/Buntu identity, Playbook `1.1.0`, and trusted managed-field/link implementation are present on `main` at `c849e577`. P7-01 through P7-05 are Maintainer-complete. P7-06 now adds bounded MCP request/actual wire response and Salesforce request/final provable response payload evidence, exact Event/API association, asynchronous migration-008 persistence, logical/transport outcome separation, and 50/100/200 isolation/performance Gates. Original stdio and Streamable HTTP regressions remain required. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn execution debt remain explicitly isolated.
 
 ## Upstream strategy
 
@@ -99,13 +99,13 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW; P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW; P7-06–P7-08 = NOT STARTED`
+`P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW; P7-07–P7-08 = NOT STARTED`
 
 ## Current status
 
-`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6 implementation is present on main at c849e577; P6 REAL-AGENT EVALUATION = READY / NOT STARTED; P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW; P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW; P7-06–P7-08 = NOT STARTED`
+`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6 implementation is present on main at c849e577; P6 REAL-AGENT EVALUATION = READY / NOT STARTED; P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW; P7-07–P7-08 = NOT STARTED`
 
-Maintainer direction completed P6-ID-01 USER_BOUND credentials and P6-ID-02 Buntu identity, then authorized P6-Agent-01 and P6-DML-01. Git history confirms that implementation is now present on latest `main` commit `c849e577`; this is a repository fact and does not rewrite any historical Gate result. Maintainer review subsequently completed P7-01 through P7-03 and authorized P7-04 and P7-05. Both are implemented awaiting review. P7-06 and every later P7 phase remain prohibited.
+Maintainer direction completed P6-ID-01 USER_BOUND credentials and P6-ID-02 Buntu identity, then authorized P6-Agent-01 and P6-DML-01. Git history confirms that implementation is now present on latest `main` commit `c849e577`; this is a repository fact and does not rewrite any historical Gate result. Maintainer review subsequently completed P7-01 through P7-05 and authorized P7-06. P7-06 is implemented awaiting independent review; P7-07 and every later phase remain prohibited.
 
 P6-Agent-01/P6-DML-01 add no business-object workflow, prompt database/editor/history, generic default/constant engine, permission replica, Dynamic Forms evaluator, runtime form engine, DELETE, managed-field cache, or identity override. Dynamic Forms evidence is `NOT_AVAILABLE`. Only `PLATFORM_USER_LOOKUP` and CREATE-only `AI_CREATED_MARKER=true` are supported; the server-managed value wins over Agent fields. `get_record_links` accepts no host and makes no Salesforce API call; it uses only the configured credential-free HTTPS origin `SFOA_LIGHTNING_BASE_URL` and never falls back to `Connection.instanceUrl`. Pre-dispatch managed-field failures are `FAILED`; `MCP_DML_OUTCOME_UNKNOWN` remains post-dispatch and non-auto-retry across every distribution surface.
 
@@ -365,7 +365,7 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | Diagnostic Integration User lifecycle is external to the runtime | Disabled/rotated credentials can make later live diagnosis unavailable | Keep the fixed account distinct from every USER route, maintain only the minimum Salesforce read permissions, and rerun Admin/P4 live verification after credential or permission changes |
 | Admin authentication is a configured bootstrap administrator rather than SSO/RBAC | Public exposure would exceed the accepted P5 trust boundary | Keep Admin API/Web private behind the approved HTTPS reverse proxy; a broader identity system requires a later Maintainer-authorized phase |
 | Admin Web emits a production chunk-size warning | Initial page download may be larger than ideal | Build/runtime are accepted; measure real operator performance before introducing route-level splitting |
-| P7-04/P7-05 capture wire facts plus bounded SOQL/DML semantics but not P7-06 MCP payloads | Treating semantic field snapshots as complete MCP request/response capture would overstate coverage | Salesforce API semantic evidence is active and bounded; payload arrays remain empty until P7-06 is separately authorized and reviewed |
+| Payload capture could confuse a logical Tool result with transport delivery | A generated success could be misreported as delivered after client disconnect | P7-06 retains logical `responseSummary` separately, records actual MCP wire prefix, and marks `finish` only as `RESPONSE_FINISHED` with `clientReceiptConfirmed=false`; close-before-finish is `CLIENT_DISCONNECTED` |
 | A future process-global current Audit/Collector could cross users under concurrency | Any cross-Audit leak is a blocking security defect | P7-02 uses request-bound Context and passed 100-way zero-leak; P7-03 must retain this boundary and pass the 50/100/200 full-pipeline Gates |
 | Payload evidence and new indexes can increase MySQL storage/write cost | Unbounded capture or over-indexing could harm normal Audit list latency | Cap stored payload at 256 KiB, keep it in a separate table, derive counts, use only reviewed query-driven indexes, and implement retention later from the master row |
 | Migration 005 alters and backfills the existing Audit ledger | A large production ledger may hold metadata locks or make deployment rollback operationally expensive | Migration is additive and tested from P6/empty schemas; operators must size/back up the production table and schedule the DDL before rollout rather than editing historical migrations |
@@ -413,3 +413,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P7-E2E-AUDIT-BL-1.3 | 2026-08-30 | Recorded Maintainer completion of P7-01/P7-02 and implemented P7-03 request-bound collection, explicit terminal authority, immutable bounded Snapshot, capacity-1000 non-blocking Queue, batch-50 background Writer, two-connection Audit pool, bounded retry/shutdown, health metrics, and 50/100/200 isolation/fail-open/performance Gates. P7-04 remains unstarted. |
 | P7-SF-API-AUDIT-BL-1.0 | 2026-08-31 | Recorded Maintainer completion of P7-03 and implemented P7-04 per-wire-attempt JSforce auditing, deterministic API classification, Purpose scopes, bounded critical-failure preservation, migration 006, same-pipeline asynchronous persistence, retry/duplicate/failure/OAuth/50-100-200 MySQL and paired performance Gates. P7-05 remains unstarted. |
 | P7-SOQL-DML-EVIDENCE-BL-1.0 | 2026-08-31 | Implemented P7-05 nested request-local semantic scopes, exact `publicApiCallId` enrichment, parsed Query statistics without response reparse, requested/managed/submitted DML evidence, migration 007, bounded/fail-open handling, parallel/interleaved/50-100-200/MySQL/performance Gates, and zero additional Salesforce API calls. P7-06 remains unstarted. |
+| P7-MCP-PAYLOAD-BL-1.0 | 2026-09-01 | Recorded Maintainer completion of P7-04/P7-05 and implemented P7-06 single-read MCP request capture, bounded actual wire response observation, logical/transport separation, JSforce-owned request/final-response payload evidence, exact Event/API association, 256 KiB/64/1 MiB bounds with error reservation, migration 008, asynchronous Writer hashing/persistence, and error/timeout/disconnect/2MiB/50-100-200/MySQL/performance Gates. P7-07 remains unstarted. |

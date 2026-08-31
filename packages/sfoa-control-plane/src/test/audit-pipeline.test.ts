@@ -12,7 +12,7 @@ import {
   type AuditQueueEntry,
 } from '../audit-pipeline.js';
 
-test('bounded Queue offer is synchronous and Queue Full degrades without blocking', async () => {
+test('bounded Queue offer with large Payload is synchronous and Queue Full degrades without blocking Tool outcome', async () => {
   let release: (() => void) | undefined;
   const blocked = new Promise<void>((resolve) => { release = resolve; });
   const sink: AuditBatchSink = { persist: async () => blocked };
@@ -20,9 +20,11 @@ test('bounded Queue offer is synchronous and Queue Full degrades without blockin
   const pipeline = new AsyncAuditPipeline(sink, { log: (event) => { fallback.push(event); } }, {
     capacity: 1, batchSize: 1, flushIntervalMs: 0, retryAttempts: 0,
   });
+  const first = snapshot('00000000-0000-4000-8000-000000000001', 'A', true);
+  const second = snapshot('00000000-0000-4000-8000-000000000002', 'B', true);
   const started = performance.now();
-  assert.equal(pipeline.offerSnapshot(snapshot('00000000-0000-4000-8000-000000000001', 'A')), true);
-  assert.equal(pipeline.offerSnapshot(snapshot('00000000-0000-4000-8000-000000000002', 'B')), false);
+  assert.equal(pipeline.offerSnapshot(first), true);
+  assert.equal(pipeline.offerSnapshot(second), false);
   assert.ok(performance.now() - started < 50);
   assert.equal(pipeline.getHealth().queueFullCount, 1);
   assert.equal(pipeline.getHealth().droppedSnapshots, 1);
@@ -134,7 +136,7 @@ test('shutdown timeout is bounded and accounts for an in-flight Snapshot as drop
   assert.equal(pipeline.getHealth().persistedSnapshots, 0);
 });
 
-function snapshot(auditId: string, marker: string): AuditSnapshot {
+function snapshot(auditId: string, marker: string, largePayload = false): AuditSnapshot {
   const context = RequestAuditContextController.create({
     correlationId: `correlation-${marker}`, channel: 'MCP_HTTP', toolName: marker,
   }, () => auditId, () => new Date('2026-08-30T00:00:00.000Z'));
@@ -142,6 +144,12 @@ function snapshot(auditId: string, marker: string): AuditSnapshot {
     eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: marker, status: 'SUCCESS',
     terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
   });
+  if (largePayload) {
+    context.collector().recordPayloadEvidence({
+      payloadType: 'MCP_RESPONSE', contentType: 'application/json',
+      payload: JSON.stringify({ marker, data: 'Q'.repeat(2 * 1024 * 1024) }),
+    });
+  }
   const finalized = context.finalizeAudit(new Date('2026-08-30T00:00:00.010Z'));
   assert.ok(finalized);
   return finalized;

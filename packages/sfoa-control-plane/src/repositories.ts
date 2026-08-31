@@ -274,7 +274,7 @@ export type AuditPayloadEvidenceCreateInput = Readonly<{
   auditEventId?: string;
   payloadType: AuditPayloadType;
   contentType: string;
-  originalSizeBytes: number;
+  originalSizeBytes?: number | null;
   truncated?: boolean;
   contentSha256?: string;
   safePayload?: unknown;
@@ -293,6 +293,7 @@ export interface AuditTraceRepository {
   listSalesforceApiCalls(auditId: string, options: ListOptions): Promise<Page<SalesforceApiCallRecord>>;
   createPayloadEvidence(input: AuditPayloadEvidenceCreateInput): Promise<AuditPayloadEvidenceRecord>;
   listPayloadEvidence(auditId: string, options: ListOptions): Promise<Page<AuditPayloadEvidenceRecord>>;
+  getPayloadEvidenceById(id: string): Promise<AuditPayloadEvidenceRecord | undefined>;
 }
 
 export type ControlPlaneRepositories = Readonly<{

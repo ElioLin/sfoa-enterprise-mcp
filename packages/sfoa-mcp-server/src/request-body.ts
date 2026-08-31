@@ -2,6 +2,19 @@ import type { IncomingMessage } from 'node:http';
 import { RemoteRuntimeError } from './errors.js';
 
 export async function readBoundedJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<unknown> {
+  return (await readBoundedJsonBodySource(request, maxBodyBytes)).value;
+}
+
+export type BoundedJsonBodySource = Readonly<{
+  value: unknown;
+  rawText: string;
+  sizeBytes: number;
+}>;
+
+export async function readBoundedJsonBodySource(
+  request: IncomingMessage,
+  maxBodyBytes: number,
+): Promise<BoundedJsonBodySource> {
   const contentLength = request.headers['content-length'];
   if (Array.isArray(contentLength) || (contentLength !== undefined && !/^\d+$/u.test(contentLength))) {
     throw new RemoteRuntimeError('MCP_REQUEST_INVALID', 'Content-Length must be one non-negative integer.');
@@ -28,8 +41,9 @@ export async function readBoundedJsonBody(request: IncomingMessage, maxBodyBytes
   }
 
   try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks, totalBytes).toString('utf8'));
-    return parsed;
+    const rawText = Buffer.concat(chunks, totalBytes).toString('utf8');
+    const parsed: unknown = JSON.parse(rawText);
+    return Object.freeze({ value: parsed, rawText, sizeBytes: totalBytes });
   } catch (error) {
     throw new RemoteRuntimeError('MCP_REQUEST_INVALID', 'The MCP POST body is not valid JSON.', { cause: error });
   }

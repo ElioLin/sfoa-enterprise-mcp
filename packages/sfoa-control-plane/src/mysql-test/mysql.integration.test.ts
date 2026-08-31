@@ -66,11 +66,12 @@ if (!setup) {
       '005_p7_end_to_end_audit',
       '006_p7_salesforce_api_observability',
       '007_p7_soql_dml_audit_evidence',
+      '008_p7_payload_evidence_runtime',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
 
-  test('an empty database initializes through 007 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
+  test('an empty database initializes through 008 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
     await withIsolatedDatabase(config, 'empty', async (database) => {
       const migrations = await migrateDatabase(database);
       assert.deepEqual(migrations.map((entry) => entry.version), [
@@ -81,6 +82,7 @@ if (!setup) {
         '005_p7_end_to_end_audit',
         '006_p7_salesforce_api_observability',
         '007_p7_soql_dml_audit_evidence',
+        '008_p7_payload_evidence_runtime',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -97,7 +99,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '007_p7_soql_dml_audit_evidence');
+      assert.equal(migrations.at(-1)?.version, '008_p7_payload_evidence_runtime');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -313,8 +315,22 @@ if (!setup) {
           ])
           .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
           .execute();
+        const payloads = await store.database.selectFrom('sfoa_audit_payload_evidence')
+          .innerJoin('sfoa_audit_log', 'sfoa_audit_log.id', 'sfoa_audit_payload_evidence.audit_id')
+          .leftJoin('sfoa_salesforce_api_call', 'sfoa_salesforce_api_call.id', 'sfoa_audit_payload_evidence.salesforce_api_call_id')
+          .leftJoin('sfoa_audit_event', 'sfoa_audit_event.id', 'sfoa_audit_payload_evidence.audit_event_id')
+          .select([
+            'sfoa_audit_log.public_audit_id', 'sfoa_audit_payload_evidence.payload_type',
+            'sfoa_audit_payload_evidence.safe_payload', 'sfoa_audit_payload_evidence.original_size_bytes',
+            'sfoa_audit_payload_evidence.stored_size_bytes', 'sfoa_audit_payload_evidence.truncated',
+            'sfoa_audit_payload_evidence.content_sha256', 'sfoa_salesforce_api_call.public_api_call_id',
+            'sfoa_audit_event.sequence',
+          ])
+          .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
+          .execute();
         assert.equal(events.length, concurrency * 2);
         assert.equal(apiCalls.length, concurrency);
+        assert.equal(payloads.length, concurrency * 3);
         for (const snapshot of snapshots) {
           const marker = snapshot.auditCall.platformUserId?.replace('platform_', '');
           assert.ok(marker);
@@ -335,6 +351,25 @@ if (!setup) {
           assert.equal(ownedApi[0]?.done, snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') ? null : 1);
           assert.equal(ownedApi[0]?.has_next_records, snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') ? null : 0);
           assert.equal(ownedApi[0]?.object_api_name, 'Account');
+          const ownedPayloads = payloads.filter((payload) => payload.public_audit_id === snapshot.auditCall.publicAuditId);
+          assert.equal(ownedPayloads.length, 3);
+          const serializedPayloads = JSON.stringify(ownedPayloads);
+          assert.match(serializedPayloads, new RegExp(`${marker}_REQUEST_ONLY`, 'u'));
+          assert.match(serializedPayloads, new RegExp(`${marker}_RESPONSE_ONLY`, 'u'));
+          assert.match(serializedPayloads, new RegExp(`SF_API_${marker}`, 'u'));
+          assert.equal(snapshots.filter((candidate) => candidate !== snapshot).some((candidate) => {
+            const foreignMarker = candidate.auditCall.platformUserId?.replace('platform_', '');
+            return foreignMarker ? serializedPayloads.includes(foreignMarker) : false;
+          }), false);
+          const failedApi = snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') === true;
+          const sfPayload = ownedPayloads.find((payload) =>
+            payload.payload_type === (failedApi ? 'ERROR_RESPONSE' : 'SALESFORCE_RESPONSE'));
+          assert.equal(sfPayload?.public_api_call_id, snapshot.salesforceApiCalls[0]?.publicApiCallId);
+          assert.equal(ownedPayloads.find((payload) => payload.payload_type === 'MCP_REQUEST')?.sequence, 1);
+          assert.equal(ownedPayloads.find((payload) => payload.payload_type === 'MCP_RESPONSE')?.sequence, 3);
+          assert.equal(ownedPayloads.every((payload) =>
+            Number(payload.stored_size_bytes) === Buffer.byteLength(payload.safe_payload ?? '', 'utf8')), true);
+          assert.equal(ownedPayloads.every((payload) => /^[0-9a-f]{64}$/u.test(payload.content_sha256 ?? '')), true);
           if (snapshot.auditCall.platformUserId?.endsWith('_0_ONLY')) {
             const expectedApi = snapshot.salesforceApiCalls[0];
             assert.equal((expectedApi?.endpointPath?.length ?? 0) > 1_024, true);
@@ -364,6 +399,13 @@ if (!setup) {
         WHERE call_record.id IS NULL
       `.execute(store.database);
       assert.equal(Number(orphanApi.rows[0]?.count), 0);
+      const orphanPayload = await sql<{ count: string }>`
+        SELECT COUNT(*) AS count
+        FROM sfoa_audit_payload_evidence payload
+        LEFT JOIN sfoa_audit_log call_record ON call_record.id = payload.audit_id
+        WHERE call_record.id IS NULL
+      `.execute(store.database);
+      assert.equal(Number(orphanPayload.rows[0]?.count), 0);
     } finally {
       await auditDatabase.destroy();
     }
@@ -652,6 +694,7 @@ if (!setup) {
     assert.equal(payload.truncated, true);
     assert.equal(payload.storedSizeBytes <= 262_144, true);
     assert.equal(containsObviousAuditSecret(payload.safePayload ?? ''), false);
+    assert.deepEqual(await store.repositories.auditTraces.getPayloadEvidenceById(payload.id), payload);
     await assert.rejects(
       store.repositories.auditTraces.createPayloadEvidence({
         auditId: callA.id,
@@ -724,14 +767,21 @@ function mysqlSnapshot(unique: number, concurrency: number, index: number): Audi
   }, () => auditId, () => new Date('2026-08-30T01:00:00.000Z'))
     .withResolvedIdentity({ platformUserId: `platform_${marker}`, identitySource: 'USER_BOUND_TOKEN' })
     .withSalesforceRoute({ salesforceUsername: `sf_${marker}@example.invalid`, executionRole: 'USER' });
-  context.collector().record({
+  const requestEventSequence = context.collector().recordEvent({
     eventCategory: 'MCP', eventType: 'TOOL_INVOCATION_STARTED', eventName: `${marker} started`, status: 'STARTED',
+  });
+  assert.equal(requestEventSequence, 1);
+  context.collector().recordPayloadEvidence({
+    payloadType: 'MCP_REQUEST', contentType: 'application/json',
+    payload: JSON.stringify({ marker: `${marker}_REQUEST_ONLY` }),
+    auditEventSequence: requestEventSequence,
   });
   const longQuerySuffix = index === 0
     ? `&soql=${'X'.repeat(1_500)}&long_url_end_marker=${marker}`
     : '';
+  const publicApiCallId = `10000000-0000-4000-8000-${String(unique).padStart(12, '0')}`;
   context.collector().recordSalesforceApiCall(Object.freeze({
-    publicApiCallId: `10000000-0000-4000-8000-${String(unique).padStart(12, '0')}`,
+    publicApiCallId,
     auditId,
     sequence: context.nextSequence(),
     salesforceUsername: `sf_${marker}@example.invalid`,
@@ -768,9 +818,20 @@ function mysqlSnapshot(unique: number, concurrency: number, index: number): Audi
     managedFields: null,
     submittedFields: null,
   }));
-  context.collector().record({
+  context.collector().recordPayloadEvidence({
+    payloadType: index === 1 ? 'ERROR_RESPONSE' : 'SALESFORCE_RESPONSE',
+    contentType: 'application/json', payload: JSON.stringify({ marker: `SF_API_${marker}` }),
+    salesforceApiCallPublicId: publicApiCallId,
+  });
+  const responseEventSequence = context.collector().recordEvent({
     eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: `${marker} terminal`, status: 'SUCCESS',
     terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
+  });
+  assert.equal(responseEventSequence, 3);
+  context.collector().recordPayloadEvidence({
+    payloadType: 'MCP_RESPONSE', contentType: 'application/json',
+    payload: JSON.stringify({ marker: `${marker}_RESPONSE_ONLY` }),
+    auditEventSequence: responseEventSequence,
   });
   const snapshot = context.finalizeAudit(new Date('2026-08-30T01:00:00.010Z'));
   assert.ok(snapshot);

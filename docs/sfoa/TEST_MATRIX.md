@@ -902,9 +902,10 @@ yarn validate:p5
 P7-01 = COMPLETE
 P7-02 = COMPLETE
 P7-03 = COMPLETE
-P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-06–P7-08 = NOT STARTED
+P7-04 = COMPLETE
+P7-05 = COMPLETE
+P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-07–P7-08 = NOT STARTED
 ```
 
 ## P7-05 SOQL & DML Audit Evidence Acceptance Matrix — 2026-08-31
@@ -974,7 +975,85 @@ yarn validate:p5
 P7-01 = COMPLETE
 P7-02 = COMPLETE
 P7-03 = COMPLETE
-P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-06–P7-08 = NOT STARTED
+P7-04 = COMPLETE
+P7-05 = COMPLETE
+P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-07–P7-08 = NOT STARTED
+```
+
+## P7-06 MCP Request, Response & Payload Evidence Acceptance Matrix — 2026-09-01
+
+Maintainer 已确认 `P7-01～P7-05 = COMPLETE` 并授权 P7-06。本节只记录 P7-06 后端证据实现；P7-07 React Workbench 与 P7-08 诊断 Skill 均未开始。
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| MCP request single-read capture | PASS | definite `tools/call` 复用 bounded body read/parse 的 raw source；Identity 前记录真实 arguments；request stream second read=0 |
+| MCP logical/wire separation | PASS | Tool `responseSummary` 独立保留；`MCP_RESPONSE` 来自实际 `write/end` bytes prefix；2 MiB client result 未改变 |
+| Transport facts | PASS | `RESPONSE_FINISHED`、`CLIENT_DISCONNECTED`、`WRITE_FAILED`、`UNKNOWN`；所有 event `clientReceiptConfirmed=false`；close-before-finish 不伪造 delivery |
+| Identity/Governance/Tool failure | PASS | Identity 401、disabled Tool block、Tool execution error 均有 MCP request/response；Salesforce call=0 where applicable |
+| Tool/Request timeout | PASS | explicit final Snapshot assertions；request/response + timeout terminal + actual finished transport；业务 timeout contract 保持 |
+| DML UNKNOWN/disconnect | PASS | CREATE request timeout and client disconnect retain UNKNOWN/no-retry；MCP payload prefix/transport fact 不矛盾；mutation invocation=1 |
+| Salesforce request payload | PASS | DML/Metadata from existing JSforce `HttpRequest.body`；GET SOQL no empty payload；OAuth payload=0 |
+| Salesforce response/error | PASS | final JSforce `HttpResponse.body` only；validation uses `ERROR_RESPONSE`；transport reset body=NONE |
+| Retry honesty | PASS | 503/503/200 = 3 API rows；success body only binds attempt 3；wrong prior-attempt body=0 |
+| Bounds/error priority | PASS | 256 KiB/item、64/Audit、1 MiB/Audit；256 KiB error + 256 KiB MCP reservation；drop/truncate=>PARTIAL |
+| 2 MiB MCP/Salesforce | PASS | client/business result unchanged；stored evidence <=262,144 bytes；truncated=true；unknown string original size=NULL |
+| Hash/main path | PASS | request-path hash=0；Writer hashes exact persisted safe prefix；synchronous Audit DB await=0 |
+| Persistence/association | PASS | same Snapshot transaction master→Events→API→Payload；sequence/public UUID exact resolution；no latest-row guess |
+| MySQL 50/100/200 | PASS | 10/10；Cross Payload Leak=0；Wrong API binding=0；Orphan Payload=0；stored byte/hash constraints PASS |
+| HTTP 50/100/200 | PASS | P7 focused 6/6；1,060 unique ON snapshots；failures=0；cross request/response/identity/correlation leak=0 |
+| Slow DB / Queue Full | PASS | 5s sink does not delay Tool beyond `<2s` assertion；large-payload Queue offer synchronous；Queue Full DEGRADED, Tool outcome unchanged |
+| Additional Salesforce API | PASS (`0`) | OFF/ON connection creations equal；REST calls equal；no readback/metadata verification call |
+| Ordinary list payload load | PASS (`0`) | Audit search/count select master only；no Payload join/select；payload repository is explicit on-demand path |
+| React/P7-07 scope | PASS (`0`) | Admin Web production source modifications=0；existing build/test/E2E regressions only |
+| Official Salesforce source | PASS (`0`) | upstream-owned Salesforce TypeScript modifications=0；no Tool fork/patch |
+| Changed-code lint | PASS | Identity Runtime、Control Plane、MCP Server strict TypeScript lint exit 0 |
+| Package regressions | PASS | Identity 66/66；Control 31/31；MySQL 10/10；MCP 66/66；P3 22/22；P4 7/7；P5 5/5；P7 6/6 |
+| Root Aggregate | KNOWN UPSTREAM DEBT | `yarn test`：official Example 8/8 后 unchanged code-analyzer workspace 调用不可用 global `tsc`，SFoA workspaces 前退出；不虚报 PASS |
+| Project Aggregate attempt 1 | FAIL EARLY / FIXED | `validate:p5` 在 Control 30/31 停止；Queue timing test 错把 2 MiB fixture construction 计入 offer `<50ms`；计时范围修正后 Control 31/31 |
+| Project Aggregate restart | PASS except final startup retry | lint、Control 31/31、MySQL 10/10、Identity 66/66、MCP P5 5/5、Admin 18/18、Web build + 35/35、mock Chromium 1/1；最后 full-stack Admin ready timeout，未进入 assertion |
+| Bounded continuation | PASS | `yarn p5:e2e:fullstack` exit 0；real HTTP security PASS、Chromium 1/1、migration 001–008、34 Admin Audit rows |
+
+HTTP 三轮 paired 平均：
+
+| 并发 | OFF p50/p95/p99 ms | ON p50/p95/p99 ms | OFF/ON throughput | failures |
+| ---: | --- | --- | --- | ---: |
+| 50 | 625.38/643.76/653.88 | 658.08/686.87/708.85 | 78.36/89.28 | 0/0 |
+| 100 | 815.43/859.25/862.20 | 1042.55/1135.30/1139.10 | 117.46/93.27 | 0/0 |
+| 200 | 1629.19/1854.10/1879.00 | 1583.19/1767.99/1773.48 | 106.31/112.32 | 0/0 |
+
+Small/2 MiB Payload 三轮 paired 中位数、heap、原始每轮数据与限制见 `P7_06_REPORT.md`；测试输出保留完整 `P7_06_PAYLOAD_PERFORMANCE` JSON。
+
+实际命令：
+
+```text
+yarn workspace @sfoa/identity-runtime build
+yarn workspace @sfoa/identity-runtime test
+yarn workspace @sfoa/identity-runtime lint
+yarn workspace @sfoa/control-plane build
+yarn workspace @sfoa/control-plane test
+yarn workspace @sfoa/control-plane test:mysql
+yarn workspace @sfoa/control-plane lint
+yarn workspace @sfoa/mcp-server build
+yarn workspace @sfoa/mcp-server test
+yarn workspace @sfoa/mcp-server test:p3
+yarn workspace @sfoa/mcp-server test:p4
+yarn workspace @sfoa/mcp-server test:p5
+yarn workspace @sfoa/mcp-server test:p7
+yarn workspace @sfoa/mcp-server lint
+node --test packages/sfoa-mcp-server/dist/test/timeout-shutdown.test.js
+node --test packages/sfoa-mcp-server/dist/p3-test/request-mutation-outcome.test.js
+yarn test
+yarn validate:p5
+yarn p5:e2e:fullstack
+```
+
+```text
+P7-01 = COMPLETE
+P7-02 = COMPLETE
+P7-03 = COMPLETE
+P7-04 = COMPLETE
+P7-05 = COMPLETE
+P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-07–P7-08 = NOT STARTED
 ```

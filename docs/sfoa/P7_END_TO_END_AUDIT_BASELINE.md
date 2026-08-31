@@ -256,11 +256,11 @@ Maintainer 结果（2026-08-31）：`COMPLETE`（包含 HOTFIX01 收口验证）
 
 不做：每个 Tool 手工重复 Audit、复制官方 Tool、业务分析 Tool。
 
-实施结果（2026-08-31）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。源码 + CodeGraph + pinned dependency 盘点确认 request-scoped OAuth、REST/Data、UI、Tooling、DML 和 Metadata SOAP 都进入 JSforce 3.10.13。单一 SFoA adapter 以 `Transport.httpRequest()` 建立 JSforce-only scope，并按真实 Node HTTP attempt 捕获 retry/redirect；高层只提供 Purpose。每 attempt 在开始时绑定 Audit UUID 与共享 request-local sequence。独立 classifier、256 条上限、失败优先替换、migration 006、同一 P7-03 Async Writer persistence 及 OAuth/failure/duplicate/50-100-200/MySQL/performance Gates 已实现。完整路径矩阵、性能原始数字和限制见 `P7_04_REPORT.md`。
+Maintainer 结果（2026-08-31）：`COMPLETE`。源码 + CodeGraph + pinned dependency 盘点确认 request-scoped OAuth、REST/Data、UI、Tooling、DML 和 Metadata SOAP 都进入 JSforce 3.10.13。单一 SFoA adapter 以 `Transport.httpRequest()` 建立 JSforce-only scope，并按真实 Node HTTP attempt 捕获 retry/redirect；高层只提供 Purpose。每 attempt 在开始时绑定 Audit UUID 与共享 request-local sequence。独立 classifier、256 条上限、失败优先替换、migration 006、同一 P7-03 Async Writer persistence 及 OAuth/failure/duplicate/50-100-200/MySQL/performance Gates 已实现。完整路径矩阵、性能原始数字和限制见 `P7_04_REPORT.md`。
 
 ### P7-05 SOQL 与 DML 审计证据
 
-实施结果（2026-08-31）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。P7-05 以同一 Request Audit ALS 中的嵌套语义 scope 为高层载体，以 P7-04 wire attempt 的 `publicApiCallId` 为唯一绑定键；Query 只读取 JSforce 已解析结果的计数，DML 分别从 facade、真实 managed resolver 与 executor 最终 payload 获取 requested/managed/submitted evidence。Migration 007、异步 Batch Sink、Data/Tooling/zero/failure/pagination、CREATE/UPDATE/validation/UNKNOWN、nested/parallel/50-100-200/bounds/fail-open/performance Gates 已实现；完整证据见 `P7_05_REPORT.md`。
+Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit ALS 中的嵌套语义 scope 为高层载体，以 P7-04 wire attempt 的 `publicApiCallId` 为唯一绑定键；Query 只读取 JSforce 已解析结果的计数，DML 分别从 facade、真实 managed resolver 与 executor 最终 payload 获取 requested/managed/submitted evidence。Migration 007、异步 Batch Sink、Data/Tooling/zero/failure/pagination、CREATE/UPDATE/validation/UNKNOWN、nested/parallel/50-100-200/bounds/fail-open/performance Gates 已实现；完整证据见 `P7_05_REPORT.md`。
 
 目标：在透明 API 证据上提供专用、可检索、bounded 的 SOQL 与 CREATE/UPDATE 事实。
 
@@ -283,6 +283,8 @@ Maintainer 结果（2026-08-31）：`COMPLETE`（包含 HOTFIX01 收口验证）
 验收 Gate：成功/失败/blocked/timeout/disconnect/UNKNOWN 场景均能还原；不保存 Authorization/Cookie；响应捕获不延迟客户端。
 
 不做：Conversation 聚合、Agent 意图推断、完整未净化 Prompt 持久化。
+
+实施结果（2026-09-01）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。HTTP body 只 bounded read/parse 一次并复用 raw source；`MCP_REQUEST` 在 Identity 前记录。Bounded response recorder 旁路观察真实 `write/end` bytes 与 `finish/close/error`，保持逻辑 Tool `responseSummary` 与 transport facts 分离，且从不把 `finish` 描述为客户端确认收到。P7-04 adapter 只从 JSforce 已形成的 `HttpRequest.body` / 最终 `HttpResponse.body` 获取 Salesforce payload，不消费 Node response stream；retry body 只绑定最终可证明 attempt。Collector 强制 256 KiB/item、64 items、1 MiB/Audit，并为 error/MCP core 各保留 256 KiB；Writer 在同一 transaction 解析 sequence/public UUID 后落库并对持久化 prefix 计算 SHA-256。Migration 008、success/identity/governance/error/timeout/disconnect/UNKNOWN/OAuth/retry/2MiB/Queue/slow DB/50-100-200/MySQL/performance Gates 已实现，详见 `P7_06_REPORT.md`。
 
 ### P7-07 审计调用链工作台（Audit Trace Workbench）
 
@@ -369,21 +371,21 @@ P7-01 至少覆盖：
 | P7-01 全链路审计数据模型 | COMPLETE | Maintainer 独立审查通过 |
 | P7-02 请求级审计上下文 | COMPLETE | Maintainer 独立审查通过 |
 | P7-03 请求级隔离与异步审计管道 | COMPLETE | Maintainer 已完成主体实现及 HOTFIX01 收口验证 |
-| P7-04 Salesforce API 透明审计 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | per-wire-attempt capture、分类、bounded Collector、migration 006、异步 persistence 与 focused Gates 已实现 |
-| P7-05 SOQL 与 DML 审计证据 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | UUID 精确语义绑定、migration 007、异步 persistence 与 focused Gates 已实现 |
-| P7-06 MCP 入口与响应审计 | NOT STARTED | 依赖 P7-03～P7-05 Contract |
+| P7-04 Salesforce API 透明审计 | COMPLETE | Maintainer 独立审查通过 |
+| P7-05 SOQL 与 DML 审计证据 | COMPLETE | Maintainer 独立审查通过 |
+| P7-06 MCP 入口与响应审计 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | MCP/Salesforce bounded payload、逻辑/传输分离、migration 008、异步 persistence 与 focused Gates 已实现 |
 | P7-07 审计调用链工作台 | NOT STARTED | 依赖完整后端证据/API |
 | P7-08 智能诊断接口与排障技能 | NOT STARTED | 依赖 P7-07 与运维授权 |
 
-本次所有 P7-05 工程 Gate 通过后，状态只能更新为：
+本次所有 P7-06 工程 Gate 通过后，状态只能更新为：
 
-`P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
+`P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
-只有 Maintainer Review 通过后，P7-05 才能标记 COMPLETE。不得自行开始 P7-06 或宣布整个 P7 COMPLETE。
+只有 Maintainer Review 通过后，P7-06 才能标记 COMPLETE。不得自行开始 P7-07 或宣布整个 P7 COMPLETE。
 
 ## 9. 变更管理
 
-- 已发布 migration 001～006 永不修改；P7-05 使用下一序号 `007_p7_soql_dml_audit_evidence.sql`；
+- 已发布 migration 001～007 永不修改；P7-06 使用下一序号 `008_p7_payload_evidence_runtime.sql`；
 - 任何本基线冲突必须在同一变更更新本文件、`PROJECT_BASELINE.md`、`TEST_MATRIX.md`、`CHANGELOG.md`，架构决策改变时新增或 supersede ADR；
 - P7-01 不修改官方 Salesforce TypeScript；如不可避免，必须先更新 `UPSTREAM_STRATEGY.md` 修改矩阵并接受 Maintainer review；
 - 所有真实 secret 继续只存在于 ignored local environment 或部署 secret store；测试只能使用明显虚构且必须被净化的样本。

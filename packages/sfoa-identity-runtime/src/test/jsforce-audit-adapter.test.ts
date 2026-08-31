@@ -71,6 +71,14 @@ test('one JSforce high-level operation produces one API evidence row without cha
   assert.equal(new Set(calls.map((call) => call.publicApiCallId)).size, calls.length);
   assert.equal(calls.every((call) => call.auditId === controller.snapshot().auditId), true);
   assert.doesNotMatch(JSON.stringify(calls), /access-token-must-not-be-audited/u);
+  const payloads = controller.collector().snapshot()?.payloadEvidence ?? [];
+  const createRequest = payloads.find((payload) =>
+    payload.payloadType === 'SALESFORCE_REQUEST'
+    && payload.salesforceApiCallPublicId === calls[2]?.publicApiCallId);
+  assert.match(createRequest?.safePayload ?? '', /"Name":"A"/u);
+  assert.ok(payloads.some((payload) =>
+    payload.payloadType === 'SALESFORCE_RESPONSE'
+    && payload.salesforceApiCallPublicId === calls[2]?.publicApiCallId));
 });
 
 test('HTTP and transport failures keep real status semantics and never replace the original error', async (t) => {
@@ -138,6 +146,7 @@ test('OAuth evidence records the real endpoint but never its assertion, token, c
   assert.equal(calls[0]?.purpose, 'IDENTITY_TOKEN_EXCHANGE');
   assert.equal(calls[0]?.httpStatus, 200);
   assert.doesNotMatch(JSON.stringify(calls), /access-token-secret|jwt-secret|client-secret/u);
+  assert.equal(controller.collector().snapshot()?.payloadEvidence.length, 0);
 });
 
 test('size evidence uses Content-Length and leaves unknown or large request sizes null', async (t) => {
@@ -217,6 +226,30 @@ test('each JSforce retry attempt is captured exactly once with its real HTTP sta
   assert.equal(calls.length, 3);
   assert.deepEqual(calls.map((call) => call.httpStatus), [503, 503, 503]);
   assert.equal(new Set(calls.map((call) => call.publicApiCallId)).size, 3);
+  const payloads = controller.collector().snapshot()?.payloadEvidence ?? [];
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0]?.payloadType, 'ERROR_RESPONSE');
+  assert.equal(payloads[0]?.salesforceApiCallPublicId, calls[2]?.publicApiCallId);
+  assert.notEqual(payloads[0]?.salesforceApiCallPublicId, calls[0]?.publicApiCallId);
+  assert.notEqual(payloads[0]?.salesforceApiCallPublicId, calls[1]?.publicApiCallId);
+});
+
+test('a 2 MiB Salesforce response stays unchanged while Audit stores only one bounded prefix', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('large-response@example.invalid');
+  const response = await runWithRequestAuditContext(controller, () => new Transport().httpRequest({
+    method: 'GET',
+    url: `${server.url}/services/data/v65.0/large-response`,
+  }, { httpProxy: '' }));
+  assert.ok(response.body.length > 2_000_000);
+  finishAudit(controller);
+  const payload = controller.collector().snapshot()?.payloadEvidence[0];
+  assert.equal(payload?.payloadType, 'SALESFORCE_RESPONSE');
+  assert.equal(payload?.truncated, true);
+  assert.equal(payload?.originalSizeBytes, null);
+  assert.ok((payload?.storedSizeBytes ?? 0) <= 262_144);
+  assert.equal(controller.collector().snapshot()?.payloadEvidence.length, 1);
 });
 
 test('Data and Tooling SOQL semantics bind parsed result statistics to the exact wire call', async (t) => {
@@ -444,6 +477,11 @@ test('DML validation failure and transport-unknown retain submitted fields witho
   assert.equal(unknown?.result, 'FAILED');
   assert.deepEqual(unknown?.submittedFields, { LastName: 'Unknown', Company: 'Socket Reset' });
   assert.equal(controller.collector().snapshot()?.auditCall.outcome, 'UNKNOWN');
+  const payloads = controller.collector().snapshot()?.payloadEvidence ?? [];
+  const errorPayload = payloads.find((payload) => payload.payloadType === 'ERROR_RESPONSE');
+  assert.equal(errorPayload?.salesforceApiCallPublicId, validation?.publicApiCallId);
+  assert.match(errorPayload?.safePayload ?? '', /FIELD_CUSTOM_VALIDATION_EXCEPTION/u);
+  assert.equal(payloads.filter((payload) => payload.payloadType === 'ERROR_RESPONSE').length, 1);
 });
 
 test('50/100/200 paired concurrency gate has zero added API calls, duplicates, or cross-request leaks', { timeout: 60_000 }, async (t) => {
@@ -591,6 +629,11 @@ async function mockSalesforceServer(): Promise<Readonly<{
     if (path.endsWith('/long-error')) {
       response.writeHead(400, { 'content-type': 'application/json' });
       response.end(JSON.stringify([{ errorCode: 'LONG_VALIDATION_ERROR', message: 'E'.repeat(1_500) }]));
+      return;
+    }
+    if (path.endsWith('/large-response')) {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ marker: 'SF_LARGE_RESPONSE_ONLY', data: 'L'.repeat(2 * 1024 * 1024) }));
       return;
     }
     const parsedUrl = new URL(path, 'http://salesforce.invalid');

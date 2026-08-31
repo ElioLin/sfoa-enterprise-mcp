@@ -11,6 +11,9 @@ import {
   runWithSalesforceQuerySemantic,
 } from '../request-audit-context.js';
 import {
+  ERROR_PAYLOAD_RESERVATION_BYTES,
+  MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST,
+  MAX_PAYLOAD_EVIDENCE_PER_REQUEST,
   MAX_REQUEST_AUDIT_EVENTS,
   MAX_SALESFORCE_API_CALLS_PER_REQUEST,
   type SalesforceApiSemanticEvidence,
@@ -369,6 +372,70 @@ test('semantic encoder failure is fail-open and marks the Audit PARTIAL', () => 
     terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
   });
   assert.equal(context.finalizeAudit()?.auditCall.auditIntegrityStatus, 'PARTIAL');
+});
+
+test('Payload Collector enforces per-item/count/total bounds and reserves terminal error evidence', () => {
+  const context = RequestAuditContextController.create({
+    correlationId: 'payload-budget', channel: 'MCP_HTTP', toolName: 'payload_tool',
+  });
+  const chunk = 'P'.repeat(262_144);
+  assert.equal(context.collector().recordPayloadEvidence({
+    payloadType: 'SALESFORCE_RESPONSE', contentType: 'application/json', payload: chunk,
+  }), true);
+  assert.equal(context.collector().recordPayloadEvidence({
+    payloadType: 'SALESFORCE_REQUEST', contentType: 'application/json', payload: chunk,
+  }), true);
+  assert.equal(context.collector().recordPayloadEvidence({
+    payloadType: 'SALESFORCE_RESPONSE', contentType: 'application/json', payload: 'DROP_GENERAL_ONLY',
+  }), false);
+  assert.equal(context.collector().recordPayloadEvidence({
+    payloadType: 'MCP_RESPONSE', contentType: 'application/json', payload: chunk,
+  }), true);
+  assert.equal(context.collector().recordPayloadEvidence({
+    payloadType: 'ERROR_RESPONSE', contentType: 'application/json', payload: chunk,
+  }), true);
+  context.collector().record({
+    eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: 'payload_tool', status: 'FAILED',
+    terminal: { source: 'TOOL', result: 'ERROR', outcome: 'FAILED' },
+  });
+  const snapshot = context.finalizeAudit();
+  assert.ok(snapshot);
+  assert.equal(snapshot.payloadEvidence.length, 4);
+  assert.equal(snapshot.payloadEvidence.reduce((sum, payload) => sum + payload.storedSizeBytes, 0), MAX_PAYLOAD_EVIDENCE_BYTES_PER_REQUEST);
+  assert.equal(MAX_PAYLOAD_EVIDENCE_PER_REQUEST, 64);
+  assert.equal(ERROR_PAYLOAD_RESERVATION_BYTES, 262_144);
+  assert.equal(snapshot.payloadEvidence.at(-1)?.payloadType, 'ERROR_RESPONSE');
+  assert.equal(snapshot.auditCall.auditIntegrityStatus, 'PARTIAL');
+  assert.equal((snapshot.auditCall.requestSummary as Record<string, unknown>).auditCapture instanceof Object, true);
+});
+
+test('large Payload capture stores a secret-safe UTF-8 prefix without hashing on the request path', () => {
+  const context = RequestAuditContextController.create({
+    correlationId: 'payload-large', channel: 'MCP_HTTP', toolName: 'payload_tool',
+  });
+  const large = JSON.stringify({
+    authorization: 'Bearer should-never-persist',
+    businessMarker: 'BUSINESS_VALUE_ALLOWED',
+    data: '大'.repeat(800_000),
+  });
+  assert.equal(context.collector().recordPayloadEvidence({
+    payloadType: 'MCP_REQUEST', contentType: 'application/json', payload: large,
+  }), true);
+  context.collector().record({
+    eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: 'payload_tool', status: 'SUCCESS',
+    terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
+  });
+  const snapshot = context.finalizeAudit();
+  assert.ok(snapshot);
+  const payload = snapshot.payloadEvidence[0];
+  assert.ok(payload);
+  assert.equal(payload.truncated, true);
+  assert.equal(payload.originalSizeBytes, null);
+  assert.ok(payload.storedSizeBytes <= 262_144);
+  assert.equal(Buffer.byteLength(payload.safePayload, 'utf8'), payload.storedSizeBytes);
+  assert.equal(payload.contentSha256, null);
+  assert.match(payload.safePayload, /BUSINESS_VALUE_ALLOWED/u);
+  assert.doesNotMatch(payload.safePayload, /should-never-persist/u);
 });
 
 function apiCall(

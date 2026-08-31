@@ -5,13 +5,21 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { Connection } from '@salesforce/core';
+import {
+  AsyncAuditPipeline,
+  DatabaseRuntimeLogger,
+  type AuditRepository,
+} from '@sfoa/control-plane';
 import { parseDmlAllowlistJson } from '@sfoa/mcp-provider-sfoa-dml';
 import type {
+  AuditSnapshot,
+  RequestAuditContextController,
   RuntimeLogEvent,
   RuntimeLogger,
   SalesforceConnectionFactory,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
+import { NoopRuntimeLogger } from '@sfoa/identity-runtime';
 import { startRemoteMcpServer, type RemoteMcpServer } from '../http-server.js';
 import {
   createTestIdentityRuntime,
@@ -70,10 +78,45 @@ class DelayedMutationConnectionFactory implements SalesforceConnectionFactory {
 
 class RecordingRuntimeLogger implements RuntimeLogger {
   public readonly events: RuntimeLogEvent[] = [];
+  public readonly snapshots: AuditSnapshot[] = [];
+  private readonly pipeline = new AsyncAuditPipeline({
+    persist: async (entries) => {
+      for (const entry of entries) {
+        if (entry.kind === 'SNAPSHOT') this.snapshots.push(entry.snapshot);
+      }
+    },
+  }, new NoopRuntimeLogger(), { flushIntervalMs: 0 });
+  private readonly delegate = new DatabaseRuntimeLogger(
+    unusedAuditRepository(),
+    new NoopRuntimeLogger(),
+    undefined,
+    this.pipeline,
+  );
 
-  public log(event: RuntimeLogEvent): void {
+  public log(event: RuntimeLogEvent): Promise<void> {
     this.events.push(event);
+    return this.delegate.log(event);
   }
+
+  public finalizeRequestAudit(context: RequestAuditContextController): void {
+    this.delegate.finalizeRequestAudit(context);
+  }
+
+  public async close(): Promise<void> {
+    await this.pipeline.close(2_000);
+  }
+}
+
+function unusedAuditRepository(): AuditRepository {
+  return {
+    append: async () => { throw new Error('request path must not call AuditRepository.append'); },
+    getById: async () => undefined,
+    search: async (filter) => Object.freeze({
+      items: Object.freeze([]), total: 0, limit: filter.limit, offset: filter.offset,
+      count: 0, hasMore: false, nextOffset: null,
+    }),
+    countSince: async () => Object.freeze({ total: 0, pass: 0, blocked: 0, error: 0, unknown: 0 }),
+  };
 }
 
 test('CREATE outer request timeout after dispatch returns UNKNOWN and completes late exactly once', async () => {
@@ -96,6 +139,7 @@ test('CREATE outer request timeout after dispatch returns UNKNOWN and completes 
     await waitFor(() => factory.createCompletions === 1, 1_000);
     assert.equal(factory.createInvocations, 1, 'Host must not retry CREATE after request timeout');
     assertRequestOutcomeLog(fixture.logger.events, 'create_record', 'CREATE');
+    await assertPayloadEvidence(fixture.logger, 'MCP_DML_OUTCOME_UNKNOWN', 'UNKNOWN');
   } finally {
     await fixture.close();
   }
@@ -144,6 +188,7 @@ test('request timeout before mutation dispatch remains MCP_REQUEST_TIMEOUT with 
     await delay(450);
     assert.equal(factory.createInvocations, 0);
     assert.equal(fixture.logger.events.some((event) => event.mutationStarted === true), false);
+    await assertPayloadEvidence(fixture.logger, 'MCP_REQUEST_TIMEOUT', 'FAILED');
   } finally {
     await fixture.close();
   }
@@ -210,6 +255,7 @@ test('client disconnect after CREATE starts logs UNKNOWN and never replays the m
     assert.equal(event.toolName, 'create_record');
     assert.equal(event.operation, 'CREATE');
     assert.equal(event.mutationStarted, true);
+    await assertPayloadEvidence(fixture.logger, 'MCP_DML_OUTCOME_UNKNOWN', 'UNKNOWN', 'CLIENT_DISCONNECTED');
   } finally {
     request?.destroy();
     await fixture.close();
@@ -242,6 +288,7 @@ async function startFixture(
       logger,
       close: async (): Promise<void> => {
         await server.close();
+        await logger.close();
         await rm(baseRoot, { recursive: true, force: true });
       },
     };
@@ -249,6 +296,31 @@ async function startFixture(
     await rm(baseRoot, { recursive: true, force: true });
     throw error;
   }
+}
+
+async function assertPayloadEvidence(
+  logger: RecordingRuntimeLogger,
+  errorCode: 'MCP_DML_OUTCOME_UNKNOWN' | 'MCP_REQUEST_TIMEOUT',
+  expectedOutcome: AuditSnapshot['auditCall']['outcome'],
+  transportStatus = 'RESPONSE_FINISHED',
+): Promise<void> {
+  await waitFor(() => logger.snapshots.length >= 1, 2_000);
+  const snapshot = logger.snapshots.at(-1);
+  assert.ok(snapshot);
+  assert.equal(snapshot.auditCall.errorCode, errorCode);
+  assert.equal(snapshot.auditCall.outcome, expectedOutcome);
+  assert.equal(snapshot.payloadEvidence[0]?.payloadType, 'MCP_REQUEST');
+  if (transportStatus === 'RESPONSE_FINISHED') {
+    assert.equal(snapshot.payloadEvidence[1]?.payloadType, 'MCP_RESPONSE');
+    assert.match(snapshot.payloadEvidence[1]?.safePayload ?? '', new RegExp(errorCode, 'u'));
+  } else {
+    assert.equal(snapshot.payloadEvidence.every((payload) => payload.truncated || payload.payloadType === 'MCP_REQUEST'), true);
+  }
+  const transport = snapshot.auditEvents.find((event) => event.eventType === 'MCP_TRANSPORT_TERMINAL');
+  assert.ok(transport);
+  const summary = transport.safeSummary as Record<string, unknown>;
+  assert.equal(summary.transportStatus, transportStatus);
+  assert.equal(summary.clientReceiptConfirmed, false);
 }
 
 async function postTool(

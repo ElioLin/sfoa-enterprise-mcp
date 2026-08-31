@@ -87,6 +87,7 @@ export async function migrateDatabase(
 const P7_AUDIT_MIGRATION_VERSION = '005_p7_end_to_end_audit';
 const P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION = '006_p7_salesforce_api_observability';
 const P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION = '007_p7_soql_dml_audit_evidence';
+const P7_PAYLOAD_RUNTIME_MIGRATION_VERSION = '008_p7_payload_evidence_runtime';
 const P7_REQUIRED_CONSTRAINTS = Object.freeze([
   'chk_sfoa_audit_public_id', 'chk_sfoa_audit_time_range',
   'uq_sfoa_audit_event_sequence', 'uq_sfoa_audit_event_id_audit', 'fk_sfoa_audit_event_audit',
@@ -109,12 +110,14 @@ async function canRecoverCompletedP7Migration(
     version !== P7_AUDIT_MIGRATION_VERSION
     && version !== P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION
     && version !== P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION
+    && version !== P7_PAYLOAD_RUNTIME_MIGRATION_VERSION
   ) return false;
   try {
     await validateRequiredSchemaObjects(
       database,
       version !== P7_AUDIT_MIGRATION_VERSION,
-      version === P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION,
+      version === P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION || version === P7_PAYLOAD_RUNTIME_MIGRATION_VERSION,
+      version === P7_PAYLOAD_RUNTIME_MIGRATION_VERSION,
     );
     const constraints = await sql<{ constraintName: string }>`
       SELECT CONSTRAINT_NAME AS constraintName
@@ -308,6 +311,7 @@ export async function validateRequiredSchemaObjects(
   database: ControlPlaneDatabaseClient,
   includeP704 = true,
   includeP705 = includeP704,
+  includeP706 = includeP705,
 ): Promise<void> {
   const [tablesResult, columnsResult, indexesResult] = await Promise.all([
     sql<{ tableName: string; engine: string | null }>`
@@ -315,8 +319,8 @@ export async function validateRequiredSchemaObjects(
       FROM INFORMATION_SCHEMA.TABLES
       WHERE TABLE_SCHEMA = DATABASE()
     `.execute(database),
-    sql<{ tableName: string; columnName: string }>`
-      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName
+    sql<{ tableName: string; columnName: string; isNullable: string }>`
+      SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName, IS_NULLABLE AS isNullable
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
     `.execute(database),
@@ -330,10 +334,12 @@ export async function validateRequiredSchemaObjects(
   ]);
   const tables = new Map(tablesResult.rows.map((row) => [row.tableName, row.engine?.toLocaleUpperCase('en-US') ?? null]));
   const columnsByTable = new Map<string, Set<string>>();
+  const nullableColumns = new Map<string, string>();
   for (const row of columnsResult.rows) {
     const columns = columnsByTable.get(row.tableName) ?? new Set<string>();
     columns.add(row.columnName);
     columnsByTable.set(row.tableName, columns);
+    nullableColumns.set(`${row.tableName}.${row.columnName}`, row.isNullable);
   }
   const indexColumns = new Map<string, { tableName: string; columns: string[]; unique: boolean }>();
   for (const row of indexesResult.rows) {
@@ -356,6 +362,12 @@ export async function validateRequiredSchemaObjects(
       if (!includeP705 && tableName === 'sfoa_salesforce_api_call' && P7_05_COLUMNS.has(column)) continue;
       if (!actualColumns.has(column)) defects.push(`missing column ${tableName}.${column}`);
     }
+  }
+  if (
+    includeP706
+    && nullableColumns.get('sfoa_audit_payload_evidence.original_size_bytes') !== 'YES'
+  ) {
+    defects.push('column sfoa_audit_payload_evidence.original_size_bytes must be nullable');
   }
   for (const [indexName, expected] of Object.entries(REQUIRED_INDEXES)) {
     if (!includeP704 && indexName === 'uq_sfoa_sf_api_public_id') continue;

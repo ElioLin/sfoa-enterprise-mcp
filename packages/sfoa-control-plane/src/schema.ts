@@ -190,7 +190,7 @@ export interface AuditPayloadEvidenceTable {
   audit_event_id: string | null;
   payload_type: string;
   content_type: string;
-  original_size_bytes: string;
+  original_size_bytes: string | null;
   stored_size_bytes: number;
   truncated: BooleanNumber;
   content_sha256: string | null;

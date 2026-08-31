@@ -8,6 +8,8 @@ P7-02 lets `DatabaseRuntimeLogger` consume the active request audit context and 
 
 P7-03 production Runtime logging no longer awaits `AuditRepository.append` or `AuditTraceRepository.createCall`. It appends to the request Collector, offers one immutable Snapshot to a capacity-1000 Queue, and persists batches of up to 50 in a background Writer. The Writer uses a separate MySQL pool capped at two connections, retries twice with bounded exponential backoff, isolates non-retryable poison snapshots after batch rollback, and exposes bounded health counters. Admin transactional audit remains synchronous and unchanged.
 
+P7-06 extends that same Snapshot transaction with bounded Payload Evidence. The Writer resolves request-local Event sequence and Salesforce `publicApiCallId` to same-Audit database IDs, rejects missing/cross-Audit bindings, and computes SHA-256 over the exact persisted secret-safe prefix. Migration 008 permits unknown original byte size to remain NULL. `listPayloadEvidence()` and `getPayloadEvidenceById()` are explicit on-demand reads; ordinary Audit search/count never selects or joins `safe_payload`.
+
 From the repository root:
 
 ```powershell

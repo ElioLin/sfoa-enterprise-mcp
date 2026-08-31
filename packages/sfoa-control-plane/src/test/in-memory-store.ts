@@ -272,6 +272,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
           options,
         ),
         createPayloadEvidence: async (input) => this.createAuditPayload(input),
+        getPayloadEvidenceById: async (id) => this.auditPayloads.find((record) => record.id === id),
         listPayloadEvidence: async (auditId, options) => makePage(
           this.auditPayloads.filter((record) => record.auditId === auditId),
           options,
@@ -552,7 +553,9 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       auditEventId: input.auditEventId ?? null,
       payloadType: input.payloadType,
       contentType: input.contentType,
-      originalSizeBytes: String(input.originalSizeBytes),
+      originalSizeBytes: input.originalSizeBytes === undefined || input.originalSizeBytes === null
+        ? null
+        : String(input.originalSizeBytes),
       storedSizeBytes: encoded.storedSizeBytes,
       truncated: Boolean(input.truncated || encoded.truncated),
       contentSha256: input.contentSha256 ?? encoded.contentSha256,

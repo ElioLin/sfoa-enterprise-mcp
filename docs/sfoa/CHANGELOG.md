@@ -2,6 +2,15 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-01 — P7-06 MCP request, response, and payload evidence implemented
+
+- Reused the single bounded HTTP body read to persist typed `MCP_REQUEST` evidence before Identity, including real JSON-RPC Tool arguments without rereading or changing the request stream.
+- Added a request-local bounded `ServerResponse` recorder for actual MCP wire bytes and `finish`/early `close`/write-failure facts while preserving Node return values, backpressure, response timing, and the separate logical Tool `responseSummary`. `finish` never claims client receipt.
+- Extended the existing P7-04 JSforce adapter to capture non-GET request bodies and only the final safely available `HttpResponse.body`; no Salesforce response stream listener was added, OAuth payloads remain absent, and retry bodies bind only to the provable attempt.
+- Activated the P7-01 Payload Evidence Snapshot contract with 256 KiB/item, 64 items/Audit, 1 MiB/Audit, MCP/error reservations, nullable unknown original size, exact UTF-8 stored size, background persisted-prefix SHA-256, and secret-safe fail-open capture.
+- Extended the existing P7-03 transaction Writer to resolve Event sequence and Salesforce `publicApiCallId` within the same Audit before inserting Payload rows. Added migration 008 and explicit on-demand repository reads; ordinary Audit list/count queries and React AuditPage remain unchanged.
+- Added success/identity/governance/error/timeout/disconnect/DML UNKNOWN, OAuth/retry/validation, 2 MiB, Queue Full/5s DB, 50/100/200 HTTP/MySQL isolation, wrong-binding/orphan, and paired small/large performance Gates. Added Salesforce API calls, synchronous Audit DB awaits, official Salesforce TypeScript edits, dependencies, P7-07 UI, and P7-08 diagnostics are all zero.
+
 ## 2026-08-31 — P7-05 SOQL and DML Audit Evidence implemented
 
 - Added a nested, parallel-safe Salesforce semantic scope to the existing Request Audit AsyncLocalStorage store. High-level code supplies semantics only; the P7-04 wire adapter remains the sole Salesforce API row authority and binds evidence by exact `publicApiCallId`.

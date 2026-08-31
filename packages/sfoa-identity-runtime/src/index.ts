@@ -1,4 +1,5 @@
 export * from './config.js';
+export * from './audit-payload.js';
 export * from './connection-factory.js';
 export * from './contracts.js';
 export * from './cwd-execution-guard.js';

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { type Kysely, type Selectable, type Transaction, sql } from 'kysely';
 import {
   auditContentTypeSchema,
@@ -271,11 +271,20 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
     const auditId = await this.assertToolAudit(input.auditId);
     if (input.auditEventId !== undefined) await this.assertEventBelongsToAudit(input.auditEventId, auditId);
     if (input.salesforceApiCallId !== undefined) await this.assertApiCallBelongsToAudit(input.salesforceApiCallId, auditId);
-    if (!Number.isSafeInteger(input.originalSizeBytes) || input.originalSizeBytes < 0) {
+    if (
+      input.originalSizeBytes !== undefined
+      && input.originalSizeBytes !== null
+      && (!Number.isSafeInteger(input.originalSizeBytes) || input.originalSizeBytes < 0)
+    ) {
       throw invalidInput('originalSizeBytes must be a non-negative safe integer.');
     }
     const encoded = encodeBoundedAuditPayload(input.safePayload);
     const suppliedHash = input.contentSha256 === undefined ? undefined : parseSha256(input.contentSha256);
+    const persistedPayload = encoded.safePayload ?? '';
+    const persistedHash = createHash('sha256').update(persistedPayload, 'utf8').digest('hex');
+    if (suppliedHash !== undefined && suppliedHash !== persistedHash) {
+      throw invalidInput('contentSha256 must describe the persisted safePayload.');
+    }
     try {
       const inserted = await this.database.insertInto('sfoa_audit_payload_evidence').values({
         audit_id: auditId,
@@ -283,11 +292,13 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
         audit_event_id: input.auditEventId ?? null,
         payload_type: auditPayloadTypeSchema.parse(input.payloadType),
         content_type: auditContentTypeSchema.parse(sanitizeAuditText(input.contentType)),
-        original_size_bytes: input.originalSizeBytes.toString(),
+        original_size_bytes: input.originalSizeBytes === undefined || input.originalSizeBytes === null
+          ? null
+          : input.originalSizeBytes.toString(),
         stored_size_bytes: encoded.storedSizeBytes,
         truncated: Boolean(input.truncated || encoded.truncated),
-        content_sha256: suppliedHash ?? encoded.contentSha256,
-        safe_payload: encoded.safePayload,
+        content_sha256: suppliedHash ?? persistedHash,
+        safe_payload: persistedPayload,
       }).executeTakeFirstOrThrow();
       const id = requireInsertId(inserted.insertId, 'Audit payload evidence');
       const row = await this.database.selectFrom('sfoa_audit_payload_evidence').selectAll().where('id', '=', id).executeTakeFirstOrThrow();
@@ -304,6 +315,13 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
       .where('audit_id', '=', parsedAuditId).orderBy('id')
       .limit(options.limit + 1).offset(options.offset).execute();
     return page(rows.map(mapAuditPayload), options);
+  }
+
+  public async getPayloadEvidenceById(id: string): Promise<AuditPayloadEvidenceRecord | undefined> {
+    const parsedId = idSchema.parse(id);
+    const row = await this.database.selectFrom('sfoa_audit_payload_evidence').selectAll()
+      .where('id', '=', parsedId).executeTakeFirst();
+    return row ? mapAuditPayload(row) : undefined;
   }
 
   private async getInsertedAudit(insertId: bigint | number | string | undefined): Promise<AuditRecord> {
@@ -446,7 +464,7 @@ function mapAuditPayload(row: Selectable<AuditPayloadEvidenceTable>): AuditPaylo
     auditEventId: row.audit_event_id === null ? null : String(row.audit_event_id),
     payloadType: auditPayloadTypeSchema.parse(row.payload_type),
     contentType: row.content_type,
-    originalSizeBytes: String(row.original_size_bytes),
+    originalSizeBytes: row.original_size_bytes === null ? null : String(row.original_size_bytes),
     storedSizeBytes: Number(row.stored_size_bytes),
     truncated: Boolean(row.truncated),
     contentSha256: row.content_sha256,

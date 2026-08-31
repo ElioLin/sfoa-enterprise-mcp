@@ -2,7 +2,7 @@
 
 `@sfoa/mcp-server` is the production-oriented P6 HTTP runtime. It composes the public Salesforce Provider API, `@sfoa/identity-runtime`, the SFoA generic DML Provider, the SFoA deterministic Context Provider, the canonical Agent Playbook, and the MySQL Control Plane; it does not modify an official Salesforce Tool.
 
-P7-02 creates one server-authoritative Request Audit Context for every definite `tools/call`. P7-03 binds one in-memory Collector to that same context, explicitly carries it across HTTP/SDK/EventEmitter boundaries, finalizes one immutable Snapshot at request completion, and performs only a non-blocking Queue offer on the request path. The background Writer owns batch MySQL persistence and bounded shutdown flush. Optional observability headers remain bounded metadata and never enter Salesforce Tool input schemas; Salesforce API interception and request/response payload capture remain deferred.
+P7-02 creates one server-authoritative Request Audit Context for every definite `tools/call`. P7-03 binds one in-memory Collector to that same context, explicitly carries it across HTTP/SDK/EventEmitter boundaries, finalizes one immutable Snapshot at request completion, and performs only a non-blocking Queue offer on the request path. The background Writer owns batch MySQL persistence and bounded shutdown flush. P7-04/P7-05 add request-bound Salesforce wire and SOQL/DML facts. P7-06 reuses the single bounded body read for `MCP_REQUEST`, observes actual `ServerResponse.write/end` bytes without changing backpressure for `MCP_RESPONSE`, and records `finish` separately from early client `close`. Logical Tool result remains separate from transport fact, and no response waits for Audit persistence.
 
 The default remote contract is stateless Streamable HTTP at `http://127.0.0.1:8080/mcp`, registration-time default-deny Tool governance, the official read facades `get_username` and `run_soql_query`, and the safe SFoA infrastructure Tools `get_agent_playbook` and `get_record_links`. Internal clients use a shared bearer plus authenticated `X-Platform-User-Id`; WorkBuddy uses a USER_BOUND bearer without that Header; 小犇/Dify uses its current Buntu bearer without that Header. Official facades require the pinned Tool contract to match the executable audit baseline, expose only explicitly allowed Agent fields, inject host-owned identity/workspace fields, and then invoke unchanged official `Tool.exec()`.
 
@@ -28,6 +28,7 @@ yarn workspace @sfoa/mcp-server test
 yarn workspace @sfoa/mcp-server test:p3
 yarn workspace @sfoa/mcp-server test:p4
 yarn workspace @sfoa/mcp-server test:p5
+yarn workspace @sfoa/mcp-server test:p7
 yarn workspace @sfoa/mcp-server test:p5:mysql
 yarn workspace @sfoa/mcp-server lint
 yarn workspace @sfoa/mcp-server validate:upstream

@@ -59,9 +59,13 @@ import {
   snapshotUserRoute,
   type RuntimePolicySnapshotSource,
 } from './policy-snapshot.js';
-import { readBoundedJsonBody } from './request-body.js';
+import { readBoundedJsonBodySource } from './request-body.js';
 import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
+import {
+  observeBoundedMcpResponse,
+  type BoundedMcpResponseRecorder,
+} from './mcp-response-recorder.js';
 
 const correlationIdSchema = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u);
 
@@ -106,6 +110,8 @@ type RequestObservation = {
   identitySource?: AuthenticatedPrincipal['identitySource'];
   identityCredentialId?: string;
   auditContext?: RequestAuditContextController;
+  responseRecorder?: BoundedMcpResponseRecorder;
+  responseCompletion?: Promise<void>;
 };
 
 export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions): Promise<RemoteMcpServer> {
@@ -426,6 +432,10 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       options.response.end();
     }
   } finally {
+    if (observation.auditContext && observation.responseCompletion) {
+      await observation.responseCompletion.catch(() => undefined);
+      observation.responseRecorder?.finalizeUnknown();
+    }
     try {
       await resources.close();
     } catch (error) {
@@ -445,7 +455,8 @@ async function executeMcpPost(
 ): Promise<void> {
   const headers = toRequestHeaders(options.request);
   assertContentType(options.request);
-  const parsedBody = await readBoundedJsonBody(options.request, options.config.maxBodyBytes);
+  const bodySource = await readBoundedJsonBodySource(options.request, options.config.maxBodyBytes);
+  const parsedBody = bodySource.value;
   const requestedToolName = getSingleToolName(parsedBody);
   if (requestedToolName) {
     observation.auditContext = RequestAuditContextController.create({
@@ -454,12 +465,22 @@ async function executeMcpPost(
       toolName: requestedToolName,
       clientMetadata: readAuditClientMetadata(headers),
     });
-    observation.auditContext.collector().record({
+    const requestEventSequence = observation.auditContext.collector().recordEvent({
       eventCategory: 'MCP',
       eventType: 'TOOL_INVOCATION_STARTED',
       eventName: requestedToolName,
       status: 'STARTED',
     });
+    observation.auditContext.collector().recordPayloadEvidence({
+      payloadType: 'MCP_REQUEST',
+      contentType: requestContentType(options.request),
+      payload: bodySource.rawText,
+      originalSizeBytes: bodySource.sizeBytes,
+      ...(requestEventSequence === null ? {} : { auditEventSequence: requestEventSequence }),
+      priority: 'CORE',
+    });
+    observation.responseRecorder = observeBoundedMcpResponse(options.response, observation.auditContext);
+    observation.responseCompletion = waitForResponseCompletion(options.response);
   }
   const executeInAuditScope = async (): Promise<void> => {
     resources.assertAvailable(signal);
@@ -529,6 +550,12 @@ async function executeMcpPost(
       scope = await options.identityRuntime.scopeFactory.createForRoute(identity, userRoute);
     }
   } else {
+    if (observation.auditContext) {
+      await runWithRequestAuditContext(observation.auditContext, () =>
+        auditDisabledToolAttempt(parsedBody, options.config.enabledTools, principal, options.logger));
+    } else {
+      await auditDisabledToolAttempt(parsedBody, options.config.enabledTools, principal, options.logger);
+    }
     diagnosticReady = options.identityRuntime.diagnosticScopeFactory !== undefined
       && options.config.enabledTools.includes('run_diagnostic_tooling_query')
       && options.config.enabledTools.includes('get_metadata_component_context');
@@ -583,7 +610,7 @@ async function executeMcpPost(
   resources.assertAvailable(signal);
   const responseCompleted = waitForResponseCompletion(options.response);
   await transport.handleRequest(options.request, options.response, parsedBody);
-    if (!options.response.writableEnded && !options.response.destroyed) await responseCompleted;
+    await responseCompleted;
   };
   if (observation.auditContext) {
     await runWithRequestAuditContext(observation.auditContext, executeInAuditScope);
@@ -853,6 +880,12 @@ function parseCorrelationId(request: IncomingMessage): string {
 
 function toRequestHeaders(request: IncomingMessage): RequestHeaders {
   return Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name, value]));
+}
+
+function requestContentType(request: IncomingMessage): string {
+  const value = request.headers['content-type'];
+  const contentType = Array.isArray(value) ? value[0] : value;
+  return typeof contentType === 'string' ? contentType.slice(0, 128) : 'application/json';
 }
 
 function readAuditClientMetadata(headers: RequestHeaders): Readonly<Record<string, unknown>> {

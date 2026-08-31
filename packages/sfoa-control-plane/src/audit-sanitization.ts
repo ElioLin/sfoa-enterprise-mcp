@@ -95,7 +95,9 @@ export function encodeBoundedAuditPayload(
     sanitizedSizeBytes,
     storedSizeBytes: Buffer.byteLength(safePayload, 'utf8'),
     truncated: sanitized.truncated || sanitizedSizeBytes > maxBytes,
-    contentSha256: sha256(encoded),
+    // Hash the exact persisted safe prefix. This is not a claim about a
+    // truncated or otherwise unavailable original payload.
+    contentSha256: sha256(safePayload),
   });
 }
 
