@@ -6,6 +6,11 @@ import type { CreateRecordInput, SalesforceFieldValue, UpdateRecordInput } from 
 
 export type MutationExecutionObserver = Readonly<{
   onMutationStarted(operation: 'CREATE' | 'UPDATE'): void;
+  runWithSubmittedFields?<T>(
+    fields: Readonly<Record<string, SalesforceFieldValue>>,
+    callback: () => Promise<T>,
+  ): Promise<T>;
+  onMutationCompleted?(operation: 'CREATE' | 'UPDATE', recordId: string): void;
 }>;
 
 export class DmlExecutor {
@@ -22,7 +27,11 @@ export class DmlExecutor {
       const sobject = connection.sobject(input.objectApiName);
       // The Host observes this exact pre-dispatch boundary; local gates above remain NOT_STARTED.
       this.mutationObserver?.onMutationStarted('CREATE');
-      const result = await sobject.create(copyFields(input.fields));
+      const submittedFields = copyFields(input.fields);
+      const dispatch = async () => await sobject.create(submittedFields);
+      const result = this.mutationObserver?.runWithSubmittedFields
+        ? await this.mutationObserver.runWithSubmittedFields(submittedFields, dispatch)
+        : await dispatch();
       if (!result.success) {
         throw new DmlRuntimeError(
           'MCP_SALESFORCE_DML_FAILED',
@@ -30,6 +39,7 @@ export class DmlExecutor {
           extractSafeSalesforceErrors(result.errors),
         );
       }
+      this.mutationObserver?.onMutationCompleted?.('CREATE', result.id);
       return result.id;
     } catch (error) {
       if (error instanceof DmlRuntimeError) throw error;
@@ -44,10 +54,14 @@ export class DmlExecutor {
       const sobject = connection.sobject(input.objectApiName);
       // The Host observes this exact pre-dispatch boundary; local gates above remain NOT_STARTED.
       this.mutationObserver?.onMutationStarted('UPDATE');
-      const result = await sobject.update({
+      const submittedFields = copyFields(input.fields);
+      const dispatch = async () => await sobject.update({
         Id: input.recordId,
-        ...copyFields(input.fields),
+        ...submittedFields,
       });
+      const result = this.mutationObserver?.runWithSubmittedFields
+        ? await this.mutationObserver.runWithSubmittedFields(submittedFields, dispatch)
+        : await dispatch();
       if (!result.success) {
         throw new DmlRuntimeError(
           'MCP_SALESFORCE_DML_FAILED',
@@ -55,6 +69,7 @@ export class DmlExecutor {
           extractSafeSalesforceErrors(result.errors),
         );
       }
+      this.mutationObserver?.onMutationCompleted?.('UPDATE', result.id);
       return result.id;
     } catch (error) {
       if (error instanceof DmlRuntimeError) throw error;

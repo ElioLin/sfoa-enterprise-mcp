@@ -65,11 +65,12 @@ if (!setup) {
       '004_p6_dml_managed_field_rule',
       '005_p7_end_to_end_audit',
       '006_p7_salesforce_api_observability',
+      '007_p7_soql_dml_audit_evidence',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
 
-  test('an empty database initializes through 006 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
+  test('an empty database initializes through 007 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
     await withIsolatedDatabase(config, 'empty', async (database) => {
       const migrations = await migrateDatabase(database);
       assert.deepEqual(migrations.map((entry) => entry.version), [
@@ -79,6 +80,7 @@ if (!setup) {
         '004_p6_dml_managed_field_rule',
         '005_p7_end_to_end_audit',
         '006_p7_salesforce_api_observability',
+        '007_p7_soql_dml_audit_evidence',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -95,7 +97,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '006_p7_salesforce_api_observability');
+      assert.equal(migrations.at(-1)?.version, '007_p7_soql_dml_audit_evidence');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -303,6 +305,10 @@ if (!setup) {
             'sfoa_salesforce_api_call.salesforce_username', 'sfoa_salesforce_api_call.request_url',
             'sfoa_salesforce_api_call.endpoint', 'sfoa_salesforce_api_call.endpoint_path',
             'sfoa_salesforce_api_call.salesforce_error_message_safe',
+            'sfoa_salesforce_api_call.query_type', 'sfoa_salesforce_api_call.soql_statement_safe',
+            'sfoa_salesforce_api_call.total_size', 'sfoa_salesforce_api_call.returned_records',
+            'sfoa_salesforce_api_call.done', 'sfoa_salesforce_api_call.has_next_records',
+            'sfoa_salesforce_api_call.object_api_name',
             'sfoa_audit_log.public_audit_id', 'sfoa_audit_log.platform_user_id', 'sfoa_audit_log.tool_name',
           ])
           .where('sfoa_audit_log.public_audit_id', 'in', publicIds)
@@ -322,6 +328,13 @@ if (!setup) {
           assert.equal(ownedApi[0]?.request_url?.includes(marker), true);
           assert.equal(ownedApi[0]?.platform_user_id, `platform_${marker}`);
           assert.equal(ownedApi[0]?.tool_name, snapshot.auditCall.toolName);
+          assert.equal(ownedApi[0]?.query_type, 'DATA_SOQL');
+          assert.equal(ownedApi[0]?.soql_statement_safe?.includes(marker), true);
+          assert.equal(ownedApi[0]?.total_size, snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') ? null : 1);
+          assert.equal(ownedApi[0]?.returned_records, snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') ? null : 1);
+          assert.equal(ownedApi[0]?.done, snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') ? null : 1);
+          assert.equal(ownedApi[0]?.has_next_records, snapshot.auditCall.platformUserId?.endsWith('_1_ONLY') ? null : 0);
+          assert.equal(ownedApi[0]?.object_api_name, 'Account');
           if (snapshot.auditCall.platformUserId?.endsWith('_0_ONLY')) {
             const expectedApi = snapshot.salesforceApiCalls[0];
             assert.equal((expectedApi?.endpointPath?.length ?? 0) > 1_024, true);
@@ -523,11 +536,12 @@ if (!setup) {
       durationMs: 25,
       httpStatus: 200,
       result: 'SUCCESS',
-      queryType: 'QUERY',
+      queryType: 'DATA_SOQL',
       soqlStatementSafe: `SELECT Id FROM Account WHERE Name = '${fakeBearer}'`,
       totalSize: 1,
       returnedRecords: 1,
       done: true,
+      hasNextRecords: false,
     });
     const apiB = await store.repositories.auditTraces.createSalesforceApiCall({
       auditId: callB.id,
@@ -548,11 +562,12 @@ if (!setup) {
       durationMs: 25,
       httpStatus: 200,
       result: 'SUCCESS',
-      queryType: 'QUERY',
+      queryType: 'DATA_SOQL',
       soqlStatementSafe: 'SELECT Id FROM Contact',
       totalSize: 0,
       returnedRecords: 0,
       done: true,
+      hasNextRecords: false,
     });
     const dmlA = await store.repositories.auditTraces.createSalesforceApiCall({
       auditId: callA.id,
@@ -579,9 +594,11 @@ if (!setup) {
       recordId: '001fake',
       requestedFields: { Name: '安全名称', password: 'fake-request-password' },
       managedFields: { Created_By_AI__c: true },
+      submittedFields: { Name: '安全名称', Created_By_AI__c: true },
     });
     assert.equal(dmlA.dmlOperation, 'UPDATE');
     assert.equal(JSON.stringify(dmlA.requestedFields).includes('fake-request-password'), false);
+    assert.deepEqual(dmlA.submittedFields, { Name: '安全名称', Created_By_AI__c: true });
     await assert.rejects(
       store.repositories.auditTraces.createSalesforceApiCall({
         auditId: callA.id,
@@ -738,6 +755,18 @@ function mysqlSnapshot(unique: number, concurrency: number, index: number): Audi
     requestSizeBytes: null,
     responseSizeBytes: 64,
     contentType: 'application/json',
+    queryType: 'DATA_SOQL',
+    soqlStatement: `SELECT Id FROM Account WHERE Name = '${marker}'`,
+    totalSize: index === 1 ? null : 1,
+    returnedRecords: index === 1 ? null : 1,
+    done: index === 1 ? null : true,
+    hasNextRecords: index === 1 ? null : false,
+    dmlOperation: null,
+    objectApiName: 'Account',
+    recordId: null,
+    requestedFields: null,
+    managedFields: null,
+    submittedFields: null,
   }));
   context.collector().record({
     eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: `${marker} terminal`, status: 'SUCCESS',

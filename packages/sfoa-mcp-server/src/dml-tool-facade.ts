@@ -19,7 +19,7 @@ import type {
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
-import { runWithSalesforceApiPurpose } from '@sfoa/identity-runtime';
+import { runWithSalesforceApiPurpose, runWithSalesforceDmlSemantic } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import type { AppliedManagedDmlField, ManagedDmlFieldResolver } from './dml-managed-fields.js';
 import { formatRemoteRuntimeError, RemoteRuntimeError } from './errors.js';
@@ -117,9 +117,24 @@ export class DmlToolFacade {
               { correlationId: this.options.context.correlationId },
             );
           }
+          const objectApiName = typeof executionInput.objectApiName === 'string'
+            ? executionInput.objectApiName
+            : undefined;
+          const requestedFields = isRecord(input.fields) ? input.fields : {};
+          const managedFields = resolvedManagedFieldValues(executionInput, appliedManagedFields);
           return runWithSalesforceApiPurpose(
             this.operation === 'CREATE' ? 'DML_CREATE' : 'DML_UPDATE',
-            () => this.options.tool.exec(executionInput, extra),
+            () => objectApiName
+              ? runWithSalesforceDmlSemantic({
+                  operation: this.operation,
+                  objectApiName,
+                  ...(this.operation === 'UPDATE' && typeof executionInput.recordId === 'string'
+                    ? { recordId: executionInput.recordId }
+                    : {}),
+                  requestedFields,
+                  managedFields,
+                }, () => this.options.tool.exec(executionInput, extra))
+              : this.options.tool.exec(executionInput, extra),
           );
         })(),
         this.options.toolTimeoutMs,
@@ -263,6 +278,16 @@ function resultRecordId(result: CallToolResult | undefined): string | undefined 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function resolvedManagedFieldValues(
+  input: ToolInput,
+  applied: readonly AppliedManagedDmlField[],
+): Readonly<Record<string, unknown>> {
+  const fields = isRecord(input.fields) ? input.fields : {};
+  const output: Record<string, unknown> = {};
+  for (const field of applied) output[field.fieldApiName] = fields[field.fieldApiName];
+  return Object.freeze(output);
 }
 
 function resultErrorCode(result: CallToolResult): string | undefined {

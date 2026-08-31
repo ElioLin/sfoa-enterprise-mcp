@@ -55,6 +55,7 @@ test('versioned migrations remain immutable and P7 adds normalized bounded audit
   const managedFields = await readFile(path.join(directory, '004_p6_dml_managed_field_rule.sql'), 'utf8');
   const p7Audit = await readFile(path.join(directory, '005_p7_end_to_end_audit.sql'), 'utf8');
   const p704 = await readFile(path.join(directory, '006_p7_salesforce_api_observability.sql'), 'utf8');
+  const p705 = await readFile(path.join(directory, '007_p7_soql_dml_audit_evidence.sql'), 'utf8');
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_identity_route/u);
   assert.match(first, /CREATE TABLE IF NOT EXISTS sfoa_audit_log/u);
   assert.doesNotMatch(first, /access_token|private_key|jwt_assertion|password/iu);
@@ -80,6 +81,8 @@ test('versioned migrations remain immutable and P7 adds normalized bounded audit
   assert.match(p704, /request_url/u);
   assert.match(p704, /MODIFY COLUMN http_method[\s\S]*NULL/u);
   assert.doesNotMatch(p704, /https:\/\/salesforce\/metadata/u);
+  assert.match(p705, /has_next_records/u);
+  assert.match(p705, /submitted_fields_json JSON/u);
   assert.equal(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 1;\r\n'));
   assert.notEqual(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 2;\n'));
 

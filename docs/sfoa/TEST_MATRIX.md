@@ -903,12 +903,39 @@ P7-01 = COMPLETE
 P7-02 = COMPLETE
 P7-03 = COMPLETE
 P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-05–P7-08 = NOT STARTED
+P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-06–P7-08 = NOT STARTED
 ```
+
+## P7-05 SOQL & DML Audit Evidence Acceptance Matrix — 2026-08-31
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Source + CodeGraph semantic matrix | PASS | 577 files / 7,456 nodes / 16,965 edges；query/tooling/managed lookup/create/update/final payload/result paths reviewed |
+| Data SOQL / zero rows / failure | PASS | readable original SOQL；success counts from parsed Query result；zero is `0/0`；failure counts remain `NULL` with Salesforce error |
+| Tooling SOQL / pagination | PASS | `TOOLING_SOQL`；3,000 total / 2,000 returned / `done=false` / `hasNextRecords=true` |
+| Query response copy | PASS | snapshot contains only counts and flags；2,000 `records` markers absent；transport adapter performs no success-body parse |
+| Nested semantic scope | PASS | managed lookup remains `SERVER_MANAGED_LOOKUP` Query；following CREATE retains DML purpose and fields |
+| Parallel binding | PASS | `Promise.all(Query A, Query B)` binds A→Account and B→Contact with correct SOQL/counts; swaps = 0 |
+| Interleaved Audit binding | PASS | Audit 1 A/B/C and Audit 2 X/Y highly interleaved；cross SOQL/object/record/field/API binding leaks = 0 |
+| CREATE / UPDATE evidence | PASS | requested from facade input；managed from applied runtime values；submitted from executor dispatch payload；CREATE ID from SaveResult；UPDATE ID from input route/SaveResult |
+| Validation / UNKNOWN | PASS | validation and connection reset retain submitted fields；UNKNOWN master outcome retained；mutation count = 1；retry = 0 |
+| Bounds | PASS | SOQL 65,000 UTF-8 bytes；200 fields max；4,096 chars/value；16 KiB per field map；ASCII/multibyte long-SOQL、100-field and oversized-value tests mark `PARTIAL` without payload mutation |
+| Fail-open | PASS | parser/encoder/missing binding/drop/persistence failures do not alter Tool result；integrity becomes `PARTIAL` |
+| Migration 007 / MySQL | PASS | 005/006 unchanged；`has_next_records` + `submitted_fields_json` added；empty/P6 upgrade and 10/10 real isolated MySQL tests pass |
+| Async main path | PASS | only P7-03 Queue/Writer/Batch Sink persists semantics；synchronous Audit DB await = 0 |
+| 50/100/200 concurrency | PASS | cross SOQL/DML/record/object/API semantic binding leaks = 0；duplicates/orphans = 0；actual API counts equal OFF at every round |
+| Paired performance | PASS | three identical-workload rounds at 50/100/200；p50/p95/p99/throughput/memory raw values emitted as `P7_05_PAIRED_BENCHMARK` and summarized in report |
+| Additional Salesforce API | PASS (`0`) | mock server OFF count = ON count in every 50/100/200 round；no metadata/before/after verification calls |
+| Official Salesforce Provider modifications | PASS (`0`) | no upstream-owned TypeScript file changed |
+| Affected builds / changed-code lint | PASS | Identity Runtime、DML Provider、Control Plane、MCP Server package builds and strict TypeScript lint pass |
+| Final root Aggregate | KNOWN UPSTREAM DEBT | single `yarn test` attempt completed official example 8/8, then stopped before SFoA workspaces because unchanged `@salesforce/mcp-provider-code-analyzer` invokes unavailable global `tsc` on Windows；root build has the same upstream script blocker；no second Aggregate run |
+
+Detailed commands, raw performance medians, architecture proof, migration, and limitations are recorded in `P7_05_REPORT.md`.
 
 ## P7-04 Salesforce API Transparent Auditing Acceptance Matrix — 2026-08-31
 
-Maintainer 已确认 `P7-03 = COMPLETE` 并授权 P7-04。本节记录 P7-04 实现与实际 Gate；不表示 P7-04 已由 Maintainer 标记 `COMPLETE`，也不表示 P7-05 已开始。
+Maintainer 已确认 `P7-03 = COMPLETE` 并授权 P7-04。本节仅记录 P7-04 当时的实现与实际 Gate；P7-05 的后续授权与证据由本文件的 P7-05 Matrix 和 `P7_05_REPORT.md` 单独记录。
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
@@ -948,5 +975,6 @@ P7-01 = COMPLETE
 P7-02 = COMPLETE
 P7-03 = COMPLETE
 P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
-P7-05–P7-08 = NOT STARTED
+P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
+P7-06–P7-08 = NOT STARTED
 ```

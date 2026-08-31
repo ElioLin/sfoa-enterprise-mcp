@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from 'node:http';
 import https from 'node:https';
+import { Query } from '@jsforce/jsforce-node/lib/query.js';
 import { Transport } from '@jsforce/jsforce-node/lib/transport.js';
 import type {
   HttpRequest,
@@ -11,17 +12,26 @@ import type {
 import type { StreamPromise } from '@jsforce/jsforce-node/lib/util/promise.js';
 import {
   currentRequestAuditContext,
+  currentSalesforceCallSemanticScope,
   currentSalesforceApiPurpose,
+  SalesforceCallSemanticScope,
   type RequestAuditContextController,
 } from './request-audit-context.js';
 import type {
   RequestAuditSalesforceApiCallSnapshot,
+  SalesforceApiSemanticEvidence,
   SalesforceApiPurpose,
 } from './request-audit-collector.js';
 import { classifySalesforceApiUrl } from './salesforce-api-classifier.js';
 
 const INSTALL_MARKER = Symbol.for('@sfoa/identity-runtime/jsforce-audit-adapter-installed');
+const QUERY_INSTALL_MARKER = Symbol.for('@sfoa/identity-runtime/jsforce-query-audit-adapter-installed');
 type MarkedTransportPrototype = Transport & { [INSTALL_MARKER]?: true };
+type AuditedQueryPrototype = {
+  execute(...args: unknown[]): unknown;
+  once(event: string, listener: (value: unknown) => void): unknown;
+  [QUERY_INSTALL_MARKER]?: true;
+};
 
 type JsforceObservation = {
   controller: RequestAuditContextController;
@@ -41,6 +51,7 @@ type WireAttempt = Readonly<{
   startedAtMs: number;
   request: HttpRequest;
   requestSizeBytes: number | null;
+  semanticEvidence: SalesforceApiSemanticEvidence;
 }>;
 
 type PendingResponse = Readonly<{
@@ -58,6 +69,7 @@ export function installJsforceAuditAdapter(): void {
   if (prototype[INSTALL_MARKER]) return;
 
   installNodeHttpAttemptObservers();
+  installQueryResultObserver();
 
   const originalHttpRequest = Transport.prototype.httpRequest;
   Transport.prototype.httpRequest = function auditedHttpRequest(
@@ -221,6 +233,7 @@ function captureAttempt(
       // Content-Length 能低成本获得时记录；未知时保持 NULL。
       responseSizeBytes: outcome.responseSizeBytes ?? null,
       contentType: outcome.contentType ?? null,
+      ...attempt.semanticEvidence,
     } satisfies RequestAuditSalesforceApiCallSnapshot;
   });
 }
@@ -234,25 +247,101 @@ function createWireAttempt(
   const actualUrl = nodeRequestUrl(args, defaultProtocol) ?? observation.logicalRequest.url;
   const options = requestOptions(args);
   const method = auditedMethod(options?.method) ?? observation.logicalRequest.method;
+  const publicApiCallId = randomUUID();
   return Object.freeze({
-    publicApiCallId: randomUUID(),
+    publicApiCallId,
     sequence: observation.controller.nextSequence(),
     startedAt: new Date(startedAtMs).toISOString(),
     startedAtMs,
     request: Object.freeze({ url: actualUrl, method }),
     requestSizeBytes: contentLength(options) ?? byteLength(observation.logicalRequest.body),
+    semanticEvidence: semanticEvidenceForAttempt(observation, publicApiCallId, actualUrl),
   });
 }
 
 function createLogicalFallbackAttempt(observation: JsforceObservation): WireAttempt {
   const startedAtMs = Date.now();
+  const publicApiCallId = randomUUID();
   return Object.freeze({
-    publicApiCallId: randomUUID(),
+    publicApiCallId,
     sequence: observation.controller.nextSequence(),
     startedAt: new Date(startedAtMs).toISOString(),
     startedAtMs,
     request: observation.logicalRequest,
     requestSizeBytes: byteLength(observation.logicalRequest.body),
+    semanticEvidence: semanticEvidenceForAttempt(observation, publicApiCallId, observation.logicalRequest.url),
+  });
+}
+
+function installQueryResultObserver(): void {
+  const prototype = Query.prototype as unknown as AuditedQueryPrototype;
+  if (prototype[QUERY_INSTALL_MARKER]) return;
+  const originalExecute = prototype.execute;
+  prototype.execute = function auditedQueryExecute(this: AuditedQueryPrototype, ...args: unknown[]): unknown {
+    const semanticScope = currentSalesforceCallSemanticScope();
+    if (semanticScope) {
+      this.once('response', (value: unknown) => {
+        if (!isRecord(value)) {
+          currentRequestAuditContext()?.collector().recordSalesforceApiCaptureFailure();
+          return;
+        }
+        semanticScope.enrichQueryResult({
+          totalSize: value.totalSize,
+          records: value.records,
+          done: value.done,
+          nextRecordsUrl: value.nextRecordsUrl,
+        });
+      });
+    }
+    return Reflect.apply(originalExecute, this, args);
+  };
+  Object.defineProperty(prototype, QUERY_INSTALL_MARKER, { value: true, configurable: false });
+}
+
+function semanticEvidenceForAttempt(
+  observation: JsforceObservation,
+  publicApiCallId: string,
+  requestUrl: string,
+): SalesforceApiSemanticEvidence {
+  const active = currentSalesforceCallSemanticScope();
+  if (active) return active.bind(publicApiCallId);
+  try {
+    const url = new URL(requestUrl);
+    const path = url.pathname.toLowerCase();
+    const queryType = /\/tooling\/query(?:\/|$)/u.test(path)
+      ? 'TOOLING_SOQL' as const
+      : /\/query(?:\/|$)/u.test(path) ? 'DATA_SOQL' as const : undefined;
+    if (!queryType) return emptySemanticEvidence();
+    const soql = url.searchParams.get('q');
+    if (soql === null) {
+      observation.controller.collector().recordSalesforceApiCaptureFailure();
+      return emptySemanticEvidence();
+    }
+    // URL decoding is a fallback only. Without the high-level Query scope the
+    // parsed result statistics cannot be deterministically attached.
+    observation.controller.collector().recordSalesforceApiCaptureFailure();
+    return SalesforceCallSemanticScope.query(observation.controller, { queryType, soqlStatement: soql })
+      .bind(publicApiCallId);
+  } catch {
+    observation.controller.collector().recordSalesforceApiCaptureFailure();
+    return emptySemanticEvidence();
+  }
+}
+
+function emptySemanticEvidence(): SalesforceApiSemanticEvidence {
+  return Object.freeze({
+    queryType: null,
+    soqlStatement: null,
+    totalSize: null,
+    returnedRecords: null,
+    done: null,
+    hasNextRecords: null,
+    dmlOperation: null,
+    objectApiName: null,
+    recordId: null,
+    requestedFields: null,
+    managedFields: null,
+    submittedFields: null,
   });
 }
 

@@ -259,11 +259,13 @@ export type SalesforceApiCallCreateInput = Readonly<{
   totalSize?: number;
   returnedRecords?: number;
   done?: boolean;
+  hasNextRecords?: boolean;
   dmlOperation?: 'CREATE' | 'UPDATE';
   objectApiName?: string;
   recordId?: string;
   requestedFields?: unknown;
   managedFields?: unknown;
+  submittedFields?: unknown;
 }>;
 
 export type AuditPayloadEvidenceCreateInput = Readonly<{

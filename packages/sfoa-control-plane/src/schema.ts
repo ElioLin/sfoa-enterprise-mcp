@@ -173,11 +173,13 @@ export interface SalesforceApiCallTable {
   total_size: number | null;
   returned_records: number | null;
   done: BooleanNumber | null;
+  has_next_records: BooleanNumber | null;
   dml_operation: string | null;
   object_api_name: string | null;
   record_id: string | null;
   requested_fields_json: string | null;
   managed_fields_json: string | null;
+  submitted_fields_json: string | null;
   created_at: GeneratedTimestamp;
 }
 

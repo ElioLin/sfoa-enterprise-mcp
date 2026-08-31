@@ -521,11 +521,13 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       totalSize: input.totalSize ?? null,
       returnedRecords: input.returnedRecords ?? null,
       done: input.done ?? null,
+      hasNextRecords: input.hasNextRecords ?? null,
       dmlOperation: input.dmlOperation ?? null,
       objectApiName: input.objectApiName ?? null,
       recordId: input.recordId ?? null,
       requestedFields: input.requestedFields ?? null,
       managedFields: input.managedFields ?? null,
+      submittedFields: input.submittedFields ?? null,
       createdAt: TEST_TIME,
     });
     this.salesforceApiCalls.push(record);

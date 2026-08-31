@@ -2,6 +2,14 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-08-31 — P7-05 SOQL and DML Audit Evidence implemented
+
+- Added a nested, parallel-safe Salesforce semantic scope to the existing Request Audit AsyncLocalStorage store. High-level code supplies semantics only; the P7-04 wire adapter remains the sole Salesforce API row authority and binds evidence by exact `publicApiCallId`.
+- Added readable bounded Data/Tooling SOQL, deterministic top-level object extraction, URL-decoded fallback, parsed Query counts/pagination flags, and failure-versus-zero-row semantics without reparsing or cloning response bodies.
+- Added CREATE/UPDATE requested, actual managed, and exact submitted field evidence plus Salesforce result record IDs while preserving validation failures and `MCP_DML_OUTCOME_UNKNOWN` no-retry behavior.
+- Added migration 007 for `has_next_records` and `submitted_fields_json`, and carried all semantic fields through the existing non-blocking P7-03 Queue/Writer/Batch Sink and repository contracts.
+- Added nested lookup, parallel query, interleaved multi-Audit, 2,000-record, 100-field, long-SOQL, encoder-failure, DML validation/transport-unknown, MySQL, 50/100/200 isolation, and paired performance Gates. No official Salesforce TypeScript file, dependency, lockfile, MCP payload capture, Admin UI, or extra Salesforce API call was added.
+
 ## 2026-08-30 — P7-01 startup recovery and Buntu audit opt-in
 
 - Added fail-closed recovery for the MySQL implicit-commit edge case where every migration 005 DDL object exists but its ledger row was not recorded. Recovery validates the complete required schema, indexes, and named constraints before recording the unchanged repository checksum; partial schemas still fail.

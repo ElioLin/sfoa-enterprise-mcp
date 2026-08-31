@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  MAX_AUDIT_FIELDS_JSON_BYTES,
+  MAX_AUDIT_SOQL_LENGTH,
   currentRequestAuditContext,
+  currentSalesforceCallSemanticScope,
   RequestAuditContextController,
   runWithRequestAuditContext,
+  runWithSalesforceDmlSemantic,
+  runWithSalesforceQuerySemantic,
 } from '../request-audit-context.js';
 import {
   MAX_REQUEST_AUDIT_EVENTS,
   MAX_SALESFORCE_API_CALLS_PER_REQUEST,
+  type SalesforceApiSemanticEvidence,
   type RequestAuditSalesforceApiCallSnapshot,
 } from '../request-audit-collector.js';
 
@@ -309,6 +315,62 @@ test('Salesforce API collection is bounded and deterministically preserves a lat
   assert.equal(summary.auditCapture?.droppedSalesforceApiCallCount, 1);
 });
 
+test('long SOQL and 100-field DML evidence stay bounded without mutating business inputs', () => {
+  const context = RequestAuditContextController.create({ channel: 'MCP_HTTP', toolName: 'semantic_bounds' });
+  const fields: Record<string, unknown> = Object.fromEntries(
+    Array.from({ length: 100 }, (_, index) => [`Field_${index}__c`, `VALUE_${index}`]),
+  );
+  fields.Huge__c = 'H'.repeat(100_000);
+  const originalHuge = fields.Huge__c;
+  let soqlEvidence: SalesforceApiSemanticEvidence | undefined;
+  let multibyteSoqlEvidence: SalesforceApiSemanticEvidence | undefined;
+  let dmlEvidence: SalesforceApiSemanticEvidence | undefined;
+
+  runWithRequestAuditContext(context, () => {
+    const longSoql = `SELECT Id FROM Account WHERE Name = '${'S'.repeat(MAX_AUDIT_SOQL_LENGTH + 1_000)}'`;
+    runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: longSoql }, () => {
+      soqlEvidence = currentSalesforceCallSemanticScope()?.bind('11111111-1111-4111-8111-111111111111');
+    });
+    const multibyteSoql = `SELECT Id FROM Account WHERE Name = '${'客'.repeat(MAX_AUDIT_SOQL_LENGTH)}'`;
+    runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: multibyteSoql }, () => {
+      multibyteSoqlEvidence = currentSalesforceCallSemanticScope()?.bind('33333333-3333-4333-8333-333333333333');
+    });
+    runWithSalesforceDmlSemantic({
+      operation: 'UPDATE', objectApiName: 'Account', recordId: '001BOUND', requestedFields: fields, managedFields: {},
+    }, () => {
+      dmlEvidence = currentSalesforceCallSemanticScope()?.bind('22222222-2222-4222-8222-222222222222');
+    });
+  });
+
+  assert.equal(soqlEvidence?.soqlStatement?.length, MAX_AUDIT_SOQL_LENGTH);
+  assert.equal(Buffer.byteLength(soqlEvidence?.soqlStatement ?? '', 'utf8') <= MAX_AUDIT_SOQL_LENGTH, true);
+  assert.equal(Buffer.byteLength(multibyteSoqlEvidence?.soqlStatement ?? '', 'utf8') <= MAX_AUDIT_SOQL_LENGTH, true);
+  assert.equal(Object.keys(dmlEvidence?.requestedFields ?? {}).length >= 100, true);
+  assert.equal(Buffer.byteLength(JSON.stringify(dmlEvidence?.requestedFields), 'utf8') <= MAX_AUDIT_FIELDS_JSON_BYTES, true);
+  assert.equal(fields.Huge__c, originalHuge);
+  context.collector().record({
+    eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: 'semantic_bounds', status: 'SUCCESS',
+    terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
+  });
+  assert.equal(context.finalizeAudit()?.auditCall.auditIntegrityStatus, 'PARTIAL');
+});
+
+test('semantic encoder failure is fail-open and marks the Audit PARTIAL', () => {
+  const context = RequestAuditContextController.create({ channel: 'MCP_HTTP', toolName: 'encoder_failure' });
+  const hostile = new Proxy<Record<string, unknown>>({}, {
+    ownKeys: () => { throw new Error('synthetic encoder failure'); },
+  });
+  const result = runWithRequestAuditContext(context, () => runWithSalesforceDmlSemantic({
+    operation: 'CREATE', objectApiName: 'Lead', requestedFields: hostile, managedFields: {},
+  }, () => 'BUSINESS_RESULT'));
+  assert.equal(result, 'BUSINESS_RESULT');
+  context.collector().record({
+    eventCategory: 'TOOL', eventType: 'TOOL_TERMINAL', eventName: 'encoder_failure', status: 'SUCCESS',
+    terminal: { source: 'TOOL', result: 'PASS', outcome: 'SUCCESS' },
+  });
+  assert.equal(context.finalizeAudit()?.auditCall.auditIntegrityStatus, 'PARTIAL');
+});
+
 function apiCall(
   context: RequestAuditContextController,
   marker: number,
@@ -340,5 +402,17 @@ function apiCall(
     requestSizeBytes: null,
     responseSizeBytes: null,
     contentType: 'application/json',
+    queryType: null,
+    soqlStatement: null,
+    totalSize: null,
+    returnedRecords: null,
+    done: null,
+    hasNextRecords: null,
+    dmlOperation: null,
+    objectApiName: null,
+    recordId: null,
+    requestedFields: null,
+    managedFields: null,
+    submittedFields: null,
   });
 }

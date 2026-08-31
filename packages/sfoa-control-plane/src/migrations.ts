@@ -86,6 +86,7 @@ export async function migrateDatabase(
 
 const P7_AUDIT_MIGRATION_VERSION = '005_p7_end_to_end_audit';
 const P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION = '006_p7_salesforce_api_observability';
+const P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION = '007_p7_soql_dml_audit_evidence';
 const P7_REQUIRED_CONSTRAINTS = Object.freeze([
   'chk_sfoa_audit_public_id', 'chk_sfoa_audit_time_range',
   'uq_sfoa_audit_event_sequence', 'uq_sfoa_audit_event_id_audit', 'fk_sfoa_audit_event_audit',
@@ -104,9 +105,17 @@ async function canRecoverCompletedP7Migration(
   database: ControlPlaneDatabaseClient,
   version: string,
 ): Promise<boolean> {
-  if (version !== P7_AUDIT_MIGRATION_VERSION && version !== P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION) return false;
+  if (
+    version !== P7_AUDIT_MIGRATION_VERSION
+    && version !== P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION
+    && version !== P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION
+  ) return false;
   try {
-    await validateRequiredSchemaObjects(database, version === P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION);
+    await validateRequiredSchemaObjects(
+      database,
+      version !== P7_AUDIT_MIGRATION_VERSION,
+      version === P7_SOQL_DML_EVIDENCE_MIGRATION_VERSION,
+    );
     const constraints = await sql<{ constraintName: string }>`
       SELECT CONSTRAINT_NAME AS constraintName
       FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
@@ -116,7 +125,9 @@ async function canRecoverCompletedP7Migration(
     const names = new Set(constraints.rows.map((row) => row.constraintName));
     const required = version === P7_AUDIT_MIGRATION_VERSION
       ? P7_REQUIRED_CONSTRAINTS
-      : P7_SALESFORCE_OBSERVABILITY_REQUIRED_CONSTRAINTS;
+      : version === P7_SALESFORCE_OBSERVABILITY_MIGRATION_VERSION
+        ? P7_SALESFORCE_OBSERVABILITY_REQUIRED_CONSTRAINTS
+        : [];
     return required.every((name) => names.has(name));
   } catch {
     return false;
@@ -235,8 +246,8 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
     'api_version', 'purpose', 'started_at', 'completed_at', 'duration_ms', 'http_status', 'result',
     'salesforce_error_code', 'salesforce_error_message_safe', 'request_size_bytes', 'response_size_bytes',
     'content_type', 'query_type', 'soql_statement_safe', 'total_size',
-    'returned_records', 'done', 'dml_operation', 'object_api_name', 'record_id', 'requested_fields_json',
-    'managed_fields_json', 'created_at',
+    'returned_records', 'done', 'has_next_records', 'dml_operation', 'object_api_name', 'record_id',
+    'requested_fields_json', 'managed_fields_json', 'submitted_fields_json', 'created_at',
   ]),
   sfoa_audit_payload_evidence: Object.freeze([
     'id', 'audit_id', 'salesforce_api_call_id', 'audit_event_id', 'payload_type', 'content_type',
@@ -291,10 +302,12 @@ const P7_04_COLUMNS = new Set([
   'public_api_call_id', 'transport_kind', 'visibility', 'request_url', 'host', 'endpoint_path',
   'operation_name', 'request_size_bytes', 'response_size_bytes', 'content_type',
 ]);
+const P7_05_COLUMNS = new Set(['has_next_records', 'submitted_fields_json']);
 
 export async function validateRequiredSchemaObjects(
   database: ControlPlaneDatabaseClient,
   includeP704 = true,
+  includeP705 = includeP704,
 ): Promise<void> {
   const [tablesResult, columnsResult, indexesResult] = await Promise.all([
     sql<{ tableName: string; engine: string | null }>`
@@ -340,6 +353,7 @@ export async function validateRequiredSchemaObjects(
     const actualColumns = columnsByTable.get(tableName) ?? new Set<string>();
     for (const column of requiredColumns) {
       if (!includeP704 && tableName === 'sfoa_salesforce_api_call' && P7_04_COLUMNS.has(column)) continue;
+      if (!includeP705 && tableName === 'sfoa_salesforce_api_call' && P7_05_COLUMNS.has(column)) continue;
       if (!actualColumns.has(column)) defects.push(`missing column ${tableName}.${column}`);
     }
   }

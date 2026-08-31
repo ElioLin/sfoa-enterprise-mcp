@@ -267,11 +267,13 @@ export type SalesforceApiCallRecord = Readonly<{
   totalSize: number | null;
   returnedRecords: number | null;
   done: boolean | null;
+  hasNextRecords: boolean | null;
   dmlOperation: 'CREATE' | 'UPDATE' | null;
   objectApiName: string | null;
   recordId: string | null;
   requestedFields: unknown;
   managedFields: unknown;
+  submittedFields: unknown;
   createdAt: string;
 }>;
 

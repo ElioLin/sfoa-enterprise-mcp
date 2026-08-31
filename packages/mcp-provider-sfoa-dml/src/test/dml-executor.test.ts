@@ -7,6 +7,7 @@ import {
   DmlRuntimeError,
   dmlExecutionErrorToolResult,
   parseDmlAllowlistJson,
+  type MutationExecutionObserver,
 } from '../index.js';
 
 type MutationCall = Readonly<{
@@ -55,6 +56,42 @@ test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection
       record: { Id: '00Q000000000001AAA', Company: 'Updated' },
     },
   ]);
+});
+
+test('mutation observer receives the exact submitted fields and Salesforce result record ID', async () => {
+  const calls: MutationCall[] = [];
+  const submitted: Array<Readonly<Record<string, unknown>>> = [];
+  const completed: Array<Readonly<{ operation: 'CREATE' | 'UPDATE'; recordId: string }>> = [];
+  const observer: MutationExecutionObserver = {
+    onMutationStarted: () => undefined,
+    async runWithSubmittedFields<T>(fields: Readonly<Record<string, string | number | boolean | null>>, callback: () => Promise<T>): Promise<T> {
+      submitted.push(Object.freeze({ ...fields }));
+      return await callback();
+    },
+    onMutationCompleted: (operation, recordId) => completed.push(Object.freeze({ operation, recordId })),
+  };
+  const executor = new DmlExecutor(
+    new TestOrgService(['user-a@example.test'], createConnection(calls)),
+    parseDmlAllowlistJson(JSON.stringify([{ objectApiName: 'Lead', operations: ['CREATE', 'UPDATE'] }])),
+    observer,
+  );
+
+  await executor.create({ objectApiName: 'Lead', fields: { LastName: 'Exact', Active__c: true } });
+  await executor.update({
+    objectApiName: 'Lead',
+    recordId: '00Q000000000001AAA',
+    fields: { Company: 'Final', Score__c: 7 },
+  });
+
+  assert.deepEqual(submitted, [
+    { LastName: 'Exact', Active__c: true },
+    { Company: 'Final', Score__c: 7 },
+  ]);
+  assert.deepEqual(completed, [
+    { operation: 'CREATE', recordId: '00Q000000000001AAA' },
+    { operation: 'UPDATE', recordId: '00Q000000000001AAA' },
+  ]);
+  assert.equal(Object.hasOwn(submitted[1] ?? {}, 'Id'), false);
 });
 
 test('allowlist denial happens before a Salesforce Connection or mutation is requested', async () => {

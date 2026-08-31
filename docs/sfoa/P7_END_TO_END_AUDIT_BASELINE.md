@@ -260,6 +260,8 @@ Maintainer 结果（2026-08-31）：`COMPLETE`（包含 HOTFIX01 收口验证）
 
 ### P7-05 SOQL 与 DML 审计证据
 
+实施结果（2026-08-31）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。P7-05 以同一 Request Audit ALS 中的嵌套语义 scope 为高层载体，以 P7-04 wire attempt 的 `publicApiCallId` 为唯一绑定键；Query 只读取 JSforce 已解析结果的计数，DML 分别从 facade、真实 managed resolver 与 executor 最终 payload 获取 requested/managed/submitted evidence。Migration 007、异步 Batch Sink、Data/Tooling/zero/failure/pagination、CREATE/UPDATE/validation/UNKNOWN、nested/parallel/50-100-200/bounds/fail-open/performance Gates 已实现；完整证据见 `P7_05_REPORT.md`。
+
 目标：在透明 API 证据上提供专用、可检索、bounded 的 SOQL 与 CREATE/UPDATE 事实。
 
 实施内容：SOQL 原文安全捕获、类型/用途/totalSize/returned/done/error；DML 对象/record/requested/managed/response/error；保留 UNKNOWN/no-retry 边界。
@@ -368,20 +370,20 @@ P7-01 至少覆盖：
 | P7-02 请求级审计上下文 | COMPLETE | Maintainer 独立审查通过 |
 | P7-03 请求级隔离与异步审计管道 | COMPLETE | Maintainer 已完成主体实现及 HOTFIX01 收口验证 |
 | P7-04 Salesforce API 透明审计 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | per-wire-attempt capture、分类、bounded Collector、migration 006、异步 persistence 与 focused Gates 已实现 |
-| P7-05 SOQL 与 DML 审计证据 | NOT STARTED | 依赖 P7-04 |
+| P7-05 SOQL 与 DML 审计证据 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | UUID 精确语义绑定、migration 007、异步 persistence 与 focused Gates 已实现 |
 | P7-06 MCP 入口与响应审计 | NOT STARTED | 依赖 P7-03～P7-05 Contract |
 | P7-07 审计调用链工作台 | NOT STARTED | 依赖完整后端证据/API |
 | P7-08 智能诊断接口与排障技能 | NOT STARTED | 依赖 P7-07 与运维授权 |
 
-本次所有 P7-04 工程 Gate 通过后，状态只能更新为：
+本次所有 P7-05 工程 Gate 通过后，状态只能更新为：
 
-`P7-04 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
+`P7-05 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
-只有 Maintainer Review 通过后，P7-04 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
+只有 Maintainer Review 通过后，P7-05 才能标记 COMPLETE。不得自行开始 P7-06 或宣布整个 P7 COMPLETE。
 
 ## 9. 变更管理
 
-- 已发布 migration 001～005 永不修改；P7-04 使用下一序号 `006_p7_salesforce_api_observability.sql`；
+- 已发布 migration 001～006 永不修改；P7-05 使用下一序号 `007_p7_soql_dml_audit_evidence.sql`；
 - 任何本基线冲突必须在同一变更更新本文件、`PROJECT_BASELINE.md`、`TEST_MATRIX.md`、`CHANGELOG.md`，架构决策改变时新增或 supersede ADR；
 - P7-01 不修改官方 Salesforce TypeScript；如不可避免，必须先更新 `UPSTREAM_STRATEGY.md` 修改矩阵并接受 Maintainer review；
 - 所有真实 secret 继续只存在于 ignored local environment 或部署 secret store；测试只能使用明显虚构且必须被净化的样本。

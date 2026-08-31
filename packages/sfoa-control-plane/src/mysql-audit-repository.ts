@@ -240,6 +240,7 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
         total_size: input.totalSize ?? null,
         returned_records: input.returnedRecords ?? null,
         done: input.done ?? null,
+        has_next_records: input.hasNextRecords ?? null,
         dml_operation: input.dmlOperation ?? null,
         object_api_name: input.objectApiName === undefined
           ? null
@@ -247,6 +248,7 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
         record_id: boundedOptionalText(input.recordId, 128, 'recordId'),
         requested_fields_json: encodeBoundedAuditJson(input.requestedFields),
         managed_fields_json: encodeBoundedAuditJson(input.managedFields),
+        submitted_fields_json: encodeBoundedAuditJson(input.submittedFields),
       }).executeTakeFirstOrThrow();
       const id = requireInsertId(inserted.insertId, 'Salesforce API call');
       const row = await this.database.selectFrom('sfoa_salesforce_api_call').selectAll().where('id', '=', id).executeTakeFirstOrThrow();
@@ -425,11 +427,13 @@ function mapSalesforceApiCall(row: Selectable<SalesforceApiCallTable>): Salesfor
     totalSize: row.total_size,
     returnedRecords: row.returned_records,
     done: row.done === null ? null : Boolean(row.done),
+    hasNextRecords: row.has_next_records === null ? null : Boolean(row.has_next_records),
     dmlOperation: row.dml_operation === 'CREATE' || row.dml_operation === 'UPDATE' ? row.dml_operation : null,
     objectApiName: row.object_api_name,
     recordId: row.record_id,
     requestedFields: parseJson(row.requested_fields_json),
     managedFields: parseJson(row.managed_fields_json),
+    submittedFields: parseJson(row.submitted_fields_json),
     createdAt: toIso(row.created_at),
   });
 }

@@ -103,6 +103,25 @@ export type SalesforceApiPurpose =
   | 'OBJECT_SCHEMA'
   | 'UNKNOWN';
 export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
+export type SalesforceQueryType = 'DATA_SOQL' | 'TOOLING_SOQL';
+export type SalesforceDmlOperation = 'CREATE' | 'UPDATE';
+export type SalesforceAuditFieldValue = string | number | boolean | null;
+export type SalesforceAuditFields = Readonly<Record<string, SalesforceAuditFieldValue>>;
+
+export type SalesforceApiSemanticEvidence = Readonly<{
+  queryType: SalesforceQueryType | null;
+  soqlStatement: string | null;
+  totalSize: number | null;
+  returnedRecords: number | null;
+  done: boolean | null;
+  hasNextRecords: boolean | null;
+  dmlOperation: SalesforceDmlOperation | null;
+  objectApiName: string | null;
+  recordId: string | null;
+  requestedFields: SalesforceAuditFields | null;
+  managedFields: SalesforceAuditFields | null;
+  submittedFields: SalesforceAuditFields | null;
+}>;
 
 export type RequestAuditSalesforceApiCallSnapshot = Readonly<{
   publicApiCallId: string;
@@ -129,7 +148,12 @@ export type RequestAuditSalesforceApiCallSnapshot = Readonly<{
   requestSizeBytes: number | null;
   responseSizeBytes: number | null;
   contentType: string | null;
-}>;
+}> & SalesforceApiSemanticEvidence;
+
+export type SalesforceApiSemanticEnrichment = Partial<Pick<
+  SalesforceApiSemanticEvidence,
+  'totalSize' | 'returnedRecords' | 'done' | 'hasNextRecords' | 'recordId'
+>>;
 export type RequestAuditPayloadEvidenceSnapshot = Readonly<Record<string, never>>;
 
 export type AuditSnapshot = Readonly<{
@@ -220,6 +244,26 @@ export class RequestAuditCollector {
 
   public recordSalesforceApiCaptureFailure(): void {
     if (!this.finalized) this.salesforceApiCaptureFailureCount += 1;
+  }
+
+  /** Enrich exactly one already-captured wire attempt. Never creates or reorders an API row. */
+  public enrichSalesforceApiCall(
+    publicApiCallId: string,
+    enrichment: SalesforceApiSemanticEnrichment,
+  ): boolean {
+    if (this.finalized) return false;
+    const index = this.salesforceApiCalls.findIndex((call) => call.publicApiCallId === publicApiCallId);
+    if (index < 0) {
+      this.salesforceApiCaptureFailureCount += 1;
+      return false;
+    }
+    const current = this.salesforceApiCalls[index];
+    if (!current) {
+      this.salesforceApiCaptureFailureCount += 1;
+      return false;
+    }
+    this.salesforceApiCalls[index] = deepFreeze({ ...current, ...enrichment });
+    return true;
   }
 
   public finalize(completedAt: Date = this.now()): AuditSnapshot | undefined {

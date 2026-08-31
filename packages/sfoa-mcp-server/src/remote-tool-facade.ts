@@ -13,7 +13,7 @@ import type {
   RuntimeLogger,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
-import { runWithSalesforceApiPurpose } from '@sfoa/identity-runtime';
+import { runWithSalesforceApiPurpose, runWithSalesforceQuerySemantic } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
 import type { OfficialToolPolicyRecord } from './official-tool-catalog.js';
@@ -119,8 +119,15 @@ export class RemoteToolFacade {
     }
     const officialInput = { ...input, ...this.hostOwnedInput() };
     const purpose = this.getName() === 'retrieve_metadata' ? 'METADATA_RETRIEVE' : 'USER_QUERY';
-    const operation = runWithSalesforceApiPurpose(purpose, () =>
-      this.options.adapter.execute(this.options.tool, officialInput, extra));
+    const operation = runWithSalesforceApiPurpose(purpose, () => {
+      const execute = () => this.options.adapter.execute(this.options.tool, officialInput, extra);
+      return this.getName() === 'run_soql_query' && typeof input.query === 'string'
+        ? runWithSalesforceQuerySemantic({
+            queryType: input.useToolingApi === true ? 'TOOLING_SOQL' : 'DATA_SOQL',
+            soqlStatement: input.query,
+          }, execute)
+        : execute();
+    });
     try {
       const result = await withTimeout(
         operation,

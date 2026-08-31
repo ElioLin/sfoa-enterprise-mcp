@@ -24,7 +24,9 @@ import {
   OfficialDxCoreToolSource,
   RequestAuditContextController,
   RequestScopedToolExecutionAdapter,
+  currentSalesforceCallSemanticScope,
   runWithRequestAuditContext,
+  runWithSalesforceSubmittedDmlSemantic,
   type CwdExecutionGuard,
   type RequestScope,
   type RequestToolSource,
@@ -102,6 +104,17 @@ export class MutationRequestState implements MutationExecutionObserver {
     if (this.startedOperation) return;
     this.startedOperation = operation;
     this.onStarted?.(operation);
+  }
+
+  public async runWithSubmittedFields<T>(
+    fields: Readonly<Record<string, string | number | boolean | null>>,
+    callback: () => Promise<T>,
+  ): Promise<T> {
+    return await runWithSalesforceSubmittedDmlSemantic({ submittedFields: fields }, callback);
+  }
+
+  public onMutationCompleted(_operation: DmlOperation, recordId: string): void {
+    currentSalesforceCallSemanticScope()?.enrichRecordId(recordId);
   }
 
   public hasStarted(): boolean {
@@ -386,6 +399,7 @@ function runAuditedToolInvocation<T>(
       recordId: typeof input.recordId === 'string' ? input.recordId : undefined,
     });
   }
+
   return runWithRequestAuditContext(auditContext, callback);
 }
 

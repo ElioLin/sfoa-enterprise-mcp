@@ -9,8 +9,12 @@ import {
 } from '../jsforce-audit-adapter.js';
 import {
   RequestAuditContextController,
+  currentSalesforceCallSemanticScope,
   runWithRequestAuditContext,
   runWithSalesforceApiPurpose,
+  runWithSalesforceDmlSemantic,
+  runWithSalesforceQuerySemantic,
+  runWithSalesforceSubmittedDmlSemantic,
 } from '../request-audit-context.js';
 
 installJsforceAuditAdapter();
@@ -58,6 +62,12 @@ test('one JSforce high-level operation produces one API evidence row without cha
   assert.deepEqual(calls.map((call) => call.purpose), [
     'USER_QUERY', 'RECORD_ACTION_CONTEXT', 'DML_CREATE', 'DML_UPDATE', 'DIAGNOSTIC_TOOLING', 'METADATA_RETRIEVE',
   ]);
+  assert.equal(calls[0]?.queryType, 'DATA_SOQL');
+  assert.equal(calls[0]?.soqlStatement, 'SELECT Id FROM Account');
+  assert.equal(calls[0]?.objectApiName, 'Account');
+  assert.equal(calls[0]?.totalSize, null);
+  assert.equal(calls[4]?.queryType, 'TOOLING_SOQL');
+  assert.equal(calls[4]?.soqlStatement, 'SELECT Id FROM ApexClass');
   assert.equal(new Set(calls.map((call) => call.publicApiCallId)).size, calls.length);
   assert.equal(calls.every((call) => call.auditId === controller.snapshot().auditId), true);
   assert.doesNotMatch(JSON.stringify(calls), /access-token-must-not-be-audited/u);
@@ -209,6 +219,233 @@ test('each JSforce retry attempt is captured exactly once with its real HTTP sta
   assert.equal(new Set(calls.map((call) => call.publicApiCallId)).size, 3);
 });
 
+test('Data and Tooling SOQL semantics bind parsed result statistics to the exact wire call', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('semantic-query@example.invalid');
+  const connection = new Connection({ instanceUrl: server.url, accessToken: 'token', version: '65.0', httpProxy: '' });
+
+  await runWithRequestAuditContext(controller, async () => {
+    const pageSoql = "SELECT Id, Name FROM Account WHERE Name = 'PAGE_ONLY' LIMIT 2000";
+    const page = await runWithSalesforceApiPurpose('USER_QUERY', () =>
+      runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: pageSoql }, async () =>
+        await connection.query(pageSoql)));
+    assert.equal(page.records.length, 2_000);
+    const toolingSoql = 'SELECT Id FROM ApexClass';
+    await runWithSalesforceApiPurpose('DIAGNOSTIC_TOOLING', () =>
+      runWithSalesforceQuerySemantic({ queryType: 'TOOLING_SOQL', soqlStatement: toolingSoql }, async () =>
+        await connection.tooling.query(toolingSoql)));
+  });
+  finishAudit(controller);
+
+  const calls = apiCalls(controller);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.queryType, 'DATA_SOQL');
+  assert.equal(calls[0]?.soqlStatement, "SELECT Id, Name FROM Account WHERE Name = 'PAGE_ONLY' LIMIT 2000");
+  assert.equal(calls[0]?.totalSize, 3000);
+  assert.equal(calls[0]?.returnedRecords, 2_000);
+  assert.equal(calls[0]?.done, false);
+  assert.equal(calls[0]?.hasNextRecords, true);
+  assert.equal(calls[0]?.objectApiName, 'Account');
+  assert.equal(calls[1]?.queryType, 'TOOLING_SOQL');
+  assert.equal(calls[1]?.soqlStatement, 'SELECT Id FROM ApexClass');
+  assert.equal(calls[1]?.objectApiName, 'ApexClass');
+  assert.equal(calls[1]?.totalSize, 0);
+  assert.equal(calls[1]?.returnedRecords, 0);
+  assert.equal(calls[1]?.done, true);
+  assert.equal(calls[1]?.hasNextRecords, false);
+  assert.doesNotMatch(JSON.stringify(calls), /PAGE_RECORD_0|PAGE_RECORD_1999/u);
+});
+
+test('zero-row and failed SOQL preserve distinct count semantics and readable SOQL', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('query-failure@example.invalid');
+  const connection = new Connection({ instanceUrl: server.url, accessToken: 'token', version: '65.0', httpProxy: '' });
+
+  await runWithRequestAuditContext(controller, async () => {
+    const zero = "SELECT Id FROM Contact WHERE Name = 'ZERO_ONLY'";
+    await runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: zero }, async () =>
+      await connection.query(zero));
+    const failed = "SELECT Id FROM Lead WHERE Name = 'FAIL_QUERY'";
+    const error = await runWithSalesforceQuerySemantic(
+      { queryType: 'DATA_SOQL', soqlStatement: failed },
+      () => connection.query(failed).then(() => undefined, (reason: unknown) => reason),
+    );
+    assert.ok(error instanceof Error);
+  });
+  finishAudit(controller);
+
+  const [zero, failed] = apiCalls(controller);
+  assert.equal(zero?.totalSize, 0);
+  assert.equal(zero?.returnedRecords, 0);
+  assert.equal(zero?.done, true);
+  assert.equal(failed?.soqlStatement, "SELECT Id FROM Lead WHERE Name = 'FAIL_QUERY'");
+  assert.equal(failed?.objectApiName, 'Lead');
+  assert.equal(failed?.totalSize, null);
+  assert.equal(failed?.returnedRecords, null);
+  assert.equal(failed?.done, null);
+  assert.equal(failed?.salesforceErrorCode, 'FIELD_CUSTOM_VALIDATION_EXCEPTION');
+});
+
+test('parallel query scopes never swap SOQL or parsed result statistics', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('parallel-query@example.invalid');
+  const connection = new Connection({ instanceUrl: server.url, accessToken: 'token', version: '65.0', httpProxy: '' });
+  const queryA = "SELECT Id FROM Account WHERE Name = 'A_ONLY'";
+  const queryB = "SELECT Id FROM Contact WHERE Name = 'B_ONLY'";
+
+  await runWithRequestAuditContext(controller, async () => {
+    await Promise.all([
+      runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: queryA }, async () =>
+        await connection.query(queryA)),
+      runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: queryB }, async () =>
+        await connection.query(queryB)),
+    ]);
+  });
+  finishAudit(controller);
+  const byObject = new Map(apiCalls(controller).map((call) => [call.objectApiName, call]));
+  assert.equal(byObject.get('Account')?.soqlStatement?.includes('A_ONLY'), true);
+  assert.equal(byObject.get('Account')?.totalSize, 1);
+  assert.equal(byObject.get('Contact')?.soqlStatement?.includes('B_ONLY'), true);
+  assert.equal(byObject.get('Contact')?.totalSize, 2);
+});
+
+test('nested managed lookup and DML evidence remain isolated and bind to their own API calls', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('nested-dml@example.invalid', 'create_record');
+  const connection = new Connection({ instanceUrl: server.url, accessToken: 'token', version: '65.0', httpProxy: '' });
+
+  await runWithRequestAuditContext(controller, () => runWithSalesforceDmlSemantic({
+    operation: 'CREATE',
+    objectApiName: 'Lead',
+    requestedFields: { Company: 'Agent Company', Lead_Owner__c: 'agent-value' },
+    managedFields: { Lead_Owner__c: '003SERVER' },
+  }, async () => {
+    const lookupSoql = "SELECT Id FROM Contact WHERE Employee_Id__c = 'LOOKUP_ONLY' LIMIT 2";
+    await runWithSalesforceApiPurpose('SERVER_MANAGED_LOOKUP', () =>
+      runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: lookupSoql }, async () =>
+        await connection.query(lookupSoql)));
+    await runWithSalesforceApiPurpose('DML_CREATE', () => runWithSalesforceSubmittedDmlSemantic({
+      submittedFields: { Company: 'Agent Company', Lead_Owner__c: '003SERVER' },
+    }, async () => {
+      const result = await connection.sobject('Account').create({ Name: 'Agent Company' });
+      assert.ok(result.id);
+      currentSalesforceCallSemanticScope()?.enrichRecordId(result.id);
+    }));
+  }));
+  finishAudit(controller);
+
+  const [lookup, create] = apiCalls(controller);
+  assert.equal(lookup?.queryType, 'DATA_SOQL');
+  assert.equal(lookup?.purpose, 'SERVER_MANAGED_LOOKUP');
+  assert.equal(lookup?.dmlOperation, null);
+  assert.equal(create?.queryType, null);
+  assert.equal(create?.dmlOperation, 'CREATE');
+  assert.equal(create?.objectApiName, 'Lead');
+  assert.equal(create?.recordId, '001000000000001AAA');
+  assert.deepEqual(create?.requestedFields, { Company: 'Agent Company', Lead_Owner__c: 'agent-value' });
+  assert.deepEqual(create?.managedFields, { Lead_Owner__c: '003SERVER' });
+  assert.deepEqual(create?.submittedFields, { Company: 'Agent Company', Lead_Owner__c: '003SERVER' });
+});
+
+test('interleaved multi-call Audits keep Query A/B/DML C separate from Query X/DML Y', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const first = auditController('first@example.invalid', 'mixed_first');
+  const second = auditController('second@example.invalid', 'mixed_second');
+
+  const runQuery = async (connection: Connection, marker: string, objectApiName: string) => {
+    const soql = `SELECT Id FROM ${objectApiName} WHERE Name = '${marker}'`;
+    await runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: soql }, async () =>
+      await connection.query(soql));
+  };
+  const runDml = async (marker: string, objectApiName: string, recordId: string) => {
+    await runWithSalesforceDmlSemantic({
+      operation: 'UPDATE', objectApiName, recordId,
+      requestedFields: { Marker__c: marker }, managedFields: {},
+    }, () => runWithSalesforceSubmittedDmlSemantic({ submittedFields: { Marker__c: marker } }, () =>
+      new Transport().httpRequest({
+        method: 'PATCH',
+        url: `${server.url}/services/data/v65.0/sobjects/${objectApiName}/${recordId}`,
+        body: JSON.stringify({ Marker__c: marker }),
+      }, { httpProxy: '' })));
+  };
+
+  await Promise.all([
+    runWithRequestAuditContext(first, async () => {
+      const connection = new Connection({ instanceUrl: server.url, accessToken: 'token-a', version: '65.0', httpProxy: '' });
+      await Promise.all([
+        runQuery(connection, 'A_ONLY', 'Account'),
+        runQuery(connection, 'B_ONLY', 'Contact'),
+      ]);
+      await runDml('C_ONLY', 'Lead', '00QC_ONLY');
+    }),
+    runWithRequestAuditContext(second, async () => {
+      const connection = new Connection({ instanceUrl: server.url, accessToken: 'token-x', version: '65.0', httpProxy: '' });
+      await runQuery(connection, 'X_ONLY', 'Opportunity');
+      await runDml('Y_ONLY', 'Case', '500Y_ONLY');
+    }),
+  ]);
+  finishAudit(first);
+  finishAudit(second);
+
+  const firstSerialized = JSON.stringify(apiCalls(first));
+  const secondSerialized = JSON.stringify(apiCalls(second));
+  assert.match(firstSerialized, /A_ONLY/u);
+  assert.match(firstSerialized, /B_ONLY/u);
+  assert.match(firstSerialized, /C_ONLY/u);
+  assert.doesNotMatch(firstSerialized, /X_ONLY|Y_ONLY/u);
+  assert.match(secondSerialized, /X_ONLY/u);
+  assert.match(secondSerialized, /Y_ONLY/u);
+  assert.doesNotMatch(secondSerialized, /A_ONLY|B_ONLY|C_ONLY/u);
+  assert.deepEqual(apiCalls(first).map((call) => call.objectApiName).sort(), ['Account', 'Contact', 'Lead']);
+  assert.deepEqual(apiCalls(second).map((call) => call.objectApiName).sort(), ['Case', 'Opportunity']);
+});
+
+test('DML validation failure and transport-unknown retain submitted fields without retry', async (t) => {
+  const server = await mockSalesforceServer();
+  t.after(() => closeServer(server.server));
+  const controller = auditController('dml-failure@example.invalid', 'create_record');
+  const connection = new Connection({ instanceUrl: server.url, accessToken: 'token', version: '65.0', httpProxy: '' });
+  const before = server.requestCount();
+
+  await runWithRequestAuditContext(controller, async () => {
+    const validationFields = { LastName: 'Rejected', Company: 'Invalid' };
+    const validationError = await runWithSalesforceDmlSemantic({
+      operation: 'CREATE', objectApiName: 'Reject__c', requestedFields: validationFields, managedFields: {},
+    }, () => runWithSalesforceSubmittedDmlSemantic({ submittedFields: validationFields }, () =>
+      connection.sobject('Reject__c').create(validationFields).then(() => undefined, (error: unknown) => error)));
+    assert.ok(validationError instanceof Error);
+
+    const unknownFields = { LastName: 'Unknown', Company: 'Socket Reset' };
+    const unknownError = await runWithSalesforceDmlSemantic({
+      operation: 'CREATE', objectApiName: 'Reset__c', requestedFields: unknownFields, managedFields: {},
+    }, () => runWithSalesforceSubmittedDmlSemantic({ submittedFields: unknownFields }, () =>
+      connection.sobject('Reset__c').create(unknownFields).then(() => undefined, (error: unknown) => error)));
+    assert.ok(unknownError instanceof Error);
+  });
+  controller.collector().record({
+    eventCategory: 'TOOL', eventType: 'DML_OUTCOME_UNKNOWN', eventName: 'create_record', status: 'UNKNOWN',
+    errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
+    terminal: {
+      source: 'TOOL', result: 'ERROR', outcome: 'UNKNOWN', errorCode: 'MCP_DML_OUTCOME_UNKNOWN', mutationStarted: true,
+    },
+  });
+  assert.ok(controller.finalizeAudit());
+
+  const [validation, unknown] = apiCalls(controller);
+  assert.equal(server.requestCount() - before, 2);
+  assert.equal(validation?.salesforceErrorCode, 'FIELD_CUSTOM_VALIDATION_EXCEPTION');
+  assert.deepEqual(validation?.submittedFields, { LastName: 'Rejected', Company: 'Invalid' });
+  assert.equal(unknown?.httpStatus, null);
+  assert.equal(unknown?.result, 'FAILED');
+  assert.deepEqual(unknown?.submittedFields, { LastName: 'Unknown', Company: 'Socket Reset' });
+  assert.equal(controller.collector().snapshot()?.auditCall.outcome, 'UNKNOWN');
+});
+
 test('50/100/200 paired concurrency gate has zero added API calls, duplicates, or cross-request leaks', { timeout: 60_000 }, async (t) => {
   const server = await mockSalesforceServer();
   t.after(() => closeServer(server.server));
@@ -218,10 +455,15 @@ test('50/100/200 paired concurrency gate has zero added API calls, duplicates, o
     for (let round = 0; round < 3; round += 1) {
       const beforeOff = server.requestCount();
       const off = await benchmark(concurrency, async (index) => {
+        const marker = `OFF_${concurrency}_${round}_${index}_ONLY`;
+        const objectApiName = `Object_${index}__c`;
+        const isQuery = index % 2 === 0;
         await new Transport().httpRequest({
-          method: 'POST',
-          url: `${server.url}/services/data/v65.0/benchmark/off-${concurrency}-${round}-${index}`,
-          body: 'request=true',
+          method: isQuery ? 'GET' : 'PATCH',
+          url: isQuery
+            ? `${server.url}/services/data/v65.0/query?q=${encodeURIComponent(`SELECT Id FROM ${objectApiName} WHERE Name = '${marker}'`)}`
+            : `${server.url}/services/data/v65.0/sobjects/${objectApiName}/record_${marker}`,
+          ...(isQuery ? {} : { body: JSON.stringify({ Marker__c: marker, Managed__c: true }) }),
         }, { httpProxy: '' });
       });
       assert.equal(server.requestCount() - beforeOff, concurrency);
@@ -230,24 +472,49 @@ test('50/100/200 paired concurrency gate has zero added API calls, duplicates, o
       const on = await benchmark(concurrency, async (index) => {
         const marker = `ON_${concurrency}_${round}_${index}_ONLY`;
         const controller = auditController(`sf_${marker}@example.invalid`, `tool_${index % 11}`);
-        await runWithRequestAuditContext(controller, () => new Transport().httpRequest({
-          method: 'POST',
-          url: `${server.url}/services/data/v65.0/benchmark/${marker}`,
-          body: 'request=true',
-        }, { httpProxy: '' }));
+        const isQuery = index % 2 === 0;
+        const objectApiName = `Object_${index}__c`;
+        const recordId = `record_${marker}`;
+        await runWithRequestAuditContext(controller, () => isQuery
+          ? runWithSalesforceQuerySemantic({
+              queryType: 'DATA_SOQL',
+              soqlStatement: `SELECT Id FROM ${objectApiName} WHERE Name = '${marker}'`,
+            }, () => new Transport().httpRequest({
+              method: 'GET',
+              url: `${server.url}/services/data/v65.0/query?q=${encodeURIComponent(`SELECT Id FROM ${objectApiName} WHERE Name = '${marker}'`)}`,
+            }, { httpProxy: '' }))
+          : runWithSalesforceDmlSemantic({
+              operation: 'UPDATE', objectApiName, recordId,
+              requestedFields: { Marker__c: marker }, managedFields: { Managed__c: true },
+            }, () => runWithSalesforceSubmittedDmlSemantic({
+              submittedFields: { Marker__c: marker, Managed__c: true },
+            }, () => new Transport().httpRequest({
+              method: 'PATCH',
+              url: `${server.url}/services/data/v65.0/sobjects/${objectApiName}/${recordId}`,
+              body: JSON.stringify({ Marker__c: marker, Managed__c: true }),
+            }, { httpProxy: '' }))));
         finishAudit(controller);
         const calls = apiCalls(controller);
         assert.equal(calls.length, 1);
         assert.equal(calls[0]?.salesforceUsername, `sf_${marker}@example.invalid`);
         assert.equal(calls[0]?.requestUrl?.includes(marker), true);
         assert.equal(calls[0]?.auditId, controller.snapshot().auditId);
+        assert.equal(calls[0]?.objectApiName, objectApiName);
+        if (isQuery) {
+          assert.equal(calls[0]?.soqlStatement?.includes(marker), true);
+          assert.equal(calls[0]?.dmlOperation, null);
+        } else {
+          assert.equal(calls[0]?.queryType, null);
+          assert.equal(calls[0]?.recordId, recordId);
+          assert.deepEqual(calls[0]?.submittedFields, { Marker__c: marker, Managed__c: true });
+        }
       });
       assert.equal(server.requestCount() - beforeOn, concurrency);
       rounds.push(Object.freeze({ off, on }));
     }
     results.push(Object.freeze({ concurrency, rounds }));
   }
-  process.stdout.write(`P7_04_PAIRED_BENCHMARK ${JSON.stringify(results)}\n`);
+  process.stdout.write(`P7_05_PAIRED_BENCHMARK ${JSON.stringify(results)}\n`);
 });
 
 function apiCalls(controller: RequestAuditContextController) {
@@ -316,7 +583,7 @@ async function mockSalesforceServer(): Promise<Readonly<{
   const server = createServer((request, response) => {
     requestCount += 1;
     const path = request.url ?? '/';
-    if (path.endsWith('/reset')) {
+    if (path.endsWith('/reset') || path.includes('/sobjects/Reset__c')) {
       request.socket.destroy();
       return;
     }
@@ -324,6 +591,38 @@ async function mockSalesforceServer(): Promise<Readonly<{
     if (path.endsWith('/long-error')) {
       response.writeHead(400, { 'content-type': 'application/json' });
       response.end(JSON.stringify([{ errorCode: 'LONG_VALIDATION_ERROR', message: 'E'.repeat(1_500) }]));
+      return;
+    }
+    const parsedUrl = new URL(path, 'http://salesforce.invalid');
+    const soql = parsedUrl.searchParams.get('q') ?? '';
+    if (soql.includes('FAIL_QUERY')) {
+      response.writeHead(400, { 'content-type': 'application/json' });
+      response.end(JSON.stringify([{ errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION', message: 'Rejected query' }]));
+      return;
+    }
+    if (soql.includes('PAGE_ONLY')) {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        totalSize: 3000,
+        done: false,
+        nextRecordsUrl: '/services/data/v65.0/query/next-page',
+        records: Array.from({ length: 2_000 }, (_, index) => ({ Id: `PAGE_RECORD_${index}` })),
+      }));
+      return;
+    }
+    if (soql.includes('A_ONLY')) {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ totalSize: 1, done: true, records: [{ Id: 'A' }] }));
+      return;
+    }
+    if (soql.includes('B_ONLY')) {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ totalSize: 2, done: true, records: [{ Id: 'B1' }, { Id: 'B2' }] }));
+      return;
+    }
+    if (soql.includes('LOOKUP_ONLY')) {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ totalSize: 1, done: true, records: [{ Id: '003SERVER' }] }));
       return;
     }
     const statusMatch = /\/failure\/(\d{3})$/u.exec(path);
@@ -346,6 +645,13 @@ async function mockSalesforceServer(): Promise<Readonly<{
     if (request.method === 'POST' && /\/sobjects\/Account\/?$/u.test(path)) {
       response.writeHead(201, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ id: '001000000000001AAA', success: true, errors: [] }));
+      return;
+    }
+    if (request.method === 'POST' && /\/sobjects\/Reject__c\/?$/u.test(path)) {
+      response.writeHead(400, { 'content-type': 'application/json' });
+      response.end(JSON.stringify([{
+        errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION', message: 'Rejected submitted fields', fields: ['Company'],
+      }]));
       return;
     }
     if (request.method === 'PATCH') {
