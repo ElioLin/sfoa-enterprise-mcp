@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { withReadOnlyDatabase } from './lib/db.mjs';
+import { withReadOnlyDatabase } from './shared/db.mjs';
 import {
   configurationStatus,
   exists,
@@ -12,7 +12,7 @@ import {
   readWorkspacePackages,
   runCommand,
   sanitizeForOutput,
-} from './lib/project.mjs';
+} from './shared/project.mjs';
 
 const CORE_ENV_KEYS = Object.freeze([
   'SFOA_CONTROL_PLANE_MODE', 'SFOA_DB_HOST', 'SFOA_DB_PORT', 'SFOA_DB_NAME', 'SFOA_DB_USER', 'SFOA_DB_PASSWORD',

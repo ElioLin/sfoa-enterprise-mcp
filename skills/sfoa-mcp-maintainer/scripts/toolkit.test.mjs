@@ -5,9 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { AuditTraceNotFoundError, reconstructTrace, requireAuditRows } from './audit-trace.mjs';
-import { assertReadOnlySql } from './lib/db.mjs';
-import { loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './lib/project.mjs';
-import { checkSkill, packageSkill, syncSkill, validateSkill } from './manage.mjs';
+import { assertReadOnlySql } from './shared/db.mjs';
+import { loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './shared/project.mjs';
+import { checkSkill, deliveryCheck, packageSkill, syncSkill, validateSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 
 const canonicalDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,4 +131,9 @@ test('audit trace reconstruction preserves evidence order and unavailable fields
 test('checked-in platform copies are byte-identical to canonical', async () => {
   const result = await checkSkill({ projectRoot, canonicalDir });
   assert.equal(result.ok, true, [...result.validation.errors, ...result.drift].join('; '));
+});
+
+test('delivery gate verifies git trackability or degrades cleanly outside a work tree', async () => {
+  const result = await deliveryCheck({ projectRoot, canonicalDir });
+  assert.equal(result.ok, true, [...result.problems].join('; '));
 });

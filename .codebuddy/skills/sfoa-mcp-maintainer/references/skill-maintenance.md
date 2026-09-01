@@ -13,7 +13,9 @@ Update for architecture, package/module topology, runtime/identity flow, Tool or
 3. Keep the entrypoint concise and move conditional detail to references.
 4. Run `yarn ai:snapshot` and update stale facts.
 5. Run `yarn skill:sync`, `yarn skill:check`, and `yarn skill:test`.
-6. Run `yarn skill:package` when an uploadable artifact is needed. The ZIP under `.temp/skill-packages` is disposable, not source of truth.
-7. Update project baseline/changelog and add or supersede an ADR when the durable architectural decision changed.
+6. Run `yarn skill:delivery` to confirm every required source file and generated copy is Git-tracked and not ignored.
+7. Run `yarn skill:package` when an uploadable artifact is needed. The ZIP under `.temp/skill-packages` is disposable, not source of truth.
+8. Run `yarn skill:smoke` to prove the Skill gates pass from a fresh, tracked-only checkout with no ignored/untracked developer files.
+9. Update project baseline/changelog and add or supersede an ADR when the durable architectural decision changed.
 
-The sync mechanism copies bytes rather than using symlinks for Windows 11 portability. `skill:check` compares recursive SHA-256 maps for all three platform copies. Never hand-edit generated copies.
+The sync mechanism copies bytes rather than using symlinks for Windows 11 portability. `skill:check` compares recursive SHA-256 maps for all three platform copies. Never hand-edit generated copies. Shared helper modules live under `scripts/shared/` (not `scripts/lib/`): the root `.gitignore` ignores any `lib` directory, so helper modules there would be silently excluded from commits while local tests still pass. The `delivery` gate exists to catch that class of defect.

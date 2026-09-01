@@ -310,7 +310,7 @@ Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit A
 
 不做：业务/公共 MCP 诊断 Tool、可靠性分数、LLM Judge、自动修复/自动变更、普通用户天然运维权限、自由输入 SQL。
 
-实施结果（2026-09-01）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。canonical Skill、Codex/Claude/CodeBuddy project copies、同步/漂移/打包脚本、Doctor、Snapshot、只读 DB Inspector 与 P7 Audit Analyzer 已实现。Analyzer 按真实 migration 008 使用 `publicAuditId`、`correlationId`、Event sequence 和 `publicApiCallId`；不存在的 trace/session/call/span 字段明确显示 unavailable。完整命令、测试和验收分析见 `P7_08_REPORT.md`。
+实施结果（2026-09-01）：`COMPLETE`（含 HOTFIX01 交付收口）。canonical Skill、Codex/Claude/CodeBuddy project copies、同步/漂移/打包脚本、Doctor、Snapshot、只读 DB Inspector 与 P7 Audit Analyzer 已实现。Analyzer 按真实 migration 008 使用 `publicAuditId`、`correlationId`、Event sequence 和 `publicApiCallId`；不存在的 trace/session/call/span 字段明确显示 unavailable。HOTFIX01 修复交付完整性缺陷：helper 模块由 `scripts/lib` 迁移到 `scripts/shared`（根 `.gitignore` 的裸 `lib` 规则曾静默排除 `lib/` 目录，导致本地测试通过但 `project.mjs`/`db.mjs` 未进入 commit）；新增 `skill:delivery` Git trackability Gate 与 `skill:smoke` clean-clone 冒烟验证，确保新 clone 始终携带完整 Skill 运行依赖。完整命令、测试和验收分析见 `P7_08_REPORT.md`。
 
 ## 6. P7-03 后续强制并发、故障与性能 Gate
 
@@ -377,13 +377,13 @@ P7-01 至少覆盖：
 | P7-05 SOQL 与 DML 审计证据 | COMPLETE | Maintainer 独立审查通过 |
 | P7-06 MCP 入口与响应审计 | COMPLETE | Maintainer 独立审查通过 |
 | P7-07 审计调用链工作台 | IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW | Admin read model 与 React Workbench 已实现 |
-| P7-08 Agent-Native Maintainer Skill 与诊断工具集 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | canonical Skill、本地只读诊断、三平台同步与打包已实现；不新增业务 MCP Tool |
+| P7-08 Agent-Native Maintainer Skill 与诊断工具集 | COMPLETE | canonical Skill、本地只读诊断、三平台同步与打包已实现；HOTFIX01 修复 `scripts/lib` 被 `.gitignore` 排除的交付缺陷并新增 delivery/smoke Gate；不新增业务 MCP Tool |
 
-本次所有 P7-08 工程 Gate 通过后，状态只能更新为：
+P7-08 工程 Gate 与 HOTFIX01 clean-clone Gate 全部通过后，P7-08 已按 Maintainer 授权更新为：
 
-`P7-08 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
+`P7-08 = COMPLETE`
 
-只有 Maintainer Review 通过后，P7-08 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
+P7-08 的 COMPLETE 不代表整个 P7 已完成：P7-07 仍为 `IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW`，不得自行宣布整个 P7 COMPLETE。
 
 ## 9. 变更管理
 

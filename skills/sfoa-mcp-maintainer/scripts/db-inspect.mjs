@@ -1,14 +1,14 @@
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { withReadOnlyDatabase } from './lib/db.mjs';
+import { withReadOnlyDatabase } from './shared/db.mjs';
 import {
   findProjectRoot,
   loadProjectEnvironment,
   maskIdentifier,
   parseCliArguments,
   sanitizeForOutput,
-} from './lib/project.mjs';
+} from './shared/project.mjs';
 
 const REPORTS = new Set(['summary', 'schema', 'routes', 'tools', 'dml', 'runtime', 'audit-stats']);
 

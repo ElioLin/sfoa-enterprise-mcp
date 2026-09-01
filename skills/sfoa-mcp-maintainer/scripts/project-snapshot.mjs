@@ -9,7 +9,7 @@ import {
   readWorkspacePackages,
   runCommand,
   sanitizeForOutput,
-} from './lib/project.mjs';
+} from './shared/project.mjs';
 
 export async function createProjectSnapshot(projectRoot, environment) {
   const rootManifest = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'));

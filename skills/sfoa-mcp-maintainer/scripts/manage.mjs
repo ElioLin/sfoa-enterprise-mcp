@@ -1,9 +1,14 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { exists, findProjectRoot, parseCliArguments, SKILL_NAME } from './lib/project.mjs';
+import { exists, findProjectRoot, parseCliArguments, SKILL_NAME } from './shared/project.mjs';
+
+const execFileAsync = promisify(execFile);
 
 export const PLATFORM_SKILL_PATHS = Object.freeze([
   '.agents/skills/sfoa-mcp-maintainer',
@@ -30,8 +35,9 @@ const REQUIRED_FILES = Object.freeze([
   'scripts/audit-trace.mjs',
   'scripts/project-snapshot.mjs',
   'scripts/toolkit.test.mjs',
-  'scripts/lib/project.mjs',
-  'scripts/lib/db.mjs',
+  'scripts/clean-checkout-smoke.mjs',
+  'scripts/shared/project.mjs',
+  'scripts/shared/db.mjs',
 ]);
 
 export async function validateSkill({ canonicalDir }) {
@@ -119,6 +125,82 @@ export async function packageSkill({ projectRoot, canonicalDir = path.join(proje
   });
 }
 
+export async function deliveryCheck({ projectRoot, canonicalDir = path.join(projectRoot, 'skills', SKILL_NAME) }) {
+  const validation = await validateSkill({ canonicalDir });
+  const insideWorkTree = await git(['rev-parse', '--is-inside-work-tree'], projectRoot);
+  if (!insideWorkTree.ok || insideWorkTree.stdout.trim() !== 'true') {
+    return Object.freeze({
+      ok: validation.ok,
+      gitRepository: false,
+      note: 'Not inside a Git work tree; file trackability can only be verified in a Git checkout.',
+      validation,
+      ignored: Object.freeze([]),
+      untracked: Object.freeze([]),
+      packageCompleteness: false,
+      problems: Object.freeze(validation.errors.map((error) => `validation: ${error}`)),
+    });
+  }
+  const skillDirs = [path.relative(projectRoot, canonicalDir), ...PLATFORM_SKILL_PATHS];
+  const candidates = [];
+  for (const dir of skillDirs) {
+    for (const file of await listFiles(path.join(projectRoot, dir))) {
+      if (file.isSymbolicLink) continue;
+      candidates.push(toPosix(path.join(dir, file.relativePath)));
+    }
+  }
+  const tracked = await git(['ls-files', '-z'], projectRoot);
+  const trackedSet = new Set((tracked.ok ? tracked.stdout : '').split('\0').filter(Boolean));
+  const untracked = candidates.filter((candidate) => !trackedSet.has(candidate));
+  const ignoredOutput = await git(['check-ignore', '-z', '--', ...candidates], projectRoot);
+  const ignored = (ignoredOutput.stdout || '').split('\0').filter(Boolean);
+  const packageResult = await verifyPackageCompleteness({ projectRoot, canonicalDir });
+  const problems = [
+    ...validation.errors.map((error) => `validation: ${error}`),
+    ...untracked.map((candidate) => `untracked by git: ${candidate}`),
+    ...ignored.map((candidate) => `ignored by .gitignore: ${candidate}`),
+    ...(packageResult.complete ? [] : [packageResult.reason]),
+  ];
+  return Object.freeze({
+    ok: problems.length === 0,
+    gitRepository: true,
+    validation,
+    trackedFileCount: trackedSet.size,
+    ignored: Object.freeze(ignored),
+    untracked: Object.freeze(untracked),
+    packageCompleteness: packageResult.complete,
+    problems: Object.freeze(problems),
+  });
+}
+
+async function verifyPackageCompleteness({ projectRoot, canonicalDir }) {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-delivery-'));
+  try {
+    const packaged = await packageSkill({ projectRoot, canonicalDir, outputPath: path.join(temporaryRoot, 'maintainer.zip') });
+    const canonicalCount = (await listFiles(canonicalDir)).filter((file) => !file.isSymbolicLink).length;
+    const complete = packaged.fileCount === canonicalCount;
+    return { complete, reason: complete ? '' : `package fileCount ${packaged.fileCount} does not match canonical ${canonicalCount}` };
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+async function git(arguments_, cwd) {
+  try {
+    const result = await execFileAsync('git', arguments_, { cwd, windowsHide: true, maxBuffer: 64 * 1024 * 1024, encoding: 'utf8' });
+    return { ok: true, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+  } catch (error) {
+    return {
+      ok: false,
+      stdout: typeof error.stdout === 'string' ? error.stdout : '',
+      stderr: typeof error.stderr === 'string' ? error.stderr : '',
+    };
+  }
+}
+
+function toPosix(filePath) {
+  return filePath.split(path.sep).join('/');
+}
+
 async function main() {
   const arguments_ = parseCliArguments(process.argv.slice(2));
   const action = arguments_._[0] ?? 'validate';
@@ -140,6 +222,12 @@ async function main() {
     if (!result.ok) process.exitCode = 1;
     return;
   }
+  if (action === 'delivery') {
+    const result = await deliveryCheck({ projectRoot, canonicalDir });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
   if (action === 'package') {
     const result = await packageSkill({
       projectRoot,
@@ -149,7 +237,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
-  throw new Error(`Unknown Skill action: ${action}. Use validate, sync, check, or package.`);
+  throw new Error(`Unknown Skill action: ${action}. Use validate, sync, check, delivery, or package.`);
 }
 
 async function validateLinks(canonicalDir, errors) {

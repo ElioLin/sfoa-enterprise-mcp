@@ -41,3 +41,7 @@ The analyzer follows the real migration-008 schema. It uses `publicAuditId`, `co
 ## Gate
 
 Canonical validation, three-platform sync/drift checks, ZIP generation, secret masking, read-only SQL rejection, missing environment, unavailable database, Audit-not-found, deterministic reconstruction, project Doctor/Snapshot, real MySQL schema/governance inspection, and repository build/test/lint/integration/validation results must be recorded.
+
+## Post-implementation note (HOTFIX01)
+
+The helper modules originally lived under `scripts/lib/`. The root `.gitignore` has a bare `lib` pattern (compile-output exclusion) that silently ignored that directory, so the helpers existed on a developer machine but were never committed. The helpers were moved to `scripts/shared/` and two durable guards were added: `skill:delivery` (Git trackability of every required Skill file and generated copy) and `skill:smoke` (rebuild a tracked-only checkout and re-run the Skill gates). This is a durable delivery fact, not a reasoning-boundary change; the advisory, secret-safe, read-only design described above is unchanged.

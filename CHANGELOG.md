@@ -8,6 +8,7 @@
 ### Fixes
 
 - Eliminate mixed Control Plane/Admin API declarations and stabilize Windows Node test execution with Node 24's in-process test isolation mode.
+- Close P7-08 maintainer Skill delivery: relocate helper modules from `scripts/lib` to `scripts/shared` (the root `.gitignore` `lib` pattern silently excluded them from commits) and add a Git trackability `delivery` gate plus a clean-checkout `smoke` proof so a fresh clone always carries the full Skill runtime.
 
 ## [0.17.1](https://github.com/salesforcecli/mcp/compare/0.17.0...0.17.1) (2025-08-17)
 
