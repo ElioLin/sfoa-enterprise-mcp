@@ -216,6 +216,46 @@ test('FIELD_CUSTOM_VALIDATION_EXCEPTION remains an explicit Salesforce rejection
   assert.equal(calls.length, 1);
 });
 
+test('INVALID_FIELD with no fields array is still an explicit Salesforce rejection', async () => {
+  const calls: MutationCall[] = [];
+  const rejection = createJsforceRejectionWithoutFields(
+    'INVALID_FIELD',
+    "No such column 'Opportunity_Summary__c' on sobject of type Lead",
+  );
+  const executor = createLeadExecutor(createConnection(calls, { createException: rejection }));
+
+  const failure = await captureDmlError(
+    executor.create({ objectApiName: 'Lead', fields: { LastName: 'Rejected' } }),
+  );
+
+  assert.equal(failure.code, 'MCP_SALESFORCE_DML_FAILED');
+  assert.deepEqual(failure.salesforceErrors, [{
+    errorCode: 'INVALID_FIELD',
+    message: "No such column 'Opportunity_Summary__c' on sobject of type Lead",
+    fields: [],
+  }]);
+  assert.equal(calls.length, 1);
+});
+
+test('a primitive HttpApiError.data body (e.g. an HTML error page) remains an unknown outcome', async () => {
+  const calls: MutationCall[] = [];
+  const htmlTransportFailure = Object.assign(new Error('HTTP response contains html content.'), {
+    name: 'ERROR_HTTP_502',
+    errorCode: 'ERROR_HTTP_502',
+    data: '<html>502 Bad Gateway</html>',
+  });
+  const executor = createLeadExecutor(createConnection(calls, { createException: htmlTransportFailure }));
+
+  const failure = await captureDmlError(
+    executor.create({ objectApiName: 'Lead', fields: { LastName: 'Unknown' } }),
+  );
+
+  assert.equal(failure.code, 'MCP_DML_OUTCOME_UNKNOWN');
+  assert.match(failure.message, /Do not automatically retry/u);
+  assert.deepEqual(failure.salesforceErrors, []);
+  assert.equal(calls.length, 1);
+});
+
 test('transport and unstructured SDK exceptions produce unknown outcomes without automatic retry', async () => {
   const calls: MutationCall[] = [];
   const transportFailure = Object.assign(new Error('socket disconnected before the response was received'), {
@@ -354,6 +394,16 @@ function createJsforceRejection(
   return Object.assign(new Error(message), {
     errorCode,
     data: { errorCode, message, fields: [...fields] },
+  });
+}
+
+function createJsforceRejectionWithoutFields(
+  errorCode: string,
+  message: string,
+): Error {
+  return Object.assign(new Error(message), {
+    errorCode,
+    data: { errorCode, message },
   });
 }
 

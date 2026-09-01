@@ -109,21 +109,36 @@ function collectCandidates(value: unknown): readonly unknown[] {
   return [value];
 }
 
+function collectStructuredSalesforceErrorCandidates(value: unknown): readonly unknown[] {
+  // Only the structured Salesforce REST error body counts as rejection evidence.
+  // JSforce 3.10.13 retains that body in HttpApiError.data (object or array), or a
+  // collection/bulk response in an `errors` array. A primitive `data` (e.g. an HTML
+  // error page) carries no structured errorCode/message pair, so it is excluded.
+  if (Array.isArray(value)) return value;
+  const record = toRecord(value);
+  if (!record) return [];
+  if (Array.isArray(record.errors)) return record.errors;
+  if (Array.isArray(record.data)) return record.data;
+  const data = toRecord(record.data);
+  if (data) return [data];
+  return [];
+}
+
 function hasStructuredSalesforceRejectionEvidence(value: unknown): boolean {
   // JSforce 3.10.13 retains the Salesforce REST error body in HttpApiError.data.
   // Do not infer rejection from Error.name, HTTP status, or message text: transport
   // exceptions can carry those values after Salesforce has already committed.
-  return collectCandidates(value).some((candidate) => {
+  return collectStructuredSalesforceErrorCandidates(value).some((candidate) => {
     const record = toRecord(candidate);
-    return Boolean(
-      record &&
-      typeof record.errorCode === 'string' &&
-      record.errorCode.trim().length > 0 &&
-      typeof record.message === 'string' &&
-      record.message.trim().length > 0 &&
-      Array.isArray(record.fields) &&
-      record.fields.every((field) => typeof field === 'string'),
-    );
+    if (!record) return false;
+    const hasCode = typeof record.errorCode === 'string' && record.errorCode.trim().length > 0;
+    const hasMessage = typeof record.message === 'string' && record.message.trim().length > 0;
+    if (!hasCode || !hasMessage) return false;
+    const fields = record.fields;
+    // `fields` is optional: Salesforce omits it for INVALID_FIELD / "No such column"
+    // rejections. When present, every entry must be a string.
+    return fields === undefined
+      || (Array.isArray(fields) && fields.every((field) => typeof field === 'string'));
   });
 }
 
