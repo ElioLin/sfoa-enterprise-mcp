@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Project Baseline
 
-Baseline ID: **P7-MCP-PAYLOAD-BL-1.0**
+Baseline ID: **P7-MAINTAINER-SKILL-BL-1.0**
 
 Baseline date: 2026-09-01
 
@@ -22,6 +22,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 - Let the MCP host derive only explicitly configured platform-user Lookup and AI-created marker fields from trusted request context while preserving the generic DML and Salesforce authorization boundaries.
 - Build record links only from an explicit trusted Lightning HTTPS origin, never from Agent input or guessed/Connection-derived hosts.
 - Record an ordered, bounded, secret-safe evidence chain for each definite MCP Tool invocation without inferring a broader Agent business task.
+- Give development agents one advisory, portable project map and local read-only diagnostic toolkit without exposing internal MySQL as a business MCP capability.
 
 ## Non-goals
 
@@ -64,7 +65,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 The authoritative machine record is `docs/sfoa/ENVIRONMENT_BASELINE.md`.
 
-Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context plus the independent live DIAGNOSTIC chain, and the P5 full-stack Control Plane all pass. P6 USER_BOUND/Buntu identity, Playbook `1.1.0`, and trusted managed-field/link implementation are present on `main` at `c849e577`. P7-01 through P7-06 are Maintainer-complete. P7-07 adds the Admin-only trace read model, deterministic first-failure selection, metadata-only Payload listing with per-item lazy body reads, complete filter Contract, and a Chinese-first split Audit Trace Workbench. Original stdio and Streamable HTTP regressions remain required. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn execution debt remain explicitly isolated.
+Current summary: Git, Node v24.13.0, npm 11.6.2, Yarn 1.22.22, MySQL 8.0.30, P0 fresh SFoA JWT/direct/official SOQL/metadata, P1 real two-user isolation, P3 live CREATE/UPDATE, P4 USER context plus the independent live DIAGNOSTIC chain, and the P5 full-stack Control Plane all pass. P6 USER_BOUND/Buntu identity, Playbook `1.1.0`, and trusted managed-field/link implementation are present on `main` at `c849e577`. P7-01 through P7-06 are Maintainer-complete. P7-07 adds the Admin-only trace read model and Workbench. P7-08 adds one advisory canonical Maintainer Skill, three generated project-client copies, and local secret-safe read-only Doctor/Snapshot/MySQL/Audit diagnostics; it adds no business MCP Tool or Runtime hot-path behavior. Original stdio and Streamable HTTP regressions remain required. Production Salesforce access remains direct `@salesforce/core` JWT with no CLI runtime or Connection/token cache. Upstream lint and Windows Yarn execution debt remain explicitly isolated.
 
 ## Upstream strategy
 
@@ -99,13 +100,13 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-`P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = COMPLETE; P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW; P7-08 = NOT STARTED`
+`P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = COMPLETE; P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW; P7-08 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
 ## Current status
 
-`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6 implementation is present on main at c849e577; P6 REAL-AGENT EVALUATION = READY / NOT STARTED; P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = COMPLETE; P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW; P7-08 = NOT STARTED`
+`P0 = FINAL ACCEPTED; P1 = FINAL ACCEPTED; P2 = FINAL ACCEPTED; P2-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX01 = PASS; P3-CLOSURE HOTFIX02 = PASS; P3 = FINAL ACCEPTED; P4 = FINAL ACCEPTED; P5 = FINAL ACCEPTED; P6 implementation is present on main at c849e577; P6 REAL-AGENT EVALUATION = READY / NOT STARTED; P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = COMPLETE; P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW; P7-08 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
-Maintainer direction completed P6-ID-01 USER_BOUND credentials and P6-ID-02 Buntu identity, then authorized P6-Agent-01 and P6-DML-01. Git history confirms that implementation is now present on latest `main` commit `c849e577`; this is a repository fact and does not rewrite any historical Gate result. Maintainer review subsequently completed P7-01 through P7-06 and authorized P7-07. P7-07 is implemented awaiting Maintainer final review; P7-08 remains prohibited.
+Maintainer direction completed P6-ID-01 USER_BOUND credentials and P6-ID-02 Buntu identity, then authorized P6-Agent-01 and P6-DML-01. Git history confirms that implementation is now present on latest `main` commit `c849e577`; this is a repository fact and does not rewrite any historical Gate result. Maintainer review subsequently completed P7-01 through P7-06 and authorized P7-07. P7-07 is implemented awaiting Maintainer final review. The 2026-09-01 Maintainer direction explicitly authorized P7-08 as a local Agent-native Skill/toolkit; it is implemented awaiting review under ADR-0017.
 
 P6-Agent-01/P6-DML-01 add no business-object workflow, prompt database/editor/history, generic default/constant engine, permission replica, Dynamic Forms evaluator, runtime form engine, DELETE, managed-field cache, or identity override. Dynamic Forms evidence is `NOT_AVAILABLE`. Only `PLATFORM_USER_LOOKUP` and CREATE-only `AI_CREATED_MARKER=true` are supported; the server-managed value wins over Agent fields. `get_record_links` accepts no host and makes no Salesforce API call; it uses only the configured credential-free HTTPS origin `SFOA_LIGHTNING_BASE_URL` and never falls back to `Connection.instanceUrl`. Pre-dispatch managed-field failures are `FAILED`; `MCP_DML_OUTCOME_UNKNOWN` remains post-dispatch and non-auto-retry across every distribution surface.
 
@@ -415,3 +416,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P7-SOQL-DML-EVIDENCE-BL-1.0 | 2026-08-31 | Implemented P7-05 nested request-local semantic scopes, exact `publicApiCallId` enrichment, parsed Query statistics without response reparse, requested/managed/submitted DML evidence, migration 007, bounded/fail-open handling, parallel/interleaved/50-100-200/MySQL/performance Gates, and zero additional Salesforce API calls. P7-06 remains unstarted. |
 | P7-MCP-PAYLOAD-BL-1.0 | 2026-09-01 | Recorded Maintainer completion of P7-04/P7-05 and implemented P7-06 single-read MCP request capture, bounded actual wire response observation, logical/transport separation, JSforce-owned request/final-response payload evidence, exact Event/API association, 256 KiB/64/1 MiB bounds with error reservation, migration 008, asynchronous Writer hashing/persistence, and error/timeout/disconnect/2MiB/50-100-200/MySQL/performance Gates. P7-07 remains unstarted. |
 | P7-AUDIT-WORKBENCH-BL-1.0 | 2026-09-01 | Recorded Maintainer completion of P7-06 and implemented P7-07 as an Admin read path: shared Trace DTOs, full master filters, deterministic first failure, ordered Event/API timeline, metadata-only Payload listing and per-item lazy body retrieval, Chinese-first split Workbench, UNKNOWN/PARTIAL semantics, Buntu identity compatibility, and Windows Node test-runner stabilization. P7-08 remains unstarted. |
+| P7-MAINTAINER-SKILL-BL-1.0 | 2026-09-01 | Implemented P7-08 as one advisory canonical Maintainer Skill with generated Codex/Claude/CodeBuddy copies, Windows Node sync/check/package, Project Snapshot/Doctor, predefined read-only MySQL inspection, and real-schema P7 Audit reconstruction. ADR-0017 removes the earlier public diagnostic MCP Tool assumption; no Runtime, Salesforce, schema, or business Tool surface is added. |

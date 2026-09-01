@@ -2,6 +2,13 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-01 — P7-08 Agent-Native Maintainer Skill and Diagnostic Toolkit
+
+- Added the advisory canonical `skills/sfoa-mcp-maintainer` with progressive references for architecture, repository/runtime flow, development, testing, operations, troubleshooting, database/Audit, acceptance diagnosis, and durable self-maintenance.
+- Added generated project copies for Codex, Claude Code, and WorkBuddy/CodeBuddy plus dependency-free Windows Node validation, byte-identical sync/check, and disposable ZIP packaging.
+- Added secret-safe Project Snapshot/Doctor, named read-only MySQL inspection, and a real migration-008 Audit Analyzer. Unsupported trace/session/call/span fields remain explicit; current route/governance is labeled contextual, Payload bodies are omitted, and token/identity output is redacted or masked.
+- Added ADR-0017 and changed the P7-08 architecture from a public diagnostic MCP interface to a local developer/maintainer toolkit. No runtime package, migration, Salesforce call, public Tool, or production authorization surface was added.
+
 ## 2026-09-01 — P7-06 MCP request, response, and payload evidence implemented
 
 - Reused the single bounded HTTP body read to persist typed `MCP_REQUEST` evidence before Identity, including real JSON-RPC Tool arguments without rereading or changing the request stream.

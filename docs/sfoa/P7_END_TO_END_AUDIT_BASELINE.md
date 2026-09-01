@@ -1,8 +1,8 @@
 # P7：全链路审计与智能诊断权威基线
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.3**
+Baseline ID: **P7-E2E-AUDIT-BL-1.4**
 
-Baseline date: 2026-08-30
+Baseline date: 2026-09-01
 
 Authority: 本文件是 P7（End-to-End Audit & AI-Assisted Diagnostics）的唯一权威需求、阶段边界和验收计划基线。任何 Codex、Claude Code 或其他开发智能体在规划或修改 P7 前，必须先完整读取本文件，并继续遵守 `AGENTS.md`、`PROJECT_BASELINE.md`、`ARCHITECTURE.md`、`MCP_ENGINEERING_RULES.md` 与 `UPSTREAM_STRATEGY.md`。
 
@@ -300,15 +300,17 @@ Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit A
 
 ### P7-08 智能诊断接口与排障技能
 
-目标：提供只读、运维授权的审计诊断接口和 **SFoA MCP 异常排查技能**。
+目标：提供项目工作区内只读的 **SFoA MCP Maintainer Skill 与诊断工具集**，服务 Codex、Claude Code、WorkBuddy/CodeBuddy、Developer、Maintainer 和 Operator。
 
-实施内容：获取调用链、API 明细、诊断包、异常搜索、单 API 证据；Skill 以事实为依据给出排障路径。
+实施内容：以一个 canonical portable Skill 提供渐进式项目知识；通过 Windows-compatible Node.js 脚本生成三种客户端副本和 ZIP；提供 Project Snapshot、Doctor、预定义 MySQL inspection 与 P7 Audit reconstruction。工具只读取本地工作区与现场证据，不注册成业务 MCP Tool。
 
-前置依赖：P7-07 API/Workbench 稳定；明确独立运维授权模型。
+前置依赖：P7-07 已形成稳定 Audit read model；本阶段以本地工作区权限代替新增远程运维授权面。该调整由 ADR-0017 记录，避免 `business Agent -> public MCP -> internal MySQL`。
 
-验收 Gate：普通业务用户默认无权访问；Tool 全部 read-only、bounded、分页、structuredContent、完整 annotations；诊断不泄密、不改 Salesforce、不推断 Agent 意图。
+验收 Gate：canonical structure、三平台 byte-identical sync/check、ZIP、secret masking、只读 SQL guard、缺失 env/DB unavailable/Audit not found、正常链路重建、真实 schema/governance/Audit 检查以及仓库既有门禁有实际证据。诊断不泄密、不改 MySQL/Salesforce、不伪造缺失字段、不推断 Agent 意图。
 
-不做：可靠性分数、LLM Judge、自动修复/自动变更、普通用户天然运维权限。
+不做：业务/公共 MCP 诊断 Tool、可靠性分数、LLM Judge、自动修复/自动变更、普通用户天然运维权限、自由输入 SQL。
+
+实施结果（2026-09-01）：`IMPLEMENTED / AWAITING MAINTAINER REVIEW`。canonical Skill、Codex/Claude/CodeBuddy project copies、同步/漂移/打包脚本、Doctor、Snapshot、只读 DB Inspector 与 P7 Audit Analyzer 已实现。Analyzer 按真实 migration 008 使用 `publicAuditId`、`correlationId`、Event sequence 和 `publicApiCallId`；不存在的 trace/session/call/span 字段明确显示 unavailable。完整命令、测试和验收分析见 `P7_08_REPORT.md`。
 
 ## 6. P7-03 后续强制并发、故障与性能 Gate
 
@@ -373,15 +375,15 @@ P7-01 至少覆盖：
 | P7-03 请求级隔离与异步审计管道 | COMPLETE | Maintainer 已完成主体实现及 HOTFIX01 收口验证 |
 | P7-04 Salesforce API 透明审计 | COMPLETE | Maintainer 独立审查通过 |
 | P7-05 SOQL 与 DML 审计证据 | COMPLETE | Maintainer 独立审查通过 |
-| P7-06 MCP 入口与响应审计 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | MCP/Salesforce bounded payload、逻辑/传输分离、migration 008、异步 persistence 与 focused Gates 已实现 |
-| P7-07 审计调用链工作台 | NOT STARTED | 依赖完整后端证据/API |
-| P7-08 智能诊断接口与排障技能 | NOT STARTED | 依赖 P7-07 与运维授权 |
+| P7-06 MCP 入口与响应审计 | COMPLETE | Maintainer 独立审查通过 |
+| P7-07 审计调用链工作台 | IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW | Admin read model 与 React Workbench 已实现 |
+| P7-08 Agent-Native Maintainer Skill 与诊断工具集 | IMPLEMENTED / AWAITING MAINTAINER REVIEW | canonical Skill、本地只读诊断、三平台同步与打包已实现；不新增业务 MCP Tool |
 
-本次所有 P7-06 工程 Gate 通过后，状态只能更新为：
+本次所有 P7-08 工程 Gate 通过后，状态只能更新为：
 
-`P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
+`P7-08 = IMPLEMENTED / AWAITING MAINTAINER REVIEW`
 
-只有 Maintainer Review 通过后，P7-06 才能标记 COMPLETE。不得自行开始 P7-07 或宣布整个 P7 COMPLETE。
+只有 Maintainer Review 通过后，P7-08 才能标记 COMPLETE。不得自行宣布整个 P7 COMPLETE。
 
 ## 9. 变更管理
 

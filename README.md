@@ -1,8 +1,8 @@
 # SFoA Enterprise MCP
 
-This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, per-request dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity acquisition, canonical MCP-native Salesforce Agent Playbook `1.1.0`, two tightly bounded trusted managed-field strategies, and explicit trusted Lightning record links. P7-01 evolves that Audit ledger into a compatible master-plus-details data model; P7-02 gives every definite Tool invocation one server-authoritative request audit context and Audit ID; P7-03 adds a request-bound Collector, immutable Snapshot, bounded non-blocking Queue, background batch Writer, and a dedicated two-connection Audit pool while leaving official Salesforce Tool implementations unchanged.
+This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity, the Salesforce Agent Playbook, trusted managed fields, and explicit record links. P7 records ordered MCP/Salesforce evidence and provides the Admin Audit Workbench. P7-08 adds an advisory, cross-agent Maintainer Skill plus local secret-safe, read-only project/MySQL/Audit diagnostics; it is not a business MCP Tool.
 
-Current Git fact: `P7-01 = COMPLETE`, `P7-02 = COMPLETE`, and `P7-03 = IMPLEMENTED / AWAITING MAINTAINER REVIEW` on `feature/p7-end-to-end-audit`; P7-04 through P7-08 have not started.
+Current Git fact: `P7-01` through `P7-06 = COMPLETE`; `P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW`; `P7-08 = IMPLEMENTED / AWAITING MAINTAINER REVIEW` on `feature/p7-end-to-end-audit`.
 
 Project documentation:
 
@@ -19,12 +19,14 @@ Project documentation:
 - [P7-01 implementation report](docs/sfoa/P7_01_REPORT.md)
 - [P7-02 implementation report](docs/sfoa/P7_02_REPORT.md)
 - [P7-03 implementation report](docs/sfoa/P7_03_REPORT.md)
+- [P7-07 Audit Workbench report](docs/sfoa/P7_07_REPORT.md)
+- [P7-08 Maintainer Skill/toolkit report](docs/sfoa/P7_08_REPORT.md)
 - [Dify setup](docs/agent/DIFY_SETUP.md)
 - [WorkBuddy setup](docs/agent/WORKBUDDY_SETUP.md)
 - [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)
 - [Authoritative baseline](docs/sfoa/PROJECT_BASELINE.md)
 
-The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` to regenerate Dify/WorkBuddy artifacts and `yarn agent:check` to reject drift. Run `yarn validate:p5` for the repeatable P5 regression Gate. Real credentials belong only in ignored local environment files or secret injection.
+The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` / `yarn agent:check` for P6 Agent Playbook distributions. Run `yarn skill:sync` / `yarn skill:check` for the P7-08 Codex, Claude Code, and WorkBuddy/CodeBuddy Skill copies; `yarn ai:doctor` checks local diagnostic prerequisites without printing secrets. Run `yarn validate:p5` for the repeatable product regression Gate. Real credentials belong only in ignored local environment files or secret injection.
 
 ### Create a sensitive ChatGPT review package
 

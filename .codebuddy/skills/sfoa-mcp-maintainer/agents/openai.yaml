@@ -1,0 +1,6 @@
+interface:
+  display_name: "SFoA MCP Maintainer"
+  short_description: "Maintain and diagnose the SFoA enterprise MCP repository"
+  default_prompt: "Use $sfoa-mcp-maintainer to investigate this repository task from current code and runtime evidence."
+policy:
+  allow_implicit_invocation: true

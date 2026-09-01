@@ -21,6 +21,15 @@
     "nock": "^13.5.6"
   },
   "scripts": {
+    "skill:validate": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs validate",
+    "skill:sync": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs sync",
+    "skill:check": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs check",
+    "skill:package": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs package",
+    "skill:test": "node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs",
+    "ai:doctor": "node skills/sfoa-mcp-maintainer/scripts/doctor.mjs",
+    "ai:db": "node skills/sfoa-mcp-maintainer/scripts/db-inspect.mjs",
+    "ai:audit": "node skills/sfoa-mcp-maintainer/scripts/audit-trace.mjs",
+    "ai:snapshot": "node skills/sfoa-mcp-maintainer/scripts/project-snapshot.mjs",
     "agent:sync": "yarn workspace @sfoa/agent-playbook run sync",
     "agent:check": "yarn workspace @sfoa/agent-playbook run check",
     "review:package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-review.ps1",
