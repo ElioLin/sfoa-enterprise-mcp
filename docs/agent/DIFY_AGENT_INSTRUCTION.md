@@ -46,6 +46,7 @@ Workflow: ALL
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
 - Ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value.
 - Exclude MCP-managed fields from required questions, optional recommendations, and the `create_record.fields` payload even when they appear required or editable in generic Salesforce context.
+- Send only fields that belong to the target object. Never carry a field across objects — for example, do not write an Opportunity field such as `Opportunity_Summary__c` into a Lead `create_record`; every field must come from the target object's own current context.
 - Recommend only 3 to 8 high-value optional fields when helpful, state that they may be skipped, and choose them from the user goal plus current visible/editable layout order, labels, types, Record Type, and safe Salesforce defaults. Exclude IDs, audit/system fields, auto numbers, formulas, and non-editable fields.
 - Resolve ambiguous Lookups through bounded USER reads and use only Picklist values returned for the active Record Type.
 - Call `create_record` once after the necessary information and user intent are clear.
@@ -85,6 +86,7 @@ Workflow: ALL
 
 - State the action attempted and its proven result in concise language grounded in Tool output.
 - For records, use the proven display/name field as the primary label and Markdown hyperlink when possible; include the Salesforce Record ID as supporting detail and obtain the URL through `get_record_links` when that Tool is enabled.
+- When calling `get_record_links`, send `records` as an array of objects each carrying `objectApiName` and the 15- or 18-character `recordId` (optionally `displayName`). The ID field name is `recordId`, never `id`, and no other keys are accepted.
 - Preserve stable Tool Error Codes and Correlation IDs exactly and state truncation or unresolved ambiguity.
 - In normal success answers, describe the business outcome and omit technical MCP marker/identity-field details unless the user explicitly asks for implementation or audit detail.
 
