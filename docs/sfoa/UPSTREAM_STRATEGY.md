@@ -61,6 +61,8 @@ Then merge or rebase only according to the company branch policy that exists at 
 4. Rerun SFoA JWT/SOQL/metadata and A/B identity tests when credentials are available.
 5. Update `PROJECT_BASELINE.md`, `TEST_MATRIX.md`, `CHANGELOG.md`, and ADRs when conclusions change.
 
+P7-07 adds an SFoA-only unreleased entry at the top of upstream-owned `CHANGELOG.md` because the repository rules require phase-status changes to update the changelog. Alternative: record the change only in `docs/sfoa/P7_07_REPORT.md`; rejected because it would leave the required project changelog stale. Merge risk: low and localized to the file header; preserve upstream release history below it during rebases.
+
 Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
 
 ## Package-release drift

@@ -277,7 +277,7 @@ export type SalesforceApiCallRecord = Readonly<{
   createdAt: string;
 }>;
 
-export type AuditPayloadEvidenceRecord = Readonly<{
+export type AuditPayloadEvidenceSummaryRecord = Readonly<{
   id: string;
   auditId: string;
   salesforceApiCallId: string | null;
@@ -288,8 +288,11 @@ export type AuditPayloadEvidenceRecord = Readonly<{
   storedSizeBytes: number;
   truncated: boolean;
   contentSha256: string | null;
-  safePayload: string | null;
   createdAt: string;
+}>;
+
+export type AuditPayloadEvidenceRecord = AuditPayloadEvidenceSummaryRecord & Readonly<{
+  safePayload: string | null;
 }>;
 
 export type Page<T> = Readonly<{

@@ -1,6 +1,6 @@
 # SFoA Enterprise MCP Architecture
 
-Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 through P7-05 are complete; P7-06 is implemented awaiting review; P7-07–P7-08 remain unstarted
+Status: P0–P5 final accepted; P6 implementation is present on `main` at `c849e577`; P7-01 through P7-06 are complete; P7-07 is implemented awaiting Maintainer final review; P7-08 remains unstarted
 
 Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
@@ -677,6 +677,10 @@ P7-06 reuses the definite-`tools/call` bounded body read. The same parse operati
 The P7-04 JSforce adapter now captures non-GET/HEAD request bodies from the already-built `HttpRequest` and only the final logically returned `HttpResponse.body`. It never adds a Salesforce `IncomingMessage.data` listener. Intermediate retries therefore retain HTTP facts but no unprovable response body; the final body binds only to its exact `publicApiCallId`. OAuth payload capture remains zero. Runtime association uses request-local Event sequence and public API UUID; the background transaction resolves both to same-Audit database IDs before inserting Payload rows.
 
 Payload collection is capped at 262,144 UTF-8 bytes per evidence, 64 evidence per Audit, and 1 MiB total, with 256 KiB reserved for critical errors and another 256 KiB for MCP core request/response evidence. Drop, truncation, or capture failure marks integrity `PARTIAL` and never changes Tool/Salesforce results. Unknown original size remains NULL via migration 008. SHA-256 is computed only by the background Writer over the exact secret-safe persisted prefix. Ordinary Audit search/count still queries only the master table; Payload is available only through explicit per-Audit/per-ID trace repository reads. No React Workbench is part of P7-06.
+
+P7-07 consumes that evidence only through the Admin read path. `AuditTraceRepository` separates `listPayloadEvidenceMetadata()` from `getPayloadEvidenceById()`: the trace aggregation selects bounded Event/API facts and Payload metadata but never the `safe_payload` column, while an authenticated Admin item request loads one body after explicit user action. `AdminAuditTraceDto` is the single cross-package Contract for the Admin API and React client. Its summary is derived at read time; no trace counts or diagnosis are written back to Runtime tables.
+
+`GET /admin/api/audits/:id/trace` deterministically merges request-local Event and Salesforce API sequences. First failure is the earliest persisted FAILED, DENIED, BLOCKED, UNKNOWN, or unsuccessful Salesforce API fact, with a root-Audit fallback when no child fact exists; no LLM inference is involved. The React Workbench keeps list and detail React Query keys independent, preserves selection and filters in the URL, defaults Timeline details closed, renders Requested/Managed/Submitted DML fields side by side, and distinguishes UNKNOWN from Salesforce failure. ADMIN_ACTION, IDENTITY_VALIDATION (including Buntu evidence), and RUNTIME_EVENT use the simpler non-MCP detail rather than fabricating a Tool trace. No Runtime hot path, Salesforce call, synchronous MCP database operation, migration, chart dependency, or client state framework is added.
 
 ## Data, cache, and security baseline
 

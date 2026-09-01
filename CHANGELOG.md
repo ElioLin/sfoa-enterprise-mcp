@@ -1,3 +1,13 @@
+## SFoA unreleased — 2026-09-01
+
+### Features
+
+- Implement P7-07 Audit Trace Workbench with a shared Admin trace Contract, deterministic first-failure timeline, full audit filters, Payload metadata/body separation, UNKNOWN/PARTIAL semantics, SOQL/DML evidence views, URL state, and Buntu identity compatibility.
+
+### Fixes
+
+- Eliminate mixed Control Plane/Admin API declarations and stabilize Windows Node test execution with Node 24's in-process test isolation mode.
+
 ## [0.17.1](https://github.com/salesforcecli/mcp/compare/0.17.0...0.17.1) (2025-08-17)
 
 # [0.17.0](https://github.com/salesforcecli/mcp/compare/0.16.1...0.17.0) (2025-07-29)

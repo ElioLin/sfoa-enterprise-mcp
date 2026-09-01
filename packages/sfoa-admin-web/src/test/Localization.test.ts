@@ -43,7 +43,7 @@ describe('zh-CN Admin presentation contract', () => {
       'ToolGovernancePage.tsx': '工具治理',
       'DmlPoliciesPage.tsx': 'DML 操作策略',
       'DiagnosticPage.tsx': '系统诊断',
-      'AuditPage.tsx': '调用审计',
+      'AuditPage.tsx': '全链路审计工作台',
       'SystemPage.tsx': '系统状态',
       'AgentIntegrationPage.tsx': '智能体接入',
     };

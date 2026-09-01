@@ -249,6 +249,7 @@ describe('Admin governance pages', () => {
     const rawToken = 'buntu-raw-token-opt-in';
     const record = auditRecord('77', {
       identitySource: 'BUNTU_TOKEN',
+      auditKind: 'IDENTITY_VALIDATION',
       clientId: 'xiaoben-buntu-token',
       operation: 'BUNTU_TOKEN_VALIDATE',
       result: 'PASS',
@@ -265,14 +266,20 @@ describe('Admin governance pages', () => {
       responseSummary: { valid: true, httpStatus: 200, userId: 'platform-buntu' },
     });
     const fetchMock = asFetchMock((url) => {
-      if (/\/audits\/77$/u.test(url.pathname)) return jsonResponse(record);
+      if (/\/audits\/77\/trace$/u.test(url.pathname)) return jsonResponse({
+        audit: record,
+        summary: { eventCount: 0, apiCount: 0, soqlCount: 0, dmlCount: 0, errorCount: 0, payloadCount: 0, detailsTruncated: false },
+        firstFailure: null,
+        events: [],
+        salesforceApiCalls: [],
+        payloadMetadata: [],
+      });
       return jsonResponse(page([record]));
     });
     vi.stubGlobal('fetch', fetchMock);
     renderAdmin(<AuditPage />);
 
     expect(await screen.findByText('小犇 Token')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('platform-buntu'));
     expect(await screen.findByText('小犇 Token 校验详情')).toBeInTheDocument();
     expect(screen.getByText('原始 Token 已记录')).toBeInTheDocument();
     expect(screen.getByText(`sha256:${'a'.repeat(64)}`)).toBeInTheDocument();
@@ -355,10 +362,11 @@ function diagnosticVerification() {
 
 function auditRecord(id: string, overrides: Readonly<Partial<Record<string, unknown>>> = {}) {
   return {
-    id, occurredAt: NOW, correlationId: `correlation-${id}`, channel: 'MCP', clientId: 'client-a', actorAdmin: null,
+    id, publicAuditId: `00000000-0000-4000-8000-${id.padStart(12, '0')}`, auditKind: 'MCP_TOOL_CALL',
+    occurredAt: NOW, startedAt: NOW, completedAt: NOW, correlationId: `correlation-${id}`, channel: 'MCP', clientId: 'client-a', actorAdmin: null,
     platformUserId: 'platform-a', salesforceUsername: 'sf-user@example.com', executionRole: 'USER', toolName: 'run_soql_query',
     operation: 'READ', objectApiName: null, recordId: null, result: 'PASS', outcome: 'SUCCESS', errorCode: null, durationMs: 5,
-    identitySource: 'USER_BOUND_TOKEN',
+    errorMessageSafe: null, auditIntegrityStatus: 'COMPLETE', identitySource: 'USER_BOUND_TOKEN', identityCredentialId: '1',
     requestSummary: { querySha256: 'abcd', queryLength: 42 }, responseSummary: { returnedRecords: 1 }, createdAt: NOW,
     ...overrides,
   };

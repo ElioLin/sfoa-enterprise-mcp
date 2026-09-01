@@ -4,6 +4,7 @@ import {
   encodeBoundedAuditPayload,
   type AuditEventRecord,
   type AuditPayloadEvidenceRecord,
+  type AuditPayloadEvidenceSummaryRecord,
   type AuditRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
@@ -244,9 +245,20 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
         getById: async (id) => this.audits.find((record) => record.id === id),
         search: async (filter) => {
           const items = this.audits.filter((record) =>
+            (!filter.occurredFrom || record.occurredAt >= filter.occurredFrom.toISOString()) &&
+            (!filter.occurredTo || record.occurredAt <= filter.occurredTo.toISOString()) &&
+            (!filter.auditId || record.id === filter.auditId || record.publicAuditId === filter.auditId) &&
             (!filter.result || record.result === filter.result) &&
+            (!filter.outcome || record.outcome === filter.outcome) &&
             (!filter.toolName || record.toolName === filter.toolName) &&
-            (!filter.correlationId || record.correlationId === filter.correlationId),
+            (!filter.correlationId || record.correlationId === filter.correlationId) &&
+            (!filter.platformUserId || record.platformUserId === filter.platformUserId) &&
+            (!filter.salesforceUsername || record.salesforceUsername === filter.salesforceUsername) &&
+            (!filter.errorCode || record.errorCode === filter.errorCode) &&
+            (!filter.objectApiName || record.objectApiName === filter.objectApiName) &&
+            (!filter.recordId || record.recordId === filter.recordId) &&
+            (!filter.auditKind || record.auditKind === filter.auditKind) &&
+            (!filter.auditIntegrityStatus || record.auditIntegrityStatus === filter.auditIntegrityStatus),
           );
           return makePage(items.reverse(), filter);
         },
@@ -273,6 +285,10 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
         ),
         createPayloadEvidence: async (input) => this.createAuditPayload(input),
         getPayloadEvidenceById: async (id) => this.auditPayloads.find((record) => record.id === id),
+        listPayloadEvidenceMetadata: async (auditId, options) => makePage(
+          this.auditPayloads.filter((record) => record.auditId === auditId).map(toPayloadMetadata),
+          options,
+        ),
         listPayloadEvidence: async (auditId, options) => makePage(
           this.auditPayloads.filter((record) => record.auditId === auditId),
           options,
@@ -594,6 +610,11 @@ function makePage<T>(records: readonly T[], options: ListOptions): Page<T> {
     hasMore,
     nextOffset: hasMore ? options.offset + items.length : null,
   });
+}
+
+function toPayloadMetadata(record: AuditPayloadEvidenceRecord): AuditPayloadEvidenceSummaryRecord {
+  const { safePayload: _safePayload, ...metadata } = record;
+  return Object.freeze(metadata);
 }
 
 function makeTotalPage<T>(records: readonly T[], options: ListOptions): Page<T> & Readonly<{ total: number }> {

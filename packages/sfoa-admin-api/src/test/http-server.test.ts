@@ -3,8 +3,10 @@ import test from 'node:test';
 import {
   ControlPlaneError,
   type AuditRecord,
+  type AuditPayloadEvidenceRecord,
   type AuditWrite,
-  type ControlPlaneRepositories,
+  type AuditFilter,
+  type ControlPlaneRepositoriesWithAuditTrace,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
   type IdentityCredentialRecord,
@@ -158,6 +160,84 @@ test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, 
   assert.equal(afterLogout.status, 401);
 });
 
+test('Audit trace and payload routes are authenticated, non-conflicting, filtered, and payload-lazy', async (context) => {
+  const traceAudit = auditRecord('1', {
+    occurredAt: new Date(now), correlationId: 'corr-trace', channel: 'MCP', toolName: 'create_record',
+    operation: 'CREATE', objectApiName: 'Lead', result: 'ERROR', outcome: 'FAILED', auditKind: 'MCP_TOOL_CALL',
+    errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION', auditIntegrityStatus: 'PARTIAL',
+  });
+  const payload: AuditPayloadEvidenceRecord = Object.freeze({
+    id: '30', auditId: '1', salesforceApiCallId: null, auditEventId: null,
+    payloadType: 'ERROR_RESPONSE', contentType: 'application/json', originalSizeBytes: '17', storedSizeBytes: 17,
+    truncated: false, contentSha256: 'a'.repeat(64), safePayload: '{"error":"safe"}', createdAt: now,
+  });
+  const { safePayload: _safePayload, ...payloadMetadata } = payload;
+  let receivedFilter: AuditFilter | undefined;
+  const base = createRepositories();
+  const audits: ControlPlaneRepositoriesWithAuditTrace['audits'] = Object.freeze({
+    ...base.audits,
+    getById: async (id: string) => id === '1' ? traceAudit : undefined,
+    search: async (filter: AuditFilter) => {
+      receivedFilter = filter;
+      return page([traceAudit], filter.limit, filter.offset);
+    },
+  });
+  const auditTraces: ControlPlaneRepositoriesWithAuditTrace['auditTraces'] = Object.freeze({
+    ...base.auditTraces,
+    listEvents: async (_auditId: string, { limit, offset }: Readonly<{ limit: number; offset: number }>) => page([], limit, offset),
+    listSalesforceApiCalls: async (_auditId: string, { limit, offset }: Readonly<{ limit: number; offset: number }>) => page([], limit, offset),
+    listPayloadEvidenceMetadata: async (_auditId: string, { limit, offset }: Readonly<{ limit: number; offset: number }>) => page([Object.freeze(payloadMetadata)], limit, offset),
+    getPayloadEvidenceById: async (id: string) => id === payload.id ? payload : undefined,
+  });
+  const repositories: ControlPlaneRepositoriesWithAuditTrace = Object.freeze({
+    ...base,
+    audits,
+    auditTraces,
+  });
+  const server = await startAdminApiServer(createOptions(PASSWORD, repositories));
+  context.after(() => server.close());
+  const root = server.baseUrl.href.replace(/\/$/u, '');
+
+  assert.equal((await fetch(`${root}/audits/1/trace`)).status, 401);
+  assert.equal((await fetch(`${root}/audit-payloads/30`)).status, 401);
+  const login = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
+  const cookie = login.headers.get('set-cookie');
+  assert.ok(cookie);
+
+  const filterResponse = await fetch(
+    `${root}/audits?auditId=${traceAudit.publicAuditId}&outcome=FAILED&objectApiName=Lead&recordId=00Q1&auditKind=MCP_TOOL_CALL&auditIntegrityStatus=PARTIAL&limit=25&offset=0`,
+    { headers: { Cookie: cookie } },
+  );
+  assert.equal(filterResponse.status, 200);
+  assert.equal(receivedFilter?.auditId, traceAudit.publicAuditId);
+  assert.equal(receivedFilter?.outcome, 'FAILED');
+  assert.equal(receivedFilter?.objectApiName, 'Lead');
+  assert.equal(receivedFilter?.recordId, '00Q1');
+  assert.equal(receivedFilter?.auditKind, 'MCP_TOOL_CALL');
+  assert.equal(receivedFilter?.auditIntegrityStatus, 'PARTIAL');
+
+  const detail = await fetch(`${root}/audits/1`, { headers: { Cookie: cookie } });
+  assert.equal(detail.status, 200);
+  assert.equal((await detail.json() as AuditRecord).id, '1');
+  const traceResponse = await fetch(`${root}/audits/1/trace`, { headers: { Cookie: cookie } });
+  assert.equal(traceResponse.status, 200);
+  const trace = await traceResponse.json() as Readonly<{
+    audit: AuditRecord;
+    payloadMetadata: readonly Readonly<Record<string, unknown>>[];
+    firstFailure: Readonly<{ source: string }> | null;
+  }>;
+  assert.equal(trace.audit.id, '1');
+  assert.equal(trace.firstFailure?.source, 'AUDIT_CALL');
+  assert.equal(trace.payloadMetadata.length, 1);
+  assert.equal('safePayload' in trace.payloadMetadata[0]!, false);
+
+  const payloadResponse = await fetch(`${root}/audit-payloads/30`, { headers: { Cookie: cookie } });
+  assert.equal(payloadResponse.status, 200);
+  assert.equal((await payloadResponse.json() as AuditPayloadEvidenceRecord).safePayload, payload.safePayload);
+  assert.equal((await fetch(`${root}/audits/999/trace`, { headers: { Cookie: cookie } })).status, 404);
+  assert.equal((await fetch(`${root}/audit-payloads/999`, { headers: { Cookie: cookie } })).status, 404);
+});
+
 test('identity route APIs expose filtered totals and copy-ready credentials only to an authenticated CSRF-protected Admin', async (context) => {
   const listCalls: IdentityRouteListOptions[] = [];
   const repositories = createRepositories(async (options) => {
@@ -224,7 +304,7 @@ test('identity route APIs expose filtered totals and copy-ready credentials only
   assert.equal(deleted.status, 200);
 });
 
-function createOptions(password: string, repositories: ControlPlaneRepositories): StartAdminApiServerOptions {
+function createOptions(password: string, repositories: ControlPlaneRepositoriesWithAuditTrace): StartAdminApiServerOptions {
   const config: AdminApiConfig = Object.freeze({
     bindHost: '127.0.0.1', port: 0, allowedOrigin: ORIGIN, username: ADMIN, password,
     sessionSecret: 'session-signing-secret-that-is-at-least-thirty-two-characters',
@@ -324,7 +404,7 @@ function createOptions(password: string, repositories: ControlPlaneRepositories)
 
 function createRepositories(
   routeList?: (options: IdentityRouteListOptions) => Promise<TotalPage<IdentityRouteRecord>>,
-): ControlPlaneRepositories {
+): ControlPlaneRepositoriesWithAuditTrace {
   let auditId = 0;
   return Object.freeze({
     identityRoutes: {
@@ -394,6 +474,18 @@ function createRepositories(
       getById: async () => undefined,
       search: async (filter) => page<AuditRecord>([], filter.limit, filter.offset),
       countSince: async () => Object.freeze({ total: 0, pass: 0, blocked: 0, error: 0, unknown: 0 }),
+    },
+    auditTraces: {
+      createCall: async (input) => auditRecord(String(++auditId), { ...input, channel: 'MCP', auditKind: 'MCP_TOOL_CALL' }),
+      getByPublicAuditId: async () => undefined,
+      createEvent: async () => { throw new Error('not used'); },
+      listEvents: async (_auditId, { limit, offset }) => page([], limit, offset),
+      createSalesforceApiCall: async () => { throw new Error('not used'); },
+      listSalesforceApiCalls: async (_auditId, { limit, offset }) => page([], limit, offset),
+      createPayloadEvidence: async () => { throw new Error('not used'); },
+      listPayloadEvidenceMetadata: async (_auditId, { limit, offset }) => page([], limit, offset),
+      listPayloadEvidence: async (_auditId, { limit, offset }) => page([], limit, offset),
+      getPayloadEvidenceById: async () => undefined,
     },
   });
 }

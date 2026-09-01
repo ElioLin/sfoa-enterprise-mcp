@@ -25,6 +25,7 @@ import {
   type AuditEventRecord,
   type AuditKind,
   type AuditPayloadEvidenceRecord,
+  type AuditPayloadEvidenceSummaryRecord,
   type AuditRecord,
   type Page,
   type SalesforceApiCallRecord,
@@ -57,6 +58,19 @@ import type {
 } from './schema.js';
 
 type Executor = Kysely<ControlPlaneDatabase> | Transaction<ControlPlaneDatabase>;
+type AuditPayloadMetadataRow = Pick<Selectable<AuditPayloadEvidenceTable>,
+  | 'id'
+  | 'audit_id'
+  | 'salesforce_api_call_id'
+  | 'audit_event_id'
+  | 'payload_type'
+  | 'content_type'
+  | 'original_size_bytes'
+  | 'stored_size_bytes'
+  | 'truncated'
+  | 'content_sha256'
+  | 'created_at'
+>;
 
 const MAX_PAGE_SIZE = 1_000;
 const MAX_UINT32 = 4_294_967_295;
@@ -134,12 +148,22 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
     let query = this.database.selectFrom('sfoa_audit_log').selectAll();
     if (filter.occurredFrom) query = query.where('occurred_at', '>=', filter.occurredFrom);
     if (filter.occurredTo) query = query.where('occurred_at', '<=', filter.occurredTo);
+    if (filter.auditId) {
+      query = /^[1-9][0-9]{0,19}$/u.test(filter.auditId)
+        ? query.where('id', '=', idSchema.parse(filter.auditId))
+        : query.where('public_audit_id', '=', parsePublicAuditId(filter.auditId));
+    }
     if (filter.correlationId) query = query.where('correlation_id', '=', filter.correlationId);
     if (filter.platformUserId) query = query.where('platform_user_id', '=', filter.platformUserId);
     if (filter.salesforceUsername) query = query.where('salesforce_username', '=', filter.salesforceUsername);
     if (filter.toolName) query = query.where('tool_name', '=', filter.toolName);
     if (filter.result) query = query.where('result', '=', filter.result);
+    if (filter.outcome) query = query.where('outcome', '=', filter.outcome);
     if (filter.errorCode) query = query.where('error_code', '=', filter.errorCode);
+    if (filter.objectApiName) query = query.where('object_api_name', '=', filter.objectApiName);
+    if (filter.recordId) query = query.where('record_id', '=', filter.recordId);
+    if (filter.auditKind) query = query.where('audit_kind', '=', filter.auditKind);
+    if (filter.auditIntegrityStatus) query = query.where('audit_integrity_status', '=', filter.auditIntegrityStatus);
     const rows = await query.orderBy('occurred_at', 'desc').orderBy('id', 'desc')
       .limit(filter.limit + 1).offset(filter.offset).execute();
     return page(rows.map(mapAudit), filter);
@@ -317,6 +341,30 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
     return page(rows.map(mapAuditPayload), options);
   }
 
+  public async listPayloadEvidenceMetadata(
+    auditId: string,
+    options: ListOptions,
+  ): Promise<Page<AuditPayloadEvidenceSummaryRecord>> {
+    validateListOptions(options);
+    const parsedAuditId = idSchema.parse(auditId);
+    // Explicit projection is a security/performance boundary: trace loading must never read safe_payload.
+    const rows = await this.database.selectFrom('sfoa_audit_payload_evidence').select([
+      'id',
+      'audit_id',
+      'salesforce_api_call_id',
+      'audit_event_id',
+      'payload_type',
+      'content_type',
+      'original_size_bytes',
+      'stored_size_bytes',
+      'truncated',
+      'content_sha256',
+      'created_at',
+    ]).where('audit_id', '=', parsedAuditId).orderBy('id')
+      .limit(options.limit + 1).offset(options.offset).execute();
+    return page(rows.map(mapAuditPayloadMetadata), options);
+  }
+
   public async getPayloadEvidenceById(id: string): Promise<AuditPayloadEvidenceRecord | undefined> {
     const parsedId = idSchema.parse(id);
     const row = await this.database.selectFrom('sfoa_audit_payload_evidence').selectAll()
@@ -458,6 +506,13 @@ function mapSalesforceApiCall(row: Selectable<SalesforceApiCallTable>): Salesfor
 
 function mapAuditPayload(row: Selectable<AuditPayloadEvidenceTable>): AuditPayloadEvidenceRecord {
   return Object.freeze({
+    ...mapAuditPayloadMetadata(row),
+    safePayload: row.safe_payload,
+  });
+}
+
+function mapAuditPayloadMetadata(row: AuditPayloadMetadataRow): AuditPayloadEvidenceSummaryRecord {
+  return Object.freeze({
     id: String(row.id),
     auditId: String(row.audit_id),
     salesforceApiCallId: row.salesforce_api_call_id === null ? null : String(row.salesforce_api_call_id),
@@ -468,7 +523,6 @@ function mapAuditPayload(row: Selectable<AuditPayloadEvidenceTable>): AuditPaylo
     storedSizeBytes: Number(row.stored_size_bytes),
     truncated: Boolean(row.truncated),
     contentSha256: row.content_sha256,
-    safePayload: row.safe_payload,
     createdAt: toIso(row.created_at),
   });
 }

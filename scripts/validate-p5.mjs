@@ -58,11 +58,12 @@ function workspaceGateCommands(workspace, gate) {
     return [lint, ['./node_modules/vite/bin/vite.js', 'build']];
   }
   if (gate === 'build') return [build];
-  if (workspace === '@sfoa/control-plane' && gate === 'test') return [build, ['--test', 'dist/test/*.test.js']];
-  if (workspace === '@sfoa/control-plane' && gate === 'test:mysql') return [build, ['--test', 'dist/mysql-test/*.test.js']];
-  if (workspace === '@sfoa/identity-runtime' && gate === 'test') return [build, ['--test', 'dist/test/*.test.js']];
-  if (workspace === '@sfoa/mcp-server' && gate === 'test:p5') return [build, ['--test', 'dist/p5-test/*.test.js']];
-  if (workspace === '@sfoa/admin-api' && gate === 'test') return [build, ['--test', 'dist/test/*.test.js']];
+  const nodeTests = (pattern) => ['--test-isolation=none', '--test', pattern];
+  if (workspace === '@sfoa/control-plane' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];
+  if (workspace === '@sfoa/control-plane' && gate === 'test:mysql') return [build, nodeTests('dist/mysql-test/*.test.js')];
+  if (workspace === '@sfoa/identity-runtime' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];
+  if (workspace === '@sfoa/mcp-server' && gate === 'test:p5') return [build, nodeTests('dist/p5-test/*.test.js')];
+  if (workspace === '@sfoa/admin-api' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];
   if (workspace === '@sfoa/admin-web' && gate === 'test') return [['./node_modules/vitest/vitest.mjs', 'run']];
   if (workspace === '@sfoa/admin-web' && gate === 'e2e') return [['./node_modules/@playwright/test/cli.js', 'test']];
   throw new Error(`Unknown P5 validation gate: ${workspace} ${gate}`);

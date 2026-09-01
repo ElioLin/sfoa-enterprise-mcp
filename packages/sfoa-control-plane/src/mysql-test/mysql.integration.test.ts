@@ -488,8 +488,11 @@ if (!setup) {
       executionRole: 'USER',
       toolName: 'run_soql_query',
       operation: 'QUERY',
+      objectApiName: 'Account',
+      recordId: '001fake',
       result: 'PASS',
       outcome: 'SUCCESS',
+      auditIntegrityStatus: 'COMPLETE',
       durationMs: 25,
     });
     assert.equal(callA.publicAuditId, publicAuditId);
@@ -695,6 +698,9 @@ if (!setup) {
     assert.equal(payload.storedSizeBytes <= 262_144, true);
     assert.equal(containsObviousAuditSecret(payload.safePayload ?? ''), false);
     assert.deepEqual(await store.repositories.auditTraces.getPayloadEvidenceById(payload.id), payload);
+    const payloadMetadata = await store.repositories.auditTraces.listPayloadEvidenceMetadata(callA.id, { limit: 20, offset: 0 });
+    assert.equal(payloadMetadata.items.length, 1);
+    assert.equal('safePayload' in payloadMetadata.items[0]!, false);
     await assert.rejects(
       store.repositories.auditTraces.createPayloadEvidence({
         auditId: callA.id,
@@ -713,6 +719,21 @@ if (!setup) {
     assert.deepEqual(eventsB.items.map((entry) => entry.sequence), [1]);
     const mainList = await store.repositories.audits.search({ limit: 20, offset: 0 });
     assert.equal(mainList.items.some((entry) => Object.prototype.hasOwnProperty.call(entry, 'safePayload')), false);
+    const filtered = await store.repositories.audits.search({
+      auditId: callB.publicAuditId,
+      platformUserId: 'platform-b',
+      salesforceUsername: 'sf-b@example.invalid',
+      toolName: 'run_soql_query',
+      result: 'PASS',
+      outcome: 'SUCCESS',
+      objectApiName: 'Account',
+      recordId: '001fake',
+      auditKind: 'MCP_TOOL_CALL',
+      auditIntegrityStatus: 'COMPLETE',
+      limit: 20,
+      offset: 0,
+    });
+    assert.deepEqual(filtered.items.map((entry) => entry.id), [callB.id]);
 
     const rawAudit = await store.database.selectFrom('sfoa_audit_log')
       .select(['operation', 'request_summary_json']).where('id', '=', callA.id).executeTakeFirstOrThrow();

@@ -2,6 +2,8 @@ import { z } from 'zod';
 import {
   fieldApiNameSchema,
   idSchema,
+  auditIntegrityStatusSchema,
+  auditKindSchema,
   managedDmlFieldStrategySchema,
   objectApiNameSchema,
   platformUserIdSchema,
@@ -10,6 +12,9 @@ import {
   salesforceUsernameSchema,
   toolNameSchema,
   type AuditRecord,
+  type AuditEventRecord,
+  type AuditPayloadEvidenceSummaryRecord,
+  type SalesforceApiCallRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
   type IdentityRouteRecord,
@@ -189,12 +194,18 @@ export const adminDiagnosticConfigUpdateSchema = z.object({
 export const adminAuditQuerySchema = z.object({
   occurredFrom: z.string().datetime({ offset: true }).optional(),
   occurredTo: z.string().datetime({ offset: true }).optional(),
+  auditId: z.union([idSchema, z.string().uuid()]).optional(),
   correlationId: z.string().trim().min(1).max(128).optional(),
   platformUserId: platformUserIdSchema.optional(),
   salesforceUsername: salesforceUsernameSchema.optional(),
   toolName: toolNameSchema.optional(),
   result: z.enum(['PASS', 'ERROR', 'BLOCKED']).optional(),
+  outcome: z.enum(['SUCCESS', 'FAILED', 'DENIED', 'UNKNOWN']).optional(),
   errorCode: z.string().trim().min(1).max(128).regex(/^[A-Z0-9_]+$/u).optional(),
+  objectApiName: objectApiNameSchema.optional(),
+  recordId: z.string().trim().min(1).max(128).optional(),
+  auditKind: auditKindSchema.optional(),
+  auditIntegrityStatus: auditIntegrityStatusSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 }).strict().superRefine((value, context) => {
@@ -224,6 +235,7 @@ export type AdminDmlPolicyUpdateInput = z.infer<typeof adminDmlPolicyUpdateSchem
 export type AdminManagedDmlFieldRuleCreateInput = z.infer<typeof adminManagedDmlFieldRuleCreateSchema>;
 export type AdminManagedDmlFieldRuleUpdateInput = z.infer<typeof adminManagedDmlFieldRuleUpdateSchema>;
 export type AdminDiagnosticConfigUpdateInput = z.infer<typeof adminDiagnosticConfigUpdateSchema>;
+export type AdminAuditQuery = z.infer<typeof adminAuditQuerySchema>;
 
 export type AdminApiErrorDto = Readonly<{
   error: Readonly<{ code: string; message: string; issues?: readonly Readonly<{ path: string; message: string }>[] }>;
@@ -380,4 +392,31 @@ export type AdminToolsResponse = Readonly<{
 export type AdminDmlPoliciesResponse = Page<DmlPolicyRecord>;
 export type AdminManagedDmlFieldRulesResponse = Page<ManagedDmlFieldRuleRecord>;
 export type AdminAuditsResponse = Page<AuditRecord>;
+export type AdminAuditTraceSummaryDto = Readonly<{
+  eventCount: number;
+  apiCount: number;
+  soqlCount: number;
+  dmlCount: number;
+  errorCount: number;
+  payloadCount: number;
+  detailsTruncated: boolean;
+}>;
+export type AdminAuditTraceFirstFailureDto = Readonly<{
+  source: 'AUDIT_CALL' | 'AUDIT_EVENT' | 'SALESFORCE_API';
+  sequence: number | null;
+  title: string;
+  status: string;
+  errorCode: string | null;
+  message: string | null;
+  eventId: string | null;
+  salesforceApiCallId: string | null;
+}>;
+export type AdminAuditTraceDto = Readonly<{
+  audit: AuditRecord;
+  summary: AdminAuditTraceSummaryDto;
+  firstFailure: AdminAuditTraceFirstFailureDto | null;
+  events: readonly AuditEventRecord[];
+  salesforceApiCalls: readonly SalesforceApiCallRecord[];
+  payloadMetadata: readonly AuditPayloadEvidenceSummaryRecord[];
+}>;
 export type AdminRuntimeSettingsResponse = readonly RuntimeSettingRecord[];

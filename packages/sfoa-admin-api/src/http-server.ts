@@ -32,7 +32,7 @@ import {
   type AdminIdentityCredentialResponse,
   type AdminIdentityRouteDto,
   type AuditPersistenceHealth,
-  type ControlPlaneRepositories,
+  type ControlPlaneRepositoriesWithAuditTrace,
   type DashboardDto,
   type DiagnosticPageDto,
   type DiagnosticVerificationDto,
@@ -50,6 +50,7 @@ import { AdminSessionManager, LoginRateLimiter, verifyAdminPassword, type AdminS
 import type { AdminApiConfig } from './config.js';
 import { AdminHttpError, invalidAdminInput, mapAdminError } from './errors.js';
 import { buildAdminToolCatalog } from './tool-catalog.js';
+import { buildAdminAuditTrace } from './audit-trace.js';
 import { verifyDiagnosticConfig, verifyIdentityRoute } from './verification.js';
 
 const MAX_JSON_BODY_BYTES = 65_536;
@@ -84,7 +85,7 @@ export type AdminSystemRuntimeInfo = Readonly<{
 export type StartAdminApiServerOptions = Readonly<{
   config: AdminApiConfig;
   store: Readonly<{
-    repositories: ControlPlaneRepositories;
+    repositories: ControlPlaneRepositoriesWithAuditTrace;
     health(): Promise<Readonly<{ version: string }>>;
   }>;
   adminService: Pick<
@@ -614,12 +615,18 @@ async function dispatchAuthenticated(
     writeJson(response, 200, await options.store.repositories.audits.search({
       ...(query.occurredFrom ? { occurredFrom: new Date(query.occurredFrom) } : {}),
       ...(query.occurredTo ? { occurredTo: new Date(query.occurredTo) } : {}),
+      ...(query.auditId ? { auditId: query.auditId } : {}),
       ...(query.correlationId ? { correlationId: query.correlationId } : {}),
       ...(query.platformUserId ? { platformUserId: query.platformUserId } : {}),
       ...(query.salesforceUsername ? { salesforceUsername: query.salesforceUsername } : {}),
       ...(query.toolName ? { toolName: query.toolName } : {}),
       ...(query.result ? { result: query.result } : {}),
+      ...(query.outcome ? { outcome: query.outcome } : {}),
       ...(query.errorCode ? { errorCode: query.errorCode } : {}),
+      ...(query.objectApiName ? { objectApiName: query.objectApiName } : {}),
+      ...(query.recordId ? { recordId: query.recordId } : {}),
+      ...(query.auditKind ? { auditKind: query.auditKind } : {}),
+      ...(query.auditIntegrityStatus ? { auditIntegrityStatus: query.auditIntegrityStatus } : {}),
       limit: query.limit ?? 25,
       offset: query.offset ?? 0,
     }));
@@ -628,13 +635,29 @@ async function dispatchAuthenticated(
 
   const auditMatch = matchResourcePath(path, 'audits');
   if (auditMatch) {
-    if (auditMatch.action !== null) throw notFound();
     assertMethod(request, 'GET');
     assertNoQuery(url);
     const id = parseWithSchema(adminIdPathSchema, auditMatch.identifier);
     const audit = await options.store.repositories.audits.getById(id);
     if (!audit) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Audit record was not found.');
+    if (auditMatch.action === 'trace') {
+      writeJson(response, 200, await buildAdminAuditTrace(options.store.repositories, audit));
+      return;
+    }
+    if (auditMatch.action !== null) throw notFound();
     writeJson(response, 200, audit);
+    return;
+  }
+
+  const payloadMatch = matchResourcePath(path, 'audit-payloads');
+  if (payloadMatch) {
+    if (payloadMatch.action !== null) throw notFound();
+    assertMethod(request, 'GET');
+    assertNoQuery(url);
+    const id = parseWithSchema(adminIdPathSchema, payloadMatch.identifier);
+    const payload = await options.store.repositories.auditTraces.getPayloadEvidenceById(id);
+    if (!payload) throw new ControlPlaneError('MCP_CONTROL_PLANE_NOT_FOUND', 'Audit payload evidence was not found.');
+    writeJson(response, 200, payload);
     return;
   }
 

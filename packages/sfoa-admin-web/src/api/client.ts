@@ -1,5 +1,7 @@
 import type {
   AdminAuditsResponse,
+  AdminAuditQuery,
+  AdminAuditTraceDto,
   AdminDiagnosticConfigUpdateInput,
   AdminDmlPoliciesResponse,
   AdminDmlPolicyCreateInput,
@@ -16,6 +18,7 @@ import type {
   AdminToolControlUpdateInput,
   AdminToolsResponse,
   AuditRecord,
+  AuditPayloadEvidenceRecord,
   DashboardDto,
   DiagnosticConfigRecord,
   DiagnosticPageDto,
@@ -46,18 +49,7 @@ export class ApiError extends Error {
   }
 }
 
-export type AuditFilters = Readonly<{
-  occurredFrom?: string;
-  occurredTo?: string;
-  correlationId?: string;
-  platformUserId?: string;
-  salesforceUsername?: string;
-  toolName?: string;
-  result?: 'PASS' | 'ERROR' | 'BLOCKED';
-  errorCode?: string;
-  limit: number;
-  offset: number;
-}>;
+export type AuditFilters = AdminAuditQuery;
 
 export const adminApi = Object.freeze({
   login: async (input: Readonly<{ username: string; password: string }>): Promise<AdminSessionDto> => {
@@ -144,6 +136,8 @@ export const adminApi = Object.freeze({
   verifyDiagnostic: () => request<DiagnosticVerificationDto>('/diagnostic/verify', { method: 'POST' }),
   audits: (filters: AuditFilters) => request<AdminAuditsResponse>(`/audits?${auditSearch(filters)}`),
   audit: (id: string) => request<AuditRecord>(`/audits/${encodeURIComponent(id)}`),
+  auditTrace: (id: string) => request<AdminAuditTraceDto>(`/audits/${encodeURIComponent(id)}/trace`),
+  auditPayload: (id: string) => request<AuditPayloadEvidenceRecord>(`/audit-payloads/${encodeURIComponent(id)}`),
   systemStatus: () => request<SystemStatusDto>('/system/status'),
   runtimeSettings: () => request<readonly RuntimeSettingRecord[]>('/system/settings'),
   updateRuntimeSetting: (key: RuntimeSettingKey, value: number, rowVersion?: string) => request<RuntimeSettingRecord>(

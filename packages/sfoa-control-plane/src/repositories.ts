@@ -5,9 +5,11 @@ import type {
   AuditIntegrityStatus,
   AuditKind,
   AuditPayloadEvidenceRecord,
+  AuditPayloadEvidenceSummaryRecord,
   AuditPayloadType,
   AuditRecord,
   AuditResult,
+  AuditOutcome,
   AuditedHttpMethod,
   DiagnosticConfigRecord,
   DiagnosticVerificationStatus,
@@ -191,12 +193,18 @@ export type AuditWrite = Readonly<{
 export type AuditFilter = Readonly<{
   occurredFrom?: Date;
   occurredTo?: Date;
+  auditId?: string;
   correlationId?: string;
   platformUserId?: string;
   salesforceUsername?: string;
   toolName?: string;
   result?: AuditResult;
+  outcome?: AuditOutcome;
   errorCode?: string;
+  objectApiName?: string;
+  recordId?: string;
+  auditKind?: AuditKind;
+  auditIntegrityStatus?: AuditIntegrityStatus;
   limit: number;
   offset: number;
 }>;
@@ -292,6 +300,7 @@ export interface AuditTraceRepository {
   createSalesforceApiCall(input: SalesforceApiCallCreateInput): Promise<SalesforceApiCallRecord>;
   listSalesforceApiCalls(auditId: string, options: ListOptions): Promise<Page<SalesforceApiCallRecord>>;
   createPayloadEvidence(input: AuditPayloadEvidenceCreateInput): Promise<AuditPayloadEvidenceRecord>;
+  listPayloadEvidenceMetadata(auditId: string, options: ListOptions): Promise<Page<AuditPayloadEvidenceSummaryRecord>>;
   listPayloadEvidence(auditId: string, options: ListOptions): Promise<Page<AuditPayloadEvidenceRecord>>;
   getPayloadEvidenceById(id: string): Promise<AuditPayloadEvidenceRecord | undefined>;
 }
