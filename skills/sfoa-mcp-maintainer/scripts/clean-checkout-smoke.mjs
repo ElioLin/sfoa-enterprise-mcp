@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -9,8 +9,9 @@ import { findProjectRoot, parseCliArguments, SKILL_NAME } from './shared/project
 
 const execFileAsync = promisify(execFile);
 
-// Gate commands that must exit 0 in a tracked-only checkout. These prove the Skill
-// does not depend on ignored/untracked files that only exist on a developer machine.
+// Gate commands that must exit 0 in a clean checkout rebuilt from committed HEAD bytes.
+// These prove the committed repository — not a developer's dirty working tree — carries
+// every file the Skill needs to validate, sync, check, test, and snapshot itself.
 const GATE_COMMANDS = Object.freeze([
   { name: 'skill:validate', args: (root) => [manage(root), 'validate', '--project-root', root] },
   { name: 'skill:sync', args: (root) => [manage(root), 'sync', '--project-root', root] },
@@ -20,17 +21,19 @@ const GATE_COMMANDS = Object.freeze([
 ]);
 
 export async function runCleanCheckoutSmoke({ projectRoot }) {
-  const tracked = await gitTrackedFiles(projectRoot);
-  if (tracked.length === 0) throw new Error('git ls-files returned no tracked files; run from a Git checkout.');
+  const head = await runExec('git', ['rev-parse', 'HEAD'], projectRoot);
+  if (!head.ok) throw new Error(`git rev-parse HEAD failed (${head.stderr.trim()}); run from a Git checkout with at least one commit.`);
+  const committed = head.stdout.trim();
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-clean-checkout-'));
   const results = [];
   try {
-    for (const relativePath of tracked) {
-      const segments = relativePath.split('/');
-      const destination = path.join(temporaryRoot, ...segments);
-      await mkdir(path.dirname(destination), { recursive: true });
-      await cp(path.join(projectRoot, ...segments), destination);
-    }
+    // Materialize the committed HEAD bytes, never the working tree: a dirty working tree
+    // must not be able to masquerade as a reproducible clean checkout.
+    const archivePath = path.join(temporaryRoot, 'head.tar');
+    const archive = await runExec('git', ['archive', '--format=tar', 'HEAD', '-o', archivePath], projectRoot);
+    if (!archive.ok) throw new Error(`git archive HEAD failed: ${archive.stderr.trim()}`);
+    const committedFileCount = await extractTar(archivePath, temporaryRoot);
+
     for (const command of GATE_COMMANDS) {
       results.push(await runNode(command.args(temporaryRoot), temporaryRoot, command.name));
     }
@@ -40,7 +43,8 @@ export async function runCleanCheckoutSmoke({ projectRoot }) {
     const doctorState = readDoctorMissingEnv(doctor);
     return Object.freeze({
       ok: gateOk && doctorState.ok,
-      trackedFileCount: tracked.length,
+      committed,
+      committedFileCount,
       temporaryRoot,
       gates: Object.freeze(results),
       doctorMissingEnv: doctorState,
@@ -62,10 +66,75 @@ function readDoctorMissingEnv(doctor) {
   }
 }
 
-async function gitTrackedFiles(projectRoot) {
-  const result = await runExec('git', ['ls-files', '-z'], projectRoot);
-  if (!result.ok) throw new Error(`git ls-files failed: ${result.stderr}`);
-  return result.stdout.split('\0').filter(Boolean);
+async function extractTar(tarPath, destinationRoot) {
+  const buffer = await readFile(tarPath);
+  let offset = 0;
+  let fileCount = 0;
+  let pendingPath = null;
+  while (offset + 512 <= buffer.length) {
+    const headerBlock = buffer.subarray(offset, offset + 512);
+    if (isZeroBlock(headerBlock)) break;
+    const header = parseTarHeader(headerBlock);
+    offset += 512;
+    const data = buffer.subarray(offset, offset + header.size);
+    offset += Math.ceil(header.size / 512) * 512;
+
+    if (header.typeflag === 'g' || header.typeflag === 'x') {
+      const pathField = /(?:^|\n)path=([^\n]*)/u.exec(data.toString('utf8'))?.[1];
+      if (pathField !== undefined) pendingPath = pathField;
+      continue;
+    }
+    if (header.typeflag === 'L') {
+      pendingPath = data.toString('utf8').replace(/\0+$/u, '');
+      continue;
+    }
+    const name = pendingPath ?? (header.prefix ? `${header.prefix}/${header.name}` : header.name);
+    pendingPath = null;
+    const destination = safeJoin(destinationRoot, name);
+    if (header.typeflag === '5') {
+      await mkdir(destination, { recursive: true });
+    } else if (header.typeflag === '0' || header.typeflag === '\0') {
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, data);
+      fileCount += 1;
+    }
+    // Symlinks and hard links are skipped: the canonical Skill rejects symlinks and
+    // the gates only need regular files and directories.
+  }
+  return fileCount;
+}
+
+function parseTarHeader(block) {
+  const name = readCString(block, 0, 100);
+  const size = readOctal(block, 124, 12);
+  const typeflag = String.fromCharCode(block[156] ?? 0);
+  const prefix = readCString(block, 345, 155);
+  return { name, size, typeflag: typeflag === '\0' ? '0' : typeflag, prefix };
+}
+
+function readCString(block, start, length) {
+  let end = start;
+  while (end < start + length && block[end] !== 0) end += 1;
+  return block.subarray(start, end).toString('utf8');
+}
+
+function readOctal(block, start, length) {
+  const text = block.subarray(start, start + length).toString('utf8');
+  const cleaned = text.replace(/[\0 ]/gu, '');
+  if (cleaned === '') return 0;
+  const value = Number.parseInt(cleaned, 8);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isZeroBlock(block) {
+  for (let index = 0; index < block.length; index += 1) if (block[index] !== 0) return false;
+  return true;
+}
+
+function safeJoin(root, name) {
+  const normalized = name.replace(/\\/gu, '/').replace(/^\/+/u, '');
+  const segments = normalized.split('/').filter((segment) => segment !== '' && segment !== '.' && segment !== '..');
+  return path.join(root, ...segments);
 }
 
 async function runNode(arguments_, cwd, name) {

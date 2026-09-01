@@ -2,6 +2,12 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-01 — P7-08 HOTFIX02 command-entrypoint and reproducibility closure
+
+- Verified the root `package.json` still carries every documented `skill:*` and `ai:*` entrypoint; none were lost.
+- Hardened the clean-checkout `smoke` gate to rebuild its temporary checkout from committed `HEAD` bytes via `git archive` instead of copying working-tree files, so a dirty working tree can no longer be reported as a clean commit.
+- Synced the P7-08 section of `P7_END_TO_END_AUDIT_BASELINE.md` with the approved Agent-native direction (advisory Skill, read-only local diagnostics, no business MCP Tool, `.env.local` internal-only).
+
 ## 2026-09-01 — P7-08 Agent-Native Maintainer Skill and Diagnostic Toolkit
 
 - Added the advisory canonical `skills/sfoa-mcp-maintainer` with progressive references for architecture, repository/runtime flow, development, testing, operations, troubleshooting, database/Audit, acceptance diagnosis, and durable self-maintenance.

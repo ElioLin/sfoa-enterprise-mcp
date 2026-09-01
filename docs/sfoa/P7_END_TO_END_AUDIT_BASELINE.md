@@ -298,9 +298,9 @@ Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit A
 
 不做：多页面跳转式详情、只显示英文标签、AI 聊天 UI。
 
-### P7-08 智能诊断接口与排障技能
+### P7-08 Agent-Native Maintainer Skill 与本地只读诊断工具集
 
-目标：提供项目工作区内只读的 **SFoA MCP Maintainer Skill 与诊断工具集**，服务 Codex、Claude Code、WorkBuddy/CodeBuddy、Developer、Maintainer 和 Operator。
+目标：提供项目工作区内只读的 **Agent-native SFoA MCP Maintainer Skill 与本地诊断工具集**，主要服务 Codex、Claude Code 与 WorkBuddy/CodeBuddy，以及 Developer、Maintainer 和 Operator。Skill 是 advisory context，不是 reasoning boundary；诊断程序只读取本地工作区与现场证据，不向普通业务 Agent 暴露内部 MySQL，也不新增 public business MCP diagnostic Tool；`.env.local` 只由本地诊断程序内部读取，DB 诊断保持 read-only。
 
 实施内容：以一个 canonical portable Skill 提供渐进式项目知识；通过 Windows-compatible Node.js 脚本生成三种客户端副本和 ZIP；提供 Project Snapshot、Doctor、预定义 MySQL inspection 与 P7 Audit reconstruction。工具只读取本地工作区与现场证据，不注册成业务 MCP Tool。
 
@@ -310,7 +310,7 @@ Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit A
 
 不做：业务/公共 MCP 诊断 Tool、可靠性分数、LLM Judge、自动修复/自动变更、普通用户天然运维权限、自由输入 SQL。
 
-实施结果（2026-09-01）：`COMPLETE`（含 HOTFIX01 交付收口）。canonical Skill、Codex/Claude/CodeBuddy project copies、同步/漂移/打包脚本、Doctor、Snapshot、只读 DB Inspector 与 P7 Audit Analyzer 已实现。Analyzer 按真实 migration 008 使用 `publicAuditId`、`correlationId`、Event sequence 和 `publicApiCallId`；不存在的 trace/session/call/span 字段明确显示 unavailable。HOTFIX01 修复交付完整性缺陷：helper 模块由 `scripts/lib` 迁移到 `scripts/shared`（根 `.gitignore` 的裸 `lib` 规则曾静默排除 `lib/` 目录，导致本地测试通过但 `project.mjs`/`db.mjs` 未进入 commit）；新增 `skill:delivery` Git trackability Gate 与 `skill:smoke` clean-clone 冒烟验证，确保新 clone 始终携带完整 Skill 运行依赖。完整命令、测试和验收分析见 `P7_08_REPORT.md`。
+实施结果（2026-09-01）：`COMPLETE`（含 HOTFIX01 交付收口）。canonical Skill、Codex/Claude/CodeBuddy project copies、同步/漂移/打包脚本、Doctor、Snapshot、只读 DB Inspector 与 P7 Audit Analyzer 已实现。Analyzer 按真实 migration 008 使用 `publicAuditId`、`correlationId`、Event sequence 和 `publicApiCallId`；不存在的 trace/session/call/span 字段明确显示 unavailable。HOTFIX01 修复交付完整性缺陷：helper 模块由 `scripts/lib` 迁移到 `scripts/shared`（根 `.gitignore` 的裸 `lib` 规则曾静默排除 `lib/` 目录，导致本地测试通过但 `project.mjs`/`db.mjs` 未进入 commit）；新增 `skill:delivery` Git trackability Gate 与 `skill:smoke` clean-clone 冒烟验证，确保新 clone 始终携带完整 Skill 运行依赖。HOTFIX02 强化 clean-clone 证明：`skill:smoke` 改用 `git archive HEAD` 从 committed bytes 重建临时 checkout（而非复制 working tree），使 dirty working tree 无法冒充可复现 commit。完整命令、测试和验收分析见 `P7_08_REPORT.md`。
 
 ## 6. P7-03 后续强制并发、故障与性能 Gate
 
