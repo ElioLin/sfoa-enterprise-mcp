@@ -140,8 +140,11 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       objectApiName: 'Account',
       recordId: RECORD_ID,
       displayName: 'Acme',
-      recordUrl: `https://lightning.example.invalid/lightning/r/Account/${RECORD_ID}/view`,
+      recordUrl: `https://lightning.example.invalid/lightning/r/${RECORD_ID}/view`,
     });
+    const linkText = toolResultText(linkResult);
+    assert.match(linkText, /Acme \(Account 001000000000001AAA\)/u);
+    assert.match(linkText, /https:\/\/lightning\.example\.invalid\/lightning\/r\/001000000000001AAA\/view/u);
     assert.equal(connectionFactory.apiRequests.length, 0, 'record links must not call Salesforce UI or REST APIs');
     assert.equal(connectionFactory.creations.length, 0, 'get_record_links must not create a Connection');
 
@@ -168,8 +171,9 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
     assert.equal(stillConfigured.isError, undefined);
     assert.equal(
       asRecord(asRecordArray(asRecord(stillConfigured.structuredContent).records)[0]).recordUrl,
-      `https://lightning.example.invalid/lightning/r/Account/${RECORD_ID}/view`,
+      `https://lightning.example.invalid/lightning/r/${RECORD_ID}/view`,
     );
+    assert.match(toolResultText(stillConfigured), /\/lightning\/r\/001000000000001AAA\/view/u);
     assert.equal(connectionFactory.apiRequests.length, 0);
 
     const username = await client.callTool({

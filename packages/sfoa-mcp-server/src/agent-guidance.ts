@@ -276,7 +276,11 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
           objectApiName: record.objectApiName,
           recordId: record.recordId,
           ...(record.displayName ? { displayName: record.displayName } : {}),
-          recordUrl: `${origin}/lightning/r/${encodeURIComponent(record.objectApiName)}/${encodeURIComponent(record.recordId)}/view`,
+          // Salesforce resolves the record entity from the 15/18-char id alone,
+          // so the canonical `lightning/r/<id>/view` deep link needs no object
+          // segment. Omitting the object makes the link robust even when the
+          // caller supplies an object API name that does not match the record.
+          recordUrl: `${origin}/lightning/r/${encodeURIComponent(record.recordId)}/view`,
         }));
         const structuredContent = {
           records: linked,
@@ -285,6 +289,16 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
           nextCursor: null,
           truncated: false as const,
         };
+        const linkLines = linked.map((record) => {
+          const label = record.displayName
+            ? `${record.displayName} (${record.objectApiName} ${record.recordId})`
+            : `${record.objectApiName} ${record.recordId}`;
+          return `- ${label}\n  ${record.recordUrl}`;
+        });
+        // The exact ids and URLs are surfaced in the human-readable text as well
+        // as structuredContent so a client that only reads `text` can forward a
+        // correct link verbatim instead of reconstructing one.
+        const text = `Built ${linked.length} trusted Salesforce record link${linked.length === 1 ? '' : 's'}.\n${linkLines.join('\n')}`;
         await logTool(options, 'get_record_links', started, 'PASS', {
           recordCount: records.length,
           objectApiNames: [...new Set(records.map((record) => record.objectApiName))].sort(),
@@ -292,7 +306,7 @@ function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidan
           recordCount: linked.length,
         });
         return {
-          content: [{ type: 'text', text: `Built ${linked.length} trusted Salesforce Lightning record link${linked.length === 1 ? '' : 's'}.` }],
+          content: [{ type: 'text', text }],
           structuredContent,
         };
       } catch (error) {
