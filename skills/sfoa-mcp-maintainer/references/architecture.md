@@ -28,6 +28,7 @@ The LLM performs analysis. The server supplies deterministic operations and evid
 - Managed fields: only `PLATFORM_USER_LOOKUP` and CREATE-only `AI_CREATED_MARKER=true`; host values win over client fields.
 - Context: USER `get_record_action_context`; server-owned DIAGNOSTIC `run_diagnostic_tooling_query` and `get_metadata_component_context`.
 - Resource lifecycle: route, context, workspace directories, and Services are created per request; Salesforce JWT/Connection is deferred until first use, memoized as one Promise inside that scope, and never cached globally or shared between USER/DIAGNOSTIC requests. Workspace DX configuration receives the live API version only after that Connection exists.
+- Connection dependency model: whether a remote (official business) Tool acquires the request-scoped Salesforce Connection is an explicit boolean `requiresSalesforceConnection` on its `RemoteToolContract` / `OfficialToolPolicyRecord`, never inferred from host-owned `usernameOrAlias`. `get_username` declares `false` (zero Connection); `run_soql_query` and `retrieve_metadata` declare `true` (exactly one, lazily at execution). A `p2RemoteCompatible` Tool that omits this boolean fails the upstream-contract drift guard.
 - Audit: one request-local context/collector per definite `tools/call`; non-blocking queue and batch writer use a separate two-connection pool. Audit failure cannot change or retry a Tool/Salesforce outcome.
 - Admin: separate authenticated Admin API and React Web; browser never receives Salesforce/database/runtime secrets.
 

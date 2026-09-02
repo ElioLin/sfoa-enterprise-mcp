@@ -39,6 +39,18 @@ Connection initialization for an allowed Salesforce Tool remains outside the exi
 4. Static hard-coded API version: rejected because the runtime already has an authoritative live Connection version and arbitrary drift is unnecessary.
 5. Large Tool dependency-classification framework: rejected because the lazy resource plus existing audited remote contracts naturally establish acquisition without duplicating governance.
 
+## HOTFIX01: explicit Connection dependency model
+
+The initial implementation inferred a remote Tool's Connection need from `hostOwnedArguments.includes('usernameOrAlias')`. That couples resource acquisition to an input-authority field and would silently misclassify any future remote Tool whose host-owned fields change. HOTFIX01 replaces the inference with an explicit boolean `requiresSalesforceConnection` on `RemoteToolContract` / `OfficialToolPolicyRecord`:
+
+- `get_username` = `false` (route-only; zero Connection).
+- `run_soql_query` = `true` (exactly one, lazily at execution).
+- `retrieve_metadata` = `true` (exactly one, lazily at execution).
+
+Every `p2RemoteCompatible` Tool must declare this boolean; the upstream-contract drift guard rejects an omission, so no Tool falls back to guessing. The field is part of the audited remote contract and is pinned alongside the existing input/annotation/schema checks.
+
+The DML facade's lazy authentication failure path is also brought onto the same DML output contract as other DML errors: `structuredContent` carries `success=false`, `errorCode`, and a redacted `message`, while the Correlation ID stays in the text content.
+
 ## Gate
 
 Automated call counters must prove scope creation/local/protocol methods = 0, first Salesforce use = 1, repeated/concurrent same-scope use = 1, two scopes = 2 isolated Connections, and Diagnostic execution = 0 USER + 1 DIAGNOSTIC. Lazy auth/Connection failure, correlation/Audit preservation, unused/failed/aborted cleanup, P3/P4/P5/P7 regressions, MySQL integration, Agent artifacts, Skill gates, and applicable live Salesforce validators are recorded in `P7_09_REPORT.md` and `TEST_MATRIX.md`.

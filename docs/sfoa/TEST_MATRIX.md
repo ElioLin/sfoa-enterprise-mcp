@@ -942,7 +942,25 @@ P7-07–P7-08 = NOT STARTED
 P7-09 = COMPLETE
 ```
 
-## P7-05 SOQL & DML Audit Evidence Acceptance Matrix — 2026-08-31
+## P7-09 HOTFIX01 — Lazy Connection Contract & Final Closure — 2026-09-02
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Explicit dependency model | PASS | `requiresSalesforceConnection` boolean on `RemoteToolContract`; get_username=false, run_soql_query=true, retrieve_metadata=true; upstream-drift test rejects any `p2RemoteCompatible` Tool that omits the boolean |
+| No guessing from authority | PASS | drift test proves Connection need no longer follows host-owned `usernameOrAlias` |
+| Lazy error session resilience | PASS | `lazy-connection-http.test.ts`: failure=1 create + isError + Correlation ID; subsequent `listTools`/local `get_username` unchanged, creates stay 1 |
+| DML lazy-error contract | PASS | `dml-http-integration.test.ts`: `success=false`/`errorCode=MCP_SALESFORCE_AUTH_FAILED`/message + Correlation ID; creates=1; `test:p3` 23/23 |
+| Audit duration semantics | PASS (Option A) | Tool `durationMs` = end-to-end latency including lazy auth/connection; timer starts at `execute()` entry |
+| P4 Diagnostic live | PASS | real Salesforce 89 s: USER A/B context, DIAGNOSTIC Tooling 5 / metadata 135 files, `connectionReuse=0`, cleanup 3/3 |
+| P2 env READ live | NOT RE-RUN | checkout is mysql+BUNTU; env-mode P2 validator rejected (`BUNTU_TOKEN identity requires SFOA_CONTROL_PLANE_MODE=mysql`); DB routes present; READ zero/one counts proven by recording-factory HTTP test |
+| P3 DML live | NOT RE-RUN | env-mode/BUNTU conflict + empty `MCP_DML_ALLOWLIST_JSON` + recorded Lead `FIELD_CUSTOM_VALIDATION_EXCEPTION` |
+| Agent artifacts | PASS (`NO CHANGE`) | `agent:check` 5 files; dependency model is internal, invisible to business Agents |
+| Maintainer Skill | PASS | canonical architecture/runtime-flow document explicit model; sync/check/delivery/test after change |
+
+```text
+P7-09 HOTFIX01 = COMPLETE
+```
+
 
 | Gate | Result | Evidence |
 | --- | --- | --- |

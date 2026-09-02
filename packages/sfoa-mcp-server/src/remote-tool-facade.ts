@@ -126,9 +126,10 @@ export class RemoteToolFacade {
     }
     const officialInput = { ...input, ...this.hostOwnedInput() };
     try {
-      if (this.options.policyRecord.remoteContract?.hostOwnedArguments.includes('usernameOrAlias') === true) {
-        // Host-owned username authority is the audited contract signal that this official Tool
-        // needs Salesforce. Route-only get_username owns only directory and stays connection-free.
+      if (this.options.policyRecord.remoteContract?.requiresSalesforceConnection === true) {
+        // Explicit resource-lifecycle contract: only Salesforce-dependent remote Tools acquire
+        // the request-scoped Connection. Host-owned `usernameOrAlias` is an input-authority
+        // contract and is not used as a proxy for Connection need (get_username stays free).
         await this.options.connectionProvider?.getConnection();
       }
       const purpose = this.getName() === 'retrieve_metadata' ? 'METADATA_RETRIEVE' : 'USER_QUERY';

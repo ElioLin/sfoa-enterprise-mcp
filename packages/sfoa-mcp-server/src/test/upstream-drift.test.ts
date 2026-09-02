@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { RemoteRuntimeError } from '../errors.js';
 import { startRemoteMcpServer } from '../http-server.js';
 import { findOfficialToolPolicy } from '../official-tool-catalog.js';
+import { OFFICIAL_TOOL_CATALOG } from '../official-tool-catalog.js';
 import { initializeProviderRuntime } from '../provider-runtime.js';
 import { DEFAULT_ENABLED_TOOLS, ToolGovernancePolicy } from '../tool-governance.js';
 import {
@@ -222,6 +223,31 @@ test('remote contract rejects an audited Tool ReleaseState change', () => {
   const record = requiredPolicy('run_soql_query');
   const tool = new ContractTestTool('run_soql_query', runSoqlShape, ReleaseState.NON_GA);
   assert.throws(() => validateRemoteToolContract(tool, record), isErrorCode('MCP_UPSTREAM_TOOL_CONTRACT_DRIFT'));
+});
+
+test('every p2RemoteCompatible Tool declares an explicit Connection requirement without guessing', () => {
+  const remoteCompatible = OFFICIAL_TOOL_CATALOG.filter((record) => record.p2RemoteCompatible);
+  assert.ok(remoteCompatible.length > 0, 'the audited catalog must contain remote-compatible Tools');
+  for (const record of remoteCompatible) {
+    assert.ok(record.remoteContract, `${record.name} is p2RemoteCompatible but has no remoteContract`);
+    assert.equal(
+      typeof record.remoteContract.requiresSalesforceConnection,
+      'boolean',
+      `${record.name} must declare an explicit requiresSalesforceConnection boolean`,
+    );
+  }
+  assert.equal(requiredPolicy('get_username').remoteContract?.requiresSalesforceConnection, false);
+  assert.equal(requiredPolicy('run_soql_query').remoteContract?.requiresSalesforceConnection, true);
+  assert.equal(requiredPolicy('retrieve_metadata').remoteContract?.requiresSalesforceConnection, true);
+});
+
+test('remote Tool Connection requirement does not follow host-owned usernameOrAlias authority', () => {
+  const username = requiredPolicy('get_username').remoteContract;
+  const soql = requiredPolicy('run_soql_query').remoteContract;
+  assert.ok(username && !username.hostOwnedArguments.includes('usernameOrAlias'));
+  assert.ok(soql && soql.hostOwnedArguments.includes('usernameOrAlias'));
+  assert.equal(username.requiresSalesforceConnection, false);
+  assert.equal(soql.requiresSalesforceConnection, true);
 });
 
 function requiredPolicy(name: string) {

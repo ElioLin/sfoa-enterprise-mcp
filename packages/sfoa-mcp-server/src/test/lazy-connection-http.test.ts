@@ -16,6 +16,7 @@ import {
   createTestRemoteConfig,
   TEST_CLIENT_TOKEN,
   TEST_PLATFORM_USER_A,
+  TEST_USERNAME_A,
   toolResultText,
 } from './helpers.js';
 
@@ -32,7 +33,9 @@ test('lazy Salesforce authentication failure occurs at Tool execution with stabl
     },
   };
   const server = await startRemoteMcpServer({
-    config: createTestRemoteConfig({ enabledTools: Object.freeze(['run_soql_query']) }),
+    config: createTestRemoteConfig({
+      enabledTools: Object.freeze(['get_username', 'run_soql_query']),
+    }),
     identityRuntime: createTestIdentityRuntime(baseRoot, connectionFactory),
   });
   const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
@@ -47,8 +50,10 @@ test('lazy Salesforce authentication failure occurs at Tool execution with stabl
   try {
     await client.connect(transport);
     assert.equal(creates, 0);
-    await client.listTools();
+    const listedBefore = await client.listTools();
+    assert.deepEqual(listedBefore.tools.map((tool) => tool.name), ['get_username', 'run_soql_query']);
     assert.equal(creates, 0);
+
     const result = await client.callTool({
       name: 'run_soql_query',
       arguments: { query: 'SELECT Id FROM Lead LIMIT 1', useToolingApi: false },
@@ -57,6 +62,16 @@ test('lazy Salesforce authentication failure occurs at Tool execution with stabl
     assert.match(toolResultText(result), /MCP_SALESFORCE_AUTH_FAILED/u);
     assert.match(toolResultText(result), /Correlation ID:/u);
     assert.equal(creates, 1);
+
+    // The Tool error must not destroy the MCP session, remove the Tool list, require a
+    // reconnect, change the schema, or corrupt a subsequent local Tool call.
+    const listedAfter = await client.listTools();
+    assert.deepEqual(listedAfter.tools.map((tool) => tool.name), ['get_username', 'run_soql_query']);
+    assert.deepEqual(listedAfter.tools, listedBefore.tools);
+    const localResult = await client.callTool({ name: 'get_username', arguments: {} });
+    assert.ok(!localResult.isError, 'get_username must still succeed after a Tool-level auth failure');
+    assert.match(toolResultText(localResult), new RegExp(TEST_USERNAME_A.replaceAll('.', '\\.')));
+    assert.equal(creates, 1, 'get_username and listTools must remain Connection-free after a Tool-level auth failure');
   } finally {
     await client.close().catch(() => undefined);
     await server.close();

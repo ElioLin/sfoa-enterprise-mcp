@@ -324,6 +324,8 @@ Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit A
 
 实施结果（2026-09-01）：`COMPLETE`。架构和证据见 ADR-0018 与 `P7_09_REPORT.md`。
 
+HOTFIX01（2026-09-02）：`COMPLETE`。收口而非重设计——把远程 Tool 的 Connection 依赖从 `hostOwnedArguments.includes('usernameOrAlias')` 隐式推断改为 `RemoteToolContract.requiresSalesforceConnection` 显式布尔（`get_username=false`、`run_soql_query/retrieve_metadata=true`），由 upstream-drift guard 强制每个 `p2RemoteCompatible` Tool 必须声明、禁止默认猜测；DML lazy-auth 失败改走标准 DML 输出契约（`success=false`/`errorCode`/redacted `message`，Correlation ID 在 text）；Tool `durationMs` 固定为含 lazy auth/connection 的端到端时延（Option A）。Live 回归：P4 Diagnostic 真实 Salesforce PASS；P2/P3 因当前 mysql+BUNTU checkout 与 env-mode 校验器不兼容记为 NOT RE-RUN（记录型 factory HTTP 测试仍证明 READ 0/1 Connection 契约）。
+
 ## 6. P7-03 后续强制并发、故障与性能 Gate
 
 ### 6.1 Concurrent Audit Isolation Gate
@@ -390,7 +392,7 @@ P7-01 至少覆盖：
 | P7-06 MCP 入口与响应审计 | COMPLETE | Maintainer 独立审查通过 |
 | P7-07 审计调用链工作台 | IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW | Admin read model 与 React Workbench 已实现 |
 | P7-08 Agent-Native Maintainer Skill 与诊断工具集 | COMPLETE | canonical Skill、本地只读诊断、三平台同步与打包已实现；HOTFIX01 修复 `scripts/lib` 被 `.gitignore` 排除的交付缺陷并新增 delivery/smoke Gate；不新增业务 MCP Tool |
-| P7-09 Lazy Salesforce Connection 与 Request Lifecycle | COMPLETE | request-scoped Promise memoization；local/route-only/protocol Salesforce calls = 0；Salesforce/Diagnostic 按请求按角色首次使用创建一次 |
+| P7-09 Lazy Salesforce Connection 与 Request Lifecycle | COMPLETE | request-scoped Promise memoization；local/route-only/protocol Salesforce calls = 0；Salesforce/Diagnostic 按请求按角色首次使用创建一次；HOTFIX01 显式 `requiresSalesforceConnection` 契约 + DML lazy-error 契约 + duration Option A |
 
 P7-08 工程 Gate 与 HOTFIX01 clean-clone Gate 全部通过后，P7-08 已按 Maintainer 授权更新为：
 

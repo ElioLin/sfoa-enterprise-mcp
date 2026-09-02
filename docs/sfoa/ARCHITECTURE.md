@@ -352,6 +352,8 @@ The P2 Closure inspector constructs the real public dx-core Provider and compare
 
 An upstream Tool field is therefore denied until maintainer review; it is never exposed merely because it is not host-owned. Missing/renamed host or Agent fields and ReleaseState changes also fail closed. The core remains unchanged official `Tool.exec()`. No SOQL, metadata execution, official error parsing, or Salesforce API behavior is reimplemented. ADR-0007 supersedes the open-ended projection decision in ADR-0006.
 
+Host-owned `usernameOrAlias`/`directory` are input-authority and workspace fields only — they are not a proxy for Connection need. Whether a remote Tool acquires the request-scoped Salesforce Connection is the explicit `requiresSalesforceConnection` boolean on its `RemoteToolContract`: `get_username` = `false`, `run_soql_query`/`retrieve_metadata` = `true` (lazily, exactly one, at execution).
+
 Final P2 Closure path:
 
 ```text

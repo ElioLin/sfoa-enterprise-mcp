@@ -1,8 +1,9 @@
 # P7-09 Lazy Salesforce Connection & Request Resource Lifecycle — Implementation Report
 
-- Status: `COMPLETE`
+- Status: `COMPLETE` (P7-09 + HOTFIX01)
 - Implementation date: 2026-09-01
 - Final verification date: 2026-09-02
+- HOTFIX01: explicit `requiresSalesforceConnection` dependency model + DML lazy-error contract + audit duration semantics (see §15)
 - Branch: `feature/p7-end-to-end-audit`
 - Architecture decision: ADR-0018
 
@@ -170,3 +171,59 @@ Operational follow-ups:
 `P7-09 = COMPLETE`.
 
 The mandatory architecture objective is met: local/route-only/protocol requests create zero Salesforce Connections/API attempts; real Salesforce Tools create exactly one request- and role-bound memoized Connection; USER/DIAGNOSTIC and concurrent requests remain isolated; core remote/DML/Diagnostic/Audit regression suites pass. The recorded external Salesforce business-rule and Admin browser/startup failures are explicit follow-up risks, not hidden or misreported as PASS.
+
+## 15. HOTFIX01 — Lazy Connection Contract & Final Closure
+
+A closure HOTFIX, not a redesign. It does not revert the lazy `RequestScopedSalesforceConnection`, redo Identity Runtime, or change normal business-Agent usage. It replaces one implicit classification with an explicit contract, aligns the DML lazy-error output, and pins the audit duration semantics.
+
+### 15.1 Explicit Connection dependency model (§3)
+
+`RemoteToolFacade` previously used `remoteContract.hostOwnedArguments.includes('usernameOrAlias')` as a proxy for "needs a Salesforce Connection". That ties resource acquisition to an input-authority field and could silently misclassify a future remote Tool. It is replaced with an explicit `requiresSalesforceConnection: boolean` on `RemoteToolContract` / `OfficialToolPolicyRecord`:
+
+| Tool | `requiresSalesforceConnection` |
+| --- | --- |
+| `get_username` | `false` (route-only; zero Connection) |
+| `run_soql_query` | `true` (exactly one, lazily at execution) |
+| `retrieve_metadata` | `true` (exactly one, lazily at execution) |
+
+`RemoteToolFacade.execute` acquires the provider only when the field is `=== true`. A new upstream-drift test asserts every `p2RemoteCompatible` Tool declares an explicit boolean (no default guessing), and a second test proves the requirement no longer follows the host-owned `usernameOrAlias` authority field.
+
+### 15.2 Local/route-only zero-Connection invariant (§4)
+
+Unchanged from §7. Recording-factory tests assert Connection Factory create count **and** Salesforce HTTP attempt count (not result-only): `initialize` and `tools/list` create zero Connections; a Salesforce Tool failure creates one; the same MCP session and local Tool remain usable afterward.
+
+### 15.3 Lazy Salesforce error contract (§5)
+
+Formalized as a P7-09 controlled compatibility change. A lazy JWT/Connection failure surfaces as a Tool-level `isError: true` with `MCP_SALESFORCE_AUTH_FAILED` and the Correlation ID in text content. `lazy-connection-http.test.ts` proves the Tool error does not destroy the MCP session, remove the Tool list, require a reconnect, change the schema, or corrupt a subsequent local `get_username` call.
+
+### 15.4 DML lazy-error output contract (§6)
+
+`DmlToolFacade`'s `IdentityRuntimeError` path now returns the same DML output contract as `create_record`/`update_record` errors: `structuredContent.success=false`, `errorCode`, and a redacted `message`, with the Correlation ID in text content. `dml-http-integration.test.ts` asserts the lazy auth failure is parseable through that contract and attempts Connection creation exactly once.
+
+### 15.5 Audit duration semantics (§7)
+
+Chosen and documented: **Option A** — the Tool-level `durationMs` is end-to-end latency **including** lazy authentication/Connection initialization. Both `RemoteToolFacade` and `DmlToolFacade` start the `performance.now()` timer at `execute()` entry, before any provider acquisition, so a lazy auth/connection cost is part of the measured Tool duration, matching the prior eager-construction timing contract.
+
+### 15.6 Live regression (§8, §9)
+
+| Gate | Result |
+| --- | --- |
+| P4 Diagnostic live | PASS (real Salesforce, 89 s): USER record-action context A/B, distinct USER Connections, DIAGNOSTIC Tooling (5 records) and metadata (135 files), `connectionReuse=0`, cleanup 3/3 |
+| P2 env READ live | NOT RE-RUN — the current checkout is `SFOA_CONTROL_PLANE_MODE=mysql` + `MCP_BUNTU_IDENTITY_ENABLED=true`; the env-mode P2 validator is rejected by the config guard (`BUNTU_TOKEN identity requires SFOA_CONTROL_PLANE_MODE=mysql`). MySQL identity routes are present (`ai:db --report routes`), but the P2 validator is env-mode-only. READ zero/one Connection counts remain proven by the recording-factory `lazy-connection-http.test.ts`. |
+| P3 DML live | NOT RE-RUN — same env-mode/BUNTU conflict, plus `MCP_DML_ALLOWLIST_JSON` empty and the P7-09 recorded Lead `FIELD_CUSTOM_VALIDATION_EXCEPTION`; DML lazy-error contract remains proven by `dml-http-integration.test.ts` and `test:p3` (23/23). |
+
+No timeout was inflated and no Audit failure was hidden to obtain these results; the two non-runs are recorded as such rather than as PASS.
+
+### 15.7 Maintainer Skill and Agent surfaces (§10–§12)
+
+Canonical Skill `architecture.md` and `runtime-flow.md` document the explicit dependency model. Agent Playbook, MCP Server Instructions, Dify/小犇, and WorkBuddy remain `NO CHANGE` (the dependency model is an internal resource-lifecycle contract, invisible to business Agents). `skill:sync`/`check`/`delivery`/`test` are rerun after this change; `skill:smoke` runs from the new committed HEAD.
+
+### 15.8 Forbidden actions (§13)
+
+No eager Connection, global/static cache, hard-coded Tool name, BUNTU_TOKEN/USER_BOUND/governance/permission/validation-rule/Admin-Web/business-Agent change, Audit-failure hiding, evidence deletion, or timeout inflation was performed.
+
+### 15.9 Automated gates (§14)
+
+Identity Runtime 71/71; MCP Server 70/70 + P3 23/23 + P4 7/7 + P5 5/5 + P7 6/6 + MySQL 1/1; Control Plane 33/33 + MySQL 10/10; Admin API 22/22; Admin Web 42/42; `validate:upstream` zero drift; `agent:check` 5 files; Skill validate/sync/check/delivery/test PASS; `git diff --check` PASS.
+
+`P7-09 HOTFIX01 = COMPLETE`.

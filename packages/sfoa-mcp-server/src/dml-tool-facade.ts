@@ -22,9 +22,10 @@ import type {
 } from '@sfoa/identity-runtime';
 import {
   IdentityRuntimeError,
+  formatRuntimeError,
+  redactSensitiveText,
   runWithSalesforceApiPurpose,
   runWithSalesforceDmlSemantic,
-  runtimeErrorToolResult,
 } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import type { AppliedManagedDmlField, ManagedDmlFieldResolver } from './dml-managed-fields.js';
@@ -165,7 +166,11 @@ export class DmlToolFacade {
       return result;
     } catch (error) {
       if (error instanceof IdentityRuntimeError && !this.options.mutationStarted()) {
-        const result = runtimeErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+        const result = dmlIdentityErrorToolResult(
+          error,
+          this.options.redactionSecrets,
+          this.options.context.correlationId,
+        );
         await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, appliedManagedFields);
         return result;
       }
@@ -275,6 +280,25 @@ function hostDmlErrorToolResult(
       success: false,
       errorCode: error.code,
       message: error.message.slice(0, 2_000),
+    },
+  };
+}
+
+function dmlIdentityErrorToolResult(
+  error: IdentityRuntimeError,
+  secrets: readonly string[] = [],
+  correlationId = error.correlationId,
+): CallToolResult {
+  // Lazy Salesforce authentication/Connection failures surface before mutation dispatch but
+  // must remain parseable through the same DML output contract as other DML errors
+  // (structuredContent.success/errorCode/message). Correlation ID stays in the text content.
+  return {
+    isError: true,
+    content: [{ type: 'text', text: formatRuntimeError(error, secrets, correlationId) }],
+    structuredContent: {
+      success: false,
+      errorCode: error.code,
+      message: redactSensitiveText(error.message, secrets).slice(0, 2_000),
     },
   };
 }

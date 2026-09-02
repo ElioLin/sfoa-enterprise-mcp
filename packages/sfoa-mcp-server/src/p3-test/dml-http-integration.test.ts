@@ -5,6 +5,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Connection } from '@salesforce/core';
+import { IdentityRuntimeError, type SalesforceConnectionFactory } from '@sfoa/identity-runtime';
 import { parseDmlAllowlistJson } from '@sfoa/mcp-provider-sfoa-dml';
 import { RemoteRuntimeError } from '../errors.js';
 import { startRemoteMcpServer, type RemoteMcpServer } from '../http-server.js';
@@ -17,6 +19,7 @@ import {
   TEST_PLATFORM_USER_B,
   TEST_USERNAME_A,
   TEST_USERNAME_B,
+  toolResultText,
 } from '../test/helpers.js';
 
 const LEAD_DML_POLICY = parseDmlAllowlistJson(JSON.stringify([
@@ -211,6 +214,48 @@ test('official mutation/admin Tools remain denied even when P3 CREATE/UPDATE are
       );
     }
   } finally {
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
+test('lazy Salesforce auth failure on create_record keeps the DML output contract parseable', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p3-lazy-auth-'));
+  let creates = 0;
+  const connectionFactory: SalesforceConnectionFactory = {
+    create: async (): Promise<Connection> => {
+      creates += 1;
+      throw new IdentityRuntimeError(
+        'MCP_SALESFORCE_AUTH_FAILED',
+        'Salesforce JWT authentication failed for the resolved request identity.',
+      );
+    },
+  };
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({
+      enabledTools: Object.freeze(['create_record', 'update_record']),
+      dmlAllowlist: LEAD_DML_POLICY,
+    }),
+    identityRuntime: createTestIdentityRuntime(baseRoot, connectionFactory),
+  });
+  const client = await connectClient(server, TEST_PLATFORM_USER_A);
+  try {
+    const result = await client.callTool({
+      name: 'create_record',
+      arguments: { objectApiName: 'Lead', fields: { LastName: 'A', Company: 'SFoA' } },
+    });
+    assert.equal(result.isError, true);
+    const content = result.structuredContent;
+    assert.ok(isRecord(content), 'lazy DML auth failure must carry structuredContent');
+    assert.equal(content.success, false);
+    assert.equal(content.errorCode, 'MCP_SALESFORCE_AUTH_FAILED');
+    assert.equal(typeof content.message, 'string');
+    assert.ok((content.message as string).length > 0);
+    assert.match(toolResultText(result), /MCP_SALESFORCE_AUTH_FAILED/u);
+    assert.match(toolResultText(result), /Correlation ID:/u);
+    assert.equal(creates, 1, 'lazy DML auth failure must attempt Connection creation exactly once');
+  } finally {
+    await client.close().catch(() => undefined);
+    await server.close();
     await rm(baseRoot, { recursive: true, force: true });
   }
 });

@@ -28,6 +28,12 @@ export type AuditedOfficialToolContract = Readonly<{
 export type RemoteToolContract = Readonly<{
   hostOwnedArguments: readonly string[];
   allowedAgentArguments: readonly string[];
+  /**
+   * Single source of truth for whether this remote Tool needs a request-scoped Salesforce
+   * Connection. `hostOwnedArguments` is an input-authority contract, not a resource-lifecycle
+   * contract; a host-owned `usernameOrAlias` must not be used as a proxy for Connection need.
+   */
+  requiresSalesforceConnection: boolean;
 }>;
 
 export type OfficialToolPolicyRecord = Readonly<{
@@ -72,6 +78,7 @@ function freezeRemoteContract(contract: RemoteToolContract): RemoteToolContract 
   return Object.freeze({
     hostOwnedArguments: Object.freeze([...contract.hostOwnedArguments]),
     allowedAgentArguments: Object.freeze([...contract.allowedAgentArguments]),
+    requiresSalesforceConnection: contract.requiresSalesforceConnection,
   });
 }
 
@@ -94,6 +101,7 @@ export const DX_CORE_TOOL_CATALOG: readonly OfficialToolPolicyRecord[] = Object.
     remoteContract: {
       hostOwnedArguments: ['directory'],
       allowedAgentArguments: ['defaultTargetOrg', 'defaultDevHub'],
+      requiresSalesforceConnection: false,
     },
   }),
   dxCoreRecord({
@@ -112,6 +120,7 @@ export const DX_CORE_TOOL_CATALOG: readonly OfficialToolPolicyRecord[] = Object.
     remoteContract: {
       hostOwnedArguments: ['usernameOrAlias', 'directory'],
       allowedAgentArguments: ['query', 'useToolingApi'],
+      requiresSalesforceConnection: true,
     },
   }),
   dxCoreRecord({
@@ -130,6 +139,7 @@ export const DX_CORE_TOOL_CATALOG: readonly OfficialToolPolicyRecord[] = Object.
     remoteContract: {
       hostOwnedArguments: ['usernameOrAlias', 'directory'],
       allowedAgentArguments: ['ignoreConflicts', 'sourceDir', 'manifest'],
+      requiresSalesforceConnection: true,
     },
   }),
   dxCoreRecord({
