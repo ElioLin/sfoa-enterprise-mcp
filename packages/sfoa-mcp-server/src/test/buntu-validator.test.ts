@@ -57,10 +57,27 @@ test('HttpBuntuTokenValidator accepts the real 2xx { success, data.userId } cont
     assert.equal(result.upstreamSuccess, true);
     assert.equal(result.userIdType, 'string');
     assert.equal(result.httpStatus, 200);
+    assert.equal(result.expiresAtSeconds, 1787640358, 'data.expiresAt must be surfaced for the cache reuse boundary');
     assert.equal(forwardedAuthorization, `Bearer ${RAW_TOKEN}`);
     assert.equal(forwardedAccept, 'application/json');
     assert.equal(typeof result.durationMs, 'number');
     assert.ok(result.validatedAt.length > 0);
+  } finally {
+    await close();
+  }
+});
+
+test('HttpBuntuTokenValidator tolerates a response without data.expiresAt (identity still valid, no cache horizon)', async () => {
+  const { baseUrl, close } = await listen((_request, response) => jsonResponse(response, 200, {
+    success: true,
+    data: { userId: 'platform-buntu-user' },
+  }));
+  try {
+    const validator = new HttpBuntuTokenValidator({ validateTokenUrl: `${baseUrl}${VALIDATE_URL}`, timeoutMs: 2_000 });
+    const result = await validator.validate(RAW_TOKEN, 'correlation-1');
+    assert.equal(result.valid, true);
+    assert.equal(result.userId, 'platform-buntu-user');
+    assert.equal('expiresAtSeconds' in result, false, 'absent data.expiresAt must not fabricate a cache horizon');
   } finally {
     await close();
   }

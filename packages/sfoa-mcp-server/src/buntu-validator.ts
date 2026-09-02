@@ -21,9 +21,12 @@ import { z } from 'zod';
  *
  * Only `success` and `data.userId` participate in identity decisions. The
  * upstream `userName` is display metadata and must never be mapped to a
- * Salesforce username; `expiresAt` is deliberately ignored so the MCP runtime
- * never builds a second token-expiry rule. No recursive search for `userId`,
- * `user_id`, `id`, or `username` is performed anywhere in the response.
+ * Salesforce username; `data.expiresAt` is surfaced as `expiresAtSeconds`
+ * solely as the cache-reuse boundary for the request-scoped in-memory token
+ * validation cache — it is never used to build a second token-expiry rule at
+ * request time (validate-token remains the identity authority). No recursive
+ * search for `userId`, `user_id`, `id`, or `username` is performed anywhere in
+ * the response.
  *
  * Error classification is stable and fail-closed:
  * - `MCP_BUNTU_TOKEN_INVALID`            401/403, or HTTP 2xx with `success: false`;
@@ -51,6 +54,13 @@ export type BuntuValidationResult = Readonly<{
   upstreamSuccess?: boolean;
   /** Original JSON primitive type of `data.userId`, present only on success. */
   userIdType?: 'string' | 'number';
+  /**
+   * Upstream token expiry (`data.expiresAt`, epoch seconds), present only when
+   * the upstream returned it. Used solely as the cache-reuse boundary by the
+   * in-memory validation cache; never enforced as a second request-time expiry
+   * rule.
+   */
+  expiresAtSeconds?: number;
 }>;
 
 export interface BuntuTokenValidator {
@@ -67,7 +77,10 @@ export type BuntuValidatorOptions = Readonly<{
  *
  * The real service returns `success: true` with the platform identity nested
  * under `data.userId`; `data.userName` and `data.expiresAt` are tolerated extra
- * fields and are stripped by Zod. Only a `string` or a safe integer `number` is
+ * fields, with `data.expiresAt` captured (optional) so the validation cache can
+ * reuse a validated identity only until the token's own declared expiry.
+ * `data.userName` is stripped by Zod and never participates in identity
+ * decisions. Only a `string` or a safe integer `number` is
  * accepted for `userId`. Floats, NaN, Infinity, booleans, objects, arrays, null,
  * and the empty string are rejected. A numeric userId is normalized with
  * `String(...)` and then validated by the shared `platformUserIdSchema`; no
@@ -83,7 +96,10 @@ const buntuUserIdSchema = z.union([
 ]);
 const buntuValidateResponseSchema = z.object({
   success: z.boolean(),
-  data: z.object({ userId: buntuUserIdSchema }),
+  data: z.object({
+    userId: buntuUserIdSchema,
+    expiresAt: z.number().optional(),
+  }),
 });
 
 export class HttpBuntuTokenValidator implements BuntuTokenValidator {
@@ -151,6 +167,7 @@ export class HttpBuntuTokenValidator implements BuntuTokenValidator {
         return buntuFailure('MCP_BUNTU_IDENTITY_RESPONSE_INVALID', { httpStatus, durationMs, validatedAt });
       }
 
+      const expiresAt = contract.data.data.expiresAt;
       return Object.freeze({
         valid: true,
         userId: parsedUserId.data,
@@ -159,6 +176,7 @@ export class HttpBuntuTokenValidator implements BuntuTokenValidator {
         validatedAt,
         upstreamSuccess: true,
         userIdType: typeof rawUserId === 'number' ? 'number' : 'string',
+        ...(expiresAt === undefined ? {} : { expiresAtSeconds: expiresAt }),
       });
     } catch (error) {
       // Oversized responses are an invalid response contract; everything else

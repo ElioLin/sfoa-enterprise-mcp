@@ -16,6 +16,12 @@ import {
   type BuntuValidationErrorCode,
   type BuntuValidationResult,
 } from './buntu-validator.js';
+import {
+  DEFAULT_BUNTU_VALIDATION_CACHE_MAX_ENTRIES,
+  InMemoryBuntuValidationCache,
+  type BuntuTokenValidationCache,
+  type BuntuValidationCacheEntry,
+} from './buntu-validation-cache.js';
 import { RemoteRuntimeError } from './errors.js';
 
 export type AuthenticatedClient = Readonly<{
@@ -206,6 +212,15 @@ export type BuntuTokenCredentialAuthenticatorOptions = Readonly<{
   clientToken: string;
   validateTokenUrl: string;
   rawTokenAuditEnabled?: boolean;
+  /**
+   * In-process validation cache. Defaults to a bounded LRU
+   * (`InMemoryBuntuValidationCache`, max 1000 entries). Pass a no-op cache to
+   * disable reuse. The cache is per-authenticator-instance (per MCP server
+   * process) and is never shared across requests/roles.
+   */
+  validationCache?: BuntuTokenValidationCache;
+  /** Epoch-ms clock used to decide cache expiry; injectable for deterministic tests. */
+  nowMs?: () => number;
 }>;
 
 type BuntuSensitiveAuditLogger = RuntimeLogger & Readonly<{
@@ -214,9 +229,23 @@ type BuntuSensitiveAuditLogger = RuntimeLogger & Readonly<{
 
 export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticator {
   private readonly expectedClientDigest: Buffer;
+  private readonly validationCache: BuntuTokenValidationCache;
+  private readonly now: () => number;
+  /**
+   * Single-flight guard: coalesces concurrent validations of the same token so
+   * only the leading request talks to the upstream and writes the audit.
+   * Bounded in practice by concurrent distinct-token validations; each entry is
+   * removed as soon as its validation settles.
+   */
+  private readonly inFlight = new Map<string, Promise<BuntuValidationResult>>();
 
   public constructor(private readonly options: BuntuTokenCredentialAuthenticatorOptions) {
     this.expectedClientDigest = digest(options.clientToken);
+    this.validationCache = options.validationCache
+      ?? new InMemoryBuntuValidationCache({
+        maxEntries: DEFAULT_BUNTU_VALIDATION_CACHE_MAX_ENTRIES,
+      });
+    this.now = options.nowMs ?? (() => Date.now());
   }
 
   /**
@@ -231,6 +260,19 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
       && !timingSafeEqual(this.expectedClientDigest, digest(token));
   }
 
+  /**
+   * Validates a Buntu bearer token and resolves the bound platform user id.
+   *
+   * A previously validated token whose upstream `expiresAt` has not passed is
+   * reused from the in-process cache without another upstream call. A cache hit
+   * performs NO live validation and writes NO `IDENTITY_VALIDATION` audit, so a
+   * single MCP interaction (several stateless HTTP POSTs sharing one token) no
+   * longer emits a validation audit per POST. The resolved identity route is
+   * still read from the Control Plane on every request, so route enable/disable
+   * takes effect immediately. Token-level revocation is bounded by the token's
+   * own `expiresAt` (validate-token remains the identity authority; the cache is
+   * only a reuse boundary, never a second expiry-enforcement rule).
+   */
   public async authenticate(token: string | undefined, correlationId: string): Promise<CredentialAuthentication> {
     if (token === undefined || !this.supports(token)) {
       throw new RemoteRuntimeError(
@@ -240,14 +282,29 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
       );
     }
 
-    const result = await this.options.validator.validate(token, correlationId);
-    await this.logValidateAudit(token, result, correlationId);
-
-    if (!result.valid) {
-      throw buntuValidationError(result.errorCode ?? 'MCP_BUNTU_IDENTITY_UNAVAILABLE', correlationId);
+    const fingerprint = buntuTokenFingerprint(token);
+    const nowMs = this.now();
+    const cached = this.readCachedUserId(fingerprint, nowMs);
+    let platformUserId: string;
+    if (cached !== undefined) {
+      // Cache hit: reuse the already-validated identity. No upstream call, no audit.
+      platformUserId = cached;
+    } else {
+      const { result, leader } = await this.resolveLiveValidation(token, fingerprint, correlationId);
+      if (!result.valid) {
+        if (leader) await this.logValidateAudit(token, result, correlationId);
+        throw buntuValidationError(result.errorCode ?? 'MCP_BUNTU_IDENTITY_UNAVAILABLE', correlationId);
+      }
+      const parsedUserId = platformUserIdSchema.parse(result.userId);
+      if (leader) {
+        // Store before awaiting the audit so concurrent followers and the next
+        // POST observe the cache immediately.
+        this.cacheValidated(fingerprint, parsedUserId, result, nowMs);
+        await this.logValidateAudit(token, result, correlationId);
+      }
+      platformUserId = parsedUserId;
     }
 
-    const platformUserId = platformUserIdSchema.parse(result.userId);
     const route = await this.options.routes.getByPlatformUserId(platformUserId);
     if (!route) {
       throw new IdentityRuntimeError(
@@ -271,6 +328,55 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
     });
   }
 
+  /** Returns the cached bound platform user id for a live (non-expired) entry, else undefined. */
+  private readCachedUserId(fingerprint: string, nowMs: number): string | undefined {
+    return this.validationCache.get(fingerprint, nowMs)?.userId;
+  }
+
+  /**
+   * Stores a validated identity only when the upstream supplied a usable
+   * `expiresAt` that lies in the future. Absent/non-finite/past expiries are
+   * deliberately not cached: without a trustworthy reuse boundary the safest
+   * choice is to keep validating.
+   */
+  private cacheValidated(
+    fingerprint: string,
+    userId: string,
+    result: BuntuValidationResult,
+    nowMs: number,
+  ): void {
+    const expiresAtSeconds = result.expiresAtSeconds;
+    if (expiresAtSeconds === undefined || !Number.isSafeInteger(expiresAtSeconds)) return;
+    const expiresAtMs = expiresAtSeconds * 1000;
+    if (!Number.isSafeInteger(expiresAtMs) || expiresAtMs <= nowMs) return;
+    const entry: BuntuValidationCacheEntry = { userId, expiresAtMs, cachedAtMs: nowMs };
+    this.validationCache.set(fingerprint, Object.freeze(entry));
+  }
+
+  /**
+   * Single-flight live validation: concurrent requests presenting the same token
+   * share one upstream validation. The request that created the in-flight entry
+   * is the leader (it owns the audit write and cache store); followers reuse the
+   * same result without producing additional audits.
+   */
+  private async resolveLiveValidation(
+    token: string,
+    fingerprint: string,
+    correlationId: string,
+  ): Promise<Readonly<{ result: BuntuValidationResult; leader: boolean }>> {
+    const existing = this.inFlight.get(fingerprint);
+    if (existing) {
+      return { result: await existing, leader: false };
+    }
+    const task = this.options.validator.validate(token, correlationId);
+    this.inFlight.set(fingerprint, task);
+    try {
+      return { result: await task, leader: true };
+    } finally {
+      this.inFlight.delete(fingerprint);
+    }
+  }
+
   private async logValidateAudit(
     rawToken: string,
     result: BuntuValidationResult,
@@ -290,6 +396,7 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
       ...(result.upstreamSuccess !== undefined ? { upstreamSuccess: result.upstreamSuccess } : {}),
       ...(result.userId ? { userId: result.userId } : {}),
       ...(result.userIdType ? { userIdType: result.userIdType } : {}),
+      ...(result.expiresAtSeconds !== undefined ? { expiresAtSeconds: result.expiresAtSeconds } : {}),
     };
     try {
       const event: RuntimeLogEvent = {
