@@ -29,6 +29,7 @@ export type WorkspaceMetrics = Readonly<{
 export interface RequestWorkspace {
   readonly root: string;
   readonly manifestPath: string | undefined;
+  setApiVersion(apiVersion: string): Promise<void>;
   resolveClientPath(candidate: string): string;
   countFiles(): Promise<number>;
   cleanup(): Promise<void>;
@@ -53,8 +54,7 @@ export class RequestWorkspaceFactory {
     this.metadataSeed = options.metadataSeed ? Object.freeze(metadataSeedSchema.parse(options.metadataSeed)) : undefined;
   }
 
-  public async create(correlationId: string, apiVersion: string): Promise<RequestWorkspace> {
-    const parsedApiVersion = apiVersionSchema.parse(apiVersion);
+  public async create(correlationId: string, apiVersion?: string): Promise<RequestWorkspace> {
     await mkdir(this.baseRoot, { recursive: true });
     let root: string | undefined;
 
@@ -68,24 +68,28 @@ export class RequestWorkspaceFactory {
       const manifestDirectory = path.join(root, 'manifest');
       await mkdir(sourceRoot, { recursive: true });
       await mkdir(manifestDirectory, { recursive: true });
-      await writeFile(
-        path.join(root, 'sfdx-project.json'),
-        `${JSON.stringify(
-          {
-            packageDirectories: [{ path: 'force-app', default: true }],
-            namespace: '',
-            sourceApiVersion: parsedApiVersion,
-          },
-          null,
-          2,
-        )}\n`,
-        'utf8',
-      );
-
       const manifestPath = this.metadataSeed ? path.join(manifestDirectory, 'package.xml') : undefined;
-      if (manifestPath && this.metadataSeed) {
-        await writeFile(manifestPath, createManifest(parsedApiVersion, this.metadataSeed), 'utf8');
-      }
+      let configuredApiVersion: string | undefined;
+      let apiVersionPromise: Promise<void> | undefined;
+      const setApiVersion = async (requestedApiVersion: string): Promise<void> => {
+        const parsedApiVersion = apiVersionSchema.parse(requestedApiVersion);
+        if (configuredApiVersion && configuredApiVersion !== parsedApiVersion) {
+          throw new IdentityRuntimeError(
+            'MCP_REQUEST_WORKSPACE_FAILED',
+            'The request workspace Salesforce API version cannot change after initialization.',
+            { correlationId },
+          );
+        }
+        configuredApiVersion = parsedApiVersion;
+        apiVersionPromise ??= (async () => {
+          await writeFile(path.join(root as string, 'sfdx-project.json'), createProjectConfig(parsedApiVersion), 'utf8');
+          if (manifestPath && this.metadataSeed) {
+            await writeFile(manifestPath, createManifest(parsedApiVersion, this.metadataSeed), 'utf8');
+          }
+        })();
+        await apiVersionPromise;
+      };
+      if (apiVersion) await setApiVersion(apiVersion);
 
       let cleaned = false;
       const cleanup = async (): Promise<void> => {
@@ -97,6 +101,7 @@ export class RequestWorkspaceFactory {
       return Object.freeze({
         root,
         manifestPath,
+        setApiVersion,
         resolveClientPath: (candidate: string) => this.resolveWithinWorkspace(root as string, candidate),
         countFiles: async () => countFiles(root as string),
         cleanup,
@@ -159,6 +164,18 @@ export class RequestWorkspaceFactory {
     this.activeRoots.delete(root);
     this.cleaned += 1;
   }
+}
+
+function createProjectConfig(apiVersion?: string): string {
+  return `${JSON.stringify(
+    {
+      packageDirectories: [{ path: 'force-app', default: true }],
+      namespace: '',
+      ...(apiVersion ? { sourceApiVersion: apiVersion } : {}),
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 async function countFiles(directory: string): Promise<number> {

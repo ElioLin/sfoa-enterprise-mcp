@@ -139,11 +139,12 @@ export class OfficialMetadataComponentContextExecutor implements MetadataCompone
         'The metadata context adapter was not bound to the official retrieve_metadata Tool.',
       );
     }
+    const connection = await this.scope.getConnection();
     const manifestRelativePath = 'manifest/p4-context-package.xml';
     const manifestPath = this.scope.workspace.resolveClientPath(manifestRelativePath);
     await writeFile(
       manifestPath,
-      createManifest(this.scope.connection.getApiVersion(), input.metadataType, input.fullName),
+      createManifest(connection.getApiVersion(), input.metadataType, input.fullName),
       'utf8',
     );
     const result = await this.adapter.execute(

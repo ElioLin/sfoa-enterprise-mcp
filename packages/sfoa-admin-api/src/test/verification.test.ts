@@ -25,8 +25,9 @@ test('route verification creates a fresh USER route, requires exact identity, an
       createForRoute: async (_identity: unknown, suppliedRoute: SalesforceIdentityRoute) => {
         suppliedRoutes.push(suppliedRoute);
         const username = actualUsernames.shift();
+        const connection = Object.freeze({ identity: async () => Object.freeze({ username }) });
         return Object.freeze({
-          connection: Object.freeze({ identity: async () => Object.freeze({ username }) }),
+          getConnection: async () => connection,
           close: async () => { closeCount += 1; },
         });
       },

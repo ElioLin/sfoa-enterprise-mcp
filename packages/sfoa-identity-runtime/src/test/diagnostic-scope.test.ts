@@ -44,7 +44,12 @@ test('DIAGNOSTIC scope is server-owned, fresh per request, correlated to the tri
     assert.equal(second.route.salesforceUsername, 'fixed-diagnostic@example.test');
     assert.equal(first.context.platformUserId, 'platform-user-a');
     assert.equal(second.context.platformUserId, 'platform-user-b');
-    assert.notEqual(first.connection, second.connection);
+    assert.equal(connectionFactory.creations.length, 0);
+    const [firstConnection, secondConnection] = await Promise.all([
+      first.getConnection(),
+      second.getConnection(),
+    ]);
+    assert.notEqual(firstConnection, secondConnection);
     assert.notEqual(first.workspace.root, second.workspace.root);
 
     await Promise.all([first.close(), second.close()]);

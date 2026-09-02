@@ -65,6 +65,8 @@ P7-07 adds an SFoA-only unreleased entry at the top of upstream-owned `CHANGELOG
 
 P7-08 extends the same upstream-owned `CHANGELOG.md` preface and root `README.md` status inventory and adds root `package.json` scripts for the local Maintainer Skill/toolkit. The runtime workspace graph, dependencies, lockfile, official package code, and Salesforce Tool behavior are unchanged. Alternative: require contributors to remember direct Node entrypoints; rejected because discoverable root commands are safer and testable. Merge risk remains low and localized to documentation/script-key sections.
 
+P7-09 extends only the existing upstream-owned root `README.md` and `CHANGELOG.md` SFoA prefaces. All lifecycle source/test/package documentation changes remain in SFoA-owned workspaces and docs. No official Tool/provider/JSforce implementation, dependency, lockfile, workspace topology, stdio path, MCP contract, or Salesforce API is changed. Merge risk remains LOW.
+
 Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
 
 ## Package-release drift
@@ -126,6 +128,8 @@ P7-01 also modifies **zero official Salesforce TypeScript implementation files**
 P7-03 modifies **zero official Salesforce TypeScript implementation files**. Request collection, immutable Snapshot creation, Queue/Writer batching, dedicated Audit database budget, Runtime lifecycle integration, tests, and authoritative documentation remain in SFoA-owned identity-runtime, control-plane, and MCP server composition paths. It introduces no dependency or lockfile change and no Salesforce API. The upstream-owned root `README.md` receives only the existing SFoA extension/status/link inventory update; no upstream runtime contract changes. Official source merge risk remains LOW.
 
 P7-08 modifies **zero official Salesforce TypeScript implementation files**. Canonical Skill content, local Node diagnostic scripts, generated project Skill copies, ADR/report/tests, and bootstrap files are SFoA-owned additions. The only audited upstream-owned changes are the registered `README.md`, `CHANGELOG.md`, and root `package.json` rows above. No dependency or lockfile delta, migration, Runtime registration, Admin route, public Tool, or Salesforce API is introduced. Official source merge risk remains LOW.
+
+P7-09 modifies **zero official Salesforce TypeScript implementation files**. The request-scoped provider, OrgService/workspace composition changes, MCP facades, validators, tests, Skill references, ADR/report, and package docs are SFoA-owned. It reuses unchanged official `get_username`, `run_soql_query`, `retrieve_metadata`, Provider composition, and public `@salesforce/core` Connection APIs. No dependency, lockfile, migration, Tool/schema, Admin route/UI, Salesforce permission, cache/pool, or new API is introduced. Official source merge risk remains LOW.
 
 ## Changes that require a new matrix entry
 

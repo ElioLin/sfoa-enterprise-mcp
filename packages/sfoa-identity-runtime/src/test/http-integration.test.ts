@@ -88,7 +88,7 @@ test('P1 Streamable HTTP binds each request to A or B and blocks forged, unknown
     );
     const concurrentResults = await Promise.all(concurrentCalls);
     assert.equal(concurrentResults.filter((result) => result.isError === true).length, 0);
-    assert.equal(connectionFactory.creations.length - beforeConcurrent, 20);
+    assert.equal(connectionFactory.creations.length - beforeConcurrent, 0);
     assert.equal(new Set(connectionFactory.creations.map((creation) => creation.connection)).size, connectionFactory.creations.length);
 
     await waitFor(() => setup.workspaceFactory.getMetrics().active === 0);

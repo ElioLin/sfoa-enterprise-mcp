@@ -24,6 +24,9 @@ yarn workspace @sfoa/control-plane test:mysql
 yarn workspace @sfoa/identity-runtime lint
 yarn workspace @sfoa/identity-runtime test
 yarn workspace @sfoa/mcp-server lint
+yarn workspace @sfoa/mcp-server test
+yarn workspace @sfoa/mcp-server test:p3
+yarn workspace @sfoa/mcp-server test:p4
 yarn workspace @sfoa/mcp-server test:p7
 yarn workspace @sfoa/admin-api lint
 yarn workspace @sfoa/admin-api test
@@ -48,3 +51,5 @@ yarn workspace @sfoa/mcp-server validate:upstream
 Root lint is known to reproduce unchanged upstream Code Analyzer debt. `SFOA_CHANGED_CODE_LINT` must still pass; never use upstream debt to waive a new SFoA finding. Windows Yarn Classic and the upstream POSIX `cp` build step have recorded environment debt; report the exact failing command rather than broadly declaring the repository broken.
 
 Live Salesforce, Inspector, stdio, HTTP, A/B identity, Diagnostic, and mutation gates are required when their boundary changes and credentials are available. Missing external conditions are `NOT TESTED`.
+
+For request-resource lifecycle changes, automated call-count evidence is mandatory: scope creation and local/protocol methods stay at zero; the first Salesforce operation creates one Connection; repeated/concurrent access in one scope stays at one; two scopes create two isolated Connections; Diagnostic execution creates only its DIAGNOSTIC Connection. Also cover lazy auth/Connection failure taxonomy and unused/failed/aborted cleanup.

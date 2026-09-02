@@ -51,6 +51,7 @@ The current P7 schema has `publicAuditId`, `correlationId`, per-Audit Event sequ
 ## Durable safety boundaries
 
 - Resolve remote identity from the authenticated principal to `platformUserId`, then the configured Salesforce route; Tool arguments never choose a Salesforce user.
+- Salesforce Connection creation is lazy, request-scoped, and Promise-memoized. Scope creation, local/route-only Tools, and local MCP methods must not authenticate or call Salesforce; the first Salesforce-dependent operation creates exactly one role-bound Connection, never shared across requests or USER/DIAGNOSTIC roles.
 - Salesforce remains authoritative for CRUD, FLS, sharing, validation, Flow, Trigger, and native permissions.
 - Tool visibility and DML object/operation policy are independent. READ access through `run_soql_query` is not granted or restricted by DML policy.
 - Generic mutation exposes CREATE and UPDATE only. Missing effective policy denies; unknown mutation outcome is never automatically retried.

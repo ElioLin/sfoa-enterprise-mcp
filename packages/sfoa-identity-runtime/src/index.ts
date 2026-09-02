@@ -17,6 +17,7 @@ export * from './request-scope.js';
 export * from './runtime-logger.js';
 export * from './runtime.js';
 export * from './salesforce-api-classifier.js';
+export * from './salesforce-connection-resource.js';
 export * from './services.js';
 export * from './sfdx-auth-store.js';
 export * from './tool-execution-adapter.js';

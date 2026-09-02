@@ -15,11 +15,14 @@ import {
 import type {
   RequestContext,
   RuntimeLogger,
+  SalesforceConnectionProvider,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
 import {
+  IdentityRuntimeError,
   runWithSalesforceApiPurpose,
   runWithSalesforceQuerySemantic,
+  runtimeErrorToolResult,
   type SalesforceApiPurpose,
 } from '@sfoa/identity-runtime';
 import { z } from 'zod';
@@ -37,6 +40,7 @@ export type ContextToolFacadeOptions = Readonly<{
   toolTimeoutMs: number;
   logger: RuntimeLogger;
   clientId: string;
+  connectionProvider?: SalesforceConnectionProvider;
   redactionSecrets?: readonly string[];
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
 }>;
@@ -98,6 +102,9 @@ export class ContextToolFacade {
     }
 
     try {
+      // Every current Context Tool is a verified Salesforce USER or DIAGNOSTIC operation.
+      // Initialize lazily after role enforcement and outside the pre-existing Tool deadline.
+      await this.options.connectionProvider?.getConnection();
       const result = await withTimeout(
         runWithSalesforceApiPurpose(contextPurpose(name), () => {
           const execute = () => Promise.resolve(this.options.tool.exec(input, extra));
@@ -118,6 +125,10 @@ export class ContextToolFacade {
       await this.log(enriched.isError === true ? 'ERROR' : 'PASS', elapsed(started), errorCode, input, enriched);
       return enriched;
     } catch (error) {
+      if (error instanceof IdentityRuntimeError) {
+        await this.log('ERROR', elapsed(started), error.code, input);
+        return runtimeErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+      }
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
         await this.log('ERROR', elapsed(started), error.code, input);
         return remoteRuntimeErrorToolResult(

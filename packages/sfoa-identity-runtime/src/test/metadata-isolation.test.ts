@@ -37,7 +37,10 @@ type MetadataState = {
 };
 
 class IsolatedMetadataTool extends McpTool<MetadataInputShape> {
-  public constructor(private readonly state: MetadataState) {
+  public constructor(
+    private readonly state: MetadataState,
+    private readonly services: Services,
+  ) {
     super();
   }
 
@@ -62,6 +65,7 @@ class IsolatedMetadataTool extends McpTool<MetadataInputShape> {
     this.state.maximumActive = Math.max(this.state.maximumActive, this.state.active);
     try {
       process.chdir(input.directory);
+      await this.services.getOrgService().getConnection(input.usernameOrAlias);
       if (!input.manifest) return { isError: true, content: [{ type: 'text', text: 'manifest required' }] };
       const manifest = await readFile(input.manifest, 'utf8');
       this.state.roots.push(input.directory);
@@ -82,7 +86,9 @@ class MetadataTestToolSource implements RequestToolSource {
 
   public async provideTools(services: Services): Promise<McpTool[]> {
     const tools = await this.official.provideTools(services);
-    return tools.map((tool) => (tool.getName() === 'retrieve_metadata' ? new IsolatedMetadataTool(this.state) : tool));
+    return tools.map((tool) => (
+      tool.getName() === 'retrieve_metadata' ? new IsolatedMetadataTool(this.state, services) : tool
+    ));
   }
 }
 

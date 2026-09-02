@@ -1,5 +1,8 @@
-import type { Connection } from '@salesforce/core';
-import { runWithSalesforceApiPurpose, runWithSalesforceQuerySemantic } from '@sfoa/identity-runtime';
+import {
+  runWithSalesforceApiPurpose,
+  runWithSalesforceQuerySemantic,
+  type SalesforceConnectionProvider,
+} from '@sfoa/identity-runtime';
 import {
   fieldApiNameSchema,
   objectApiNameSchema,
@@ -27,7 +30,7 @@ export type ManagedDmlInputResolution = Readonly<{
 
 export class ManagedDmlFieldResolver {
   public constructor(
-    private readonly connection: Connection,
+    private readonly connectionProvider: SalesforceConnectionProvider,
     private readonly context: RequestContext,
     private readonly rules: readonly RuntimeManagedDmlFieldRule[],
   ) {}
@@ -81,9 +84,10 @@ export class ManagedDmlFieldResolver {
     const soql = `SELECT Id FROM ${rule.lookupObjectApiName} WHERE ${rule.lookupMatchFieldApiName} = '${escapeSoqlString(platformUserId.data)}' LIMIT 2`;
     let response: unknown;
     try {
+      const connection = await this.connectionProvider.getConnection();
       response = await runWithSalesforceApiPurpose('SERVER_MANAGED_LOOKUP', () =>
         runWithSalesforceQuerySemantic({ queryType: 'DATA_SOQL', soqlStatement: soql }, async () =>
-          await this.connection.query(soql)));
+          await connection.query(soql)));
     } catch (error) {
       throw new RemoteRuntimeError(
         'MCP_DML_MANAGED_LOOKUP_FAILED',

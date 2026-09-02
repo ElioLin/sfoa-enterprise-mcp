@@ -95,6 +95,7 @@ test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnos
     clients.push(clientA, clientB);
     const listed = await clientA.listTools();
     assert.deepEqual(listed.tools.map((tool) => tool.name), [...enabledTools]);
+    assert.equal(connectionFactory.creations.length, 0, 'initialize and tools/list must not create USER or DIAGNOSTIC Connections');
     for (const tool of listed.tools.filter((entry) => entry.name.startsWith('get_') || entry.name.startsWith('run_diagnostic'))) {
       const properties = isRecord(tool.inputSchema.properties) ? tool.inputSchema.properties : {};
       for (const forbidden of [
@@ -124,6 +125,7 @@ test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnos
     assert.ok(fieldNames(contextB).includes('BOnly__c'));
     assert.equal(fieldNames(contextB).includes('AOnly__c'), false);
 
+    const beforeDiagnosticQuery = connectionFactory.creations.length;
     const diagnosticQuery = await clientA.callTool({
       name: 'run_diagnostic_tooling_query',
       arguments: {
@@ -140,6 +142,9 @@ test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnos
     const diagnosticInput = source.queryInputs.at(-1);
     assert.equal(diagnosticInput?.usernameOrAlias, DIAGNOSTIC_USERNAME);
     assert.equal(diagnosticInput?.useToolingApi, true);
+    assert.equal(connectionFactory.creations.length, beforeDiagnosticQuery + 1);
+    assert.equal(connectionFactory.creations.at(-1)?.role, 'DIAGNOSTIC');
+    assert.equal(connectionFactory.creations.at(-1)?.username, DIAGNOSTIC_USERNAME);
 
     const businessQuery = await clientA.callTool({
       name: 'run_soql_query',

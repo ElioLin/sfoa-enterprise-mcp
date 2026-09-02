@@ -1,6 +1,6 @@
 # P7：全链路审计与智能诊断权威基线
 
-Baseline ID: **P7-E2E-AUDIT-BL-1.4**
+Baseline ID: **P7-E2E-AUDIT-BL-1.5**
 
 Baseline date: 2026-09-01
 
@@ -312,6 +312,18 @@ Maintainer 结果（2026-08-31）：`COMPLETE`。P7-05 以同一 Request Audit A
 
 实施结果（2026-09-01）：`COMPLETE`（含 HOTFIX01 交付收口）。canonical Skill、Codex/Claude/CodeBuddy project copies、同步/漂移/打包脚本、Doctor、Snapshot、只读 DB Inspector 与 P7 Audit Analyzer 已实现。Analyzer 按真实 migration 008 使用 `publicAuditId`、`correlationId`、Event sequence 和 `publicApiCallId`；不存在的 trace/session/call/span 字段明确显示 unavailable。HOTFIX01 修复交付完整性缺陷：helper 模块由 `scripts/lib` 迁移到 `scripts/shared`（根 `.gitignore` 的裸 `lib` 规则曾静默排除 `lib/` 目录，导致本地测试通过但 `project.mjs`/`db.mjs` 未进入 commit）；新增 `skill:delivery` Git trackability Gate 与 `skill:smoke` clean-clone 冒烟验证，确保新 clone 始终携带完整 Skill 运行依赖。HOTFIX02 强化 clean-clone 证明：`skill:smoke` 改用 `git archive HEAD` 从 committed bytes 重建临时 checkout（而非复制 working tree），使 dirty working tree 无法冒充可复现 commit。完整命令、测试和验收分析见 `P7_08_REPORT.md`。
 
+### P7-09 Lazy Salesforce Connection 与 Request Resource Lifecycle
+
+目标：把 USER/DIAGNOSTIC Salesforce Connection 从 RequestScope eager initialization 改为 lazy、request-scoped、Promise-memoized resource，同时保持全部 MCP、Tool、身份、治理、DML、权限、Agent 与 Audit 业务语义不变。
+
+实施内容：RequestScope 先完成平台认证、route、Control Plane snapshot、context、workspace directories、Services 与 MCP composition；第一次实际 Salesforce-dependent execution 才执行 JWT/`Connection.create`，并用真实 `getApiVersion()` 完成 workspace DX config。OrgService route-only 方法、official `get_username`、local infrastructure Tools 和非 Salesforce MCP methods 不取 Connection。相同 scope 并发调用共享一个 initialization Promise；不同请求及 USER/DIAGNOSTIC 永不共享。
+
+验收 Gate：scope/local/protocol call count 为 0；SOQL/CREATE/UPDATE 第一次使用为 1 且同请求不重复；Diagnostic 为 USER 0、DIAGNOSTIC 1；lazy failure taxonomy/correlation/Audit、unused/failed/abort cleanup、两用户并发隔离、P3/P4/P5/P7/MySQL/Agent/Skill/live 回归有真实结果。Audit 不过滤或改写失败；local Salesforce row 为 0 只能来自没有实际调用。
+
+不做：Tool-name skip、global Connection cache/pool、重复 `get_username`、Tool schema/Agent workflow、Salesforce 权限或 Admin UI 变更。
+
+实施结果（2026-09-01）：`COMPLETE`。架构和证据见 ADR-0018 与 `P7_09_REPORT.md`。
+
 ## 6. P7-03 后续强制并发、故障与性能 Gate
 
 ### 6.1 Concurrent Audit Isolation Gate
@@ -378,10 +390,15 @@ P7-01 至少覆盖：
 | P7-06 MCP 入口与响应审计 | COMPLETE | Maintainer 独立审查通过 |
 | P7-07 审计调用链工作台 | IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW | Admin read model 与 React Workbench 已实现 |
 | P7-08 Agent-Native Maintainer Skill 与诊断工具集 | COMPLETE | canonical Skill、本地只读诊断、三平台同步与打包已实现；HOTFIX01 修复 `scripts/lib` 被 `.gitignore` 排除的交付缺陷并新增 delivery/smoke Gate；不新增业务 MCP Tool |
+| P7-09 Lazy Salesforce Connection 与 Request Lifecycle | COMPLETE | request-scoped Promise memoization；local/route-only/protocol Salesforce calls = 0；Salesforce/Diagnostic 按请求按角色首次使用创建一次 |
 
 P7-08 工程 Gate 与 HOTFIX01 clean-clone Gate 全部通过后，P7-08 已按 Maintainer 授权更新为：
 
 `P7-08 = COMPLETE`
+
+P7-09 的核心 call-count、并发、失败、cleanup 与业务回归 Gate 通过后更新为：
+
+`P7-09 = COMPLETE`
 
 P7-08 的 COMPLETE 不代表整个 P7 已完成：P7-07 仍为 `IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW`，不得自行宣布整个 P7 COMPLETE。
 

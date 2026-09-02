@@ -47,6 +47,8 @@ yarn ai:audit --user <platformUserId> --tool run_soql_query --since 24h
 
 The analyzer returns sanitized root summaries, a merged Event/API timeline, deterministic first failure, payload metadata, and current route/Tool/DML context. Current governance state is labeled contextual because it is not historical proof of the state at invocation time. Payload bodies are not selected.
 
+Local and route-only MCP calls should have zero `sfoa_salesforce_api_call` rows, including zero `IDENTITY_AUTHENTICATION` and `CONNECTION_INITIALIZATION` attempts. A nonzero Salesforce call for `get_username`, `get_agent_playbook`, `get_record_links`, `tools/list`, Resources, or Prompts is evidence of a runtime lifecycle regression; investigate the caller rather than filtering or rewriting the Audit.
+
 `--trace` aliases the real `publicAuditId`. `correlationId` is not an idempotency or Salesforce commit-status key. Missing unsupported trace/session/call/span fields stay `unavailable`.
 
 One narrow historical exception exists: a maintainer may explicitly enable raw Buntu validation token persistence. The toolkit's recursive output redaction still treats raw token-shaped data as secret and does not display payload bodies by default.

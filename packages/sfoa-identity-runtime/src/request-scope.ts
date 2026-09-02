@@ -14,6 +14,7 @@ import {
   type TrustedRequestIdentity,
 } from './request-context.js';
 import { RequestScopedServices } from './services.js';
+import { RequestScopedSalesforceConnection } from './salesforce-connection-resource.js';
 import type { RequestWorkspace, RequestWorkspaceFactory } from './workspace.js';
 
 export class RequestScope {
@@ -22,14 +23,19 @@ export class RequestScope {
   public constructor(
     public readonly context: RequestContext,
     public readonly route: SalesforceIdentityRoute,
-    public readonly connection: Connection,
+    public readonly salesforce: RequestScopedSalesforceConnection,
     public readonly workspace: RequestWorkspace,
     public readonly services: RequestScopedServices,
   ) {}
 
+  public getConnection(): Promise<Connection> {
+    return this.salesforce.getConnection();
+  }
+
   public async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.salesforce.close();
     await this.workspace.cleanup();
   }
 }
@@ -71,12 +77,17 @@ export class RequestScopeFactory {
         salesforceUsername: route.salesforceUsername,
         executionRole: route.connectionRole,
       });
-      const connection = await this.options.connectionFactory.create(route);
-      workspace = await this.options.workspaceFactory.create(identity.correlationId, connection.getApiVersion());
+      workspace = await this.options.workspaceFactory.create(identity.correlationId);
       const context = createRequestContext(identity, workspace.root);
-      const orgService = new RequestScopedOrgService(context, route, connection, this.options.instanceUrl);
+      const salesforce = new RequestScopedSalesforceConnection(
+        route,
+        this.options.connectionFactory,
+        workspace,
+        identity.correlationId,
+      );
+      const orgService = new RequestScopedOrgService(context, route, salesforce, this.options.instanceUrl);
       const services = new RequestScopedServices(orgService, workspace.root);
-      return new RequestScope(context, route, connection, workspace, services);
+      return new RequestScope(context, route, salesforce, workspace, services);
     } catch (error) {
       if (workspace) await workspace.cleanup().catch(() => undefined);
       throw withCorrelation(
@@ -115,12 +126,17 @@ export class DiagnosticRequestScopeFactory {
         salesforceUsername: route.salesforceUsername,
         executionRole: route.connectionRole,
       });
-      const connection = await this.options.connectionFactory.create(route);
-      workspace = await this.options.workspaceFactory.create(identity.correlationId, connection.getApiVersion());
+      workspace = await this.options.workspaceFactory.create(identity.correlationId);
       const context = createRequestContext(identity, workspace.root);
-      const orgService = new RequestScopedOrgService(context, route, connection, this.options.instanceUrl);
+      const salesforce = new RequestScopedSalesforceConnection(
+        route,
+        this.options.connectionFactory,
+        workspace,
+        identity.correlationId,
+      );
+      const orgService = new RequestScopedOrgService(context, route, salesforce, this.options.instanceUrl);
       const services = new RequestScopedServices(orgService, workspace.root);
-      return new RequestScope(context, route, connection, workspace, services);
+      return new RequestScope(context, route, salesforce, workspace, services);
     } catch (error) {
       if (workspace) await workspace.cleanup().catch(() => undefined);
       throw withCorrelation(

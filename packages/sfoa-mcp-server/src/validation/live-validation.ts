@@ -296,9 +296,7 @@ export async function runP2LiveValidation(config: RemoteRuntimeConfig): Promise<
       Math.max(0, workspaceAfterLoad.active);
     const cleanupFailures = server.getMetrics().cleanupFailures;
     const loadPass =
-      loadConnections.length === LOAD_REQUESTS &&
-      loadConnections.filter((entry) => entry.platformUserId === config.identity.platformUserA).length === LOAD_REQUESTS / 2 &&
-      loadConnections.filter((entry) => entry.platformUserId === config.identity.platformUserB).length === LOAD_REQUESTS / 2 &&
+      loadConnections.length === 0 &&
       loadRoots.length === LOAD_REQUESTS &&
       identityMismatch === 0 &&
       crossUserLeak === 0 &&
@@ -308,7 +306,7 @@ export async function runP2LiveValidation(config: RemoteRuntimeConfig): Promise<
       cleanupFailures === 0;
     const load: LoadValidationGate = Object.freeze({
       status: loadPass ? 'PASS' : 'FAIL',
-      ...(!loadPass ? { error: 'The 50-request A/B isolation or cleanup gate failed.' } : {}),
+      ...(!loadPass ? { error: 'The 50-request route-only A/B zero-Connection isolation or cleanup gate failed.' } : {}),
       requests: LOAD_REQUESTS,
       identityMismatch,
       crossUserLeak,
@@ -440,7 +438,7 @@ async function validateDirectIdentity(
 ): Promise<boolean> {
   const scope = await scopeFactory.create(Object.freeze({ platformUserId, correlationId }));
   try {
-    const identity = identitySchema.parse(await scope.connection.identity());
+    const identity = identitySchema.parse(await (await scope.getConnection()).identity());
     return normalizeSalesforceIdentity(identity.username) === normalizeSalesforceIdentity(expectedUsername);
   } finally {
     await scope.close();

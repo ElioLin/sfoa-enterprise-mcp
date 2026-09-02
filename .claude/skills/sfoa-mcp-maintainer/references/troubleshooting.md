@@ -27,6 +27,8 @@ Suggested root-cause labels: `AGENT`, `MCP_RUNTIME`, `IDENTITY`, `TOOL_GOVERNANC
 - Wrong user or no route: identify credential source, validated `platformUserId`, current enabled route, Audit identity/routing Events, and root Salesforce username.
 - Buntu failure: distinguish upstream 401/403/business reject, timeout/network/5xx, invalid response contract, route missing/disabled, and Header conflict.
 - Audit missing: confirm it was a definite `tools/call`, queue/writer health, integrity/fallback logs, DB availability, and shutdown flush. Do not fabricate a trace from correlation alone.
+- Local or route-only Tool shows Salesforce API/`CONNECTION_INITIALIZATION`: treat this as a request-resource lifecycle regression. Reproduce with a connection-factory call counter, inspect scope/server composition for eager `getConnection()`, and confirm `OrgService` route reads and workspace creation remain Connection-free. Do not hide the Audit row or add Tool-name skip patches.
+- Salesforce Tool authenticates more than once in one request: inspect request-scoped Promise memoization and verify no facade/provider constructs a second resource. Never add a process/user Connection cache; cross-request or USER/DIAGNOSTIC sharing is a security defect.
 - UNKNOWN mutation: stop; never retry automatically. Use an independent read when possible and preserve the uncertainty.
 - Admin page failure: test Admin API health/ready directly, then Vite proxy, exact Origin/cookie/CSRF, API response, and React query state.
 

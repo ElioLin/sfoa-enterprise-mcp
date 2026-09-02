@@ -463,7 +463,7 @@ async function cleanupCreatedRecords(
         platformUserId: record.platformUserId,
         correlationId: `p3-cleanup-${index + 1}-${randomUUID()}`,
       }));
-      const result = await scope.connection.sobject(record.objectApiName).destroy(record.recordId);
+      const result = await (await scope.getConnection()).sobject(record.objectApiName).destroy(record.recordId);
       if (!result.success) {
         errors.push(`${record.objectApiName}/${record.recordId}: Salesforce cleanup returned success=false.`);
       } else {

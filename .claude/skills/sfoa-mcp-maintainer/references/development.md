@@ -19,6 +19,7 @@ Reasonable refactoring is allowed when evidence justifies it. Do not preserve ob
 - Registration-time visibility and authorization remain separate from annotations.
 - List/query bounds, pagination/cursor, `has_more`, and explicit truncation.
 - Stdio stdout remains protocol-only; HTTP auth/identity occurs before Salesforce scope creation.
+- Keep Salesforce access behind the request-owned `SalesforceConnectionProvider`. Route/context/Control Plane/workspace-directory composition must not call `getConnection()`; only verified Salesforce-dependent execution paths may obtain it. Do not add Tool-name skip lists or cross-request caches.
 
 ## Data and UI review points
 

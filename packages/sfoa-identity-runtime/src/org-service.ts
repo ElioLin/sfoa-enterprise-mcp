@@ -8,12 +8,13 @@ import type { SalesforceIdentityRoute } from './contracts.js';
 import { routeAllowsUsernameOrAlias } from './contracts.js';
 import { IdentityRuntimeError } from './errors.js';
 import type { RequestContext } from './request-context.js';
+import type { SalesforceConnectionProvider } from './salesforce-connection-resource.js';
 
 export class RequestScopedOrgService implements OrgService {
   public constructor(
     private readonly context: RequestContext,
     private readonly route: SalesforceIdentityRoute,
-    private readonly connection: Connection,
+    private readonly connectionProvider: SalesforceConnectionProvider,
     private readonly instanceUrl: string,
   ) {}
 
@@ -33,7 +34,7 @@ export class RequestScopedOrgService implements OrgService {
         { correlationId: this.context.correlationId },
       );
     }
-    return this.connection;
+    return this.connectionProvider.getConnection();
   }
 
   public async getDefaultTargetOrg(): Promise<OrgConfigInfo> {

@@ -29,6 +29,7 @@ test('P3 tools/list exposes only explicitly enabled CREATE/UPDATE and keeps all 
   try {
     const listed = await client.listTools();
     assert.deepEqual(listed.tools.map((tool) => tool.name), ['create_record', 'update_record']);
+    assert.equal(fixture.connectionFactory.creations.length, 0, 'tools/list must not create a Salesforce Connection');
     for (const forbidden of [
       'delete_record',
       'undelete_record',
@@ -117,6 +118,7 @@ test('P3 CREATE/UPDATE route A and B independently and never reuse a Connection'
       fixture.connectionFactory.dmlCalls.length,
       'cross-user and same-user mutation Connection reuse must be zero',
     );
+    assert.equal(fixture.connectionFactory.creations.length, 4, 'each DML request must lazily create exactly one Connection');
   } finally {
     await Promise.allSettled([clientA.close(), clientB.close()]);
     await fixture.close();

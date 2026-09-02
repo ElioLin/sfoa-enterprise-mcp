@@ -12,7 +12,8 @@ MCP client
   -> authoritative platformUserId
   -> immutable MySQL policy snapshot
   -> Identity Route
-  -> fresh JWT/AuthInfo/Connection
+  -> local request scope + lazy Connection provider
+  -> first Salesforce-dependent operation: fresh JWT/AuthInfo/Connection
   -> governed official/SFoA Tool facade
   -> Salesforce
 ```
@@ -26,6 +27,7 @@ The LLM performs analysis. The server supplies deterministic operations and evid
 - DML governance: `create_record` and `update_record` require both Tool enablement and an enabled object-by-operation policy. No DELETE/UPSERT/Bulk/arbitrary REST Tool exists.
 - Managed fields: only `PLATFORM_USER_LOOKUP` and CREATE-only `AI_CREATED_MARKER=true`; host values win over client fields.
 - Context: USER `get_record_action_context`; server-owned DIAGNOSTIC `run_diagnostic_tooling_query` and `get_metadata_component_context`.
+- Resource lifecycle: route, context, workspace directories, and Services are created per request; Salesforce JWT/Connection is deferred until first use, memoized as one Promise inside that scope, and never cached globally or shared between USER/DIAGNOSTIC requests. Workspace DX configuration receives the live API version only after that Connection exists.
 - Audit: one request-local context/collector per definite `tools/call`; non-blocking queue and batch writer use a separate two-connection pool. Audit failure cannot change or retry a Tool/Salesforce outcome.
 - Admin: separate authenticated Admin API and React Web; browser never receives Salesforce/database/runtime secrets.
 

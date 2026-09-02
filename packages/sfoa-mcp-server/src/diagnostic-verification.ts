@@ -57,7 +57,8 @@ export async function verifyDiagnosticThroughP4Scope(
   let metadata: DiagnosticVerificationResult['metadata'] | undefined;
   let apiVersion = 'UNKNOWN';
   try {
-    const identity = await scope.connection.identity();
+    const connection = await scope.getConnection();
+    const identity = await connection.identity();
     if (identity.username !== input.salesforceUsername) {
       throw new RemoteRuntimeError(
         'MCP_DIAGNOSTIC_CONFIGURATION_INVALID',
@@ -65,7 +66,7 @@ export async function verifyDiagnosticThroughP4Scope(
         { correlationId: input.correlationId },
       );
     }
-    apiVersion = scope.connection.getApiVersion();
+    apiVersion = connection.getApiVersion();
     const tools = await new OfficialDxCoreToolSource().provideTools(scope.services);
     const queryTool = tools.find((tool) => tool.getName() === 'run_soql_query');
     const retrieveTool = tools.find((tool) => tool.getName() === 'retrieve_metadata');

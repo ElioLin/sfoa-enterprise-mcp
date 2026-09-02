@@ -5,14 +5,17 @@ This private SFoA-owned workspace preserves P1 USER routing and adds the P4 serv
 ```text
 X-Platform-User-Id
   -> IdentityResolver / InMemoryIdentityRepository
-  -> fresh JWT through @salesforce/core
-  -> one request-scoped Connection and OrgService
+  -> local RequestScope and route-only OrgService
+  -> first Salesforce-dependent use: fresh JWT through @salesforce/core
+  -> one Promise-memoized request-scoped Connection
   -> unchanged official DxCoreMcpProvider Tools
 ```
 
 The P1 host exposes only the official `get_username`, `run_soql_query`, and `retrieve_metadata` Tools. Client `usernameOrAlias` is non-authoritative and must match the resolved request identity. Client `directory` is replaced with a disposable request workspace. Metadata calls are serialized by the CWD guard; source-audited identity/SOQL calls may execute concurrently.
 
-P4 optionally configures `SFOA_DIAGNOSTIC_USERNAME`, which must be distinct from every configured USER Salesforce username. Only the Host can construct that route: the triggering `platformUserId` remains in the request context, while the actual Salesforce username is the fixed integration user. Every diagnostic request gets a fresh JWT Connection and workspace. No client identity/role selector, database, Salesforce CLI auth cache, token cache, connection pool, DELETE operation, or shared diagnostic Connection is implemented.
+P4 optionally configures `SFOA_DIAGNOSTIC_USERNAME`, which must be distinct from every configured USER Salesforce username. Only the Host can construct that route: the triggering `platformUserId` remains in the request context, while the actual Salesforce username is the fixed integration user. Every diagnostic request gets its own lazy provider/workspace and creates a fresh JWT Connection only when a Diagnostic Salesforce Tool executes. No client identity/role selector, database, Salesforce CLI auth cache, token cache, connection pool, DELETE operation, or shared diagnostic Connection is implemented.
+
+P7-09 keeps route resolution, request context, workspace directories, Services, and Provider composition Connection-free. `get_username` and other route/local operations therefore have zero Salesforce calls. The first Salesforce consumer shares one initialization Promise with all concurrent consumers in that request; different requests and USER/DIAGNOSTIC roles never share a Connection. The live Connection API version initializes the DX project only at first Salesforce use.
 
 From the repository root:
 

@@ -9,7 +9,8 @@ Authorization Bearer
   -> optional Header match/required Header rule
   -> MySQL policy snapshot for platformUserId
   -> enabled Identity Route
-  -> fresh Salesforce JWT Connection
+  -> local RequestScope and route-only Services
+  -> first Salesforce-dependent operation only: fresh Salesforce JWT Connection
 ```
 
 USER_BOUND uses a SHA-256 lookup hash and encrypted recoverable ciphertext in MySQL; only the authenticated route credential endpoint may return its plaintext. Buntu sends its current bearer to the configured validator on every request and accepts only the validated `data.userId`. A conflicting platform Header is rejected.
@@ -17,6 +18,8 @@ USER_BOUND uses a SHA-256 lookup hash and encrypted recoverable ciphertext in My
 ## Tool execution
 
 The runtime builds a fresh MCP server and request scope for each stateless POST. It intersects current MySQL Tool state with code-owned catalog compatibility. Official read Tools receive host-owned username/workspace fields. Context and DML facades preserve role, timeout, policy, managed-field, and audit boundaries.
+
+`RequestScopedSalesforceConnection` memoizes the complete initialization Promise. Concurrent callers within one request share one JWT/Connection bootstrap; separate requests and USER/DIAGNOSTIC roles always own separate providers. `initialize`, `tools/list`, Resources, Prompts, `get_username`, `get_agent_playbook`, and `get_record_links` do not obtain the provider and therefore perform zero Salesforce calls. The first real Salesforce Tool also applies `connection.getApiVersion()` to the request workspace before execution, avoiding a live Connection dependency during workspace creation.
 
 `run_soql_query` is the real generic business read Tool. DML policies do not control SELECT. `retrieve_metadata` is filesystem/CWD dependent and normally disabled. Diagnostic Tooling/metadata Tools always use the fixed DIAGNOSTIC route.
 

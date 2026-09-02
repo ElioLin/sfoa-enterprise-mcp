@@ -313,8 +313,9 @@ export async function createGovernedMcpServer(
           toolTimeoutMs: options.toolTimeoutMs,
           logger: options.logger,
           clientId: options.clientId,
+          connectionProvider: options.scope.salesforce,
           managedFieldResolver: new ManagedDmlFieldResolver(
-            options.scope.connection,
+            options.scope.salesforce,
             options.scope.context,
             options.managedDmlFieldRules ?? [],
           ),
@@ -335,6 +336,7 @@ export async function createGovernedMcpServer(
           toolTimeoutMs: options.toolTimeoutMs,
           logger: options.logger,
           clientId: options.clientId,
+          connectionProvider: options.scope.salesforce,
           redactionSecrets: options.redactionSecrets,
           managedDmlFieldRules: options.managedDmlFieldRules ?? [],
         });
@@ -353,6 +355,7 @@ export async function createGovernedMcpServer(
         toolTimeoutMs: options.toolTimeoutMs,
         logger: options.logger,
         clientId: options.clientId,
+        connectionProvider: options.scope.salesforce,
         redactionSecrets: options.redactionSecrets,
       });
       server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>

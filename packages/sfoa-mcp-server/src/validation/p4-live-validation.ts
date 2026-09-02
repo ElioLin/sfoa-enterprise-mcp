@@ -47,7 +47,8 @@ export async function runP4LiveValidation(config: IdentityRuntimeConfig): Promis
   ] as const) {
     const scope = await runtime.scopeFactory.create({ platformUserId, correlationId });
     try {
-      const identity = await scope.connection.identity();
+      const connection = await scope.getConnection();
+      const identity = await connection.identity();
       const output = recordActionContextOutputSchema.parse(
         await new RecordActionContextExecutor(scope.services.getOrgService()).execute({
           objectApiName: config.testObject,
@@ -57,8 +58,8 @@ export async function runP4LiveValidation(config: IdentityRuntimeConfig): Promis
       const fields = output.fields ?? [];
       userReports.push({
         username: scope.route.salesforceUsername,
-        connection: scope.connection,
-        apiVersion: scope.connection.getApiVersion(),
+        connection,
+        apiVersion: connection.getApiVersion(),
         gate: {
           status:
             output.success &&

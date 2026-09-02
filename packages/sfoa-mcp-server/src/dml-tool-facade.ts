@@ -17,9 +17,15 @@ import {
 import type {
   RequestContext,
   RuntimeLogger,
+  SalesforceConnectionProvider,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
-import { runWithSalesforceApiPurpose, runWithSalesforceDmlSemantic } from '@sfoa/identity-runtime';
+import {
+  IdentityRuntimeError,
+  runWithSalesforceApiPurpose,
+  runWithSalesforceDmlSemantic,
+  runtimeErrorToolResult,
+} from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import type { AppliedManagedDmlField, ManagedDmlFieldResolver } from './dml-managed-fields.js';
 import { formatRemoteRuntimeError, RemoteRuntimeError } from './errors.js';
@@ -36,6 +42,7 @@ export type DmlToolFacadeOptions = Readonly<{
   toolTimeoutMs: number;
   logger: RuntimeLogger;
   clientId: string;
+  connectionProvider?: SalesforceConnectionProvider;
   managedFieldResolver?: ManagedDmlFieldResolver;
   dmlAllowlist?: DmlAllowlistPolicy;
   redactionSecrets?: readonly string[];
@@ -98,11 +105,14 @@ export class DmlToolFacade {
     let appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]);
     let deadlineReachedBeforeDispatch = false;
     try {
+      if (typeof input.objectApiName === 'string') {
+        this.options.dmlAllowlist?.assertAllowed(input.objectApiName, this.operation);
+      }
+      // Connection initialization was outside the Tool deadline before P7-09. Keep that
+      // timeout contract while still deferring initialization until an allowed DML call.
+      await this.options.connectionProvider?.getConnection();
       const result = await withTimeout(
         (async () => {
-          if (typeof input.objectApiName === 'string') {
-            this.options.dmlAllowlist?.assertAllowed(input.objectApiName, this.operation);
-          }
           if (this.options.managedFieldResolver) {
             const resolution = await this.options.managedFieldResolver.resolve(this.operation, input);
             executionInput = resolution.input as ToolInput;
@@ -154,6 +164,11 @@ export class DmlToolFacade {
       );
       return result;
     } catch (error) {
+      if (error instanceof IdentityRuntimeError && !this.options.mutationStarted()) {
+        const result = runtimeErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, appliedManagedFields);
+        return result;
+      }
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
         const mutationStarted = this.options.mutationStarted();
         deadlineReachedBeforeDispatch = !mutationStarted;

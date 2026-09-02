@@ -30,7 +30,7 @@ export async function verifyIdentityRoute(
         aliases: [],
       }),
     );
-    const identity = await scope.connection.identity();
+    const identity = await (await scope.getConnection()).identity();
     const actual = typeof identity.username === 'string' ? identity.username : '';
     const identityMatched = actual === route.salesforceUsername;
     return Object.freeze({

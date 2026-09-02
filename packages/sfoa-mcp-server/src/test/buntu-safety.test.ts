@@ -630,7 +630,7 @@ test('request scope concurrency: each platform user only ever receives its own S
         const expectedRoute = routes[index];
         assert.ok(expectedRoute);
         if (scope.route.salesforceUsername !== expectedRoute.salesforceUsername) scopeMismatches += 1;
-        const identity = await scope.connection.identity();
+        const identity = await (await scope.getConnection()).identity();
         if (identity.username !== expectedRoute.salesforceUsername) connectionMismatches += 1;
       }
       await Promise.all(scopes.map((scope) => scope.close()));

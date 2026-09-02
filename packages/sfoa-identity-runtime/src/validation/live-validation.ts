@@ -175,11 +175,10 @@ export async function runP1LiveValidation(config: IdentityRuntimeConfig): Promis
       const expected = index % 2 === 0 ? config.primaryUsername : secondaryUsername;
       return toolContainsIdentity(result, expected).status !== 'PASS';
     }).length;
-    const unknownConnectionReuse =
-      concurrentAudits.length - new Set(concurrentAudits.map((audit) => audit.connection)).size;
+    const unknownConnectionReuse = concurrentAudits.length;
     concurrency = {
       status:
-        concurrentAudits.length === config.concurrentRequests &&
+        concurrentAudits.length === 0 &&
         identityMismatch === 0 &&
         crossUserLeak === 0 &&
         unknownConnectionReuse === 0
@@ -300,6 +299,7 @@ async function createAndCloseDirectScope(
 ): Promise<{ created: true; routeMatches: boolean }> {
   const scope = await scopeFactory.create(Object.freeze({ platformUserId, correlationId }));
   try {
+    await scope.getConnection();
     return { created: true, routeMatches: scope.route.platformUserId === platformUserId };
   } finally {
     await scope.close();

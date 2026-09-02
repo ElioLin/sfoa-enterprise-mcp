@@ -74,7 +74,12 @@ test('RequestScopedOrgService exposes exactly one route and rejects cross-user u
     { platformUserId: TEST_ROUTE_A.platformUserId, correlationId: 'corr-org' },
     process.cwd(),
   );
-  const service = new RequestScopedOrgService(context, TEST_ROUTE_A, connection, 'https://example.test');
+  const service = new RequestScopedOrgService(
+    context,
+    TEST_ROUTE_A,
+    { getConnection: async () => connection },
+    'https://example.test',
+  );
   assert.deepEqual([...(await service.getAllowedOrgUsernames())], [TEST_ROUTE_A.salesforceUsername]);
   assert.equal((await service.getAllowedOrgs()).length, 1);
   assert.equal(await service.getConnection(TEST_ROUTE_A.salesforceUsername), connection);

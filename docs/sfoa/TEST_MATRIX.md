@@ -908,6 +908,40 @@ P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
 P7-07–P7-08 = NOT STARTED
 ```
 
+## P7-09 Lazy Salesforce Connection & Request Resource Lifecycle — 2026-09-02
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Scope construction | PASS (`0`) | new recording-factory test proves USER scope creation performs no JWT/Connection; no initial `sfdx-project.json` dependency |
+| Same-scope memoization | PASS (`1`) | first/repeated/three-way concurrent `getConnection()` return the same Promise/Connection; factory create count=1 |
+| Cross-request isolation | PASS (`2`) | two concurrent scopes/routes produce two distinct Connections and retain their platform/Salesforce identity |
+| Failure semantics | PASS | rejected auth Promise memoized once; `MCP_SALESFORCE_AUTH_FAILED` and correlation preserved in MCP Tool result |
+| Cleanup/abort | PASS | unused resource=0 create; failed and close-during-initialization paths clean workspace and cannot recreate it |
+| MCP local/protocol | PASS (`0`) | initialize, Resources list/read, Prompts list/get, tools/list, `get_agent_playbook`, `get_record_links`, unchanged `get_username` create zero Connections and zero Salesforce API/query calls |
+| SOQL | PASS (`1`) | first `run_soql_query` creates exactly one Connection and one query call |
+| DML | PASS (`1/request`) | P3 A/B CREATE+UPDATE = four HTTP requests/four unique Connections/four DML calls; P3 22/22 |
+| Diagnostic role | PASS | initialize/list create neither role; Diagnostic Tool adds exactly one fixed DIAGNOSTIC Connection; no USER precursor; P4 7/7 |
+| P7 Audit | PASS | P7 6/6; no evidence filtering or status rewrite; actual Salesforce requests retain wire/SOQL/DML evidence |
+| Identity/BUNTU concurrency | PASS | Identity 70/70 and MCP 68/68 include 50/100/200 Audit isolation plus BUNTU/route/request interleaving with no cross-user leak |
+| MySQL/Control Plane | PASS | MCP MySQL 1/1; Control unit 33/33; migration/Audit MySQL 10/10 |
+| Admin API | PASS | lint/build and 22/22; route verification fixture updated to lazy getter |
+| Admin Web | PASS / KNOWN SLOW | lint/build PASS; Vitest 42/42 PASS in 233.50 s; no timeout/product change |
+| Upstream compatibility | PASS | pinned dx-core 0.10.0 / Provider API 0.6.0; zero Tool drift; official Tool implementation changes=0 |
+| Agent artifacts | PASS (`NO CHANGE`) | `agent:check` 5 files; Playbook, Server Instructions, Dify/小犇, WorkBuddy contain no Connection lifecycle workflow |
+| Maintainer Skill | PASS | validate 21 files; sync/check zero drift; delivery zero ignored/untracked; test 11/11 |
+| Skill clean-checkout smoke | PASS / HEAD-LIMITED | `HEAD c883a33` committed bytes pass; uncommitted P7-09 bytes require post-commit rerun |
+| P2 live | PASS | env compatibility: A/B, schema/list, local `get_username`, SOQL, forgery denial, 50 load, mismatch/leak/cleanup/reuse all 0 |
+| P4 live | PASS | USER context A/B, Diagnostic Tooling, official metadata 135 files, cleanup 3/3, connection reuse 0 |
+| P1 live | PARTIAL | A/B JWT/identity, local/list/SOQL, 20 concurrency/cleanup PASS; USER metadata current org rejects `Organization`, CWD still restored |
+| P3 live | BLOCKED BY SALESFORCE RULE | Lead CREATE returns native `FIELD_CUSTOM_VALIDATION_EXCEPTION`; validation preservation/reuse=0 PASS; record-dependent UPDATE/authz checks not run |
+| Root build/lint/test | KNOWN UPSTREAM WINDOWS DEBT | unchanged code-analyzer workspace cannot resolve bare `tsc`/`eslint`; all changed SFoA TypeScript lints/builds/tests pass |
+| `validate:p5` | PARTIAL | all package lint/unit/MySQL, Identity 70/70, MCP P5 5/5, Admin 22/22, Web build/42/42 PASS; mocked Chromium Audit Tool locator times out at 180 s |
+| P5 full-stack | BLOCKED | Admin API readiness at `127.0.0.1:18081` timed out before browser assertions |
+
+```text
+P7-09 = COMPLETE
+```
+
 ## P7-05 SOQL & DML Audit Evidence Acceptance Matrix — 2026-08-31
 
 | Gate | Result | Evidence |

@@ -45,6 +45,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
   });
   const client = await connectClient(server, TEST_PLATFORM_USER_A);
   try {
+    assert.equal(connectionFactory.creations.length, 0, 'initialize must not create Salesforce Connections');
     assert.match(client.getInstructions() ?? '', /SFoA Salesforce Agent Playbook 1\.1\.0/u);
     assert.match(client.getInstructions() ?? '', /MCP_DML_OUTCOME_UNKNOWN/u);
     assert.match(client.getInstructions() ?? '', /Identity is MCP-owned/u);
@@ -113,6 +114,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       openWorldHint: false,
     });
     assert.deepEqual(fallbackTool.annotations, linksTool.annotations);
+    assert.equal(connectionFactory.creations.length, 0, 'resources, prompts, and tools/list must remain local');
 
     const fallback = await client.callTool({ name: 'get_agent_playbook', arguments: { workflow: 'CREATE' } });
     assert.equal(fallback.isError, undefined);
@@ -121,6 +123,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
     assert.match(String(asRecord(fallback.structuredContent).guidance), /## CREATE —/u);
     assert.match(String(asRecord(fallback.structuredContent).guidance), /MCP_DML_OUTCOME_UNKNOWN/u);
     assert.equal(connectionFactory.apiRequests.length, 0, 'the Playbook fallback must not call Salesforce APIs');
+    assert.equal(connectionFactory.creations.length, 0, 'get_agent_playbook must not create a Connection');
 
     const linkResult = await client.callTool({
       name: 'get_record_links',
@@ -140,6 +143,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       recordUrl: `https://lightning.example.invalid/lightning/r/Account/${RECORD_ID}/view`,
     });
     assert.equal(connectionFactory.apiRequests.length, 0, 'record links must not call Salesforce UI or REST APIs');
+    assert.equal(connectionFactory.creations.length, 0, 'get_record_links must not create a Connection');
 
     await assert.rejects(
       client.callTool({ name: 'get_record_links', arguments: { records: [] } }),
@@ -167,6 +171,23 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       `https://lightning.example.invalid/lightning/r/Account/${RECORD_ID}/view`,
     );
     assert.equal(connectionFactory.apiRequests.length, 0);
+
+    const username = await client.callTool({
+      name: 'get_username',
+      arguments: { defaultTargetOrg: false, defaultDevHub: false },
+    });
+    assert.notEqual(username.isError, true);
+    assert.match(toolResultText(username), /user-a@example\.test/u);
+    assert.equal(connectionFactory.creations.length, 0, 'official get_username must remain route-only');
+    assert.equal(connectionFactory.queryCalls.length, 0);
+
+    const query = await client.callTool({
+      name: 'run_soql_query',
+      arguments: { query: 'SELECT Id FROM Lead LIMIT 1', useToolingApi: false },
+    });
+    assert.notEqual(query.isError, true);
+    assert.equal(connectionFactory.creations.length, 1, 'the first Salesforce Tool must create one Connection');
+    assert.equal(connectionFactory.queryCalls.length, 1);
   } finally {
     await client.close();
     await server.close();

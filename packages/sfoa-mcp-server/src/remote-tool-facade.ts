@@ -11,9 +11,15 @@ import type {
   RequestContext,
   RequestScopedToolExecutionAdapter,
   RuntimeLogger,
+  SalesforceConnectionProvider,
   SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
-import { runWithSalesforceApiPurpose, runWithSalesforceQuerySemantic } from '@sfoa/identity-runtime';
+import {
+  IdentityRuntimeError,
+  runWithSalesforceApiPurpose,
+  runWithSalesforceQuerySemantic,
+  runtimeErrorToolResult,
+} from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
 import type { OfficialToolPolicyRecord } from './official-tool-catalog.js';
@@ -33,6 +39,7 @@ export type RemoteToolFacadeOptions = Readonly<{
   toolTimeoutMs: number;
   logger: RuntimeLogger;
   clientId: string;
+  connectionProvider?: SalesforceConnectionProvider;
   redactionSecrets?: readonly string[];
 }>;
 
@@ -118,17 +125,22 @@ export class RemoteToolFacade {
       );
     }
     const officialInput = { ...input, ...this.hostOwnedInput() };
-    const purpose = this.getName() === 'retrieve_metadata' ? 'METADATA_RETRIEVE' : 'USER_QUERY';
-    const operation = runWithSalesforceApiPurpose(purpose, () => {
-      const execute = () => this.options.adapter.execute(this.options.tool, officialInput, extra);
-      return this.getName() === 'run_soql_query' && typeof input.query === 'string'
-        ? runWithSalesforceQuerySemantic({
-            queryType: input.useToolingApi === true ? 'TOOLING_SOQL' : 'DATA_SOQL',
-            soqlStatement: input.query,
-          }, execute)
-        : execute();
-    });
     try {
+      if (this.options.policyRecord.remoteContract?.hostOwnedArguments.includes('usernameOrAlias') === true) {
+        // Host-owned username authority is the audited contract signal that this official Tool
+        // needs Salesforce. Route-only get_username owns only directory and stays connection-free.
+        await this.options.connectionProvider?.getConnection();
+      }
+      const purpose = this.getName() === 'retrieve_metadata' ? 'METADATA_RETRIEVE' : 'USER_QUERY';
+      const operation = runWithSalesforceApiPurpose(purpose, () => {
+        const execute = () => this.options.adapter.execute(this.options.tool, officialInput, extra);
+        return this.getName() === 'run_soql_query' && typeof input.query === 'string'
+          ? runWithSalesforceQuerySemantic({
+              queryType: input.useToolingApi === true ? 'TOOLING_SOQL' : 'DATA_SOQL',
+              soqlStatement: input.query,
+            }, execute)
+          : execute();
+      });
       const result = await withTimeout(
         operation,
         this.options.toolTimeoutMs,
@@ -139,6 +151,10 @@ export class RemoteToolFacade {
       await this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), undefined, input, result);
       return result;
     } catch (error) {
+      if (error instanceof IdentityRuntimeError) {
+        await this.log('ERROR', elapsed(started), error.code, input);
+        return runtimeErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+      }
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
         await this.log('ERROR', elapsed(started), error.code, input);
         return remoteRuntimeErrorToolResult(

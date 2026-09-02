@@ -10,6 +10,7 @@ import {
   createSalesforceIdentityRoute,
   type RuntimeLogEvent,
   type RuntimeLogger,
+  type SalesforceConnectionProvider,
 } from '@sfoa/identity-runtime';
 import { StaticDmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
@@ -270,8 +271,9 @@ function runtimeRule(overrides: Partial<RuntimeManagedDmlFieldRule>): RuntimeMan
   return Object.freeze({ ...base, objectApiName: 'Lead', ...overrides });
 }
 
-function queryConnection(query: (soql: string) => Promise<unknown>): Connection {
-  return Object.freeze({ query }) as unknown as Connection;
+function queryConnection(query: (soql: string) => Promise<unknown>): SalesforceConnectionProvider {
+  const connection = Object.freeze({ query }) as unknown as Connection;
+  return Object.freeze({ getConnection: async () => connection });
 }
 
 function userRoute(platformUserId: string) {
