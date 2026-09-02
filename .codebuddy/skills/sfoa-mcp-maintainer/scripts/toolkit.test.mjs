@@ -94,6 +94,21 @@ test('doctor reports DB unavailable without printing a supplied secret', async (
   assert.doesNotMatch(output, /doctor-super-secret/u);
 });
 
+test('doctor exposes the org object usage gate without forcing FAIL when the package is unbuilt', async () => {
+  const report = await runDoctor({
+    projectRoot,
+    environment: { fileExists: false, envPath: path.join(projectRoot, '.env.local'), values: {} },
+    skipDatabase: true,
+    skipServices: true,
+  });
+  assert.ok(report.orgObjectUsage);
+  assert.ok(['PASS', 'SKIPPED', 'FAIL'].includes(report.orgObjectUsage.status));
+  assert.ok(Array.isArray(report.orgObjectUsage.problems));
+  if (report.orgObjectUsage.status !== 'SKIPPED') {
+    assert.equal(report.orgObjectUsage.substitutions, 7);
+  }
+});
+
 test('audit trace not found has a stable typed failure', () => {
   assert.throws(() => requireAuditRows([]), AuditTraceNotFoundError);
 });

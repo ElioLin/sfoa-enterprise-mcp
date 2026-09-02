@@ -66,13 +66,55 @@ export async function runDoctor(options = {}) {
       keys: configurationStatus(environment, CORE_ENV_KEYS),
     },
     database: { status: options.skipDatabase ? 'SKIPPED' : 'NOT_CHECKED' },
+    orgObjectUsage: await checkOrgObjectUsage(projectRoot),
     services: options.skipServices ? { status: 'SKIPPED' } : await checkServices(environment),
   };
   if (!options.skipDatabase) report.database = await checkDatabase(projectRoot, environment, options.databaseProbe);
   const requiredBooleans = [report.node.supported, report.yarn.available, ...Object.values(packageChecks), ...Object.values(scriptChecks)];
   if (requiredBooleans.some((value) => value !== true)) report.status = 'FAIL';
+  else if (report.orgObjectUsage.status === 'FAIL') report.status = 'FAIL';
   else if (!environment.fileExists || report.database.status !== 'PASS') report.status = 'DEGRADED';
   return Object.freeze(sanitizeForOutput(report, environment));
+}
+
+async function checkOrgObjectUsage(projectRoot) {
+  const agentPlaybookEntry = path.join(projectRoot, 'packages', 'sfoa-agent-playbook', 'dist', 'index.js');
+  if (!await exists(agentPlaybookEntry)) {
+    return Object.freeze({
+      status: 'SKIPPED',
+      reason: 'sfoa-agent-playbook is not built; run its build or test first',
+    });
+  }
+  try {
+    const playbook = await import(pathToFileURL(agentPlaybookEntry).href);
+    const substitutions = Array.isArray(playbook.ORG_OBJECT_SUBSTITUTIONS) ? playbook.ORG_OBJECT_SUBSTITUTIONS : [];
+    const structuralProblems = typeof playbook.findOrgObjectSubstitutionProblems === 'function'
+      ? playbook.findOrgObjectSubstitutionProblems()
+      : ['findOrgObjectSubstitutionProblems is unavailable in the built agent-playbook'];
+    const inventoryProblems = typeof playbook.findOrgObjectInventoryProblems === 'function'
+      ? playbook.findOrgObjectInventoryProblems()
+      : ['findOrgObjectInventoryProblems is unavailable in the built agent-playbook'];
+    const problems = [...structuralProblems, ...inventoryProblems];
+    return Object.freeze({
+      status: problems.length === 0 ? 'PASS' : 'FAIL',
+      substitutions: substitutions.length,
+      standardObjects: Object.freeze(
+        substitutions.map((entry) => entry?.standardObjectApiName ?? '').filter(Boolean).sort((left, right) => left.localeCompare(right, 'en-US')),
+      ),
+      customObjects: Object.freeze(
+        substitutions.map((entry) => entry?.customObjectApiName ?? '').filter(Boolean).sort((left, right) => left.localeCompare(right, 'en-US')),
+      ),
+      inventoryRecordedOn: typeof playbook.ORG_OBJECT_INVENTORY_RECORDED_ON === 'string'
+        ? playbook.ORG_OBJECT_INVENTORY_RECORDED_ON
+        : null,
+      problems: Object.freeze(problems),
+    });
+  } catch (error) {
+    return Object.freeze({
+      status: 'FAIL',
+      problems: Object.freeze([error instanceof Error ? error.message : String(error)]),
+    });
+  }
 }
 
 async function checkDatabase(projectRoot, environment, databaseProbe) {

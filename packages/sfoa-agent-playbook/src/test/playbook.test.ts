@@ -16,7 +16,7 @@ describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
     assert.equal(AGENT_PLAYBOOK_VERSION, '1.1.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
-      'CORE', 'READ', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
+      'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
     ]);
   });
@@ -88,6 +88,12 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderFullPlaybook(capabilities), /MCP-managed DML fields: `Account\.Requested_By__c`/u);
     assert.match(renderWorkflow('CREATE', capabilities), /Exclude MCP-managed fields from required questions/u);
     assert.match(renderServerInstructions(capabilities), /do not ask for, recommend, derive, or override them/u);
+    assert.match(renderFullPlaybook(capabilities), /## ORG_OBJECT_USAGE/u);
+    assert.match(renderFullPlaybook(capabilities), /`Quote`/u);
+    assert.match(renderFullPlaybook(capabilities), /`Quote__c`/u);
+    assert.match(renderFullPlaybook(capabilities), /MCP_SOBJECT_NOT_IN_USE/u);
+    assert.match(renderWorkflow('READ', capabilities), /## ORG_OBJECT_USAGE/u);
+    assert.match(renderServerInstructions(capabilities), /declares the standard Salesforce objects/u);
   });
 
   it('does not claim unavailable capabilities and never includes unknown or secret-shaped facts', () => {
@@ -111,6 +117,7 @@ describe('canonical SFoA Agent Playbook', () => {
       assert.match(output, /distribution template/u);
       assert.match(output, /no capability is implied/u);
       assert.doesNotMatch(output, /Status: available for/u);
+      assert.match(output, /## ORG_OBJECT_USAGE/u);
     }
     assert.match(
       renderWorkBuddySkill(),

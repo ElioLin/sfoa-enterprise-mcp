@@ -35,6 +35,19 @@ Workflow: ALL
 - Treat empty, truncated, denied, or insufficient Tool results explicitly; never invent missing records or fields.
 - `get_username` may confirm the server-selected Salesforce identity when enabled, but it never authorizes identity switching.
 
+## ORG_OBJECT_USAGE — Use the org object substitutions
+
+- This org declares several Salesforce standard objects NOT in use; the business records they represent live in the listed custom objects. Target the custom object, never the unused standard object.
+- - Standard `Contract` (合同信息 / 合同) is not used in this org — query custom object `Contract__c` (合同信息 / 合同) instead.
+- - Standard `Order` (订单信息 / 订单) is not used in this org — query custom object `Order__c` (订单信息 / 订单) instead.
+- - Standard `OrderItem` (订单行 / 订单产品) is not used in this org — query custom object `Order_Product__c` (订单行 / 订单产品) instead.
+- - Standard `Pricebook2` (价格手册) is not used in this org — query custom object `Pricebook__c` (价格手册) instead.
+- - Standard `PricebookEntry` (价格手册条目 / 价格本条目) is not used in this org — query custom object `Pricebook_Entry__c` (价格手册条目 / 价格本条目) instead.
+- - Standard `Quote` (报价单 / 报价) is not used in this org — query custom object `Quote__c` (报价单 / 报价) instead.
+- - Standard `QuoteLineItem` (报价产品 / 报价行 / 报价行项目) is not used in this org — query custom object `Quote_Product__c` (报价产品 / 报价行 / 报价行项目) instead.
+- When a user asks about a concept handled by a substituted object, map the concept to the custom object API name before querying; do not rely on model memory of standard-object names or labels.
+- A USER `run_soql_query` whose top-level object is a declared not-in-use standard object is rejected before execution with `MCP_SOBJECT_NOT_IN_USE` and the replacement custom object. On that error, retry against the replacement custom object.
+
 ## CREATE — Create a record
 
 - Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.

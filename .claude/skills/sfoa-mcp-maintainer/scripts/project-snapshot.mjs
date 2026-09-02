@@ -25,6 +25,8 @@ export async function createProjectSnapshot(projectRoot, environment) {
   const dmlProvider = await readFile(path.join(projectRoot, 'packages', 'mcp-provider-sfoa-dml', 'src', 'provider.ts'), 'utf8');
   const contextProvider = await readFile(path.join(projectRoot, 'packages', 'mcp-provider-sfoa-context', 'src', 'provider.ts'), 'utf8');
   const agentCapabilities = await readFile(path.join(projectRoot, 'packages', 'sfoa-agent-playbook', 'src', 'capabilities.ts'), 'utf8');
+  const orgObjectUsageSource = await readFile(path.join(projectRoot, 'packages', 'sfoa-agent-playbook', 'src', 'org-object-usage.ts'), 'utf8');
+  const orgObjectInventorySource = await readFile(path.join(projectRoot, 'packages', 'sfoa-agent-playbook', 'src', 'org-object-inventory.ts'), 'utf8');
   return Object.freeze(sanitizeForOutput({
     generatedAt: new Date().toISOString(),
     repository: {
@@ -53,6 +55,16 @@ export async function createProjectSnapshot(projectRoot, environment) {
         'packages/sfoa-agent-playbook/src/capabilities.ts',
       ]),
     },
+    orgObjectUsage: Object.freeze({
+      substitutionCount: extractObjectFieldNames(orgObjectUsageSource, 'standardObjectApiName').length,
+      standardObjects: extractObjectFieldNames(orgObjectUsageSource, 'standardObjectApiName'),
+      customObjects: extractObjectFieldNames(orgObjectUsageSource, 'customObjectApiName'),
+      inventory: extractOrgObjectInventory(orgObjectInventorySource),
+      evidenceSources: Object.freeze([
+        'packages/sfoa-agent-playbook/src/org-object-usage.ts',
+        'packages/sfoa-agent-playbook/src/org-object-inventory.ts',
+      ]),
+    }),
   }, environment));
 }
 
@@ -68,6 +80,26 @@ function extractObjectKeys(source, constantName) {
 function extractStringArray(source, constantName) {
   const body = new RegExp(`(?:export\\s+)?const\\s+${constantName}[^=]*=\\s*(?:Object\\.freeze\\()?\\[([\\s\\S]*?)\\](?:\\))?`, 'u').exec(source)?.[1] ?? '';
   return [...body.matchAll(/'([^']+)'/gu)].map((match) => match[1]).sort();
+}
+
+function extractObjectFieldNames(source, fieldName) {
+  const names = [...source.matchAll(new RegExp(`${fieldName}:\\s*'([^']+)'`, 'gu'))].map((match) => match[1]);
+  return Object.freeze([...new Set(names)].sort((left, right) => left.localeCompare(right, 'en-US')));
+}
+
+function extractOrgObjectInventory(source) {
+  const notInUseStandard = [];
+  const inUseCustom = [];
+  for (const match of source.matchAll(/inventoryEntry\('([^']+)',\s*'(NOT_IN_USE_STANDARD|IN_USE_CUSTOM)'/gu)) {
+    if (match[2] === 'NOT_IN_USE_STANDARD') notInUseStandard.push(match[1]);
+    else inUseCustom.push(match[1]);
+  }
+  return Object.freeze({
+    entryCount: notInUseStandard.length + inUseCustom.length,
+    notInUseStandard: Object.freeze(notInUseStandard.sort((left, right) => left.localeCompare(right, 'en-US'))),
+    inUseCustom: Object.freeze(inUseCustom.sort((left, right) => left.localeCompare(right, 'en-US'))),
+    recordedOn: /ORG_OBJECT_INVENTORY_RECORDED_ON\s*=\s*'([^']+)'/u.exec(source)?.[1] ?? null,
+  });
 }
 
 async function main() {

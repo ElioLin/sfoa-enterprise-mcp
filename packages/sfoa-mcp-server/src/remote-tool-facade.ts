@@ -6,6 +6,7 @@ import type {
   ServerRequest,
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
+import { orgObjectUsageToolPairs } from '@sfoa/agent-playbook';
 import type { McpTool, McpToolConfig } from '@salesforce/mcp-provider-api';
 import type {
   RequestContext,
@@ -23,6 +24,7 @@ import {
 import type { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
 import type { OfficialToolPolicyRecord } from './official-tool-catalog.js';
+import { describeSoqlObjectUsageBlock, evaluateSoqlObjectUsageGuard } from './soql-usage-guard.js';
 import { withTimeout } from './timeouts.js';
 import { validateRemoteToolContract } from './upstream-drift.js';
 
@@ -103,7 +105,7 @@ export class RemoteToolFacade {
 
     return {
       ...official,
-      description: REMOTE_DESCRIPTIONS[this.getName()] ?? official.description,
+      description: this.describeRemoteTool(REMOTE_DESCRIPTIONS[this.getName()] ?? official.description),
       inputSchema,
       annotations: REMOTE_ANNOTATIONS[this.getName()] ?? official.annotations,
     };
@@ -123,6 +125,22 @@ export class RemoteToolFacade {
         this.options.redactionSecrets,
         this.options.context.correlationId,
       );
+    }
+    if (this.getName() === 'run_soql_query') {
+      const verdict = evaluateSoqlObjectUsageGuard(input);
+      if (verdict.blocked) {
+        const error = new RemoteRuntimeError(
+          'MCP_SOBJECT_NOT_IN_USE',
+          describeSoqlObjectUsageBlock(verdict.substitution),
+          { correlationId: this.options.context.correlationId },
+        );
+        await this.log('BLOCKED', elapsed(started), error.code, input);
+        return remoteRuntimeErrorToolResult(
+          error,
+          this.options.redactionSecrets,
+          this.options.context.correlationId,
+        );
+      }
     }
     const officialInput = { ...input, ...this.hostOwnedInput() };
     try {
@@ -167,6 +185,14 @@ export class RemoteToolFacade {
       await this.log('ERROR', elapsed(started), 'MCP_TOOL_EXECUTION_FAILED', input);
       throw error;
     }
+  }
+
+  private describeRemoteTool(base: string | undefined): string | undefined {
+    if (this.getName() !== 'run_soql_query') return base;
+    const pairs = orgObjectUsageToolPairs();
+    if (pairs.length === 0) return base;
+    const prefix = base !== undefined && base.length > 0 ? `${base} ` : '';
+    return `${prefix}Note: this org does not use the Salesforce standard objects ${pairs}; query the corresponding custom object for that business data.`;
   }
 
   private hostOwnedInput(): ToolInput {

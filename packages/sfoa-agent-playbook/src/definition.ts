@@ -1,9 +1,12 @@
+import { renderOrgObjectUsageRuleLines } from './org-object-usage.js';
+
 export const AGENT_WORKFLOWS = ['CORE', 'READ', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'ALL'] as const;
 export type AgentWorkflow = (typeof AGENT_WORKFLOWS)[number];
 
 export const PLAYBOOK_SECTION_NAMES = [
   'CORE',
   'READ',
+  'ORG_OBJECT_USAGE',
   'CREATE',
   'UPDATE',
   'DIAGNOSIS',
@@ -39,6 +42,12 @@ export const PLAYBOOK_DEFINITION: readonly PlaybookSection[] = Object.freeze([
     'Do not assume every object uses a field named `Name`; use a display/name field only when current Salesforce evidence identifies it.',
     'Treat empty, truncated, denied, or insufficient Tool results explicitly; never invent missing records or fields.',
     '`get_username` may confirm the server-selected Salesforce identity when enabled, but it never authorizes identity switching.',
+  ]),
+  section('ORG_OBJECT_USAGE', 'Use the org object substitutions', [
+    'This org declares several Salesforce standard objects NOT in use; the business records they represent live in the listed custom objects. Target the custom object, never the unused standard object.',
+    ...renderOrgObjectUsageRuleLines(),
+    'When a user asks about a concept handled by a substituted object, map the concept to the custom object API name before querying; do not rely on model memory of standard-object names or labels.',
+    'A USER `run_soql_query` whose top-level object is a declared not-in-use standard object is rejected before execution with `MCP_SOBJECT_NOT_IN_USE` and the replacement custom object. On that error, retry against the replacement custom object.',
   ]),
   section('CREATE', 'Create a record', [
     'Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.',
@@ -105,7 +114,7 @@ export const PLAYBOOK_DEFINITION: readonly PlaybookSection[] = Object.freeze([
 
 export const WORKFLOW_SECTION_MAP: Readonly<Record<AgentWorkflow, readonly PlaybookSectionName[]>> = Object.freeze({
   CORE: selection('CORE', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
-  READ: selection('CORE', 'READ', 'LOOKUP', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
+  READ: selection('CORE', 'READ', 'ORG_OBJECT_USAGE', 'LOOKUP', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
   CREATE: selection('CORE', 'CREATE', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
   UPDATE: selection('CORE', 'UPDATE', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
   DIAGNOSIS: selection('CORE', 'DIAGNOSIS', 'READ', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),

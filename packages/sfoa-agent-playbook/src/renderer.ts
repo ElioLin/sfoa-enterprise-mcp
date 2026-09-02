@@ -6,12 +6,14 @@ import {
   type AgentWorkflow,
   type PlaybookSectionName,
 } from './definition.js';
+import { orgObjectUsageServerPointer } from './org-object-usage.js';
 import { AGENT_PLAYBOOK_VERSION, GENERATED_AGENT_ARTIFACT_MARKER } from './version.js';
 
 export function renderServerInstructions(capabilities?: AgentCapabilities): string {
   const fallback = capabilities?.enabledTools.includes('get_agent_playbook') === true
     ? 'Clients without Resource/Prompt support may call `get_agent_playbook`.'
     : 'Do not call `get_agent_playbook` unless it is listed as enabled.';
+  const orgObjectPointer = orgObjectUsageServerPointer();
   return [
     `SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION}.`,
     'Use enabled MCP Tools for live Salesforce facts; never guess current records, Picklist values, Lookup targets, required values, or Salesforce identity.',
@@ -20,6 +22,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
     'Return Salesforce Record IDs and trusted links through `get_record_links` when enabled.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
     'Read `sfoa://agent-playbook/current` for the full contract and `sfoa://agent-capabilities/current` for request capabilities; the `sfoa_salesforce_assistant` Prompt can select a workflow.',
+    ...(orgObjectPointer ? [orgObjectPointer] : []),
     fallback,
   ].join(' ');
 }
@@ -115,7 +118,7 @@ export function renderSafetyReference(): string {
 export function renderWorkflowReference(): string {
   return renderSelectedReference(
     'SFoA Tool Workflows',
-    ['READ', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
+    ['READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
   );
 }
 
