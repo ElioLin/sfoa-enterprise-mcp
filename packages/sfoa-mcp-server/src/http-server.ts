@@ -73,6 +73,8 @@ export type RemoteMcpServerMetrics = Readonly<{
   totalRequests: number;
   activeRequests: number;
   cleanupFailures: number;
+  /** Non-POST method probes against a POST/GET-only endpoint (405), e.g. Streamable HTTP GET /mcp negotiation. */
+  methodProbes: number;
 }>;
 
 export type GracefulShutdownResult = Readonly<{
@@ -126,6 +128,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
   const activeRequests = new Set<Promise<void>>();
   let totalRequests = 0;
   let cleanupFailures = 0;
+  let methodProbes = 0;
   let ready = false;
   let shuttingDown = false;
   let shutdownPromise: Promise<GracefulShutdownResult> | undefined;
@@ -148,6 +151,9 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       isReady: () => ready && !shuttingDown,
       onCleanupFailure: () => {
         cleanupFailures += 1;
+      },
+      onMethodProbe: () => {
+        methodProbes += 1;
       },
     });
     activeRequests.add(task);
@@ -218,6 +224,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
         totalRequests,
         activeRequests: activeRequests.size,
         cleanupFailures,
+        methodProbes,
       }),
     close,
   });
@@ -247,6 +254,8 @@ type HandleRemoteRequestOptions = Readonly<{
   logger: RuntimeLogger;
   isReady(): boolean;
   onCleanupFailure(): void;
+  /** Invoked when a request is rejected because its HTTP method is not allowed for the endpoint (405). */
+  onMethodProbe(): void;
 }>;
 
 async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise<void> {
@@ -379,7 +388,15 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
     const normalized = normalizeRequestError(error, observation.correlationId);
     const mutationOperation = mutationRequestState.getOperation();
     const outcomeUnknown = normalized.code === 'MCP_DML_OUTCOME_UNKNOWN';
-    if (!transportTerminationLogged) {
+    const methodProbe = error instanceof RemoteHttpError && error.status === 405;
+    if (methodProbe) {
+      // A non-POST method against a POST/GET-only endpoint (e.g. the Streamable
+      // HTTP GET /mcp capability probe) is protocol negotiation, not an MCP
+      // JSON-RPC request. Respond 405 below but do not persist an
+      // MCP_REQUEST_INVALID ERROR audit row; the probe is observable at the
+      // transport edge (reverse-proxy access log) and via the methodProbes metric.
+      options.onMethodProbe();
+    } else if (!transportTerminationLogged) {
       const errorAuditLog = () => Promise.resolve(options.logger.log({
         correlationId: observation.correlationId,
         ...(observation.clientId ? { clientId: observation.clientId } : {}),
@@ -403,6 +420,12 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         durationMs: elapsed(started),
         result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
         errorCode: normalized.code,
+        ...(normalized.code === 'MCP_REQUEST_INVALID'
+          ? {
+              errorMessageSafe: normalized.message.slice(0, 512),
+              requestSummary: buildTransportRejectionSummary(options.request),
+            }
+          : {}),
         auditEvent: {
           eventCategory: requestErrorCategory(normalized.code),
           eventType: outcomeUnknown ? 'DML_OUTCOME_UNKNOWN' : 'REQUEST_TERMINAL',
@@ -886,6 +909,28 @@ function requestContentType(request: IncomingMessage): string {
   const value = request.headers['content-type'];
   const contentType = Array.isArray(value) ? value[0] : value;
   return typeof contentType === 'string' ? contentType.slice(0, 128) : 'application/json';
+}
+
+/**
+ * Self-describing request facts captured when an MCP request is rejected as
+ * invalid before an MCP JSON-RPC request/identity is established. Values are
+ * bounded and pass through the audit sanitizer on persistence; no bodies or
+ * secrets are included.
+ */
+function buildTransportRejectionSummary(request: IncomingMessage): Readonly<Record<string, unknown>> {
+  const requestUrl = new URL(request.url ?? '/', 'http://sfoa.invalid');
+  const forwarded = request.headers['x-forwarded-for'];
+  const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const source = (typeof forwardedValue === 'string' ? forwardedValue.split(',', 1)[0]?.trim() : '')
+    || request.socket.remoteAddress
+    || '';
+  return Object.freeze({
+    method: request.method ?? 'UNKNOWN',
+    path: requestUrl.pathname.slice(0, 256),
+    httpVersion: request.httpVersion,
+    contentType: requestContentType(request),
+    ...(source ? { source: source.slice(0, 128) } : {}),
+  });
 }
 
 function readAuditClientMetadata(headers: RequestHeaders): Readonly<Record<string, unknown>> {

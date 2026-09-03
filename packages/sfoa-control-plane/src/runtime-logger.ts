@@ -80,6 +80,7 @@ export class DatabaseRuntimeLogger implements RuntimeLogger {
           result: event.result,
           outcome: event.outcome ?? (event.result === 'PASS' ? 'SUCCESS' : event.result === 'BLOCKED' ? 'DENIED' : 'FAILED'),
           errorCode: event.errorCode,
+          errorMessageSafe: event.errorMessageSafe,
           durationMs: event.durationMs,
           auditIntegrityStatus: 'PARTIAL',
           requestSummary: {
@@ -112,6 +113,7 @@ export class DatabaseRuntimeLogger implements RuntimeLogger {
         result: event.result,
         outcome: event.outcome ?? (event.result === 'PASS' ? 'SUCCESS' : event.result === 'BLOCKED' ? 'DENIED' : 'FAILED'),
         errorCode: event.errorCode,
+        errorMessageSafe: event.errorMessageSafe,
         durationMs: event.durationMs,
         requestSummary: event.requestSummary,
         responseSummary: event.responseSummary,
@@ -224,6 +226,7 @@ function toAuditWrite(event: RuntimeLogEvent, buntuRawTokenEvidence?: string): i
     result: event.result,
     outcome: event.outcome ?? defaultOutcome(event.result),
     ...(event.errorCode ? { errorCode: event.errorCode } : {}),
+    ...(event.errorMessageSafe !== undefined ? { errorMessageSafe: event.errorMessageSafe } : {}),
     ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
     ...(event.requestSummary !== undefined ? { requestSummary: event.requestSummary } : {}),
     ...(event.responseSummary !== undefined ? { responseSummary: event.responseSummary } : {}),

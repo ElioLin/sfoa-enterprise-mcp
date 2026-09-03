@@ -31,6 +31,8 @@ export type RuntimeLogEvent = Readonly<{
   durationMs?: number;
   result: RuntimeLogResult;
   errorCode?: string;
+  /** Short, pre-redacted, human-safe terminal message persisted to the audit ledger (never a raw body or secret). */
+  errorMessageSafe?: string;
   requestSummary?: unknown;
   responseSummary?: unknown;
   auditEvent?: RuntimeAuditEventDescriptor;

@@ -288,6 +288,97 @@ test('HTTP runtime accepts USER_BOUND A/B without a platform header and applies 
   }
 });
 
+test('MCP_REQUEST_INVALID: non-POST method probes are not audited; malformed MCP requests are audited self-describing', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-transport-invalid-'));
+  const logger = new RecordingLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, new RecordingConnectionFactory(), logger);
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig(),
+    identityRuntime,
+  });
+  try {
+    // Streamable-HTTP GET /mcp capability probe: 405 is returned, but the probe
+    // is protocol negotiation (no MCP JSON-RPC request), so no ERROR audit row.
+    const getProbe = await fetch(server.mcpUrl, { method: 'GET' });
+    assert.equal(getProbe.status, 405);
+    assert.equal(await responseErrorCode(getProbe), 'MCP_REQUEST_INVALID');
+    assert.equal(server.getMetrics().methodProbes, 1);
+    assert.equal(
+      logger.events.some((event) => event.errorCode === 'MCP_REQUEST_INVALID'),
+      false,
+      'a 405 method probe must not be recorded as an MCP_REQUEST_INVALID audit event',
+    );
+
+    const optionsProbe = await fetch(server.mcpUrl, { method: 'OPTIONS' });
+    assert.equal(optionsProbe.status, 405);
+    assert.equal(server.getMetrics().methodProbes, 2);
+
+    // Unknown endpoint (404) is a real invalid request: still audited and now
+    // self-describing (method/path + safe message).
+    logger.events.length = 0;
+    const unknown = await fetch(new URL('/does-not-exist', server.mcpUrl), { method: 'GET' });
+    assert.equal(unknown.status, 404);
+    assert.equal(await responseErrorCode(unknown), 'MCP_REQUEST_INVALID');
+    const unknownEvent = logger.events.find((event) => event.errorCode === 'MCP_REQUEST_INVALID');
+    assert(unknownEvent, 'an unknown-endpoint 404 must still be audited');
+    assert.equal(unknownEvent.errorMessageSafe, 'The requested endpoint does not exist.');
+    assert.deepEqual(pickSummaryFields(unknownEvent.requestSummary), {
+      method: 'GET',
+      path: '/does-not-exist',
+      contentType: 'application/json',
+    });
+
+    // Wrong Content-Type (415): audited with the rejected content type.
+    logger.events.length = 0;
+    const wrongContentType = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: initializeBody(),
+    });
+    assert.equal(wrongContentType.status, 415);
+    assert.equal(await responseErrorCode(wrongContentType), 'MCP_REQUEST_INVALID');
+    const contentTypeEvent = logger.events.find((event) => event.errorCode === 'MCP_REQUEST_INVALID');
+    assert(contentTypeEvent, 'a 415 must still be audited');
+    assert.equal(contentTypeEvent.errorMessageSafe, 'Content-Type must be application/json.');
+    assert.deepEqual(pickSummaryFields(contentTypeEvent.requestSummary), {
+      method: 'POST',
+      path: '/mcp',
+      contentType: 'text/plain',
+    });
+
+    // Malformed JSON body (400): audited with the parse failure message.
+    logger.events.length = 0;
+    const badJson = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{ this is not json',
+    });
+    assert.equal(badJson.status, 400);
+    assert.equal(await responseErrorCode(badJson), 'MCP_REQUEST_INVALID');
+    const badJsonEvent = logger.events.find((event) => event.errorCode === 'MCP_REQUEST_INVALID');
+    assert(badJsonEvent, 'a malformed body must still be audited');
+    assert.equal(badJsonEvent.errorMessageSafe, 'The MCP POST body is not valid JSON.');
+    assert.deepEqual(pickSummaryFields(badJsonEvent.requestSummary), {
+      method: 'POST',
+      path: '/mcp',
+      contentType: 'application/json',
+    });
+    assert.equal(server.getMetrics().methodProbes, 2, 'only non-POST method probes increment methodProbes');
+  } finally {
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
+function pickSummaryFields(requestSummary: unknown): Readonly<{ method: string; path: string; contentType: string }> {
+  const record = isRecord(requestSummary) ? requestSummary : {};
+  return Object.freeze({
+    method: typeof record.method === 'string' ? record.method : '',
+    path: typeof record.path === 'string' ? record.path : '',
+    contentType: typeof record.contentType === 'string' ? record.contentType : '',
+  });
+}
+
 async function connectClient(server: RemoteMcpServer, platformUserId: string): Promise<Client> {
   const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
     requestInit: {

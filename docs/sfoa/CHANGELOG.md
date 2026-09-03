@@ -2,6 +2,14 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-03 — MCP transport-probe classification and self-describing MCP_REQUEST_INVALID audits
+
+- Diagnosed recurring `MCP_REQUEST_INVALID` ERROR rows as benign Streamable HTTP capability negotiation: each round, WorkBuddy/undici clients issue a non-POST probe against the POST-only `/mcp` endpoint (typically `GET /mcp` → 405), and every probe was previously persisted as an all-null ERROR audit row.
+- MCP method probes (HTTP 405 raised by `assertMethod` for a non-POST method against the POST/GET-only endpoint) now respond 405 as before but no longer persist an `MCP_REQUEST_INVALID` audit row; the probe stays observable at the transport edge (reverse-proxy access log) and in the new `methodProbes` `RemoteMcpServerMetrics` counter.
+- Genuine malformed-request terminal outcomes (unknown endpoint 404, non-JSON Content-Type 415, invalid/empty body 400, bad Content-Length) remain audited as `MCP_REQUEST_INVALID` but are now self-describing: they persist a pre-redacted short `error_message_safe` plus a bounded `request_summary_json` (method, path, HTTP version, content-type, client source) instead of null metadata.
+- Added optional `errorMessageSafe` to the `RuntimeLogEvent` contract and carried it through every `DatabaseRuntimeLogger` persistence path (`createCall`, direct `append`, and the async/legacy `toAuditWrite`) so the pre-redacted safe message reaches the durable `error_message_safe` column.
+- Added mcp-server and control-plane tests; the full `@sfoa/mcp-server` suite passes 88/88 and `@sfoa/control-plane` runtime-logger tests pass. No official Salesforce TypeScript file, migration, dependency, or lockfile change.
+
 ## 2026-09-03 — Admin identity routes: 用户名称 field, remark column, batch add, and auto-verification
 
 - Added the required human-readable `user_name` (用户名称) display field to Admin identity routes and surfaced the previously stored optional `remark` (备注) as a table column, in the route search keyword scope, and in the Admin Web create/edit form. `user_name` is display metadata only; it never selects a Salesforce identity or appears in Audit identity fields.

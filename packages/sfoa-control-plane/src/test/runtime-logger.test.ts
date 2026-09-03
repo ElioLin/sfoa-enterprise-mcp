@@ -187,3 +187,31 @@ test('Buntu raw Token remains only in the dedicated legacy IDENTITY_VALIDATION w
   assert.ok(snapshotEntry);
   assert.equal(JSON.stringify(snapshotEntry.snapshot).includes(rawToken), false);
 });
+
+test('database logger persists a pre-redacted safe terminal message and request facts on a runtime event', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const fallbackEvents: RuntimeLogEvent[] = [];
+  const logger = new DatabaseRuntimeLogger(
+    store.repositories.audits,
+    { log: (event) => { fallbackEvents.push(event); } },
+  );
+  await logger.log({
+    correlationId: 'corr-safe-msg',
+    result: 'ERROR',
+    errorCode: 'MCP_REQUEST_INVALID',
+    errorMessageSafe: 'Content-Type must be application/json.',
+    requestSummary: { method: 'POST', path: '/mcp', contentType: 'text/plain' },
+    auditEvent: {
+      eventCategory: 'MCP',
+      eventType: 'REQUEST_TERMINAL',
+      eventName: 'MCP request terminal outcome',
+      terminalSource: 'REQUEST',
+    },
+  });
+  const page = await store.repositories.audits.search({ correlationId: 'corr-safe-msg', limit: 10, offset: 0 });
+  assert.equal(page.items.length, 1);
+  assert.equal(page.items[0]?.errorCode, 'MCP_REQUEST_INVALID');
+  assert.equal(page.items[0]?.errorMessageSafe, 'Content-Type must be application/json.');
+  assert.deepEqual(page.items[0]?.requestSummary, { method: 'POST', path: '/mcp', contentType: 'text/plain' });
+  assert.equal(fallbackEvents.length, 0);
+});
