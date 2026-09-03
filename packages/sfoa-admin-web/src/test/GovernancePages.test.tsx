@@ -27,6 +27,7 @@ describe('Admin governance pages', () => {
     renderAdmin(<IdentityRoutesPage />);
 
     await user.click(await screen.findByRole('button', { name: '新建身份路由' }));
+    await user.type(screen.getByLabelText('用户名称'), '用户 A');
     await user.type(screen.getByLabelText('平台用户 ID'), 'platform-a');
     await user.type(screen.getByLabelText('Salesforce Username'), 'sf-user@example.com');
     await user.type(screen.getByLabelText('备注'), 'production route');
@@ -34,7 +35,7 @@ describe('Admin governance pages', () => {
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/routes') && init?.method === 'POST')).toBe(true));
     const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/routes') && init?.method === 'POST');
-    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ platformUserId: 'platform-a', salesforceUsername: 'sf-user@example.com', enabled: true });
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ platformUserId: 'platform-a', userName: '用户 A', salesforceUsername: 'sf-user@example.com', enabled: true });
     expect(await screen.findByText('MCP 接入配置')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /复制 Token/u }));
     await user.click(screen.getByRole('button', { name: /复制 Authorization/u }));
@@ -62,7 +63,7 @@ describe('Admin governance pages', () => {
     expect(screen.getByText(/共 45 条/u)).toBeInTheDocument();
     await user.click(screen.getByTitle('下一页'));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => new URL(String(url), 'http://test').searchParams.get('offset') === '20')).toBe(true));
-    await user.type(screen.getByLabelText('搜索平台用户或 Salesforce Username'), '  sf-user@example.com  ');
+    await user.type(screen.getByLabelText('搜索用户名称 / 平台用户 / Salesforce Username / 备注'), '  sf-user@example.com  ');
     await user.click(screen.getByRole('button', { name: /搜索$/u }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => {
       const parsed = new URL(String(url), 'http://test');
@@ -237,6 +238,7 @@ describe('Admin governance pages', () => {
     renderAdmin(<IdentityRoutesPage />);
 
     await user.click(await screen.findByRole('button', { name: '新建身份路由' }));
+    await user.type(screen.getByLabelText('用户名称'), '用户 A');
     await user.type(screen.getByLabelText('平台用户 ID'), 'platform-a');
     await user.type(screen.getByLabelText('Salesforce Username'), 'sf-user@example.com');
     await user.click(screen.getByRole('button', { name: '保存路由' }));
@@ -306,9 +308,9 @@ function page<T>(items: readonly T[]) {
   return { items, total: items.length, limit: 25, offset: 0, count: items.length, hasMore: false, nextOffset: null };
 }
 
-function routeRecord(overrides: Readonly<Partial<{ id: string; platformUserId: string; enabled: boolean }>> = {}) {
+function routeRecord(overrides: Readonly<Partial<{ id: string; platformUserId: string; userName: string; enabled: boolean }>> = {}) {
   return {
-    id: overrides.id ?? '1', platformUserId: overrides.platformUserId ?? 'platform-a', salesforceUsername: 'sf-user@example.com', enabled: overrides.enabled ?? true,
+    id: overrides.id ?? '1', platformUserId: overrides.platformUserId ?? 'platform-a', userName: overrides.userName ?? '用户 A', salesforceUsername: 'sf-user@example.com', enabled: overrides.enabled ?? true,
     remark: 'production route', rowVersion: '1', createdAt: NOW, updatedAt: NOW,
     credential: { id: '10', status: 'ACTIVE', tokenLast4: 'aaaa', generatedAt: NOW, lastUsedAt: null, rowVersion: '1' },
   };

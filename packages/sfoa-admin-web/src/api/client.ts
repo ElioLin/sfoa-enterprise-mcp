@@ -12,6 +12,8 @@ import type {
   AdminIdentityRouteCreateInput,
   AdminIdentityRouteUpdateInput,
   AdminIdentityCredentialResponse,
+  AdminIdentityRouteBatchCreateResponse,
+  AdminIdentityRouteBatchVerifyResponse,
   AdminIdentityRouteDto,
   AdminRoutesResponse,
   AdminSessionDto,
@@ -88,6 +90,14 @@ export const adminApi = Object.freeze({
     input: Readonly<{ credentialId: string | null; credentialRowVersion: string | null; routeRowVersion: string }>,
   ) => request<AdminIdentityCredentialResponse>(`/routes/${encodeURIComponent(id)}/credential/regenerate`, { method: 'POST', body: input }),
   verifyRoute: (id: string) => request<RouteVerificationDto>(`/routes/${encodeURIComponent(id)}/verify`, { method: 'POST' }),
+  batchCreateRoutes: (routes: readonly AdminIdentityRouteCreateInput[]) => request<AdminIdentityRouteBatchCreateResponse>(
+    '/routes/batch',
+    { method: 'POST', body: { routes } },
+  ),
+  batchVerifyRoutes: (ids: readonly string[]) => request<AdminIdentityRouteBatchVerifyResponse>(
+    '/routes/batch-verify',
+    { method: 'POST', body: { ids } },
+  ),
   tools: () => request<AdminToolsResponse>('/tools'),
   updateTool: (toolName: string, input: AdminToolControlUpdateInput) => request<ToolControlRecord>(
     `/tools/${encodeURIComponent(toolName)}`,

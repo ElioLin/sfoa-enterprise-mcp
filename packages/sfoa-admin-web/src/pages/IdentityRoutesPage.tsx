@@ -6,6 +6,7 @@ import {
   EllipsisOutlined,
   KeyOutlined,
   PlusOutlined,
+  ProfileOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -45,9 +46,11 @@ import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
 import { formatDateTime } from '../localization.js';
 import { copyTextToClipboard } from '../clipboard.js';
+import BatchAddIdentityRoutesModal from './identity-routes/BatchAddIdentityRoutesModal.js';
 
 const FALLBACK_PAGE_SIZE = 25;
-type RouteForm = Readonly<{ platformUserId: string; salesforceUsername: string; enabled: boolean; remark: string | null }>;
+type RouteForm = Readonly<{ userName: string; platformUserId: string; salesforceUsername: string; enabled: boolean; remark: string | null }>;
+type SaveTarget = Readonly<{ payload: RouteForm; editingRouteId: string | null; autoVerifyNow: boolean }>;
 
 export default function IdentityRoutesPage() {
   const [page, setPage] = useState(1);
@@ -57,6 +60,8 @@ export default function IdentityRoutesPage() {
   const [editing, setEditing] = useState<AdminIdentityRouteDto | 'create' | null>(null);
   const [credentialRouteId, setCredentialRouteId] = useState<string | null>(null);
   const [verification, setVerification] = useState<RouteVerificationDto | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [verifyAfterDrawerRouteId, setVerifyAfterDrawerRouteId] = useState<string | null>(null);
   const [form] = Form.useForm<RouteForm>();
   const queryClient = useQueryClient();
   const { message, modal } = App.useApp();
@@ -81,13 +86,18 @@ export default function IdentityRoutesPage() {
     if (page > lastPage) setPage(lastPage);
   }, [page, pageSize, query.data]);
 
+  const autoVerify = useMutation({
+    mutationFn: (routeId: string) => adminApi.verifyRoute(routeId),
+    onSuccess: setVerification,
+  });
+
   const save = useMutation({
-    mutationFn: async (values: RouteForm) => editing === 'create'
-      ? adminApi.createRoute(values)
+    mutationFn: async (target: SaveTarget) => editing === 'create'
+      ? adminApi.createRoute(target.payload)
       : editing
-        ? adminApi.updateRoute(editing.id, { ...values, rowVersion: editing.rowVersion })
+        ? adminApi.updateRoute(editing.id, { ...target.payload, rowVersion: editing.rowVersion })
         : Promise.reject(new Error('未选择用户身份路由。')),
-    onSuccess: async (result) => {
+    onSuccess: async (result, target) => {
       await invalidateRoutes(queryClient);
       setEditing(null);
       form.resetFields();
@@ -98,8 +108,12 @@ export default function IdentityRoutesPage() {
         queryClient.setQueryData(['route-credential', result.route.id], result);
         setCredentialRouteId(result.route.id);
         void message.success('路由创建成功，并已生成 MCP 用户凭证。');
+        // Auto-verify Salesforce connectivity once the credential drawer is
+        // closed so the verification result never overlays the token-copy path.
+        setVerifyAfterDrawerRouteId(result.route.id);
       } else {
         void message.success('用户身份路由已保存，新 MCP 请求将加载最新路由。');
+        if (target.autoVerifyNow && target.editingRouteId) autoVerify.mutate(target.editingRouteId);
       }
     },
   });
@@ -114,6 +128,7 @@ export default function IdentityRoutesPage() {
   const enable = useMutation({
     mutationFn: (record: AdminIdentityRouteDto) => adminApi.updateRoute(record.id, {
       platformUserId: record.platformUserId,
+      userName: record.userName,
       salesforceUsername: record.salesforceUsername,
       enabled: true,
       remark: record.remark,
@@ -155,11 +170,12 @@ export default function IdentityRoutesPage() {
   const mutationError = save.error ?? disable.error ?? enable.error ?? remove.error ?? verify.error ?? regenerate.error;
 
   const openCreate = (): void => {
-    form.setFieldsValue({ platformUserId: '', salesforceUsername: '', enabled: true, remark: null });
+    form.setFieldsValue({ userName: '', platformUserId: '', salesforceUsername: '', enabled: true, remark: null });
     setEditing('create');
   };
   const openEdit = (record: AdminIdentityRouteDto): void => {
     form.setFieldsValue({
+      userName: record.userName,
       platformUserId: record.platformUserId,
       salesforceUsername: record.salesforceUsername,
       enabled: record.enabled,
@@ -229,7 +245,12 @@ export default function IdentityRoutesPage() {
     <PageFrame
       title="用户身份路由"
       description="将平台用户映射到 Salesforce 身份，并管理用户专属 MCP 接入凭证。"
-      action={<Button type="primary" aria-label="新建身份路由" icon={<PlusOutlined />} onClick={openCreate}>新建身份路由</Button>}
+      action={
+        <Space wrap>
+          <Button type="primary" aria-label="新建身份路由" icon={<PlusOutlined />} onClick={openCreate}>新建身份路由</Button>
+          <Button aria-label="批量添加身份路由" icon={<ProfileOutlined />} onClick={() => setBatchOpen(true)}>批量添加</Button>
+        </Space>
+      }
     >
       <Space orientation="vertical" size="middle" className="full-width">
         <MutationError error={mutationError} />
@@ -238,8 +259,8 @@ export default function IdentityRoutesPage() {
             value={searchInput}
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="搜索平台用户或 Salesforce Username"
-            aria-label="搜索平台用户或 Salesforce Username"
+            placeholder="搜索用户名称 / 平台用户 / Salesforce Username / 备注"
+            aria-label="搜索用户名称 / 平台用户 / Salesforce Username / 备注"
             onChange={(event) => setSearchInput(event.target.value)}
             onPressEnter={applySearch}
           />
@@ -259,8 +280,12 @@ export default function IdentityRoutesPage() {
                 rowKey="id"
                 pagination={false}
                 dataSource={[...query.data.items]}
-                scroll={{ x: 1330 }}
+                scroll={{ x: 1860 }}
                 columns={[
+                  {
+                    title: '用户名称', dataIndex: 'userName', width: 180,
+                    render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+                  },
                   {
                     title: '平台用户', dataIndex: 'platformUserId', width: 190,
                     render: (value: string) => <CopyableValue value={value} label="平台用户 ID" onCopy={copyText} code />,
@@ -268,6 +293,10 @@ export default function IdentityRoutesPage() {
                   {
                     title: 'Salesforce Username', dataIndex: 'salesforceUsername', width: 270,
                     render: (value: string) => <CopyableValue value={value} label="Salesforce Username" onCopy={copyText} />,
+                  },
+                  {
+                    title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
+                    render: (value: string | null) => value || <Typography.Text type="secondary">—</Typography.Text>,
                   },
                   {
                     title: '路由状态', dataIndex: 'enabled', width: 110,
@@ -352,10 +381,31 @@ export default function IdentityRoutesPage() {
         onOk={() => void form.submit()}
         destroyOnHidden
       >
-        <Form<RouteForm> form={form} layout="vertical" onFinish={(values) => save.mutate({ ...values, remark: values.remark || null })}>
+        <Form<RouteForm> form={form} layout="vertical" onFinish={(values) => {
+          const payload: RouteForm = { ...values, remark: values.remark || null };
+          if (editing === 'create') {
+            save.mutate({ payload, editingRouteId: null, autoVerifyNow: false });
+            return;
+          }
+          if (editing) {
+            save.mutate({
+              payload,
+              editingRouteId: editing.id,
+              autoVerifyNow: editing.salesforceUsername !== (values.salesforceUsername ?? '').trim(),
+            });
+          }
+        }}>
           {editing === 'create' ? (
-            <Alert className="route-form-notice" type="info" showIcon title="保存后系统会自动为该平台用户生成专属 MCP 接入 Token。" />
+            <Alert className="route-form-notice" type="info" showIcon title="保存后系统会自动为该平台用户生成专属 MCP 接入 Token；关闭接入配置抽屉后会自动验证该路由与 Salesforce 的连通性。" />
           ) : null}
+          <Form.Item
+            name="userName"
+            label="用户名称"
+            extra="该平台用户的人类可读名称（如真实姓名）；区别于平台用户 ID。"
+            rules={[{ required: true, whitespace: true, message: '请输入用户名称。' }, { max: 128 }]}
+          >
+            <Input autoComplete="off" />
+          </Form.Item>
           <Form.Item
             name="platformUserId"
             label="平台用户 ID"
@@ -383,6 +433,12 @@ export default function IdentityRoutesPage() {
         size="large"
         destroyOnHidden
         onClose={() => setCredentialRouteId(null)}
+        afterOpenChange={(open) => {
+          if (open || !verifyAfterDrawerRouteId) return;
+          const routeId = verifyAfterDrawerRouteId;
+          setVerifyAfterDrawerRouteId(null);
+          autoVerify.mutate(routeId);
+        }}
         extra={<Tooltip title="刷新当前凭据"><Button aria-label="刷新当前凭据" icon={<ReloadOutlined />} loading={credentialQuery.isFetching} onClick={() => void credentialQuery.refetch()} /></Tooltip>}
       >
         {credentialQuery.isPending ? <LoadingState rows={5} /> : credentialQuery.isError ? (
@@ -416,6 +472,13 @@ export default function IdentityRoutesPage() {
           </Descriptions>
         ) : null}
       </Modal>
+      <BatchAddIdentityRoutesModal
+        open={batchOpen}
+        existingRoutes={query.data?.items ?? []}
+        onCommitted={() => void invalidateRoutes(queryClient)}
+        onEditRoute={(route) => { setBatchOpen(false); openEdit(route); }}
+        onClose={() => setBatchOpen(false)}
+      />
     </PageFrame>
   );
 }

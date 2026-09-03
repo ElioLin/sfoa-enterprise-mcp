@@ -307,6 +307,35 @@ div.surface-card:not(.ant-card) {
   overflow-wrap: anywhere;
 }
 
+.row-end-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.batch-issue {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.batch-issue .anticon {
+  align-self: center;
+  flex: 0 0 auto;
+}
+
+.success-icon {
+  color: #52c41a;
+}
+
+.verify-fail-text {
+  max-width: 230px;
+  white-space: nowrap;
+}
+
+
 .credential-json {
   max-height: 340px;
 }

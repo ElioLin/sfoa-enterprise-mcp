@@ -29,6 +29,7 @@ describe('Admin login', () => {
     expect(request?.[1]?.credentials).toBe('include');
     await adminApi.createRoute({
       platformUserId: 'platform-test',
+      userName: '测试用户',
       salesforceUsername: 'user@example.invalid',
       enabled: true,
       remark: null,
