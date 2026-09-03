@@ -17,6 +17,8 @@ import {
   adminManagedDmlFieldRuleUpdateSchema,
   adminIdPathSchema,
   adminIdentityCredentialRegenerateSchema,
+  adminIdentityRouteBatchCreateSchema,
+  adminIdentityRouteBatchVerifySchema,
   adminIdentityRouteCreateSchema,
   adminIdentityRouteListQuerySchema,
   adminIdentityRouteUpdateSchema,
@@ -30,6 +32,8 @@ import {
   ControlPlaneAdminService,
   ControlPlaneError,
   type AdminIdentityCredentialResponse,
+  type AdminIdentityRouteBatchVerifyResponse,
+  type AdminIdentityRouteBatchVerifyRow,
   type AdminIdentityRouteDto,
   type AuditPersistenceHealth,
   type ControlPlaneRepositoriesWithAuditTrace,
@@ -53,8 +57,9 @@ import { buildAdminToolCatalog } from './tool-catalog.js';
 import { buildAdminAuditTrace } from './audit-trace.js';
 import { verifyDiagnosticConfig, verifyIdentityRoute } from './verification.js';
 
-const MAX_JSON_BODY_BYTES = 65_536;
+const MAX_JSON_BODY_BYTES = 262_144;
 const TOOL_CONTROL_PAGE_LIMIT = 100;
+const BATCH_VERIFY_CONCURRENCY = 6;
 
 export type McpHealthProbeResult = Readonly<{
   status: 'UP' | 'DOWN' | 'UNKNOWN';
@@ -91,6 +96,7 @@ export type StartAdminApiServerOptions = Readonly<{
   adminService: Pick<
     ControlPlaneAdminService,
     | 'createIdentityRoute'
+    | 'batchCreateIdentityRoutes'
     | 'updateIdentityRoute'
     | 'disableIdentityRoute'
     | 'readIdentityCredential'
@@ -361,6 +367,28 @@ async function dispatchAuthenticated(
       remark: input.remark ?? null,
     }, session.username);
     writeJson(response, 201, toCredentialResponse(created, options.system.mcpPublicEndpoint));
+    return;
+  }
+
+  if (path === `${ADMIN_API_PREFIX}/routes/batch`) {
+    assertMethod(request, 'POST');
+    assertNoQuery(url);
+    const input = parseWithSchema(adminIdentityRouteBatchCreateSchema, await readJsonBody(request));
+    const result = await options.adminService.batchCreateIdentityRoutes(
+      input.routes.map((route) => ({ ...route, remark: route.remark ?? null })),
+      session.username,
+    );
+    writeJson(response, 200, result);
+    return;
+  }
+
+  if (path === `${ADMIN_API_PREFIX}/routes/batch-verify`) {
+    assertMethod(request, 'POST');
+    assertNoQuery(url);
+    const input = parseWithSchema(adminIdentityRouteBatchVerifySchema, await readJsonBody(request));
+    const rows = await verifyIdentityRouteBatch(options, input.ids, session.username, correlationId);
+    const body: AdminIdentityRouteBatchVerifyResponse = Object.freeze({ rows });
+    writeJson(response, 200, body);
     return;
   }
 
@@ -782,6 +810,69 @@ async function appendAdminEvent(
   }
 }
 
+async function verifyIdentityRouteBatch(
+  options: StartAdminApiServerOptions,
+  ids: readonly string[],
+  actorAdmin: string,
+  correlationId: string,
+): Promise<readonly AdminIdentityRouteBatchVerifyRow[]> {
+  const rows = new Array<AdminIdentityRouteBatchVerifyRow>(ids.length);
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= ids.length) return;
+      const id = ids[index] as string;
+      const route = await options.store.repositories.identityRoutes.getById(id);
+      if (!route) {
+        rows[index] = Object.freeze({
+          index,
+          id,
+          ok: false,
+          error: Object.freeze({ code: 'MCP_CONTROL_PLANE_NOT_FOUND', message: 'Identity route was not found.' }),
+        });
+        continue;
+      }
+      try {
+        const verification = await verifyIdentityRoute(options.identityRuntime, route, correlationId);
+        await appendAdminEvent(options, {
+          correlationId,
+          actorAdmin,
+          platformUserId: route.platformUserId,
+          salesforceUsername: route.salesforceUsername,
+          executionRole: 'USER',
+          operation: 'VERIFY_IDENTITY_ROUTE',
+          recordId: route.id,
+          result: verification.status === 'PASS' ? 'PASS' : 'ERROR',
+          outcome: verification.status === 'PASS' ? 'SUCCESS' : 'FAILED',
+          errorCode: verification.error?.code,
+          durationMs: verification.durationMs,
+          responseSummary: {
+            status: verification.status,
+            identityMatched: verification.identityMatched,
+            salesforceUsername: verification.salesforceUsername,
+            batch: true,
+          },
+        });
+        rows[index] = Object.freeze({ index, id, ok: true, verification });
+      } catch (error) {
+        const mapped = mapAdminError(error, options.identityRuntime.redactionSecrets);
+        rows[index] = Object.freeze({
+          index,
+          id,
+          ok: false,
+          error: Object.freeze({ code: mapped.code, message: mapped.message }),
+        });
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(BATCH_VERIFY_CONCURRENCY, ids.length) }, () => worker()),
+  );
+  return Object.freeze(rows);
+}
+
 function toAdminIdentityRoute(
   route: IdentityRouteRecord,
   credential: IdentityCredentialRecord | undefined,
@@ -848,7 +939,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const declared = Number(singleHeader(request.headers['content-length']));
   if (Number.isFinite(declared) && declared > MAX_JSON_BODY_BYTES) {
     request.resume();
-    throw new AdminHttpError('MCP_ADMIN_REQUEST_TOO_LARGE', 'Admin JSON body exceeds 65536 bytes.', 413);
+    throw new AdminHttpError('MCP_ADMIN_REQUEST_TOO_LARGE', 'Admin JSON body exceeds 262144 bytes.', 413);
   }
   const chunks: Buffer[] = [];
   let bytes = 0;
@@ -857,7 +948,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
     bytes += buffer.length;
     if (bytes > MAX_JSON_BODY_BYTES) {
       request.resume();
-      throw new AdminHttpError('MCP_ADMIN_REQUEST_TOO_LARGE', 'Admin JSON body exceeds 65536 bytes.', 413);
+      throw new AdminHttpError('MCP_ADMIN_REQUEST_TOO_LARGE', 'Admin JSON body exceeds 262144 bytes.', 413);
     }
     chunks.push(buffer);
   }

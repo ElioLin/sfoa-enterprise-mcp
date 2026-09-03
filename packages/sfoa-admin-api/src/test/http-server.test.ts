@@ -304,6 +304,120 @@ test('identity route APIs expose filtered totals and copy-ready credentials only
   assert.equal(deleted.status, 200);
 });
 
+test('batch identity-route creation commits accepted rows and returns no plaintext token', async (context) => {
+  const options = createOptions(PASSWORD, createRepositories());
+  const server = await startAdminApiServer(options);
+  context.after(() => server.close());
+  const root = server.baseUrl.href.replace(/\/$/u, '');
+  const login = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
+  const cookie = login.headers.get('set-cookie');
+  assert.ok(cookie);
+  const session = await login.json() as Readonly<{ csrfToken: string }>;
+
+  const empty = await postJson(`${root}/routes/batch`, { routes: [] }, ORIGIN, cookie, session.csrfToken);
+  assert.equal(empty.status, 400);
+
+  const payload = {
+    routes: [
+      { ...routeInput(), platformUserId: 'batch-one', userName: 'Batch One', salesforceUsername: 'one@example.invalid' },
+      { ...routeInput(), platformUserId: 'batch-two', userName: 'Batch Two', salesforceUsername: 'two@example.invalid', remark: '备注' },
+    ],
+  };
+  const batch = await postJson(`${root}/routes/batch`, payload, ORIGIN, cookie, session.csrfToken);
+  assert.equal(batch.status, 200);
+  const body = await batch.json() as Readonly<{
+    committed: boolean;
+    createdCount: number;
+    rows: readonly Readonly<{ index: number; ok: boolean; platformUserId: string; credential?: unknown }>[];
+  }>;
+  assert.equal(body.committed, true);
+  assert.equal(body.createdCount, 2);
+  assert.equal(body.rows.length, 2);
+  assert.ok(body.rows.every((row) => row.ok === true && row.credential !== undefined));
+  assert.equal(JSON.stringify(body).includes('sfoa_ub1_'), false);
+
+  const methodRejected = await fetch(`${root}/routes/batch`, {
+    method: 'PUT', headers: mutationHeaders(cookie, session.csrfToken), body: JSON.stringify(payload),
+  });
+  assert.equal(methodRejected.status, 405);
+});
+
+test('batch verify reports PASS/FAIL per route, marks missing routes, and audits each live verification', async (context) => {
+  const repositories = createRepositories();
+  const baseAuditsAppend = repositories.audits.append;
+  const appended: AuditWrite[] = [];
+  const verifyRepositories: ControlPlaneRepositoriesWithAuditTrace = Object.freeze({
+    ...repositories,
+    identityRoutes: Object.freeze({
+      ...repositories.identityRoutes,
+      getById: async (id: string) => {
+        if (id === '3') return undefined;
+        return routeRecord({
+          id,
+          platformUserId: `platform-${id}`,
+          userName: `Platform ${id}`,
+          salesforceUsername: id === '1' ? 'user@example.invalid' : 'other@example.invalid',
+          enabled: true,
+          remark: null,
+          rowVersion: '1',
+        });
+      },
+    }),
+    audits: Object.freeze({
+      ...repositories.audits,
+      append: async (event: AuditWrite) => {
+        appended.push(event);
+        return baseAuditsAppend(event);
+      },
+    }),
+  });
+  const usernames = ['user@example.invalid', 'wrong@example.invalid'];
+  const identityRuntime = Object.freeze({
+    redactionSecrets: Object.freeze([]),
+    scopeFactory: Object.freeze({
+      createForRoute: async () => {
+        const username = usernames.shift();
+        return Object.freeze({
+          getConnection: async () => Object.freeze({ identity: async () => Object.freeze({ username }) }),
+          close: async () => undefined,
+        });
+      },
+    }),
+  }) as unknown as IdentityRuntime;
+
+  const base = createOptions(PASSWORD, verifyRepositories);
+  const server = await startAdminApiServer({ ...base, identityRuntime });
+  context.after(() => server.close());
+  const root = server.baseUrl.href.replace(/\/$/u, '');
+  const login = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
+  const cookie = login.headers.get('set-cookie');
+  assert.ok(cookie);
+  const session = await login.json() as Readonly<{ csrfToken: string }>;
+
+  const verify = await postJson(`${root}/routes/batch-verify`, { ids: ['1', '2', '3'] }, ORIGIN, cookie, session.csrfToken);
+  assert.equal(verify.status, 200);
+  const body = await verify.json() as Readonly<{
+    rows: readonly Readonly<{
+      index: number;
+      id: string;
+      ok: boolean;
+      verification?: Readonly<{ status: string; identityMatched: boolean }>;
+      error?: Readonly<{ code: string }>;
+    }>[];
+  }>;
+  assert.equal(body.rows.length, 3);
+  assert.equal(body.rows[0]?.ok, true);
+  assert.equal(body.rows[0]?.verification?.status, 'PASS');
+  assert.equal(body.rows[1]?.ok, true);
+  assert.equal(body.rows[1]?.verification?.status, 'FAIL');
+  assert.equal(body.rows[1]?.verification?.identityMatched, false);
+  assert.equal(body.rows[2]?.ok, false);
+  assert.equal(body.rows[2]?.error?.code, 'MCP_CONTROL_PLANE_NOT_FOUND');
+  const verifyAudits = appended.filter((event) => event.operation === 'VERIFY_IDENTITY_ROUTE');
+  assert.equal(verifyAudits.length, 2);
+  assert.deepEqual([...verifyAudits].map((event) => event.recordId).sort(), ['1', '2']);
+});
+
 function createOptions(password: string, repositories: ControlPlaneRepositoriesWithAuditTrace): StartAdminApiServerOptions {
   const config: AdminApiConfig = Object.freeze({
     bindHost: '127.0.0.1', port: 0, allowedOrigin: ORIGIN, username: ADMIN, password,
@@ -325,6 +439,25 @@ function createOptions(password: string, repositories: ControlPlaneRepositoriesW
       route: routeRecord({ ...input, id: '1', rowVersion: '1' }),
       credential: credentialRecord(),
       token: TEST_USER_BOUND_TOKEN,
+    }),
+    batchCreateIdentityRoutes: async (inputs) => Object.freeze({
+      committed: true,
+      createdCount: inputs.length,
+      rows: Object.freeze(inputs.map((input, index) => Object.freeze({
+        index,
+        platformUserId: input.platformUserId,
+        salesforceUsername: input.salesforceUsername,
+        ok: true,
+        route: routeRecord({ ...input, id: String(index + 1), rowVersion: '1' }),
+        credential: Object.freeze({
+          id: `cred-${index + 1}`,
+          status: 'ACTIVE' as const,
+          tokenLast4: '1234',
+          generatedAt: now,
+          lastUsedAt: null,
+          rowVersion: '1',
+        }),
+      }))),
     }),
     updateIdentityRoute: async (id, input) => {
       if (input.rowVersion === '99') {
@@ -490,12 +623,18 @@ function createRepositories(
   });
 }
 
-function routeInput(): Readonly<{ platformUserId: string; salesforceUsername: string; enabled: boolean; remark: null }> {
-  return Object.freeze({ platformUserId: 'platform-user-a', salesforceUsername: 'user@example.invalid', enabled: true, remark: null });
+function routeInput(): Readonly<{
+  platformUserId: string; userName: string; salesforceUsername: string; enabled: boolean; remark: null;
+}> {
+  return Object.freeze({
+    platformUserId: 'platform-user-a', userName: 'Platform User A', salesforceUsername: 'user@example.invalid',
+    enabled: true, remark: null,
+  });
 }
 
 function routeRecord(input: Readonly<{
-  id: string; platformUserId: string; salesforceUsername: string; enabled: boolean; remark: string | null; rowVersion: string;
+  id: string; platformUserId: string; userName: string; salesforceUsername: string; enabled: boolean;
+  remark: string | null; rowVersion: string;
 }>): IdentityRouteRecord {
   return Object.freeze({ ...input, createdAt: now, updatedAt: now });
 }

@@ -71,14 +71,15 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
     ...(toolName === 'run_soql_query' ? {} : { reason: 'Unknown Tool cannot be enabled.' }),
   }), testCredentialCipher());
   const first = await service.createIdentityRoute({
-    platformUserId: 'platform-a', salesforceUsername: 'shared@example.invalid', enabled: true, remark: null,
+    platformUserId: 'platform-a', userName: 'platform-a', salesforceUsername: 'shared@example.invalid', enabled: true, remark: null,
   }, 'admin');
   await service.createIdentityRoute({
-    platformUserId: 'platform-b', salesforceUsername: 'shared@example.invalid', enabled: true, remark: null,
+    platformUserId: 'platform-b', userName: 'platform-b', salesforceUsername: 'shared@example.invalid', enabled: true, remark: null,
   }, 'admin');
   await assert.rejects(
     service.updateIdentityRoute(first.route.id, {
       platformUserId: first.route.platformUserId,
+      userName: first.route.userName,
       salesforceUsername: first.route.salesforceUsername,
       enabled: true,
       remark: null,
@@ -99,7 +100,7 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
   store.setAuditFailure(true);
   await assert.rejects(
     service.createIdentityRoute({
-      platformUserId: 'rolled-back', salesforceUsername: 'rollback@example.invalid', enabled: true, remark: null,
+      platformUserId: 'rolled-back', userName: 'rolled-back', salesforceUsername: 'rollback@example.invalid', enabled: true, remark: null,
     }, 'admin'),
     (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_AUDIT_FAILED',
   );
@@ -110,7 +111,7 @@ test('Diagnostic identity remains distinct from every active USER route', async 
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
   await service.createIdentityRoute({
-    platformUserId: 'platform-a', salesforceUsername: 'user@example.invalid', enabled: true, remark: null,
+    platformUserId: 'platform-a', userName: 'platform-a', salesforceUsername: 'user@example.invalid', enabled: true, remark: null,
   }, 'admin');
   await assert.rejects(
     service.updateDiagnostic({
@@ -213,6 +214,86 @@ test('managed field rules are rejected when the parent DML policy disallows the 
   assert.equal(marker.applyOnCreate, true);
   assert.equal(marker.applyOnUpdate, false);
 });
+
+test('batch create commits every accepted route with per-row credentials and audits, returning no plaintext token', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
+  const result = await service.batchCreateIdentityRoutes([
+    routeLike('batch-a', 'a@example.invalid'),
+    routeLike('batch-b', 'b@example.invalid'),
+    routeLike('batch-c', 'shared@example.invalid'),
+    routeLike('batch-d', 'shared@example.invalid'),
+  ], 'batch-admin');
+  assert.equal(result.committed, true);
+  assert.equal(result.createdCount, 4);
+  assert.equal(result.rows.length, 4);
+  assert.ok(result.rows.every((row) => row.ok === true && row.route !== undefined && row.credential !== undefined));
+  assert.equal(JSON.stringify(result).includes('sfoa_ub1_'), false);
+  const page = await store.repositories.identityRoutes.list({ limit: 20, offset: 0 });
+  assert.deepEqual(page.items.map((route) => route.platformUserId).sort(), ['batch-a', 'batch-b', 'batch-c', 'batch-d']);
+  for (const row of result.rows) {
+    const credential = row.credential as NonNullable<typeof row.credential>;
+    const route = row.route as NonNullable<typeof row.route>;
+    assert.equal((await store.repositories.identityCredentials.getById(credential.id))?.identityRouteId, route.id);
+    assert.equal(credential.tokenLast4.length, 4);
+  }
+  const audits = await store.repositories.audits.search({ limit: 40, offset: 0 });
+  assert.equal(audits.items.filter((audit) => audit.operation === 'CREATE_IDENTITY_ROUTE').length, 4);
+  assert.equal(audits.items.every((audit) => audit.actorAdmin === 'batch-admin'), true);
+});
+
+test('batch create with an in-batch duplicate or an existing route reports committed:false and writes nothing', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
+  const duplicated = await service.batchCreateIdentityRoutes([
+    routeLike('same-user', 'dup@example.invalid'),
+    routeLike('other-user', 'other@example.invalid'),
+    routeLike('same-user', 'dup2@example.invalid'),
+  ], 'batch-admin');
+  assert.equal(duplicated.committed, false);
+  assert.equal(duplicated.createdCount, 0);
+  assert.equal(duplicated.rows.length, 1);
+  assert.equal(duplicated.rows[0]?.platformUserId, 'same-user');
+  assert.equal(duplicated.rows[0]?.ok, false);
+  assert.equal(duplicated.rows[0]?.error?.code, 'MCP_CONTROL_PLANE_CONFLICT');
+  assert.equal(await store.repositories.identityRoutes.getByPlatformUserId('same-user'), undefined);
+  assert.equal(await store.repositories.identityRoutes.getByPlatformUserId('other-user'), undefined);
+
+  await service.createIdentityRoute(routeLike('existing-user', 'existing@example.invalid'), 'admin');
+  const existing = await service.batchCreateIdentityRoutes([
+    routeLike('fresh-user', 'fresh@example.invalid'),
+    routeLike('existing-user', 'existing2@example.invalid'),
+  ], 'batch-admin');
+  assert.equal(existing.committed, false);
+  assert.equal(existing.createdCount, 0);
+  assert.equal(existing.rows.length, 1);
+  assert.equal(existing.rows[0]?.platformUserId, 'existing-user');
+  assert.equal(existing.rows[0]?.error?.code, 'MCP_CONTROL_PLANE_CONFLICT');
+  assert.equal(await store.repositories.identityRoutes.getByPlatformUserId('fresh-user'), undefined);
+});
+
+test('batch create rejects an enabled row colliding with the enabled Diagnostic username without writing', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
+  await service.updateDiagnostic({
+    salesforceUsername: 'diag@example.invalid', enabled: true,
+    testMetadataType: 'ApexClass', testMetadataFullName: 'SafeClass',
+  }, 'admin');
+  const result = await service.batchCreateIdentityRoutes([
+    routeLike('ok-user', 'ok@example.invalid'),
+    { ...routeLike('diag-user', 'DIAG@example.invalid') },
+  ], 'batch-admin');
+  assert.equal(result.committed, false);
+  assert.equal(result.createdCount, 0);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0]?.platformUserId, 'diag-user');
+  assert.equal(result.rows[0]?.error?.code, 'MCP_CONTROL_PLANE_CONFLICT');
+  assert.equal(await store.repositories.identityRoutes.getByPlatformUserId('ok-user'), undefined);
+});
+
+function routeLike(platformUserId: string, salesforceUsername: string) {
+  return Object.freeze({ platformUserId, userName: platformUserId, salesforceUsername, enabled: true, remark: null });
+}
 
 function testCredentialCipher(): IdentityCredentialCipher {
   return new IdentityCredentialCipher(Buffer.alloc(32, 7));

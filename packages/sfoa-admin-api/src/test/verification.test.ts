@@ -7,6 +7,7 @@ import { verifyIdentityRoute } from '../verification.js';
 const route: IdentityRouteRecord = Object.freeze({
   id: '1',
   platformUserId: 'platform-user-a',
+  userName: 'Platform User A',
   salesforceUsername: 'Exact.User@example.invalid',
   enabled: true,
   remark: null,

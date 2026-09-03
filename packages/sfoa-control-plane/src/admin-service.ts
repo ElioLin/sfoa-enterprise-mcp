@@ -12,6 +12,11 @@ import {
   type RuntimeSettingRecord,
   type ToolControlRecord,
 } from './contracts.js';
+import type {
+  AdminIdentityRouteBatchCreateResponse,
+  AdminIdentityRouteBatchRow,
+  AdminIdentityCredentialSummaryDto,
+} from './admin-contracts.js';
 import { ControlPlaneError } from './errors.js';
 import { IdentityCredentialCipher } from './identity-credential.js';
 import type {
@@ -78,6 +83,83 @@ export class ControlPlaneAdminService {
         identityCredentialId: credential.id,
       });
       return Object.freeze({ route: created, credential, token: generated.token });
+    });
+  }
+
+  /**
+   * Batch identity-route creation inside one transaction. Conflicts that are known
+   * before any write (in-batch duplicate, existing route, Diagnostic collision) make
+   * the whole batch report `{ committed:false }` with per-row errors and zero writes.
+   * Every accepted row runs the same single-route flow (create → credential → audit)
+   * atomically; a genuine write-phase failure rolls the entire batch back.
+   * Credentials are generated per route but plaintext tokens are never returned.
+   */
+  public async batchCreateIdentityRoutes(
+    inputs: readonly IdentityRouteCreateInput[],
+    actorAdmin: string,
+  ): Promise<AdminIdentityRouteBatchCreateResponse> {
+    if (inputs.length === 0) {
+      return Object.freeze({ committed: false, createdCount: 0, rows: Object.freeze([]) });
+    }
+    return this.store.transaction(async (repositories) => {
+      const diagnostic = await repositories.diagnostic.get();
+      const seen = new Set<string>();
+      const preflight = inputs.map((input, index) => Object.freeze({ index, input }));
+      const invalid: AdminIdentityRouteBatchRow[] = [];
+      for (const { index, input } of preflight) {
+        if (seen.has(input.platformUserId)) {
+          invalid.push(batchRowConflict(index, input, 'Duplicate platform user in the same batch.'));
+          continue;
+        }
+        seen.add(input.platformUserId);
+        if (await repositories.identityRoutes.getByPlatformUserId(input.platformUserId)) {
+          invalid.push(batchRowConflict(index, input, 'An identity route already exists for this platform user.'));
+          continue;
+        }
+        if (input.enabled && diagnostic?.enabled
+          && normalizeSalesforceUsername(diagnostic.salesforceUsername) === normalizeSalesforceUsername(input.salesforceUsername)) {
+          invalid.push(batchRowConflict(index, input, 'Active USER route cannot use the enabled Diagnostic Salesforce username.'));
+        }
+      }
+      if (invalid.length > 0) {
+        return Object.freeze({ committed: false, createdCount: 0, rows: Object.freeze(invalid) });
+      }
+      const rows: AdminIdentityRouteBatchRow[] = [];
+      for (const { index, input } of preflight) {
+        const created = await repositories.identityRoutes.create(input);
+        const generated = this.credentialCipher.generate(created.id);
+        const credential = await repositories.identityCredentials.create({
+          identityRouteId: created.id,
+          credentialType: 'USER_BOUND',
+          tokenHash: generated.tokenHash,
+          tokenCiphertext: generated.tokenCiphertext,
+          tokenLast4: generated.tokenLast4,
+          generatedAt: generated.generatedAt,
+        });
+        await appendAdminAudit(repositories, actorAdmin, 'CREATE_IDENTITY_ROUTE', created.id, {
+          platformUserId: created.platformUserId,
+          userName: created.userName,
+          salesforceUsername: created.salesforceUsername,
+          enabled: created.enabled,
+          batch: true,
+          credentialCreated: true,
+          credentialId: credential.id,
+          tokenLast4: credential.tokenLast4,
+        }, {
+          platformUserId: created.platformUserId,
+          salesforceUsername: created.salesforceUsername,
+          identityCredentialId: credential.id,
+        });
+        rows.push(Object.freeze({
+          index,
+          platformUserId: created.platformUserId,
+          salesforceUsername: created.salesforceUsername,
+          ok: true,
+          route: created,
+          credential: credentialSummary(credential),
+        }));
+      }
+      return Object.freeze({ committed: true, createdCount: rows.length, rows: Object.freeze(rows) });
     });
   }
 
@@ -476,6 +558,27 @@ async function appendAdminAudit(
 
 function assertVersion(actual: string, expected: string): void {
   if (actual !== expected) throw concurrentModification();
+}
+
+function batchRowConflict(index: number, input: IdentityRouteCreateInput, message: string): AdminIdentityRouteBatchRow {
+  return Object.freeze({
+    index,
+    platformUserId: input.platformUserId,
+    salesforceUsername: input.salesforceUsername,
+    ok: false,
+    error: Object.freeze({ code: 'MCP_CONTROL_PLANE_CONFLICT', message }),
+  });
+}
+
+function credentialSummary(credential: IdentityCredentialRecord): AdminIdentityCredentialSummaryDto {
+  return Object.freeze({
+    id: credential.id,
+    status: credential.status,
+    tokenLast4: credential.tokenLast4,
+    generatedAt: credential.generatedAt,
+    lastUsedAt: credential.lastUsedAt,
+    rowVersion: credential.rowVersion,
+  });
 }
 
 function concurrentModification(): ControlPlaneError {

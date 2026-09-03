@@ -26,6 +26,7 @@ const upstreamDrift: UpstreamInventoryComparison = Object.freeze({
 test('strict Admin contracts reject unknown fields and SQL-injection-shaped identifiers', () => {
   assert.equal(adminIdentityRouteCreateSchema.safeParse({
     platformUserId: "user' OR 1=1 --",
+    userName: '用户 甲',
     salesforceUsername: 'user@example.invalid',
     enabled: true,
     remark: null,
