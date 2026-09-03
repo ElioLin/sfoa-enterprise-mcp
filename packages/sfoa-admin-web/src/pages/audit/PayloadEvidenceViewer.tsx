@@ -4,6 +4,7 @@ import { Alert, Button, Descriptions, Modal, Space, Typography, message } from '
 import type { AuditPayloadEvidenceSummaryRecord } from '@sfoa/control-plane';
 import { adminApi } from '../../api/client.js';
 import { ErrorState, LoadingState } from '../../components/QueryState.js';
+import { copyTextToClipboard } from '../../clipboard.js';
 
 export function PayloadEvidenceViewer({
   payload,
@@ -99,7 +100,7 @@ function prettyPayload(text: string, contentType: string): string {
 
 async function copyText(value: string, label: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(value);
+    await copyTextToClipboard(value);
     void message.success(`${label}已复制`);
   } catch {
     void message.error('复制失败，请手动选择内容。');

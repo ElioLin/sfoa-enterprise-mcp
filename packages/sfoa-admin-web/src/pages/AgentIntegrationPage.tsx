@@ -51,6 +51,7 @@ import {
 import { ErrorState, LoadingState } from '../components/QueryState.js';
 import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
+import { copyTextToClipboard } from '../clipboard.js';
 
 const DEFAULT_EXTERNAL_URL = 'http://127.0.0.1:8080/mcp';
 const SKILL_REPO_PATH = '.codebuddy/skills/sfoa-salesforce-assistant/';
@@ -105,7 +106,7 @@ export default function AgentIntegrationPage() {
   };
   const copy = async (value: string, successMessage: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyTextToClipboard(value);
       void message.success(successMessage);
     } catch {
       void message.error('复制失败，请手动选择文本。');

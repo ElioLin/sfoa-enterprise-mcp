@@ -22,6 +22,7 @@ import type {
 import { StatusTag } from '../../components/StatusTag.js';
 import { formatDateTime } from '../../localization.js';
 import { PayloadEvidenceViewer, formatBytes, payloadTypeLabel } from './PayloadEvidenceViewer.js';
+import { copyTextToClipboard } from '../../clipboard.js';
 
 export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTraceDto }>) {
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('ALL');
@@ -502,5 +503,5 @@ function formatUnknown(value: unknown): string {
   try { return JSON.stringify(value, null, 2); } catch { return String(value); }
 }
 async function copyText(value: string, label: string): Promise<void> {
-  try { await navigator.clipboard.writeText(value); void message.success(`${label}已复制`); } catch { void message.error('复制失败，请手动复制。'); }
+  try { await copyTextToClipboard(value); void message.success(`${label}已复制`); } catch { void message.error('复制失败，请手动复制。'); }
 }

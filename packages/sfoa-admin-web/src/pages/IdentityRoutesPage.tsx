@@ -44,6 +44,7 @@ import { EmptyState, ErrorState, LoadingState, MutationError } from '../componen
 import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
 import { formatDateTime } from '../localization.js';
+import { copyTextToClipboard } from '../clipboard.js';
 
 const FALLBACK_PAGE_SIZE = 25;
 type RouteForm = Readonly<{ platformUserId: string; salesforceUsername: string; enabled: boolean; remark: string | null }>;
@@ -177,7 +178,7 @@ export default function IdentityRoutesPage() {
   };
   const copyText = async (value: string, success: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyTextToClipboard(value);
       void message.success(success);
     } catch {
       void message.error('复制失败，请检查浏览器剪贴板权限后重试。');
