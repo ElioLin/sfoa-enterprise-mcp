@@ -17,6 +17,17 @@ export const platformUserIdSchema = z
   .min(1)
   .max(128)
   .refine((value) => !/[\u0000-\u001F\u007F]/u.test(value), 'must not contain control characters');
+/**
+ * Human-readable display name (用户名称) shown in the Admin identity-route list.
+ * Unlike `platformUserId`, it is a label, not an authenticated identity, so
+ * normal whitespace (spaces) and non-ASCII text are allowed.
+ */
+export const userNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .refine((value) => !/[\u0000-\u001F\u007F]/u.test(value), 'must not contain control characters');
 export const salesforceUsernameSchema = z
   .string()
   .trim()
@@ -34,6 +45,7 @@ export const idSchema = z.string().regex(/^[1-9][0-9]{0,19}$/u);
 export type IdentityRouteRecord = Readonly<{
   id: string;
   platformUserId: string;
+  userName: string;
   salesforceUsername: string;
   enabled: boolean;
   remark: string | null;

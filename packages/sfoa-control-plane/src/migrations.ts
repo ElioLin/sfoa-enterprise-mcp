@@ -213,7 +213,7 @@ export async function assertAllMigrationsApplied(
 const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   sfoa_schema_migration: Object.freeze(['version', 'checksum_sha256', 'applied_at']),
   sfoa_identity_route: Object.freeze([
-    'id', 'platform_user_id', 'salesforce_username', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
+    'id', 'platform_user_id', 'user_name', 'salesforce_username', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
   sfoa_identity_credential: Object.freeze([
     'id', 'identity_route_id', 'credential_type', 'token_hash', 'token_ciphertext', 'token_last4', 'status',

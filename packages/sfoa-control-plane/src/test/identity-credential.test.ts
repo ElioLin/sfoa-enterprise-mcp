@@ -67,6 +67,7 @@ test('disable preserves the active token, re-enable restores it, and only a disa
   assert.equal((await service.readIdentityCredential(created.route.id)).token, created.token);
   const enabled = await service.updateIdentityRoute(created.route.id, {
     platformUserId: disabled.platformUserId,
+    userName: disabled.userName,
     salesforceUsername: disabled.salesforceUsername,
     enabled: true,
     remark: disabled.remark,
@@ -117,7 +118,7 @@ function adminService(store: InMemoryControlPlaneStore): ControlPlaneAdminServic
 }
 
 function routeInput(platformUserId: string, salesforceUsername: string) {
-  return Object.freeze({ platformUserId, salesforceUsername, enabled: true, remark: null });
+  return Object.freeze({ platformUserId, userName: platformUserId, salesforceUsername, enabled: true, remark: null });
 }
 
 function isConcurrentModification(error: unknown): boolean {

@@ -69,12 +69,14 @@ if (!configured) {
       );
       const createdA = await adminService.createIdentityRoute({
         platformUserId: TEST_PLATFORM_USER_A,
+        userName: TEST_PLATFORM_USER_A,
         salesforceUsername: TEST_USERNAME_A,
         enabled: true,
         remark: 'real mysql runtime A',
       }, 'p6-id-mysql-gate');
       const createdB = await adminService.createIdentityRoute({
         platformUserId: TEST_PLATFORM_USER_B,
+        userName: TEST_PLATFORM_USER_B,
         salesforceUsername: TEST_USERNAME_B,
         enabled: true,
         remark: 'real mysql runtime B',
@@ -83,6 +85,7 @@ if (!configured) {
       const routeB = createdB.route;
       await store.repositories.identityRoutes.create({
         platformUserId: 'p5-disabled-user',
+        userName: 'p5-disabled-user',
         salesforceUsername: 'disabled@example.test',
         enabled: false,
         remark: null,
@@ -176,6 +179,7 @@ if (!configured) {
 
       await store.repositories.identityRoutes.update(routeB.id, {
         platformUserId: routeB.platformUserId,
+        userName: routeB.userName,
         salesforceUsername: routeA.salesforceUsername,
         enabled: true,
         remark: 'shared Salesforce account is schema-valid',
@@ -288,6 +292,7 @@ if (!configured) {
 
       const enabledA = await adminService.updateIdentityRoute(routeA.id, {
         platformUserId: disabledA.platformUserId,
+        userName: disabledA.userName,
         salesforceUsername: disabledA.salesforceUsername,
         enabled: true,
         remark: disabledA.remark,

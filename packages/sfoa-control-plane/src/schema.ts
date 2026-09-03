@@ -7,6 +7,7 @@ type BooleanNumber = ColumnType<number, number | boolean, number | boolean>;
 export interface IdentityRouteTable {
   id: Generated<string>;
   platform_user_id: string;
+  user_name: string;
   salesforce_username: string;
   enabled: BooleanNumber;
   remark: string | null;

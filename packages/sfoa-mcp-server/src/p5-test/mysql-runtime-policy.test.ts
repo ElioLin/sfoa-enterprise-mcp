@@ -317,7 +317,7 @@ async function errorCode(response: Response): Promise<string | undefined> {
 
 function route(id: string, platformUserId: string, salesforceUsername: string): IdentityRouteRecord {
   return Object.freeze({
-    id, platformUserId, salesforceUsername, enabled: true, remark: null,
+    id, platformUserId, userName: platformUserId, salesforceUsername, enabled: true, remark: null,
     rowVersion: '1', createdAt: NOW, updatedAt: NOW,
   });
 }

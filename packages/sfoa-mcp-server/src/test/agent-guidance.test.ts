@@ -348,6 +348,7 @@ function route(id: string, platformUserId: string, salesforceUsername: string): 
   return Object.freeze({
     id,
     platformUserId,
+    userName: platformUserId,
     salesforceUsername,
     enabled: true,
     remark: null,

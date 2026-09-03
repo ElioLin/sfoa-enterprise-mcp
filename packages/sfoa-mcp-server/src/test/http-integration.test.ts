@@ -432,6 +432,7 @@ function identityRoute(id: string, platformUserId: string, enabled: boolean): Id
   return Object.freeze({
     id,
     platformUserId,
+    userName: platformUserId,
     salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B,
     enabled,
     remark: null,

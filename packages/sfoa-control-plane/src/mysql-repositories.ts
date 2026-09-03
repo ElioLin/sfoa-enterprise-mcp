@@ -124,6 +124,7 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
     try {
       await this.database.insertInto('sfoa_identity_route').values({
         platform_user_id: input.platformUserId,
+        user_name: input.userName,
         salesforce_username: input.salesforceUsername,
         enabled: input.enabled,
         remark: input.remark,
@@ -140,6 +141,7 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
     try {
       const result = await this.database.updateTable('sfoa_identity_route').set({
         platform_user_id: input.platformUserId,
+        user_name: input.userName,
         salesforce_username: input.salesforceUsername,
         enabled: input.enabled,
         remark: input.remark,
@@ -158,6 +160,7 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
     if (!current) throw notFound('Identity route');
     return this.update(id, {
       platformUserId: current.platformUserId,
+      userName: current.userName,
       salesforceUsername: current.salesforceUsername,
       enabled: false,
       remark: current.remark,
@@ -637,7 +640,8 @@ export async function loadMySqlRequestPolicySnapshot(
 
 function mapIdentityRoute(row: Selectable<IdentityRouteTable>): IdentityRouteRecord {
   return Object.freeze({
-    id: String(row.id), platformUserId: row.platform_user_id, salesforceUsername: row.salesforce_username,
+    id: String(row.id), platformUserId: row.platform_user_id, userName: row.user_name,
+    salesforceUsername: row.salesforce_username,
     enabled: Boolean(row.enabled), remark: row.remark, rowVersion: String(row.row_version),
     createdAt: toIso(row.created_at), updatedAt: toIso(row.updated_at),
   });
@@ -728,7 +732,9 @@ function identityRouteKeywordCondition(keyword: string) {
   const pattern = `%${escaped}%`;
   return sql<boolean>`(
     LOWER(platform_user_id) LIKE ${pattern} ESCAPE '!'
+    OR LOWER(user_name) LIKE ${pattern} ESCAPE '!'
     OR LOWER(salesforce_username) LIKE ${pattern} ESCAPE '!'
+    OR LOWER(remark) LIKE ${pattern} ESCAPE '!'
   )`;
 }
 

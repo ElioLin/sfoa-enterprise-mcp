@@ -67,11 +67,12 @@ if (!setup) {
       '006_p7_salesforce_api_observability',
       '007_p7_soql_dml_audit_evidence',
       '008_p7_payload_evidence_runtime',
+      '009_identity_route_user_name',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
 
-  test('an empty database initializes through 008 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
+  test('an empty database initializes through 009 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
     await withIsolatedDatabase(config, 'empty', async (database) => {
       const migrations = await migrateDatabase(database);
       assert.deepEqual(migrations.map((entry) => entry.version), [
@@ -83,6 +84,7 @@ if (!setup) {
         '006_p7_salesforce_api_observability',
         '007_p7_soql_dml_audit_evidence',
         '008_p7_payload_evidence_runtime',
+        '009_identity_route_user_name',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -99,7 +101,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '008_p7_payload_evidence_runtime');
+      assert.equal(migrations.at(-1)?.version, '009_identity_route_user_name');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -190,10 +192,10 @@ if (!setup) {
   test('identity routing supports A/B, disabled denial, unknown denial, and shared Salesforce usernames', async () => {
     const shared = 'shared@example.invalid';
     const first = await store.repositories.identityRoutes.create({
-      platformUserId: 'db-user-a', salesforceUsername: shared, enabled: true, remark: null,
+      platformUserId: 'db-user-a', userName: 'db-user-a', salesforceUsername: shared, enabled: true, remark: null,
     });
     await store.repositories.identityRoutes.create({
-      platformUserId: 'db-user-b', salesforceUsername: shared, enabled: true, remark: null,
+      platformUserId: 'db-user-b', userName: 'db-user-b', salesforceUsername: shared, enabled: true, remark: null,
     });
     assert.equal((await loadMySqlRequestPolicySnapshot(store.database, 'db-user-a')).identityRoute?.salesforceUsername, shared);
     assert.equal((await loadMySqlRequestPolicySnapshot(store.database, 'db-user-b')).identityRoute?.salesforceUsername, shared);
@@ -204,7 +206,7 @@ if (!setup) {
 
   test('new requests observe dynamic Tool and CREATE/UPDATE policy without restart', async () => {
     await store.repositories.identityRoutes.create({
-      platformUserId: 'dynamic-user', salesforceUsername: 'dynamic@example.invalid', enabled: true, remark: null,
+      platformUserId: 'dynamic-user', userName: 'dynamic-user', salesforceUsername: 'dynamic@example.invalid', enabled: true, remark: null,
     });
     const tool = await store.repositories.tools.createIfAbsent('run_soql_query', true, null);
     const dml = await store.repositories.dmlPolicies.create({
@@ -244,7 +246,7 @@ if (!setup) {
   test('Admin transaction persists its audit and optimistic conflicts return the stable code', async () => {
     const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
     const created = await service.createIdentityRoute({
-      platformUserId: 'admin-user', salesforceUsername: 'admin-user@example.invalid', enabled: true, remark: null,
+      platformUserId: 'admin-user', userName: 'admin-user', salesforceUsername: 'admin-user@example.invalid', enabled: true, remark: null,
     }, 'bootstrap-admin');
     const audits = await store.repositories.audits.search({ limit: 10, offset: 0 });
     assert.equal(audits.items[0]?.operation, 'CREATE_IDENTITY_ROUTE');
@@ -252,6 +254,7 @@ if (!setup) {
     await assert.rejects(
       service.updateIdentityRoute(created.route.id, {
         platformUserId: created.route.platformUserId,
+        userName: created.route.userName,
         salesforceUsername: created.route.salesforceUsername,
         enabled: true,
         remark: null,
@@ -264,7 +267,7 @@ if (!setup) {
   test('Diagnostic/USER collision is rejected and also detected fail-closed in a request snapshot', async () => {
     const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
     await service.createIdentityRoute({
-      platformUserId: 'collision-user', salesforceUsername: 'collision@example.invalid', enabled: true, remark: null,
+      platformUserId: 'collision-user', userName: 'collision-user', salesforceUsername: 'collision@example.invalid', enabled: true, remark: null,
     }, 'bootstrap-admin');
     await assert.rejects(
       service.updateDiagnostic({

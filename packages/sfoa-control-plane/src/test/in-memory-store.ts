@@ -64,7 +64,9 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
           const keyword = options.keyword?.trim().toLocaleLowerCase('en-US');
           const routes = [...this.routes.values()].filter((record) => !keyword
             || record.platformUserId.toLocaleLowerCase('en-US').includes(keyword)
-            || record.salesforceUsername.toLocaleLowerCase('en-US').includes(keyword));
+            || record.userName.toLocaleLowerCase('en-US').includes(keyword)
+            || record.salesforceUsername.toLocaleLowerCase('en-US').includes(keyword)
+            || (record.remark ?? '').toLocaleLowerCase('en-US').includes(keyword));
           return makeTotalPage(routes.sort((a, b) => a.platformUserId.localeCompare(b.platformUserId)), options);
         },
         countActive: async () => [...this.routes.values()].filter((record) => record.enabled).length,

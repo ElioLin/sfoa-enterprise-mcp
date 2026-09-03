@@ -35,6 +35,7 @@ export type IdentityRouteListOptions = ListOptions & Readonly<{ keyword?: string
 
 export type IdentityRouteCreateInput = Readonly<{
   platformUserId: string;
+  userName: string;
   salesforceUsername: string;
   enabled: boolean;
   remark: string | null;

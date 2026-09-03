@@ -405,6 +405,7 @@ function route(id: string, platformUserId: string, enabled: boolean): IdentityRo
   return Object.freeze({
     id,
     platformUserId,
+    userName: platformUserId,
     salesforceUsername: `${platformUserId}@example.invalid`,
     enabled,
     remark: null,

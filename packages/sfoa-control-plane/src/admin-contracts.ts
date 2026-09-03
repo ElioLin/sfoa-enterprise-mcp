@@ -11,6 +11,7 @@ import {
   rowVersionSchema,
   salesforceUsernameSchema,
   toolNameSchema,
+  userNameSchema,
   type AuditRecord,
   type AuditEventRecord,
   type AuditPayloadEvidenceSummaryRecord,
@@ -50,6 +51,7 @@ const optionalRemarkSchema = remarkSchema.optional().transform((value) => value 
 
 export const adminIdentityRouteCreateSchema = z.object({
   platformUserId: platformUserIdSchema,
+  userName: userNameSchema,
   salesforceUsername: salesforceUsernameSchema,
   enabled: z.boolean(),
   remark: optionalRemarkSchema,
@@ -57,10 +59,21 @@ export const adminIdentityRouteCreateSchema = z.object({
 
 export const adminIdentityRouteUpdateSchema = z.object({
   platformUserId: platformUserIdSchema,
+  userName: userNameSchema,
   salesforceUsername: salesforceUsernameSchema,
   enabled: z.boolean(),
   remark: optionalRemarkSchema,
   rowVersion: rowVersionSchema,
+}).strict();
+
+export const ADMIN_IDENTITY_ROUTE_BATCH_MAX = 200;
+
+export const adminIdentityRouteBatchCreateSchema = z.object({
+  routes: z.array(adminIdentityRouteCreateSchema).min(1).max(ADMIN_IDENTITY_ROUTE_BATCH_MAX),
+}).strict();
+
+export const adminIdentityRouteBatchVerifySchema = z.object({
+  ids: z.array(idSchema).min(1).max(ADMIN_IDENTITY_ROUTE_BATCH_MAX),
 }).strict();
 
 export const adminSoftDisableSchema = z.object({
@@ -268,6 +281,34 @@ export type AdminIdentityCredentialSummaryDto = Readonly<{
 
 export type AdminIdentityRouteDto = IdentityRouteRecord & Readonly<{
   credential: AdminIdentityCredentialSummaryDto | null;
+}>;
+
+export type AdminIdentityRouteBatchRow = Readonly<{
+  index: number;
+  platformUserId: string;
+  salesforceUsername: string;
+  ok: boolean;
+  route?: IdentityRouteRecord;
+  credential?: AdminIdentityCredentialSummaryDto;
+  error?: Readonly<{ code: string; message: string }>;
+}>;
+
+export type AdminIdentityRouteBatchCreateResponse = Readonly<{
+  committed: boolean;
+  createdCount: number;
+  rows: readonly AdminIdentityRouteBatchRow[];
+}>;
+
+export type AdminIdentityRouteBatchVerifyRow = Readonly<{
+  index: number;
+  id: string;
+  ok: boolean;
+  verification?: RouteVerificationDto;
+  error?: Readonly<{ code: string; message: string }>;
+}>;
+
+export type AdminIdentityRouteBatchVerifyResponse = Readonly<{
+  rows: readonly AdminIdentityRouteBatchVerifyRow[];
 }>;
 
 export type McpPublicEndpointDto = Readonly<{

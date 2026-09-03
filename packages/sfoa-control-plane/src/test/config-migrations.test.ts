@@ -85,6 +85,10 @@ test('versioned migrations remain immutable and P7 adds normalized bounded audit
   assert.match(p705, /has_next_records/u);
   assert.match(p705, /submitted_fields_json JSON/u);
   assert.match(p706, /MODIFY COLUMN original_size_bytes BIGINT UNSIGNED NULL/u);
+  const identityRouteUserName = await readFile(path.join(directory, '009_identity_route_user_name.sql'), 'utf8');
+  assert.match(identityRouteUserName, /ALTER TABLE sfoa_identity_route/u);
+  assert.match(identityRouteUserName, /ADD COLUMN user_name VARCHAR\(128\) NOT NULL AFTER platform_user_id/u);
+  assert.match(identityRouteUserName, /UPDATE sfoa_identity_route/u);
   assert.equal(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 1;\r\n'));
   assert.notEqual(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 2;\n'));
 

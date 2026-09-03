@@ -52,7 +52,7 @@ export async function bootstrapFromEnvironment(
     values.SECOND_TEST_USER
       ? parseBootstrapRoute(values.P1_PLATFORM_USER_B || 'p1-user-b', values.SECOND_TEST_USER)
       : undefined,
-  ].filter((value): value is { platformUserId: string; salesforceUsername: string } => value !== undefined);
+  ].filter((value): value is { platformUserId: string; userName: string; salesforceUsername: string } => value !== undefined);
   const enabledTools = uniqueCsv(values.MCP_ENABLED_TOOLS ?? '');
   const dmlPolicies = parseDml(values.MCP_DML_ALLOWLIST_JSON);
   const diagnostic = values.SFOA_DIAGNOSTIC_USERNAME
@@ -225,10 +225,14 @@ function uniqueCsv(value: string): readonly string[] {
 
 function parseBootstrapRoute(platformUserId: string, salesforceUsername: string): Readonly<{
   platformUserId: string;
+  userName: string;
   salesforceUsername: string;
 }> {
   return Object.freeze({
     platformUserId: parseBootstrapValue(platformUserIdSchema, platformUserId, 'P1_PLATFORM_USER'),
+    // Env bootstrap has no human-readable display name; fall back to the platform user id,
+    // mirroring the 009 migration backfill for pre-existing rows.
+    userName: parseBootstrapValue(platformUserIdSchema, platformUserId, 'P1_PLATFORM_USER'),
     salesforceUsername: parseBootstrapValue(salesforceUsernameSchema, salesforceUsername, 'Salesforce username'),
   });
 }
