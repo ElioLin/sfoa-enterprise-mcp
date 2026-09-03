@@ -4,6 +4,26 @@
 
 ---
 
+## 部署记录 · P7 端到端审计（2026-09-03）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/p7-end-to-end-audit` @ `ba8146f`（P7-04…P7-09 端到端审计），替换原服务器 main @ `c849e57` |
+| 打包/上传 | 本机 tar 至仓库外层 `sfoa-deploy-p7.tar.gz`（~40MB，排除 node_modules/.git/dist/.env.local/*.pem/*.key/*.tsbuildinfo/.wireit）→ scp `/tmp/` → 覆盖解压到 `app/` |
+| 依赖 | `yarn.lock` 未变化 → **未重装** node_modules（服务器保留） |
+| 构建 | 按 §6 依赖顺序全量重建 10 个 workspace（本机时钟 09:03:58–09:04:50） |
+| 数据库迁移 | 共享库 `192.168.156.127/sfoa_enterprise_mcp` 应用**加性**迁移 `005–008`（新增 `sfoa_audit_event` / `sfoa_salesforce_api_call` / `sfoa_audit_payload_evidence`，`sfoa_audit_log` 扩列回填）；台账 **001–008 APPLIED**，status PASS（MySQL 8.4.5） |
+| 配置 | `.env.example` 仅注释改动 → **无新增必填变量**，`config/.env.local` 未改动 |
+| 服务 | 重启 `sfoa-mcp-server` / `sfoa-admin-api`（本地 09:05:24 起 active）；nginx 未改动；SELinux `restorecon` admin-web `dist` 与 `config/.env.local` |
+| 备份 | 原 main 包 → `/data/sfoa-enterprise-mcp/backup/sfoa-app-main-c849e57-2026-09-03.tar.gz`（约 1.0GB，**含 node_modules/dist**，见下方备注） |
+| 验证结果 | `/health` 200（新增 `auditPersistence` 段 UP，failureCount 0）；`/admin/api/ready` 200 schema PASS；经 Nginx `/`、`/login`、`/admin/api/ready` 均 200；Admin 登录 200 并写库 `ADMIN_ACTION/ADMIN_LOGIN` 审计（`publicAuditId` 可见）；`GET /admin/api/audits` 200 读模型正常；`sfoa_audit_log` 最新行已确认；`sfoa_audit_event` / `sfoa_salesforce_api_call` / `sfoa_audit_payload_evidence` 为 0 行（尚无真实工具/SF 流量，属预期） |
+| 合并 | 部署验证通过后 `feature/p7-end-to-end-audit` 以 fast-forward 合入 `main` 并推送 `origin/main` |
+| 回滚 | 停服 → 解回备份包到 `app/` → 按 §6 重建 → 重启；DB 迁移纯加性不回滚（见 `skills/.../operations.md` 指引，不回写 `sfoa_schema_migration`） |
+
+> **备份备注**：本次备份命令排除模式误用 `./` 前缀（`--exclude='./app/node_modules'` 不匹配 tar 成员 `app/node_modules`），导致 node_modules/dist 一并入包。作为「含依赖的精确回滚快照」可用；后续打包备份建议去掉 `./` 前缀、仅含源码即可。
+
+---
+
 ## 1. 本次部署概况
 
 ### 1.1 服务器信息（实际值）
