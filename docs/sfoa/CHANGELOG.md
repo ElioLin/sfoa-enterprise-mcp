@@ -2,6 +2,14 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-03 — Admin identity routes: 用户名称 field, remark column, batch add, and auto-verification
+
+- Added the required human-readable `user_name` (用户名称) display field to Admin identity routes and surfaced the previously stored optional `remark` (备注) as a table column, in the route search keyword scope, and in the Admin Web create/edit form. `user_name` is display metadata only; it never selects a Salesforce identity or appears in Audit identity fields.
+- Added migration `009_identity_route_user_name.sql` (`user_name VARCHAR(128) NOT NULL AFTER platform_user_id`, existing rows backfilled to their `platform_user_id`), the runtime fail-closed `REQUIRED_COLUMNS` check, repository keyword search, and the MySQL schema snapshot.
+- Added an Admin batch-import wizard: paste Excel/text rows (tab/comma/semicolon auto-detected; official 4-column `用户名称 / 平台用户 / Salesforce Username / 备注` header or positional 2/3/4-column fallback), review an editable per-row grid with in-batch and existing-route duplicate checks, then save up to 200 routes. Save is all-or-nothing and each accepted route atomically creates its USER_BOUND credential and Admin audit; batch responses never return plaintext tokens.
+- Newly created identity routes automatically trigger Salesforce connectivity validation (single create runs it after the credential drawer closes; batch runs a bounded per-route verify). Verification results stay transient (no status column) and a per-row 验证 action remains for re-checks. Single edits re-verify only when the Salesforce Username changes.
+- Added control-plane/admin-api batch contracts and endpoints (`POST /admin/api/routes/batch`, `POST /admin/api/routes/batch-verify`) with per-row results, raised the Admin JSON body bound for 200-row payloads, and added engineering Gates. No official Salesforce TypeScript file, dependency, lockfile, or business Tool surface changed.
+
 ## 2026-09-03 — P7-E2E Agent-Playbook read-scope clarification (1.2.0)
 
 - Advanced the canonical Playbook to `1.2.0` so Agents never conflate the CREATE/UPDATE DML allowlist with read scope. `run_soql_query` may read any object the authenticated Salesforce user can read — Account, Opportunity, Contact, and custom objects included — even when that object is absent from the CREATE/UPDATE lists; those lists govern only `create_record` and `update_record`, never reads, and the sole read-side guard is the ORG_OBJECT_USAGE substitution rule (`MCP_SOBJECT_NOT_IN_USE`).

@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS sfoa_schema_migration (
 CREATE TABLE IF NOT EXISTS sfoa_identity_route (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   platform_user_id VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs NOT NULL,
+  user_name VARCHAR(128) NOT NULL,
   salesforce_username VARCHAR(320) NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   remark VARCHAR(512) NULL,
@@ -60,6 +61,10 @@ CREATE TABLE IF NOT EXISTS sfoa_identity_route (
   CONSTRAINT uq_sfoa_identity_route_platform_user UNIQUE (platform_user_id),
   CONSTRAINT chk_sfoa_identity_route_version CHECK (row_version >= 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- NOTE: `user_name` was added additively by 009_identity_route_user_name.sql
+-- (AFTER platform_user_id, NOT NULL, existing rows backfilled to platform_user_id).
+-- It is display metadata only and never selects a Salesforce identity.
 
 CREATE TABLE IF NOT EXISTS sfoa_tool_control (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

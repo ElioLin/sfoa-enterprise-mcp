@@ -21,10 +21,10 @@ yarn ai:db --report audit-stats
 
 The toolkit uses predefined SQL only, validates the first statement as `SELECT`, `SHOW`, `DESCRIBE`, or `EXPLAIN SELECT`, rejects multi-statement/stateful reads, and starts a MySQL `READ ONLY` transaction.
 
-## Current tables through migration 008
+## Current tables through migration 009
 
 - `sfoa_schema_migration`: version, checksum, application time.
-- `sfoa_identity_route`: case-sensitive `platform_user_id` to Salesforce username, enabled state, optimistic `row_version`.
+- `sfoa_identity_route`: case-sensitive `platform_user_id` to Salesforce username, human-readable display `user_name` (added by 009, required on create/edit, display metadata only), enabled state, optimistic `row_version`, optional `remark`.
 - `sfoa_identity_credential`: USER_BOUND token hash/ciphertext/last4/lifecycle by route.
 - `sfoa_tool_control`: exact Tool name and enabled state.
 - `sfoa_dml_policy`: object, CREATE/UPDATE booleans, enabled state.
