@@ -4,6 +4,24 @@
 
 ---
 
+## 部署记录 · 身份路由 user_name/批量 + MCP 405 探测分类（2026-09-03）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `main` @ `fc33f56`（合并部署：身份路由 `user_name` 字段 + 迁移 009 + 备注列露出 + 批量添加/批量验证 + Admin-web 批量向导与自动验证 + MCP 405 方法探测不再写审计、真实 `MCP_REQUEST_INVALID` 自描述），替换测试服务器上一版 P7 内容 |
+| 打包/上传 | 本机 tar `sfoa-deploy-main-fc33f56.tar.gz`（约 41MB，排除 node_modules/.git/dist/.env.local/*.pem/*.key/*.tsbuildinfo/.wireit）→ scp `/tmp/` → 覆盖解压到 `app/` |
+| 依赖 | `yarn.lock` 未变化 → **未重装** node_modules（服务器保留） |
+| 构建 | 服务器按 §6 依赖顺序全量重建 10 个 workspace |
+| 数据库迁移 | 共享库 `192.168.156.127/sfoa_enterprise_mcp` 应用**加性**迁移 **009** `identity_route_user_name`（`sfoa_identity_route` 增 `user_name VARCHAR(128) NOT NULL`，存量 9 行回填 = `platform_user_id`）；台账 **001–009 APPLIED**（MySQL 8.4.5） |
+| 配置 | 无新增必填变量，`config/.env.local` 未改动 |
+| 服务 | 重启 `sfoa-mcp-server` / `sfoa-admin-api`（mcp-server 15:40:33 CST active）；nginx 未改动；SELinux `restorecon` admin-web `dist` |
+| 备份 | 部署前 app → `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-fc33f56-20260903-153806.tar.gz`（约 41MB，仅源码，排除模式已修正不再含 node_modules/dist） |
+| 验证结果 | `/health` 200（`auditPersistence` 段 UP，failureCount 0）；`/admin/api/ready` 200 `{"status":"UP","databaseVersion":"8.4.5"}`；`sfoa_identity_route` 含 `user_name` 且 9 行已回填、无空值；`GET /mcp`→405 **不再**产生 `MCP_REQUEST_INVALID` 审计行（nginx 探测持续，重启后该码 0 新增，修复生效）；Admin 启动并 seed 9 个 auth 用户 |
+| 合并 | 部署前：身份路由 user-name/batch 特性与 MCP 探测分类修复均已合入 `main` 并推送 `origin/main = fc33f56` |
+| 回滚 | 停服 → 解回备份包到 `app/` → 按 §6 重建 → 重启；DB 迁移纯加性不回滚（见 `skills/.../operations.md` 指引，不回写 `sfoa_schema_migration`） |
+
+---
+
 ## 部署记录 · P7 端到端审计（2026-09-03）
 
 | 项 | 值 |
