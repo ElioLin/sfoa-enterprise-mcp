@@ -17,7 +17,7 @@ describe('WorkBuddy / CodeBuddy Skill content', () => {
     expect(frontmatter).not.toMatch(/^allowed-tools:/mu);
     expect(skill).toContain('[references/tool-workflows.md](references/tool-workflows.md)');
     expect(skill).toContain('[references/safety-boundaries.md](references/safety-boundaries.md)');
-    expect(skill).toContain('GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.1.0');
+    expect(skill).toContain('GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.2.0');
     expect(skill).toContain('Bearer <USER_BOUND_TOKEN>');
     expect(skill).toContain('Do not configure `X-Platform-User-Id`');
 

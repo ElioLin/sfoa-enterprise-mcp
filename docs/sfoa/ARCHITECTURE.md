@@ -605,7 +605,7 @@ ADR-0013 adds one pure authored rule source without changing execution authoriza
 
 ```mermaid
 flowchart TD
-  Definition[Playbook 1.1.0<br/>ten canonical sections] --> Renderers[Pure deterministic renderers]
+  Definition[Playbook 1.2.0<br/>ten canonical sections] --> Renderers[Pure deterministic renderers]
   Snapshot[Repeatable-read request snapshot<br/>Tools + DML objects + managed rules + Diagnostic readiness] --> Renderers
   Renderers --> Instructions[Server Instructions]
   Renderers --> Resources[Playbook + Capability Resources]
@@ -643,7 +643,7 @@ Lookup/configuration failures and timeouts before mutation dispatch return norma
 
 `get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from `SFOA_LIGHTNING_BASE_URL`. The setting must be a credential-free HTTPS origin root with no path, query, or fragment. No host/base URL is accepted from the client, no Salesforce API is called, and `Connection.instanceUrl` is not a fallback. Missing configuration returns Tool-level `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; invalid configured origins fail closed.
 
-Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and now marks managed targets so an Agent omits them. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.1.0` instructs every MCP/Dify/WorkBuddy surface not to ask for, recommend, send, override, derive, or guess managed values. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
+Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and now marks managed targets so an Agent omits them. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.2.0` instructs every MCP/Dify/WorkBuddy surface not to ask for, recommend, send, override, derive, or guess managed values. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
 
 ## P7-01 compatible end-to-end Audit data model
 

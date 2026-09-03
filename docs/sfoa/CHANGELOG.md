@@ -2,6 +2,12 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-03 — P7-E2E Agent-Playbook read-scope clarification (1.2.0)
+
+- Advanced the canonical Playbook to `1.2.0` so Agents never conflate the CREATE/UPDATE DML allowlist with read scope. `run_soql_query` may read any object the authenticated Salesforce user can read — Account, Opportunity, Contact, and custom objects included — even when that object is absent from the CREATE/UPDATE lists; those lists govern only `create_record` and `update_record`, never reads, and the sole read-side guard is the ORG_OBJECT_USAGE substitution rule (`MCP_SOBJECT_NOT_IN_USE`).
+- Added the READ-scope statement both to the rendered Runtime-capabilities block and to the READ workflow rules so every surface carries it: full `sfoa://agent-playbook/current` Resource, `sfoa_salesforce_assistant` Prompt, `get_agent_playbook` fallback, generated Dify/WorkBuddy/Skill artifacts, and Admin preview.
+- Updated source-contract tests across `@sfoa/agent-playbook`, `@sfoa/mcp-server`, and `@sfoa/admin-web` to the new version and asserted the read-scope wording; reran `yarn agent:sync`, `yarn agent:check`, and `yarn skill:check`. No official Salesforce TypeScript, migration, dependency, or lockfile change.
+
 ## 2026-09-01 — P7-08 HOTFIX02 command-entrypoint and reproducibility closure
 
 - Verified the root `package.json` still carries every documented `skill:*` and `ai:*` entrypoint; none were lost.

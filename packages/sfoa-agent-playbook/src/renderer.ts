@@ -164,6 +164,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
     `- Enabled Tools: ${codeList(capabilities.enabledTools)}.`,
     `- CREATE allowed objects: ${codeList(capabilities.createAllowedObjects)}.`,
     `- UPDATE allowed objects: ${codeList(capabilities.updateAllowedObjects)}.`,
+    `- READ (SOQL) scope: \`run_soql_query\` is NOT bounded by the CREATE/UPDATE allowlists above. It may read any object the authenticated Salesforce user can read — including Account, Opportunity, Contact, and custom objects that are not CREATE/UPDATE-listed — and those lists govern only \`create_record\` and \`update_record\`, never reads. The only read-side guard is the ORG_OBJECT_USAGE substitution rule for declared not-in-use standard objects.`,
     `- Diagnostic ready: \`${capabilities.diagnosticReady}\`.`,
     `- Dynamic Forms evidence: \`${capabilities.dynamicFormEvidence}\`.`,
     `- MCP-managed DML fields: ${managedFieldList(capabilities)}.`,

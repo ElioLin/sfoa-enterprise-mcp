@@ -14,7 +14,7 @@ import {
 
 describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.1.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.2.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -70,10 +70,15 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.1\.0/u);
+      assert.match(output, /1\.2\.0/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
+    assert.match(renderFullPlaybook(capabilities), /READ \(SOQL\) scope/u);
+    assert.match(renderFullPlaybook(capabilities), /NOT bounded by the CREATE\/UPDATE allowlists/u);
+    assert.match(renderFullPlaybook(capabilities), /govern only `create_record` and `update_record`, never reads/u);
+    assert.match(renderWorkflow('READ', capabilities), /READ is never bounded by the CREATE\/UPDATE allowlists or DML policy/u);
+    assert.match(renderWorkflow('READ', capabilities), /Account, Opportunity, Contact/u);
     assert.match(renderFullPlaybook(capabilities), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
     assert.match(renderFullPlaybook(capabilities), /minimum requested mutation|only fields the user asked/u);
     assert.match(renderFullPlaybook(capabilities), /trusted Lightning record link/u);
@@ -121,7 +126,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.1\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.2\.0; DO NOT EDIT DIRECTLY/u,
     );
   });
 });

@@ -1109,3 +1109,17 @@ P7-05 = COMPLETE
 P7-06 = IMPLEMENTED / AWAITING MAINTAINER REVIEW
 P7-07–P7-08 = NOT STARTED
 ```
+
+## P7-E2E Agent-Playbook read-scope clarification — 2026-09-03
+
+On `feature/p7-end-to-end-audit`, fix the Playbook guidance that let a Dify/小犇 agent wrongly conclude `run_soql_query` reads were limited to the Lead CREATE/UPDATE allowlist. Canonical Playbook advanced `1.1.0` → `1.2.0`.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Canonical wording | PASS | READ is explicitly NOT bounded by the CREATE/UPDATE allowlists or DML policy. Both the Runtime-capabilities block and the READ workflow rule state `run_soql_query` may read any object the authenticated Salesforce user can read (Account, Opportunity, Contact, custom objects), and only the ORG_OBJECT_USAGE substitution rule can reject a declared not-in-use standard object read |
+| Version advance | PASS | `AGENT_PLAYBOOK_VERSION` `1.1.0` → `1.2.0` for the behavior-changing edit (per P6-AGENT-01) |
+| `agent:sync` / `agent:check` | PASS | Rewrote the five generated Dify/WorkBuddy/Skill artifacts; `agent:check` byte-identical PASS (5 files) |
+| `skill:check` | PASS | Maintainer Skill copies match canonical (21 files, no drift) |
+| `@sfoa/agent-playbook` unit | PASS | 13/13 incl. version pin `1.2.0` and read-scope assertions on full Playbook and READ workflow |
+| `@sfoa/mcp-server` protocol | PASS | 87/87 incl. initialize Instructions version and `sfoa://agent-playbook/current` resource carrying `READ (SOQL) scope` / not-bounded wording |
+| `@sfoa/admin-web` source contract | PASS | 2/2 files (4 tests): AgentIntegrationPage + SkillContent at `1.2.0` |

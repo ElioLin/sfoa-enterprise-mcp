@@ -105,7 +105,7 @@ Example SOQL call arguments:
 
 ## P6 Agent guidance and record links
 
-Initialize returns concise Server Instructions for canonical Agent Playbook `1.1.0`. Clients should prefer native discovery in this order:
+Initialize returns concise Server Instructions for canonical Agent Playbook `1.2.0`. Clients should prefer native discovery in this order:
 
 1. read `sfoa://agent-playbook/current` (`text/markdown`) for the full operating contract;
 2. read `sfoa://agent-capabilities/current` (`application/json`) for the current request's safe Tool, DML-object, Diagnostic, and Dynamic Forms evidence facts;
