@@ -14,7 +14,7 @@ import {
 
 describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.4.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.4.1');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -70,7 +70,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.4\.0/u);
+      assert.match(output, /1\.4\.1/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -126,7 +126,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.4\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.4\.1; DO NOT EDIT DIRECTLY/u,
     );
   });
 

@@ -5,11 +5,11 @@ description: >
   Picklist handling, record links, and diagnosis through the SFoA MCP service.
 ---
 
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.4.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.4.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Salesforce Assistant
 
-Canonical Playbook version: 1.4.0.
+Canonical Playbook version: 1.4.1.
 
 ## When to use
 
