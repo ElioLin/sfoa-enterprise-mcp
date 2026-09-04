@@ -1,14 +1,17 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
 import type { DiagnosticToolingQueryExecutor, MetadataComponentContextExecutor } from './contracts.js';
 import { RecordActionContextExecutor } from './record-action-executor.js';
+import { RecordDisplayContextExecutor } from './record-display-executor.js';
 import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.js';
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
 import { RecordActionContextMcpTool } from './tools/record-action-context.js';
+import { RecordDisplayContextMcpTool } from './tools/record-display-context.js';
 
 export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   get_record_action_context: 'USER',
   run_diagnostic_tooling_query: 'DIAGNOSTIC',
   get_metadata_component_context: 'DIAGNOSTIC',
+  get_record_display_context: 'USER',
 } as const);
 
 export type SfoaContextToolName = keyof typeof SFOA_CONTEXT_TOOL_ROLES;
@@ -53,6 +56,9 @@ export class SfoaContextMcpProvider extends McpProvider {
         throw new Error('get_metadata_component_context requires a metadata context executor.');
       }
       tools.push(new MetadataComponentContextMcpTool(this.options.metadataContextExecutor));
+    }
+    if (requested.includes('get_record_display_context')) {
+      tools.push(new RecordDisplayContextMcpTool(new RecordDisplayContextExecutor(services.getOrgService())));
     }
     return Promise.resolve(tools);
   }

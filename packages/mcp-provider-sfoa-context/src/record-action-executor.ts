@@ -3,6 +3,31 @@ import type { OrgService } from '@salesforce/mcp-provider-api';
 import { z } from 'zod';
 import { ContextRuntimeError } from './errors.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
+import {
+  addNames,
+  collectLayoutFacts,
+  compareText,
+  createDefaultsSchema,
+  layoutSchema,
+  listAvailableRecordTypes,
+  listRecordTypes,
+  objectInfoSchema,
+  picklistCollectionSchema,
+  picklistFieldSchema,
+  recordTypeInfoSchema,
+  requestJson,
+  sameSalesforceId,
+  toRecordTypeDescriptor,
+  uiRecordFieldSchema,
+  uiRecordSchema,
+  withQuery,
+  type Layout,
+  type ObjectInfo,
+  type PicklistCollection,
+  type RecordTypeInfo,
+  type RequestMetrics,
+  type UiRecord,
+} from './ui-api.js';
 
 const MAX_FIELDS = 200;
 const MAX_PICKLIST_VALUES_PER_FIELD = 100;
@@ -11,135 +36,6 @@ const MAX_CONTROLLER_VALUES_PER_FIELD = 200;
 const MAX_VALID_FOR_PER_VALUE = 200;
 const MAX_DEFAULT_VALUE_BYTES = 4_096;
 const MAX_OUTPUT_BYTES = 524_288;
-
-const recordTypeInfoSchema = z
-  .object({
-    recordTypeId: z.string(),
-    name: z.string(),
-    available: z.boolean(),
-    defaultRecordTypeMapping: z.boolean(),
-  })
-  .passthrough();
-
-const objectFieldSchema = z
-  .object({
-    apiName: z.string(),
-    label: z.string(),
-    dataType: z.string(),
-    required: z.boolean(),
-    createable: z.boolean(),
-    updateable: z.boolean(),
-    controllerName: z.string().nullable().optional(),
-    relationshipName: z.string().nullable().optional(),
-    referenceToInfos: z
-      .array(z.object({ apiName: z.string() }).passthrough())
-      .optional(),
-  })
-  .passthrough();
-
-const objectInfoSchema = z
-  .object({
-    apiName: z.string(),
-    label: z.string(),
-    labelPlural: z.string(),
-    defaultRecordTypeId: z.string().nullable(),
-    fields: z.record(objectFieldSchema),
-    recordTypeInfos: z.record(recordTypeInfoSchema),
-  })
-  .passthrough();
-
-const layoutComponentSchema = z
-  .object({
-    apiName: z.string().nullable().optional(),
-    componentType: z.string(),
-  })
-  .passthrough();
-
-const layoutItemSchema = z
-  .object({
-    editableForNew: z.boolean(),
-    editableForUpdate: z.boolean(),
-    required: z.boolean(),
-    layoutComponents: z.array(layoutComponentSchema),
-  })
-  .passthrough();
-
-const layoutSchema = z
-  .object({
-    sections: z.array(
-      z
-        .object({
-          heading: z.string().nullable().optional(),
-          layoutRows: z.array(
-            z
-              .object({
-                layoutItems: z.array(layoutItemSchema),
-              })
-              .passthrough(),
-          ),
-        })
-        .passthrough(),
-    ),
-  })
-  .passthrough();
-
-const uiRecordFieldSchema = z.object({ value: z.unknown().nullable().optional() }).passthrough();
-const uiRecordSchema = z
-  .object({
-    apiName: z.string(),
-    recordTypeId: z.string().nullable(),
-    fields: z.record(uiRecordFieldSchema),
-  })
-  .passthrough();
-
-const createDefaultsSchema = z
-  .object({
-    layout: layoutSchema,
-    record: uiRecordSchema,
-  })
-  .passthrough();
-
-const picklistValueSchema = z
-  .object({
-    label: z.string(),
-    value: z.string(),
-    validFor: z.array(z.number().int().nonnegative()).optional().default([]),
-  })
-  .passthrough();
-
-const picklistFieldSchema = z
-  .object({
-    controllerValues: z.record(z.number().int().nonnegative()).optional().default({}),
-    defaultValue: z.object({ value: z.string() }).passthrough().nullable().optional(),
-    values: z.array(picklistValueSchema),
-  })
-  .passthrough();
-
-const picklistCollectionSchema = z
-  .object({
-    picklistFieldValues: z.record(picklistFieldSchema),
-  })
-  .passthrough();
-
-type ObjectInfo = z.infer<typeof objectInfoSchema>;
-type Layout = z.infer<typeof layoutSchema>;
-type UiRecord = z.infer<typeof uiRecordSchema>;
-type PicklistCollection = z.infer<typeof picklistCollectionSchema>;
-
-type RequestMetrics = {
-  apiCallCount: number;
-  responseBytes: number;
-};
-
-type RecordTypeInfo = z.infer<typeof recordTypeInfoSchema>;
-
-type LayoutFact = Readonly<{
-  required: boolean;
-  editableForNew: boolean;
-  editableForUpdate: boolean;
-  section: string | null;
-  order: number;
-}>;
 
 type BoundedDefault = Readonly<{ value: unknown | null; truncated: boolean }>;
 
@@ -610,56 +506,6 @@ function buildCreateSelectionOutput(
   };
 }
 
-function listRecordTypes(objectInfo: ObjectInfo): readonly RecordTypeInfo[] {
-  return Object.values(objectInfo.recordTypeInfos)
-    .sort((left, right) =>
-      (left.defaultRecordTypeMapping === right.defaultRecordTypeMapping ? 0 : left.defaultRecordTypeMapping ? -1 : 1)
-      || compareText(left.name, right.name));
-}
-
-function listAvailableRecordTypes(objectInfo: ObjectInfo): readonly RecordTypeInfo[] {
-  return listRecordTypes(objectInfo).filter((entry) => entry.available);
-}
-
-function toRecordTypeDescriptor(recordType: RecordTypeInfo): Readonly<{
-  id: string;
-  name: string;
-  defaultForUser: boolean;
-  available: boolean;
-}> {
-  return {
-    id: recordType.recordTypeId,
-    name: recordType.name,
-    defaultForUser: recordType.defaultRecordTypeMapping,
-    available: recordType.available,
-  };
-}
-
-function collectLayoutFacts(layout: Layout): ReadonlyMap<string, LayoutFact> {
-  const facts = new Map<string, LayoutFact>();
-  let order = 0;
-  for (const section of layout.sections) {
-    for (const row of section.layoutRows) {
-      for (const item of row.layoutItems) {
-        for (const component of item.layoutComponents) {
-          if (component.componentType !== 'Field' || !component.apiName) continue;
-          if (!facts.has(component.apiName)) {
-            facts.set(component.apiName, {
-              required: item.required,
-              editableForNew: item.editableForNew,
-              editableForUpdate: item.editableForUpdate,
-              section: section.heading ?? null,
-              order,
-            });
-          }
-          order += 1;
-        }
-      }
-    }
-  }
-  return facts;
-}
-
 function resolveAvailableRecordType(objectInfo: ObjectInfo, candidate: string | null | undefined): z.infer<typeof recordTypeInfoSchema> {
   if (!candidate) {
     throw new ContextRuntimeError(
@@ -725,37 +571,6 @@ function boundDefaultValue(value: unknown): BoundedDefault {
   } catch {
     return { value: null, truncated: true };
   }
-}
-
-async function requestJson(connection: Connection, url: string, metrics: RequestMetrics): Promise<unknown> {
-  const result = await connection.request<unknown>({ method: 'GET', url });
-  metrics.apiCallCount += 1;
-  metrics.responseBytes += Buffer.byteLength(JSON.stringify(result), 'utf8');
-  return result;
-}
-
-function withQuery(base: string, values: Readonly<Record<string, string>>): string {
-  const params = new URLSearchParams(values);
-  return `${base}?${params.toString()}`;
-}
-
-function sameSalesforceId(left: string | null | undefined, right: string | null | undefined): boolean {
-  if (!left || !right || left.length < 15 || right.length < 15) return false;
-  return left.slice(0, 15) === right.slice(0, 15);
-}
-
-function addNames(target: string[], names: readonly string[]): void {
-  const normalized = new Set(target.map((name) => name.toLocaleLowerCase('en-US')));
-  for (const name of names) {
-    const key = name.toLocaleLowerCase('en-US');
-    if (normalized.has(key)) continue;
-    target.push(name);
-    normalized.add(key);
-  }
-}
-
-function compareText(left: string, right: string): number {
-  return left.localeCompare(right, 'en-US');
 }
 
 function unsupported(message: string, cause?: unknown): ContextRuntimeError {

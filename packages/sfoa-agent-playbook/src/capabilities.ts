@@ -15,6 +15,7 @@ export const AGENT_RECOGNIZED_TOOL_NAMES = [
   'get_record_action_context',
   'run_diagnostic_tooling_query',
   'get_metadata_component_context',
+  'get_record_display_context',
   ...AGENT_INFRASTRUCTURE_TOOL_NAMES,
 ] as const;
 

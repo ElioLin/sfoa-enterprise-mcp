@@ -177,6 +177,7 @@ function contextPurpose(toolName: string): SalesforceApiPurpose {
     case 'get_record_action_context': return 'RECORD_ACTION_CONTEXT';
     case 'run_diagnostic_tooling_query': return 'DIAGNOSTIC_TOOLING';
     case 'get_metadata_component_context': return 'METADATA_RETRIEVE';
+    case 'get_record_display_context': return 'OBJECT_SCHEMA';
     default: return 'UNKNOWN';
   }
 }
@@ -193,6 +194,12 @@ function safeContextRequestSummary(toolName: string, input: ToolInput): unknown 
     return {
       metadataType: typeof input.metadataType === 'string' ? input.metadataType : null,
       fullName: typeof input.fullName === 'string' ? input.fullName : null,
+    };
+  }
+  if (toolName === 'get_record_display_context') {
+    return {
+      objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : null,
+      recordTypeId: typeof input.recordTypeId === 'string' ? input.recordTypeId : null,
     };
   }
   return {

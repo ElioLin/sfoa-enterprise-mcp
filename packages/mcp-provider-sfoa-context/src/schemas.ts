@@ -163,6 +163,76 @@ export const recordActionContextOutputSchema = z
   })
   .strict();
 
+export const recordDisplayContextInputSchema = z
+  .object({
+    objectApiName: objectApiNameSchema,
+    recordTypeId: salesforceIdSchema.optional().describe('Optional currently available Salesforce Record Type ID whose View/Compact Layout display facts are requested.'),
+  })
+  .strict();
+
+const recordDisplayNameFieldSchema = z
+  .object({
+    apiName: z.string(),
+    label: z.string(),
+    dataType: z.string(),
+  })
+  .strict();
+
+const compactLayoutFieldSchema = z
+  .object({
+    apiName: z.string(),
+    label: z.string(),
+    dataType: z.string(),
+    order: z.number().int().nonnegative(),
+    readable: z.boolean(),
+  })
+  .strict();
+
+const viewLayoutFieldSchema = z
+  .object({
+    apiName: z.string(),
+    label: z.string(),
+    dataType: z.string(),
+    section: z.string().nullable(),
+    layoutOrder: z.number().int().nonnegative(),
+    readable: z.boolean(),
+    referenceTo: z.array(z.string()),
+    relationshipName: z.string().nullable(),
+  })
+  .strict();
+
+export const recordDisplayContextOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    executionRole: z.literal('USER').optional(),
+    objectApiName: z.string().optional(),
+    objectLabel: z.string().optional(),
+    objectLabelPlural: z.string().optional(),
+    nameFields: z.array(recordDisplayNameFieldSchema).optional(),
+    compactLayoutFields: z.array(compactLayoutFieldSchema).optional(),
+    viewLayoutFields: z.array(viewLayoutFieldSchema).optional(),
+    availableRecordTypes: z.array(recordTypeDescriptorSchema).optional(),
+    selectedRecordType: recordTypeDescriptorSchema.nullable().optional(),
+    coverage: z
+      .object({
+        sources: z.array(z.enum(['UI_API_OBJECT_INFO', 'UI_API_LAYOUT', 'UI_API_COMPACT_LAYOUT'])),
+        apiCallCount: z.number().int().nonnegative(),
+        durationMs: z.number().int().nonnegative(),
+        responseBytes: z.number().int().nonnegative(),
+        nameFieldSource: z.enum(['NAME_FIELD', 'NONE_DECLARED']),
+        recordTypeResolved: z.boolean(),
+        viewLayoutEvaluated: z.boolean(),
+        compactLayoutEvaluated: z.boolean(),
+        truncated: z.boolean(),
+        dynamicFormsEvaluated: z.literal(false),
+        completeLightningPageEvaluated: z.literal(false),
+        warnings: z.array(z.string()),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const diagnosticQueryOutputSchema = z
   .object({
     ...contextFailureFields,
@@ -221,6 +291,8 @@ export const metadataContextOutputSchema = z
 
 export type RecordActionContextInput = z.infer<typeof recordActionContextInputSchema>;
 export type RecordActionContextOutput = z.infer<typeof recordActionContextOutputSchema>;
+export type RecordDisplayContextInput = z.infer<typeof recordDisplayContextInputSchema>;
+export type RecordDisplayContextOutput = z.infer<typeof recordDisplayContextOutputSchema>;
 export type DiagnosticQueryInput = z.infer<typeof diagnosticQueryInputSchema>;
 export type DiagnosticQueryEvidence = Readonly<{
   records: readonly Record<string, unknown>[];

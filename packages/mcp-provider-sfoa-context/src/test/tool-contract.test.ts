@@ -10,6 +10,7 @@ import {
   diagnosticQueryInputSchema,
   metadataContextInputSchema,
   recordActionContextInputSchema,
+  recordDisplayContextInputSchema,
 } from '../schemas.js';
 
 const forbiddenFields = [
@@ -31,7 +32,7 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('P4 Provider exposes exactly three GA Tools with stable output schemas and complete read-only annotations', async () => {
+test('P4 Provider exposes exactly four GA Tools with stable output schemas and complete read-only annotations', async () => {
   const provider = new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
@@ -71,6 +72,7 @@ test('P4 Provider exposes exactly three GA Tools with stable output schemas and 
     get_record_action_context: 'USER',
     run_diagnostic_tooling_query: 'DIAGNOSTIC',
     get_metadata_component_context: 'DIAGNOSTIC',
+    get_record_display_context: 'USER',
   });
 });
 
@@ -95,6 +97,15 @@ test('record action input enforces CREATE/UPDATE record identity rules and rejec
   assert.equal(recordActionContextInputSchema.safeParse({ objectApiName: 'Lead', action: 'UPDATE' }).success, false);
   assert.equal(recordActionContextInputSchema.safeParse({ objectApiName: 'Lead', action: 'CREATE', recordId: '00Q000000000001AAA' }).success, false);
   assert.equal(recordActionContextInputSchema.safeParse({ objectApiName: 'Lead', action: 'CREATE', username: 'forged' }).success, false);
+});
+
+test('record display input is READ-only object display context and rejects forged authority', () => {
+  assert.equal(recordDisplayContextInputSchema.safeParse({ objectApiName: 'Lead' }).success, true);
+  assert.equal(recordDisplayContextInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: '012000000000001AAA' }).success, true);
+  assert.equal(recordDisplayContextInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: 'bad-id' }).success, false);
+  assert.equal(recordDisplayContextInputSchema.safeParse({ objectApiName: 'Case', recordId: '500000000000001AAA' }).success, false);
+  assert.equal(recordDisplayContextInputSchema.safeParse({ objectApiName: 'Lead', action: 'CREATE' }).success, false);
+  assert.equal(recordDisplayContextInputSchema.safeParse({ objectApiName: 'Lead', username: 'forged' }).success, false);
 });
 
 function createServices(): Services {
