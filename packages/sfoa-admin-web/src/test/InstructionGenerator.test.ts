@@ -84,7 +84,9 @@ describe('canonical capability-aware Dify Agent instruction generator', () => {
     expect(instruction).toContain('confirm the controlling value first');
     expect(instruction).toContain('Resolve ambiguous Lookups');
     expect(instruction).toContain('CREATE-required fields are not automatically required');
-    expect(instruction).toContain('display/name field as the primary label and Markdown hyperlink');
+    expect(instruction).toContain('display/name field as the primary label and, when possible, a Markdown hyperlink');
+    expect(instruction).toContain('never invent a Salesforce URL');
+    expect(instruction).toContain('Keep raw Salesforce IDs internal in normal business answers');
   });
 
   it('filters unknown Tools and secret-shaped records from canonical facts and output', () => {

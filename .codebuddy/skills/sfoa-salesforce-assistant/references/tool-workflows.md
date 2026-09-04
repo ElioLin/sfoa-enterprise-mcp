@@ -1,15 +1,17 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.2.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.3.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.2.0
+Playbook-Version: 1.3.0
 
 ## READ — Read current Salesforce data
 
 - Form the smallest bounded query that answers the user and call an enabled USER read Tool such as `run_soql_query`.
+- For a general business read, call `get_record_display_context` first when it is enabled to learn the object name/display fields and its Record Type-aware Compact and View layout order, then choose SOQL fields from the user question plus that context instead of mechanically selecting every layout field. Layouts are priority evidence, not a fixed field allowlist: select a field the question or its meaning makes important even when the Compact or View layout omits it, as long as the authenticated user can read it.
 - READ is never bounded by the CREATE/UPDATE allowlists or DML policy. `run_soql_query` may read any object the authenticated Salesforce user can read — including Account, Opportunity, Contact, and custom objects that are not CREATE/UPDATE-listed. The only read-side guard is the ORG_OBJECT_USAGE substitution rule, which rejects a small set of declared not-in-use standard objects with `MCP_SOBJECT_NOT_IN_USE`.
 - Select fields in this order: fields the user asked for; the proven record display/name field and trusted link; high-value current layout/context fields; then a small number of question-relevant fields. Do not lead with an internal Record ID unless the user asks for it.
 - For multiple records, prefer a concise table with roughly 6 to 10 useful columns and make the display/name field the link when a trusted record URL is available. For one record, lead with the linked display/name field and show only the key facts needed for the request.
+- Recognize analytical queries and do not force record framing on them: for an aggregate or summary result (for example `SELECT StageName, SUM(Amount) FROM Opportunity GROUP BY StageName`) present the statistics directly — do not fabricate an Id, add a per-row record hyperlink, or apply record display context row by row.
 - Do not assume every object uses a field named `Name`; use a display/name field only when current Salesforce evidence identifies it.
 - Treat empty, truncated, denied, or insufficient Tool results explicitly; never invent missing records or fields.
 - `get_username` may confirm the server-selected Salesforce identity when enabled, but it never authorizes identity switching.
@@ -31,6 +33,7 @@ Playbook-Version: 1.2.0
 
 - Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.
 - Collect only values the user supplied, then call `get_record_action_context` when available and inspect CREATE context: Record Type, API-required and layout-required fields, defaults, createability/editability, Picklists, and dependencies.
+- Choose the Record Type from action context instead of the default by habit: when `availableRecordTypes` has exactly one entry, use it without an extra prompt; when it has several and the user has not uniquely and reliably named one, ask the user which Record Type to use and pass the chosen value as `recordTypeId` — never silently create under the default. A user phrasing that matches exactly one available Record Type may be used directly; an ambiguous match must be asked about. When the current identity has no available Record Type, stop and tell the user the record cannot be created; never create under an unavailable or guessed Record Type.
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
 - Ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value.
 - Exclude MCP-managed fields from required questions, optional recommendations, and the `create_record.fields` payload even when they appear required or editable in generic Salesforce context.
@@ -73,7 +76,8 @@ Playbook-Version: 1.2.0
 ## RESPONSE_FORMAT — Return a usable result
 
 - State the action attempted and its proven result in concise language grounded in Tool output.
-- For records, use the proven display/name field as the primary label and Markdown hyperlink when possible; include the Salesforce Record ID as supporting detail and obtain the URL through `get_record_links` when that Tool is enabled.
+- For records, use the proven display/name field as the primary label and, when possible, a Markdown hyperlink obtained through `get_record_links`; never invent a Salesforce URL. Keep raw Salesforce IDs internal in normal business answers — Record Id, OwnerId, AccountId, RecordTypeId, and Lookup IDs are queried for identity, dedupe, linking, and follow-up calls, not shown to the user. Surface a Record ID only when the user explicitly asks for it or a technical diagnosis requires it.
+- Shape results from the actual data and the user goal rather than a fixed template: keep fields the user asked for (say when a requested field is empty), omit whole columns that are empty or irrelevant and were not requested, hide technical fields, and prefer values that matter to the current business question. Answer like a business-aware assistant, not a SOQL JSON dump.
 - When calling `get_record_links`, send `records` as an array of objects each carrying `objectApiName` and the 15- or 18-character `recordId` (optionally `displayName`). The ID field name is `recordId`, never `id`, and no other keys are accepted.
 - Preserve stable Tool Error Codes and Correlation IDs exactly and state truncation or unresolved ambiguity.
 - In normal success answers, describe the business outcome and omit technical MCP marker/identity-field details unless the user explicitly asks for implementation or audit detail.

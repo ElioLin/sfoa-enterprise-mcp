@@ -14,7 +14,7 @@ import {
 
 describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.2.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.3.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -70,7 +70,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.2\.0/u);
+      assert.match(output, /1\.3\.0/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -126,7 +126,46 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.2\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.3\.0; DO NOT EDIT DIRECTLY/u,
     );
+  });
+
+  it('encodes the P8-03 presentation-intelligence contract on the workflow surfaces', () => {
+    const capabilities = createAgentCapabilities({
+      enabledTools: [
+        'run_soql_query', 'create_record', 'update_record', 'get_record_action_context',
+        'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context',
+        'get_agent_playbook', 'get_record_links',
+      ],
+      createAllowedObjects: ['Quote__c'],
+      updateAllowedObjects: ['Quote__c'],
+      dynamicFormEvidence: 'NOT_AVAILABLE',
+    });
+
+    const create = renderWorkflow('CREATE', capabilities);
+    // CREATE must branch on available Record Types instead of silently using the default.
+    assert.match(create, /availableRecordTypes/u);
+    assert.match(create, /has exactly one entry, use it without an extra prompt/u);
+    assert.match(create, /several and the user has not uniquely and reliably named one/u);
+    assert.match(create, /ask the user which Record Type to use/u);
+    assert.match(create, /no available Record Type, stop and tell the user/u);
+
+    const read = renderWorkflow('READ', capabilities);
+    // READ must use display context as evidence, not a whitelist, and separate analytics.
+    assert.match(read, /call `get_record_display_context` first when it is enabled/u);
+    assert.match(read, /not a fixed field allowlist/u);
+    assert.match(read, /analytical queries and do not force record framing on them/u);
+    assert.match(read, /do not fabricate an Id, add a per-row record hyperlink/u);
+
+    const full = renderFullPlaybook(capabilities);
+    // Normal business answers must suppress raw Salesforce IDs.
+    assert.match(full, /Keep raw Salesforce IDs internal in normal business answers/u);
+    assert.match(full, /Surface a Record ID only when the user explicitly asks/u);
+    assert.match(full, /Answer like a business-aware assistant, not a SOQL JSON dump/u);
+    assert.doesNotMatch(full, /include the Salesforce Record ID as supporting detail/u);
+    // The distribution surfaces must stay versioned and carry the display-context pointer.
+    assert.match(full, /## CORE —/u);
+    assert.match(renderDifyInstruction(capabilities), /get_record_display_context/u);
+    assert.match(renderServerInstructions(capabilities), /keep raw Salesforce Record IDs internal/u);
   });
 });

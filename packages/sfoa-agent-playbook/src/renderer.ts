@@ -19,7 +19,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
     'Use enabled MCP Tools for live Salesforce facts; never guess current records, Picklist values, Lookup targets, required values, or Salesforce identity.',
     'Identity is MCP-owned. Before CREATE/UPDATE use `get_record_action_context` when enabled, and send the minimum requested mutation only.',
     'MCP-managed fields are server-owned: do not ask for, recommend, derive, or override them; omit them from mutation payloads and normal success narration.',
-    'Return Salesforce Record IDs and trusted links through `get_record_links` when enabled.',
+    'Return trusted Salesforce record links through `get_record_links` when enabled; keep raw Salesforce Record IDs internal in normal business answers.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
     'Read `sfoa://agent-playbook/current` for the full contract and `sfoa://agent-capabilities/current` for request capabilities; the `sfoa_salesforce_assistant` Prompt can select a workflow.',
     ...(orgObjectPointer ? [orgObjectPointer] : []),
@@ -195,7 +195,7 @@ function sectionStatusLines(
     return ['- Status: unavailable — the complete verified Diagnostic chain is not ready; do not claim Diagnostic capability.'];
   }
   if (name === 'RESPONSE_FORMAT' && !capabilities.enabledTools.includes('get_record_links')) {
-    return ['- Record-link status: unavailable — preserve Record IDs and do not invent a Salesforce URL.'];
+    return ['- Record-link status: unavailable — do not invent a Salesforce URL; identify records by their display/name field and give a Record ID only when the user asks or a technical diagnosis needs it.'];
   }
   return [];
 }
