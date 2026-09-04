@@ -94,6 +94,41 @@ test('mutation observer receives the exact submitted fields and Salesforce resul
   assert.equal(Object.hasOwn(submitted[1] ?? {}, 'Id'), false);
 });
 
+test('create_record folds a top-level recordTypeId into the authoritative RecordTypeId payload field', async () => {
+  const calls: MutationCall[] = [];
+  const submitted: Array<Readonly<Record<string, unknown>>> = [];
+  const executor = new DmlExecutor(
+    new TestOrgService(['user-a@example.test'], createConnection(calls)),
+    parseDmlAllowlistJson(JSON.stringify([{ objectApiName: 'Lead', operations: ['CREATE'] }])),
+    {
+      onMutationStarted: () => undefined,
+      async runWithSubmittedFields<T>(
+        fields: Readonly<Record<string, string | number | boolean | null>>,
+        callback: () => Promise<T>,
+      ): Promise<T> {
+        submitted.push(Object.freeze({ ...fields }));
+        return await callback();
+      },
+    },
+  );
+  const RT = '012000000000002AAA';
+
+  const recordId = await executor.create({
+    objectApiName: 'Lead',
+    recordTypeId: RT,
+    fields: { LastName: 'RT Lead', RecordTypeId: RT },
+  });
+
+  assert.equal(recordId, '00Q000000000001AAA');
+  // The payload must carry exactly the top-level Record Type and no duplicate key.
+  assert.deepEqual(calls[0]?.record, { LastName: 'RT Lead', RecordTypeId: RT });
+  assert.deepEqual(submitted, [{ LastName: 'RT Lead', RecordTypeId: RT }]);
+  assert.deepEqual(
+    Object.keys(calls[0]?.record ?? {}).filter((name) => name.toLocaleLowerCase('en-US') === 'recordtypeid'),
+    ['RecordTypeId'],
+  );
+});
+
 test('allowlist denial happens before a Salesforce Connection or mutation is requested', async () => {
   const calls: MutationCall[] = [];
   const mutationStarts: Array<'CREATE' | 'UPDATE'> = [];

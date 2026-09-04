@@ -78,6 +78,27 @@ test('CREATE input accepts only objectApiName plus non-empty scalar fields', () 
   for (const input of invalid) assert.equal(createRecordInputSchema.safeParse(input).success, false);
 });
 
+test('create_record recordTypeId is optional, backward-compatible, and conflict-safe', () => {
+  const RT_A = '012000000000001AAA';
+  const RT_B = '012000000000002AAA';
+  const baseFields = { LastName: 'P3', Company: 'SFoA' };
+
+  // Top-level optional recordTypeId is accepted alone.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: RT_A, fields: { ...baseFields } }).success, true);
+  // Legacy call without recordTypeId keeps working.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', fields: { ...baseFields } }).success, true);
+  // Legacy fields.RecordTypeId keeps working without a top-level value.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', fields: { ...baseFields, RecordTypeId: RT_A } }).success, true);
+  // Identical top-level and fields.RecordTypeId (same 15-char prefix) is not a conflict.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: RT_A, fields: { ...baseFields, RecordTypeId: RT_A } }).success, true);
+  // Conflicting values are rejected so the analyzed and created Record Types cannot diverge.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: RT_A, fields: { ...baseFields, RecordTypeId: RT_B } }).success, false);
+  // A malformed top-level ID is rejected by the schema.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: 'not-an-id', fields: { ...baseFields } }).success, false);
+  // A malformed fields.RecordTypeId alongside a top-level ID is a conflict.
+  assert.equal(createRecordInputSchema.safeParse({ objectApiName: 'Lead', recordTypeId: RT_A, fields: { ...baseFields, RecordTypeId: 'blah' } }).success, false);
+});
+
 test('UPDATE keeps recordId separate and structurally excludes Id, upsert, relationship, and identity inputs', () => {
   assert.equal(updateRecordInputSchema.safeParse({
     objectApiName: 'Lead',

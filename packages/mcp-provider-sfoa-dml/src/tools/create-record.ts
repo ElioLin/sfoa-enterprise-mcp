@@ -13,7 +13,8 @@ import {
 } from '../schemas.js';
 import { dmlExecutionErrorToolResult, dmlSuccessToolResult } from '../tool-results.js';
 
-type InputShape = typeof createRecordInputSchema.shape;
+const createRecordInputShape = createRecordInputSchema.innerType().shape;
+type InputShape = typeof createRecordInputShape;
 type OutputShape = typeof dmlOutputSchema.shape;
 
 export class CreateRecordMcpTool extends McpTool<InputShape, OutputShape> {
@@ -37,8 +38,8 @@ export class CreateRecordMcpTool extends McpTool<InputShape, OutputShape> {
     return {
       title: 'Create Salesforce Record',
       description:
-        'Creates exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If a Tool/request timeout or transport interruption makes the outcome unknown, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide objectApiName and non-empty scalar fields. This Tool does not accept identity, org, URL, API-version, operation, relationship, bulk, upsert, or delete inputs. Returns only success and the new record ID.',
-      inputSchema: createRecordInputSchema.shape,
+        'Creates exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If a Tool/request timeout or transport interruption makes the outcome unknown, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide objectApiName and non-empty scalar fields. Optionally provide recordTypeId to create under an explicit Record Type available to the current user; when given, the payload RecordTypeId is guaranteed to match it and must not be repeated with a conflicting fields.RecordTypeId. This Tool does not accept identity, org, URL, API-version, operation, relationship, bulk, upsert, or delete inputs. Returns only success and the new record ID.',
+      inputSchema: createRecordInputShape,
       outputSchema: dmlOutputSchema.shape,
       annotations: {
         readOnlyHint: false,

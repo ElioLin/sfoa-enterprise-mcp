@@ -28,6 +28,15 @@ export class DmlExecutor {
       // The Host observes this exact pre-dispatch boundary; local gates above remain NOT_STARTED.
       this.mutationObserver?.onMutationStarted('CREATE');
       const submittedFields = copyFields(input.fields);
+      // A top-level recordTypeId is authoritative: fold it into the payload as the
+      // canonical RecordTypeId field (case-insensitive duplicates are schema-rejected
+      // as a conflict) so the record is always created under the context-analyzed type.
+      if (input.recordTypeId) {
+        const duplicateKey = Object.keys(submittedFields)
+          .find((name) => name.toLocaleLowerCase('en-US') === 'recordtypeid');
+        if (duplicateKey !== undefined) delete submittedFields[duplicateKey];
+        submittedFields.RecordTypeId = input.recordTypeId;
+      }
       const dispatch = async () => await sobject.create(submittedFields);
       const result = this.mutationObserver?.runWithSubmittedFields
         ? await this.mutationObserver.runWithSubmittedFields(submittedFields, dispatch)

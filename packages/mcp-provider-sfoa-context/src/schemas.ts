@@ -123,6 +123,15 @@ const recordFieldContextSchema = z
   })
   .strict();
 
+const recordTypeDescriptorSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    defaultForUser: z.boolean(),
+    available: z.boolean(),
+  })
+  .strict();
+
 export const recordActionContextOutputSchema = z
   .object({
     ...contextFailureFields,
@@ -130,15 +139,9 @@ export const recordActionContextOutputSchema = z
     objectApiName: z.string().optional(),
     action: z.enum(['CREATE', 'UPDATE']).optional(),
     recordId: z.string().optional(),
-    recordType: z
-      .object({
-        id: z.string(),
-        name: z.string(),
-        defaultForUser: z.boolean(),
-        available: z.boolean(),
-      })
-      .strict()
-      .optional(),
+    recordType: recordTypeDescriptorSchema.optional(),
+    availableRecordTypes: z.array(recordTypeDescriptorSchema).optional(),
+    recordTypeSelectionRequired: z.boolean().optional(),
     fields: z.array(recordFieldContextSchema).optional(),
     coverage: z
       .object({

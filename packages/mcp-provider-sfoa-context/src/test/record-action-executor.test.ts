@@ -10,14 +10,17 @@ const AVAILABLE_RECORD_TYPE = '012000000000002AAA';
 const UNAVAILABLE_RECORD_TYPE = '012000000000003AAA';
 const RECORD_ID = '00Q000000000001AAA';
 
-test('CREATE resolves the current USER default Record Type and preserves required/editable/default/picklist facts', async () => {
-  const fixture = createFixture();
+test('CREATE resolves the single available Record Type and preserves required/editable/default/picklist facts', async () => {
+  const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
   const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
 
   assert.equal(output.success, true);
   assert.equal(output.executionRole, 'USER');
   assert.equal(output.recordType?.id, DEFAULT_RECORD_TYPE);
   assert.equal(output.recordType?.defaultForUser, true);
+  assert.equal(output.recordTypeSelectionRequired, false);
+  assert.equal(output.availableRecordTypes?.length, 3);
+  assert.equal(output.availableRecordTypes?.filter((entry) => entry.available).length, 1);
   assert.equal(output.coverage?.apiCallCount, 3);
   assert.deepEqual(output.coverage?.sources, [
     'UI_API_OBJECT_INFO',
@@ -55,7 +58,7 @@ test('CREATE resolves the current USER default Record Type and preserves require
   assert.deepEqual(status?.referenceTo, []);
 });
 
-test('CREATE accepts an explicit available Record Type and denies an unavailable one', async () => {
+test('CREATE accepts an explicit available Record Type among several and denies an unavailable one', async () => {
   const available = createFixture();
   const output = await available.executor.execute({
     objectApiName: 'Lead',
@@ -63,6 +66,8 @@ test('CREATE accepts an explicit available Record Type and denies an unavailable
     recordTypeId: AVAILABLE_RECORD_TYPE,
   });
   assert.equal(output.recordType?.id, AVAILABLE_RECORD_TYPE);
+  assert.equal(output.recordTypeSelectionRequired, false);
+  assert.equal(output.availableRecordTypes?.length, 3);
   assert.match(available.urls[1] ?? '', new RegExp(AVAILABLE_RECORD_TYPE, 'u'));
 
   const denied = createFixture();
@@ -104,6 +109,50 @@ test('UPDATE derives Record Type from recordId and fails closed on an explicit m
   assert.equal(mismatch.urls.length, 2);
 });
 
+test('CREATE with multiple available Record Types returns selection-required without any create-defaults call', async () => {
+  const fixture = createFixture();
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+
+  assert.equal(output.success, true);
+  assert.equal(output.recordType, undefined);
+  assert.equal(output.recordTypeSelectionRequired, true);
+  assert.equal(output.availableRecordTypes?.length, 3);
+  assert.equal(output.availableRecordTypes?.filter((entry) => entry.available).length, 2);
+  assert.equal(output.availableRecordTypes?.find((entry) => entry.available && entry.defaultForUser)?.name, 'Default');
+  // Only Object Info was requested; the wasteful default create-defaults fetch is avoided.
+  assert.equal(output.coverage?.apiCallCount, 1);
+  assert.deepEqual(output.coverage?.sources, ['UI_API_OBJECT_INFO']);
+  assert.equal(output.coverage?.dynamicFormsEvaluated, false);
+  assert.equal(fixture.urls.length, 1);
+  assert.equal(fixture.urls.some((url) => url.includes('/ui-api/record-defaults/')), false);
+  assert.match(output.coverage?.warnings.join(' ') ?? '', /call again with recordTypeId/iu);
+  // Object Info facts are still available, but no layout/picklist facts exist pre-selection.
+  assert.equal(output.fields?.some((field) => field.apiName === 'Required__c' && field.layoutMember === false), true);
+  assert.equal(output.fields?.find((field) => field.apiName === 'Status__c')?.picklist, undefined);
+});
+
+test('CREATE auto-selects a Master-only Record Type and does not force selection', async () => {
+  const master = { recordTypeId: DEFAULT_RECORD_TYPE, name: 'Master', available: true, defaultRecordTypeMapping: true };
+  const fixture = createFixture({ recordTypeInfos: { [DEFAULT_RECORD_TYPE]: master } });
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+
+  assert.equal(output.success, true);
+  assert.equal(output.recordTypeSelectionRequired, false);
+  assert.equal(output.recordType?.id, DEFAULT_RECORD_TYPE);
+  assert.equal(output.recordType?.name, 'Master');
+  assert.deepEqual(output.availableRecordTypes, [{ id: DEFAULT_RECORD_TYPE, name: 'Master', available: true, defaultForUser: true }]);
+  assert.equal(output.coverage?.apiCallCount, 3);
+});
+
+test('CREATE with zero available Record Types fails closed without guessing', async () => {
+  const fixture = createFixture({ availableRecordTypeIds: [] });
+  await assert.rejects(
+    fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' }),
+    (error: unknown) => error instanceof ContextRuntimeError && error.code === 'MCP_RECORD_TYPE_NOT_AVAILABLE',
+  );
+  assert.equal(fixture.urls.length, 1);
+});
+
 test('field truncation is explicit and never drops API-required fields', async () => {
   const extraFields = Object.fromEntries(
     Array.from({ length: 210 }, (_, index) => [
@@ -111,7 +160,7 @@ test('field truncation is explicit and never drops API-required fields', async (
       field(`Optional_${String(index).padStart(3, '0')}__c`, `Optional ${index}`),
     ]),
   );
-  const fixture = createFixture({ extraFields });
+  const fixture = createFixture({ extraFields, availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
   const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
   assert.equal(output.fields?.length, 200);
   assert.equal(output.coverage?.truncated, true);
@@ -125,7 +174,7 @@ test('picklist bounds preserve dependency facts and report truncation', async ()
     value: `V${index}`,
     validFor: Array.from({ length: 205 }, (_entry, validIndex) => validIndex),
   }));
-  const fixture = createFixture({ picklistValues: values });
+  const fixture = createFixture({ picklistValues: values, availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
   const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
   const picklist = output.fields?.find((field) => field.apiName === 'Status__c')?.picklist;
   assert.equal(picklist?.totalValues, 130);
@@ -155,6 +204,10 @@ type FixtureOptions = Readonly<{
   objectInfoResponse?: unknown;
   extraFields?: Readonly<Record<string, unknown>>;
   picklistValues?: readonly unknown[];
+  /** When provided, only these Record Type IDs are flagged `available` in Object Info. */
+  availableRecordTypeIds?: readonly string[];
+  /** Replaces the default Record Type Info map (used for Master-only objects). */
+  recordTypeInfos?: Readonly<Record<string, unknown>>;
 }>;
 
 function createFixture(options: FixtureOptions = {}): {
@@ -162,6 +215,16 @@ function createFixture(options: FixtureOptions = {}): {
   urls: string[];
 } {
   const urls: string[] = [];
+  const recordTypeInfos = { ...(options.recordTypeInfos ?? {
+    [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
+    [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'Enterprise', true, false),
+    [UNAVAILABLE_RECORD_TYPE]: recordType(UNAVAILABLE_RECORD_TYPE, 'Hidden', false, false),
+  }) };
+  if (options.availableRecordTypeIds) {
+    for (const entry of Object.values(recordTypeInfos) as Array<{ recordTypeId?: string; available?: boolean }>) {
+      entry.available = options.availableRecordTypeIds.includes(String(entry.recordTypeId));
+    }
+  }
   const objectInfo = options.objectInfoResponse ?? {
     apiName: 'Lead',
     label: 'Lead',
@@ -179,11 +242,7 @@ function createFixture(options: FixtureOptions = {}): {
       }),
       ...options.extraFields,
     },
-    recordTypeInfos: {
-      [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
-      [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'Enterprise', true, false),
-      [UNAVAILABLE_RECORD_TYPE]: recordType(UNAVAILABLE_RECORD_TYPE, 'Hidden', false, false),
-    },
+    recordTypeInfos,
   };
   const connection = {
     getApiVersion: () => '67.0',
