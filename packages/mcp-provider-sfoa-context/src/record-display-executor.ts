@@ -28,7 +28,7 @@ type ResolvedDisplayRecordType = Readonly<{
   ambiguous: boolean;
 }>;
 
-type CompactFieldDescriptor = Readonly<{ apiName: string; label?: string; readOnly: boolean }>;
+type CompactFieldDescriptor = Readonly<{ apiName: string; label?: string }>;
 
 type NameFieldResolution = Readonly<{
   nameFields: Array<{ apiName: string; label: string; dataType: string }>;
@@ -73,6 +73,10 @@ export class RecordDisplayContextExecutor {
 
       const recordTypes = listRecordTypes(objectInfo);
       const hasRecordTypes = recordTypes.length > 0;
+      // Only Record Types the current USER may actually use are exposed to the Agent as
+      // `availableRecordTypes`; unavailable (Profile-hidden / create-blocked) Record
+      // Types never influence the Agent's display or Record-Type decision.
+      const availableRecordTypes = listAvailableRecordTypes(objectInfo);
       const resolved = this.resolveDisplayRecordType(objectInfo, input.recordTypeId);
       const recordType = resolved.recordType;
       const recordTypeId = recordType?.recordTypeId ?? null;
@@ -86,7 +90,7 @@ export class RecordDisplayContextExecutor {
       const warnings: string[] = [];
       if (nameResolution.source === 'NONE_DECLARED') {
         warnings.push(
-          'Salesforce Object Info does not declare a conventional Name field for this object (for example Case identifies records through CaseNumber/Subject). Treat the leading Compact or View layout fields as the display evidence, or ask the user which field to show.',
+          'Salesforce Object Info declares no name/display fields (`nameFields`) for this object and identity. Do not invent a display field: treat the leading Compact or View layout fields as the display evidence, or ask the user which field to show.',
         );
       }
       if (resolved.ambiguous) {
@@ -142,7 +146,7 @@ export class RecordDisplayContextExecutor {
         nameFields: nameResolution.nameFields,
         compactLayoutFields: compactFields.fields,
         viewLayoutFields: viewFields.fields,
-        availableRecordTypes: recordTypes.map(toRecordTypeDescriptor),
+        availableRecordTypes: availableRecordTypes.map(toRecordTypeDescriptor),
         selectedRecordType: recordType ? toRecordTypeDescriptor(recordType) : null,
         coverage: {
           sources,
@@ -260,8 +264,13 @@ export class RecordDisplayContextExecutor {
   }
 }
 
-function layoutParams(layoutTypes: 'Full' | 'Compact', recordTypeId: string | null): Record<string, string> {
-  const params: Record<string, string> = { formFactor: 'Large', layoutTypes, modes: 'View' };
+function layoutParams(layoutType: 'Full' | 'Compact', recordTypeId: string | null): Record<string, string> {
+  // The UI API REST contract is singular `layoutType` + `mode`. Verified live on SFoA
+  // (runnergroup--uat.sandbox.my.sfcrmproducts.cn, UI API v67.0): the plural spellings
+  // are accepted but silently ignored for Compact — `layoutTypes=Compact&modes=View`
+  // returns the Full page layout (7 sections, 77 fields) instead of the Compact layout
+  // (1 section, 8 fields). Every layout call site therefore uses the singular form.
+  const params: Record<string, string> = { formFactor: 'Large', layoutType, mode: 'View' };
   if (recordTypeId) params.recordTypeId = recordTypeId;
   return params;
 }
@@ -281,7 +290,7 @@ function parseCompactLayout(value: unknown): CompactFieldDescriptor[] | null {
   if (layout) {
     const ordered = [...collectLayoutFacts(layout).entries()]
       .sort((left, right) => left[1].order - right[1].order)
-      .map(([apiName, fact]): CompactFieldDescriptor => ({ apiName, readOnly: fact.readOnly }));
+      .map(([apiName]): CompactFieldDescriptor => ({ apiName }));
     return ordered.length > 0 ? ordered : null;
   }
   if (typeof value !== 'object' || value === null) return null;
@@ -295,33 +304,30 @@ function parseCompactLayout(value: unknown): CompactFieldDescriptor[] | null {
     const apiName = typeof descriptor.apiName === 'string' ? descriptor.apiName : typeof descriptor.name === 'string' ? descriptor.name : '';
     if (!apiName) continue;
     const label = typeof descriptor.label === 'string' ? descriptor.label : undefined;
-    const readOnly = descriptor.readOnly === true || descriptor.isReadOnly === true;
-    entries.push(label === undefined ? { apiName, readOnly } : { apiName, label, readOnly });
+    entries.push(label === undefined ? { apiName } : { apiName, label });
   }
   return entries.length > 0 ? entries : null;
 }
 
 /**
- * The name/display fields are Salesforce-declared, never guessed: object-info may
- * flag a `nameField`; otherwise the conventional `Name` field is the declared name
- * for every Name-bearing object. Objects such as Case (CaseNumber/Subject) carry no
- * Name field and report NONE_DECLARED so the Agent does not invent a name field.
+ * The name/display fields are Salesforce-declared, never guessed: the authoritative
+ * source is the top-level `objectInfo.nameFields` array that UI API Object Info
+ * returns for the current USER. Each declared API name is looked up in
+ * `objectInfo.fields` for its label/dataType. A field is never treated as a display
+ * field merely because it is named `Name` or has a `name` dataType, and no
+ * object-specific display convention (for example CaseNumber for Case) is hard-coded.
+ * When Salesforce declares no name fields (or the API form omits `nameFields`), the
+ * result reports NONE_DECLARED so the Agent uses layout evidence or the user question.
  */
 function resolveNameFields(objectInfo: ObjectInfo): NameFieldResolution {
+  const declared = objectInfo.nameFields ?? [];
   const nameFields: NameFieldResolution['nameFields'] = [];
   const seen = new Set<string>();
-  const add = (apiName: string): void => {
+  for (const apiName of declared) {
     const field = objectInfo.fields[apiName];
-    if (!field || seen.has(apiName)) return;
+    if (!field || seen.has(apiName)) continue;
     seen.add(apiName);
     nameFields.push({ apiName: field.apiName, label: field.label, dataType: field.dataType });
-  };
-  for (const field of Object.values(objectInfo.fields)) {
-    if ((field as { nameField?: unknown }).nameField === true) add(field.apiName);
-  }
-  for (const field of Object.values(objectInfo.fields)) {
-    if (field.apiName === 'Name') add(field.apiName);
-    if (field.dataType.toLocaleLowerCase('en-US') === 'name') add(field.apiName);
   }
   return { nameFields, source: nameFields.length > 0 ? 'NAME_FIELD' : 'NONE_DECLARED' };
 }
@@ -358,7 +364,11 @@ function buildViewFields(
       dataType: meta.dataType,
       section: fact.section,
       layoutOrder: fact.order,
-      readable: !fact.readOnly,
+      // READ semantics: a field Salesforce exposes to this USER in both Object Info and
+      // the View layout is readable. Layout read-only/editable flags describe WRITE
+      // behavior, not readability — Formula, Roll-Up, and system-calculated fields are
+      // valid READ display fields — so readable is never derived from readOnly/editability.
+      readable: true,
       referenceTo: [...meta.referenceTo],
       relationshipName: meta.relationshipName,
     });
@@ -385,7 +395,9 @@ function buildCompactFields(
       label: entry.label ?? meta.label,
       dataType: meta.dataType,
       order: index,
-      readable: !entry.readOnly,
+      // Same READ semantics as the View layout: presence in the current-USER Object Info
+      // and Compact layout proves readability; editability is not required to read.
+      readable: true,
     });
   });
   return { fields, omitted, truncated };

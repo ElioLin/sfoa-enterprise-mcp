@@ -57,15 +57,18 @@ test('recordTypeId pins the View/Compact layout facts to the requested Record Ty
   assert.equal(output.availableRecordTypes?.length, 2);
 });
 
-test('read-only View/Compact layout items are reported with readable=false and labels/dataTypes come from Object Info', async () => {
+test('read-only View/Compact layout items remain readable when the field is exposed to the USER', async () => {
   const fixture = createFixture();
   const output = await fixture.executor.execute({ objectApiName: 'Account' });
 
+  // Industry is flagged readOnly/editable=false in the View and Compact layout fixtures,
+  // but read-only describes WRITE behavior, not readability: Salesforce still exposes it
+  // to this USER in Object Info, so it is a valid READ display field (readable === true).
   const industry = output.viewLayoutFields?.find((field) => field.apiName === 'Industry');
-  assert.equal(industry?.readable, false);
+  assert.equal(industry?.readable, true);
   assert.equal(industry?.label, 'Industry');
   const compactIndustry = output.compactLayoutFields?.find((field) => field.apiName === 'Industry');
-  assert.equal(compactIndustry?.readable, false);
+  assert.equal(compactIndustry?.readable, true);
 });
 
 test('Compact layout unavailable falls back to Object Info + View layout and reports coverage instead of failing', async () => {
@@ -112,7 +115,7 @@ test('Case-style object with no Name field reports no invented name field and gu
   assert.equal(output.objectLabelPlural, 'Cases');
   assert.deepEqual(output.nameFields, []);
   assert.equal(output.coverage?.nameFieldSource, 'NONE_DECLARED');
-  assert.match(output.coverage?.warnings.join(' ') ?? '', /does not declare a conventional Name field/iu);
+  assert.match(output.coverage?.warnings.join(' ') ?? '', /declares no name\/display fields/iu);
   assert.ok(output.viewLayoutFields?.some((field) => field.apiName === 'CaseNumber'));
   assert.equal(output.coverage?.dynamicFormsEvaluated, false);
 });
@@ -163,6 +166,137 @@ test('Object Info failures for unsupported or cross-object responses fail with s
   );
 });
 
+test('display availableRecordTypes lists only Record Types available to the USER', async () => {
+  const RT_B = '012000000000004AAA';
+  const RT_C = '012000000000005AAA';
+
+  // RT-A available, RT-B and RT-C unavailable -> only RT-A is exposed.
+  const oneAvailable = createFixture({
+    recordTypeInfos: {
+      [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'A', true, true),
+      [RT_B]: recordType(RT_B, 'B', false, false),
+      [RT_C]: recordType(RT_C, 'C', false, false),
+    },
+  });
+  const one = await oneAvailable.executor.execute({ objectApiName: 'Account' });
+  assert.equal(one.availableRecordTypes?.length, 1);
+  assert.deepEqual(one.availableRecordTypes?.map((rt) => rt.name), ['A']);
+  assert.equal(one.selectedRecordType?.id, DEFAULT_RECORD_TYPE);
+
+  // RT-A and RT-B available, RT-C unavailable -> length 2 and never RT-C.
+  const twoAvailable = createFixture({
+    recordTypeInfos: {
+      [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'A', true, true),
+      [RT_B]: recordType(RT_B, 'B', true, false),
+      [RT_C]: recordType(RT_C, 'C', false, false),
+    },
+  });
+  const two = await twoAvailable.executor.execute({ objectApiName: 'Account' });
+  assert.equal(two.availableRecordTypes?.length, 2);
+  assert.deepEqual([...(two.availableRecordTypes ?? [])].map((rt) => rt.name).sort(), ['A', 'B']);
+  assert.equal((two.availableRecordTypes ?? []).some((rt) => rt.available === false), false);
+});
+
+test('nameFields come only from ObjectInfo.nameFields and a field named Name is never auto-promoted', async () => {
+  const fixture = createFixture({
+    objectInfoResponse: {
+      apiName: 'Ledger__c',
+      label: 'Ledger',
+      labelPlural: 'Ledgers',
+      defaultRecordTypeId: DEFAULT_RECORD_TYPE,
+      // Salesforce declares a non-Name display field; a field literally called Name exists too.
+      nameFields: ['BusinessNumber__c'],
+      fields: {
+        Name: field('Name', 'Ledger Name'),
+        BusinessNumber__c: field('BusinessNumber__c', 'Business Number', { dataType: 'AutoNumber' }),
+      },
+      recordTypeInfos: {
+        [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
+      },
+    },
+  });
+  const output = await fixture.executor.execute({ objectApiName: 'Ledger__c' });
+
+  assert.deepEqual(output.nameFields, [{ apiName: 'BusinessNumber__c', label: 'Business Number', dataType: 'AutoNumber' }]);
+  assert.equal(output.coverage?.nameFieldSource, 'NAME_FIELD');
+});
+
+test('an Object Info that omits nameFields reports NONE_DECLARED instead of guessing a Name field', async () => {
+  const fixture = createFixture({
+    objectInfoResponse: {
+      apiName: 'Widget__c',
+      label: 'Widget',
+      labelPlural: 'Widgets',
+      defaultRecordTypeId: DEFAULT_RECORD_TYPE,
+      // A field literally named Name with a `name` dataType is present, but the API form
+      // declares no top-level nameFields: the runtime must not guess it as a display field.
+      fields: {
+        Name: field('Name', 'Widget Name', { dataType: 'name' }),
+      },
+      recordTypeInfos: {
+        [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
+      },
+    },
+  });
+  const output = await fixture.executor.execute({ objectApiName: 'Widget__c' });
+
+  assert.deepEqual(output.nameFields, []);
+  assert.equal(output.coverage?.nameFieldSource, 'NONE_DECLARED');
+  assert.match(output.coverage?.warnings.join(' ') ?? '', /declares no name\/display fields/iu);
+});
+
+test('a Formula/read-only View field stays readable when Object Info exposes it to the USER', async () => {
+  const fixture = createFixture({
+    objectInfoResponse: {
+      apiName: 'Account',
+      label: 'Account',
+      labelPlural: 'Accounts',
+      defaultRecordTypeId: DEFAULT_RECORD_TYPE,
+      nameFields: ['Name'],
+      fields: {
+        Name: field('Name', 'Account Name'),
+        Formula__c: field('Formula__c', 'Annual Growth', { dataType: 'Currency', updateable: false, createable: false }),
+      },
+      recordTypeInfos: {
+        [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
+      },
+    },
+    viewResponse: {
+      sections: [
+        {
+          heading: 'Details',
+          layoutRows: [
+            {
+              layoutItems: [
+                layoutItem(true, [{ apiName: 'Name', componentType: 'Field' }]),
+                // Salesforce flags the Formula field read-only and non-editable in the View layout.
+                {
+                  ...layoutItem(false, [{ apiName: 'Formula__c', componentType: 'Field' }]),
+                  readOnly: true,
+                  editableForNew: false,
+                  editableForUpdate: false,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    compactResponse: {
+      compactLayoutFields: [{ apiName: 'Name' }, { apiName: 'Formula__c', label: 'Annual Growth', readOnly: true }],
+    },
+  });
+  const output = await fixture.executor.execute({ objectApiName: 'Account' });
+
+  const formula = output.viewLayoutFields?.find((field) => field.apiName === 'Formula__c');
+  assert.ok(formula);
+  assert.equal(formula.readable, true);
+  assert.equal(formula.label, 'Annual Growth');
+  const compactFormula = output.compactLayoutFields?.find((field) => field.apiName === 'Formula__c');
+  assert.ok(compactFormula);
+  assert.equal(compactFormula.readable, true);
+});
+
 type FixtureOptions = Readonly<{
   objectInfoResponse?: Record<string, unknown>;
   objectInfoError?: Error;
@@ -181,12 +315,12 @@ function createFixture(options: FixtureOptions = {}): { executor: RecordDisplayC
     getApiVersion: () => '67.0',
     request: async (request: { url: string }) => {
       urls.push(request.url);
-      if (request.url.includes('/ui-api/layout/') && request.url.includes('layoutTypes=Full')) {
+      if (request.url.includes('/ui-api/layout/') && request.url.includes('layoutType=Full')) {
         if (options.viewError) throw options.viewError;
         if (options.viewResponse !== undefined) return options.viewResponse;
         return accountViewLayout();
       }
-      if (request.url.includes('/ui-api/layout/') && request.url.includes('layoutTypes=Compact')) {
+      if (request.url.includes('/ui-api/layout/') && request.url.includes('layoutType=Compact')) {
         if (options.compactError) throw options.compactError;
         if (options.compactResponse !== undefined) return options.compactResponse;
         return accountCompactLayout();
@@ -211,6 +345,7 @@ function accountObjectInfo(options: Pick<FixtureOptions, 'recordTypeInfos' | 'de
     label: 'Account',
     labelPlural: 'Accounts',
     defaultRecordTypeId: options.defaultRecordTypeId === null ? null : DEFAULT_RECORD_TYPE,
+    nameFields: ['Name'],
     fields: {
       Name: field('Name', 'Account Name'),
       AccountNumber: field('AccountNumber', 'Account Number'),

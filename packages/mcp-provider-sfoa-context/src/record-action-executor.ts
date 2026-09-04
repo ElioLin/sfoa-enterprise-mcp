@@ -10,7 +10,6 @@ import {
   createDefaultsSchema,
   layoutSchema,
   listAvailableRecordTypes,
-  listRecordTypes,
   objectInfoSchema,
   picklistCollectionSchema,
   picklistFieldSchema,
@@ -77,7 +76,11 @@ export class RecordActionContextExecutor {
         throw unsupported('Salesforce UI API returned object context for a different object.');
       }
 
-      const availableRecordTypes = listRecordTypes(objectInfo);
+      // The Tool contract's `availableRecordTypes` must contain only Record Types the
+      // current USER may actually use (`available === true`), because the Agent branches
+      // its 0 / 1 / N selection on this list. Unavailable (for example Profile-hidden or
+      // create-blocked) Record Types never influence that decision.
+      const availableRecordTypes = listAvailableRecordTypes(objectInfo);
       const durationMs = Math.round(performance.now() - started);
       let output: RecordActionContextOutput;
       if (input.action === 'CREATE') {
@@ -243,9 +246,11 @@ export class RecordActionContextExecutor {
         withQuery(
           `/services/data/v${encodeURIComponent(apiVersion)}/ui-api/layout/${encodeURIComponent(input.objectApiName)}`,
           {
+            // Singular UI API contract (`layoutType`+`mode`) verified live on SFoA v67.0;
+            // the plural spellings are not honored (Compact falls back to Full).
             formFactor: 'Large',
-            layoutTypes: 'Full',
-            modes: 'Edit',
+            layoutType: 'Full',
+            mode: 'Edit',
             recordTypeId: recordType.recordTypeId,
           },
         ),

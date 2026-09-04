@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.3.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.4.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.3.0
+Playbook-Version: 1.4.0
 
 ## READ — Read current Salesforce data
 
@@ -34,6 +34,7 @@ Playbook-Version: 1.3.0
 - Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.
 - Collect only values the user supplied, then call `get_record_action_context` when available and inspect CREATE context: Record Type, API-required and layout-required fields, defaults, createability/editability, Picklists, and dependencies.
 - Choose the Record Type from action context instead of the default by habit: when `availableRecordTypes` has exactly one entry, use it without an extra prompt; when it has several and the user has not uniquely and reliably named one, ask the user which Record Type to use and pass the chosen value as `recordTypeId` — never silently create under the default. A user phrasing that matches exactly one available Record Type may be used directly; an ambiguous match must be asked about. When the current identity has no available Record Type, stop and tell the user the record cannot be created; never create under an unavailable or guessed Record Type.
+- Run CREATE as a two-stage dialog when the first action context reports `recordTypeSelectionRequired=true`: the create facts are not yet loaded, so show only the `availableRecordTypes`, get (or confirm) one user choice, and do not begin Layout, Picklist, or Record-Type-dependent field questions before those facts exist; after the choice is made, call `get_record_action_context` again with the same `recordTypeId`, and only when the second context reports `recordTypeSelectionRequired=false` with Create Defaults, Layout, Picklists, and required/editable facts loaded do the full field collection; pass that same `recordTypeId` to `create_record` so the created record uses exactly the Record Type whose context you collected.
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
 - Ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value.
 - Exclude MCP-managed fields from required questions, optional recommendations, and the `create_record.fields` payload even when they appear required or editable in generic Salesforce context.

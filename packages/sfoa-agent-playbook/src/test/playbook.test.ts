@@ -14,7 +14,7 @@ import {
 
 describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.3.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.4.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -70,7 +70,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.3\.0/u);
+      assert.match(output, /1\.4\.0/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -126,7 +126,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.3\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.4\.0; DO NOT EDIT DIRECTLY/u,
     );
   });
 
@@ -167,5 +167,26 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(full, /## CORE —/u);
     assert.match(renderDifyInstruction(capabilities), /get_record_display_context/u);
     assert.match(renderServerInstructions(capabilities), /keep raw Salesforce Record IDs internal/u);
+  });
+
+  it('encodes the CREATE two-stage Record Type dialog so facts load before field questions', () => {
+    const create = renderWorkflow('CREATE', createAgentCapabilities({
+      enabledTools: ['get_record_action_context', 'create_record'],
+      createAllowedObjects: ['Quote__c'],
+      updateAllowedObjects: [],
+      dynamicFormEvidence: 'NOT_AVAILABLE',
+    }));
+
+    // While selection is required the create facts are not loaded: only the available
+    // Record Types are shown and no Layout/Picklist/Record-Type field questions start.
+    assert.match(create, /`recordTypeSelectionRequired=true`/u);
+    assert.match(create, /show only the `availableRecordTypes`/u);
+    assert.match(create, /do not begin Layout, Picklist, or Record-Type-dependent field questions before those facts exist/u);
+    // The second context call carries the chosen Record Type; field collection and the
+    // create_record payload both use that same Record Type.
+    assert.match(create, /call `get_record_action_context` again with the same `recordTypeId`/u);
+    assert.match(create, /`recordTypeSelectionRequired=false` with Create Defaults, Layout, Picklists, and required\/editable facts loaded/u);
+    assert.match(create, /pass that same `recordTypeId` to `create_record`/u);
+    assert.match(create, /never silently create under the default/u);
   });
 });

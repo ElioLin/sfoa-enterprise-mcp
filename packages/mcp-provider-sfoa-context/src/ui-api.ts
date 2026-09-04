@@ -42,6 +42,13 @@ export const objectInfoSchema = z
     labelPlural: z.string(),
     defaultRecordTypeId: z.string().nullable(),
     fields: z.record(objectFieldSchema),
+    // Salesforce UI API Object Info declares the record display (name) fields as a
+    // top-level `nameFields: string[]`. It is the authoritative source for READ
+    // name/display fields: the runtime never guesses a field merely because it is
+    // called `Name` or has a `name` dataType. Older API forms may omit the key;
+    // consumers then report NONE_DECLARED and let the Agent fall back to layout
+    // evidence or the user question instead of inventing a display field.
+    nameFields: z.array(z.string()).optional(),
     recordTypeInfos: z.record(recordTypeInfoSchema),
   })
   .passthrough();
@@ -167,8 +174,6 @@ export type LayoutFact = Readonly<{
   editableForUpdate: boolean;
   section: string | null;
   order: number;
-  /** True only when Salesforce flags the layout item read-only (for example in a View layout). */
-  readOnly: boolean;
 }>;
 
 /** Ordered, default-first list of every Record Type Salesforce reports for the object. */
@@ -205,8 +210,6 @@ export function collectLayoutFacts(layout: Layout): ReadonlyMap<string, LayoutFa
   for (const section of layout.sections) {
     for (const row of section.layoutRows) {
       for (const item of row.layoutItems) {
-        const readOnly = (item as { readOnly?: boolean }).readOnly === true
-          || (item as { isReadOnly?: boolean }).isReadOnly === true;
         for (const component of item.layoutComponents) {
           if (component.componentType !== 'Field' || !component.apiName) continue;
           if (!facts.has(component.apiName)) {
@@ -216,7 +219,6 @@ export function collectLayoutFacts(layout: Layout): ReadonlyMap<string, LayoutFa
               editableForUpdate: item.editableForUpdate,
               section: section.heading ?? null,
               order,
-              readOnly,
             });
           }
           order += 1;

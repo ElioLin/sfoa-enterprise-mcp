@@ -19,8 +19,9 @@ test('CREATE resolves the single available Record Type and preserves required/ed
   assert.equal(output.recordType?.id, DEFAULT_RECORD_TYPE);
   assert.equal(output.recordType?.defaultForUser, true);
   assert.equal(output.recordTypeSelectionRequired, false);
-  assert.equal(output.availableRecordTypes?.length, 3);
-  assert.equal(output.availableRecordTypes?.filter((entry) => entry.available).length, 1);
+  // Only the Record Types available to the USER are exposed: Enterprise and Hidden are not.
+  assert.equal(output.availableRecordTypes?.length, 1);
+  assert.deepEqual(output.availableRecordTypes?.map((entry) => entry.name), ['Default']);
   assert.equal(output.coverage?.apiCallCount, 3);
   assert.deepEqual(output.coverage?.sources, [
     'UI_API_OBJECT_INFO',
@@ -67,7 +68,8 @@ test('CREATE accepts an explicit available Record Type among several and denies 
   });
   assert.equal(output.recordType?.id, AVAILABLE_RECORD_TYPE);
   assert.equal(output.recordTypeSelectionRequired, false);
-  assert.equal(output.availableRecordTypes?.length, 3);
+  assert.equal(output.availableRecordTypes?.length, 2);
+  assert.equal(output.availableRecordTypes?.some((entry) => entry.available === false), false);
   assert.match(available.urls[1] ?? '', new RegExp(AVAILABLE_RECORD_TYPE, 'u'));
 
   const denied = createFixture();
@@ -94,7 +96,7 @@ test('UPDATE derives Record Type from recordId and fails closed on an explicit m
   assert.equal(output.recordId, RECORD_ID);
   assert.equal(output.coverage?.apiCallCount, 4);
   assert.ok(fixture.urls.some((url) => url.includes(`/ui-api/records/${RECORD_ID}`)));
-  assert.ok(fixture.urls.some((url) => url.includes('modes=Edit')));
+  assert.ok(fixture.urls.some((url) => url.includes('mode=Edit')));
 
   const mismatch = createFixture({ updateRecordTypeId: AVAILABLE_RECORD_TYPE });
   await assert.rejects(
@@ -116,8 +118,9 @@ test('CREATE with multiple available Record Types returns selection-required wit
   assert.equal(output.success, true);
   assert.equal(output.recordType, undefined);
   assert.equal(output.recordTypeSelectionRequired, true);
-  assert.equal(output.availableRecordTypes?.length, 3);
-  assert.equal(output.availableRecordTypes?.filter((entry) => entry.available).length, 2);
+  // Two Record Types are available; the unavailable (Hidden) one never reaches the Agent.
+  assert.equal(output.availableRecordTypes?.length, 2);
+  assert.equal(output.availableRecordTypes?.some((entry) => entry.available === false), false);
   assert.equal(output.availableRecordTypes?.find((entry) => entry.available && entry.defaultForUser)?.name, 'Default');
   // Only Object Info was requested; the wasteful default create-defaults fetch is avoided.
   assert.equal(output.coverage?.apiCallCount, 1);
@@ -142,6 +145,35 @@ test('CREATE auto-selects a Master-only Record Type and does not force selection
   assert.equal(output.recordType?.name, 'Master');
   assert.deepEqual(output.availableRecordTypes, [{ id: DEFAULT_RECORD_TYPE, name: 'Master', available: true, defaultForUser: true }]);
   assert.equal(output.coverage?.apiCallCount, 3);
+});
+
+test('CREATE availableRecordTypes excludes unavailable Record Types so the Agent 0/1/N branch is never skewed', async () => {
+  // RT-A available, RT-B and RT-C unavailable -> exactly one available entry, auto-selected.
+  const single = createFixture({
+    recordTypeInfos: {
+      [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
+      [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'Enterprise', false, false),
+      [UNAVAILABLE_RECORD_TYPE]: recordType(UNAVAILABLE_RECORD_TYPE, 'Hidden', false, false),
+    },
+  });
+  const one = await single.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  assert.equal(one.availableRecordTypes?.length, 1);
+  assert.deepEqual(one.availableRecordTypes?.map((entry) => entry.name), ['Default']);
+  assert.equal(one.recordTypeSelectionRequired, false);
+
+  // RT-A and RT-B available, RT-C unavailable -> two available entries and selection required.
+  const several = createFixture({
+    recordTypeInfos: {
+      [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'Default', true, true),
+      [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'Enterprise', true, false),
+      [UNAVAILABLE_RECORD_TYPE]: recordType(UNAVAILABLE_RECORD_TYPE, 'Hidden', false, false),
+    },
+  });
+  const many = await several.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  assert.equal(many.recordTypeSelectionRequired, true);
+  assert.equal(many.availableRecordTypes?.length, 2);
+  assert.deepEqual([...(many.availableRecordTypes ?? [])].map((entry) => entry.name).sort(), ['Default', 'Enterprise']);
+  assert.equal(many.availableRecordTypes?.some((entry) => entry.available === false), false);
 });
 
 test('CREATE with zero available Record Types fails closed without guessing', async () => {
