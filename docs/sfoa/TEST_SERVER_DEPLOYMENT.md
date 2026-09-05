@@ -4,6 +4,24 @@
 
 ---
 
+## 部署记录 · P8 上下文契约 + Agent Playbook 分发闭合（2026-09-04）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `main` @ `000b1b8`（P8-01 记录类型感知创建 / P8-02 记录显示上下文 / P8-03 呈现智能 + HOTFIX01 上下文契约与 Salesforce UI API 单数参数修正 + HOTFIX02 Agent Playbook 规则拆分与 1.4.1），替换测试服务器上一版 `main` @ `fc33f56` |
+| 打包/上传 | 本机 tar `sfoa-deploy.tar.gz`（40MB，排除 node_modules/.git/dist/tmp/secrets/.env.local/*.pem/*.key/*.tsbuildinfo/.wireit）→ scp `/tmp/` → 覆盖解压到 `app/`；本机/服务器 md5 一致 |
+| 依赖 | `yarn.lock` 未变化 → **未重装** node_modules（服务器保留） |
+| 数据库迁移 | **无新迁移**；共享库 `192.168.156.127/sfoa_enterprise_mcp` 台账保持 **001–009 APPLIED** 不变（P8 纯代码，无 SQL） |
+| 配置 | 无新增必填变量，`config/.env.local`、`secrets/private.pem` 均未改动 |
+| 构建 | 服务器按 §6 依赖顺序全量重建 10 个 workspace，全部 OK，约 35s（14:37:10–14:37:45） |
+| 服务 | 重启 `sfoa-mcp-server` / `sfoa-admin-api`；mcp-server `sfoa_runtime_started` 14:38:02 CST，admin-api 14:38:00 起 active；nginx 未改动；SELinux `restorecon` admin-web `dist`（标签 `httpd_sys_content_t`） |
+| 备份 | 部署前 app → `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-000b1b8-20260904-143642.tar.gz`（40MB，仅源码） |
+| 验证结果 | `/health` 200（auditPersistence UP，failureCount 0）；`/admin/api/ready` 200 `{"status":"UP","databaseVersion":"8.4.5"}`；nginx 对外 `/` 与 `/admin/api/ready` 均 200；`agent-playbook` dist 版本 **1.4.1**；context dist 含 `availableRecordTypes`（schemas.js）与 `get_record_display_context`（record-display-context.js）；admin-web AgentIntegrationPage bundle 内嵌 1.4.1 |
+| 合并 | 部署前确认本地 `main` = 远端 `origin/main` = `000b1b8`（ls-remote 核对） |
+| 回滚 | 停服 → 解回备份包到 `app/` → 按 §6 重建 → 重启；DB 无迁移不回滚 |
+
+---
+
 ## 部署记录 · 身份路由 user_name/批量 + MCP 405 探测分类（2026-09-03）
 
 | 项 | 值 |
