@@ -422,9 +422,10 @@ function ManagedFieldModal({
         ><Input autoComplete="off" placeholder="Custom_Field__c" /></Form.Item>
         <Form.Item name="strategy" label="托管策略" rules={[{ required: true }]}>
           <Select
-            options={MANAGED_DML_FIELD_STRATEGIES.map((value) => ({ value, label: strategyLabel(value), disabled: value === 'AI_CREATED_MARKER' && !policy?.allowCreate }))}
+            options={MANAGED_DML_FIELD_STRATEGIES.map((value) => ({ value, label: strategyLabel(value), disabled: value !== 'PLATFORM_USER_LOOKUP' && !policy?.allowCreate }))}
             onChange={(value: ManagedDmlFieldStrategy) => {
               if (value === 'AI_CREATED_MARKER') form.setFieldsValue({ applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: null, lookupMatchFieldApiName: null });
+              if (value === 'PLATFORM_USER_LOOKUP_FALLBACK') form.setFieldsValue({ applyOnCreate: true, applyOnUpdate: false });
             }}
           />
         </Form.Item>
@@ -435,7 +436,7 @@ function ManagedFieldModal({
           {strategy === 'AI_CREATED_MARKER'
             ? '经 SFoA MCP 创建记录时强制将目标字段写为 true，仅在创建时生效。'
             : strategy === 'PLATFORM_USER_LOOKUP_FALLBACK'
-              ? '用户/智能体显式提交该字段时保留用户值；未提交时，根据当前平台用户解析 Lookup 并自动回填。'
+              ? '仅用于创建：用户/智能体显式提交该字段时保留用户值；未提交时使用当前平台用户。UPDATE 不自动回填，避免修改其他字段时意外改变归属人。'
               : '无论客户端是否提交，均由 MCP 根据当前平台用户强制赋值。'}
         </Typography.Paragraph>
         {strategy && strategy !== 'AI_CREATED_MARKER' ? (
@@ -452,8 +453,8 @@ function ManagedFieldModal({
                     throw new Error('请至少选择一个父策略已允许的操作。');
                   },
                 })]}
-              ><Switch disabled={!policy?.allowCreate} /></Form.Item>
-              <Form.Item name="applyOnUpdate" label="应用于编辑" valuePropName="checked"><Switch disabled={!policy?.allowUpdate} /></Form.Item>
+              ><Switch disabled={!policy?.allowCreate || strategy === 'PLATFORM_USER_LOOKUP_FALLBACK'} /></Form.Item>
+              <Form.Item name="applyOnUpdate" label="应用于编辑" valuePropName="checked"><Switch disabled={!policy?.allowUpdate || strategy === 'PLATFORM_USER_LOOKUP_FALLBACK'} /></Form.Item>
             </Space>
             {!policy?.allowCreate ? <Typography.Text type="warning">当前对象策略未启用创建。</Typography.Text> : null}
             {!policy?.allowUpdate ? <Typography.Text type="warning">当前对象策略未启用编辑。</Typography.Text> : null}
@@ -498,7 +499,7 @@ function ManagedFieldsButton({ policy, onOpen }: Readonly<{
 function strategyLabel(value: ManagedDmlFieldStrategy): string {
   const labels: Record<ManagedDmlFieldStrategy, string> = {
     PLATFORM_USER_LOOKUP: '当前平台用户 Lookup（强制托管）',
-    PLATFORM_USER_LOOKUP_FALLBACK: '当前平台用户 Lookup（缺省回填，可由用户指定）',
+    PLATFORM_USER_LOOKUP_FALLBACK: '当前平台用户 Lookup（创建缺省回填，可由用户指定）',
     AI_CREATED_MARKER: 'AI 创建标记（强制托管）',
   };
   return labels[value];

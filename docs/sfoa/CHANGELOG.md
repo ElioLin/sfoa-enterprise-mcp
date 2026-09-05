@@ -2,6 +2,11 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-05 — Managed Lookup fallback HOTFIX01
+
+- Restrict fallback to CREATE in Admin validation/UI, Runtime, and forward-only migration 011; preserve 010 checksums and user deployment history. Ordinary UPDATE never defaults omitted fallback fields.
+- Reject duplicate client casing aliases before any lookup and align Action Context object matching with Runtime. Playbook 1.5.1 preserves explicit Lookup updates through the normal workflow.
+
 ## 2026-09-05 — User-overridable managed platform Lookup fallback
 
 - Added opt-in PLATFORM_USER_LOOKUP_FALLBACK across Control Plane, Runtime, Admin, safe capabilities, and Playbook 1.5.0. Explicit keys preserve user values and skip default lookup; omission reuses the existing resolver. Strict Lookup and AI marker remain server-forced.

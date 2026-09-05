@@ -17,7 +17,7 @@ describe('generated Agent artifact drift guard', () => {
       for (const file of ['docs/agent/DIFY_AGENT_INSTRUCTION.md', 'docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md',
         '.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md', '.codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md']) {
         const content = readFileSync(resolve(root, file), 'utf8');
-        assert.match(content, /1\.5\.0/u);
+        assert.match(content, /1\.5\.1/u);
         assert.match(content, /PLATFORM_IDENTITY_FALLBACK/u);
         assert.match(content, /ask once/u);
         assert.match(content, /optional and absent/u);

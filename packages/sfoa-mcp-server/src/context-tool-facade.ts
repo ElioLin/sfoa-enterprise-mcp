@@ -238,8 +238,9 @@ function enrichManagedDmlFields(
     return result;
   }
   const action = input.action;
+  const normalizedObject = input.objectApiName.toLocaleLowerCase('en-US');
   const managedDmlFields = rules.filter((rule) => rule.enabled
-    && rule.objectApiName === input.objectApiName
+    && rule.objectApiName.toLocaleLowerCase('en-US') === normalizedObject
     && (action === 'CREATE' ? rule.applyOnCreate : rule.applyOnUpdate))
     .map((rule) => Object.freeze({
       objectApiName: rule.objectApiName,

@@ -303,7 +303,7 @@ function testCredentialCipher(): IdentityCredentialCipher {
 test('fallback rules support opt-in update while preserving strict rules, validation, and optimistic locking', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
-  const policy = await service.createDmlPolicy({ objectApiName: 'Order__c', allowCreate: true, allowUpdate: false, enabled: true, remark: null }, 'admin');
+  const policy = await service.createDmlPolicy({ objectApiName: 'Order__c', allowCreate: true, allowUpdate: true, enabled: true, remark: null }, 'admin');
   const input = { targetFieldApiName: 'Order_Owner__c', strategy: 'PLATFORM_USER_LOOKUP' as const, applyOnCreate: true,
     applyOnUpdate: false, lookupObjectApiName: 'Contact', lookupMatchFieldApiName: 'Platform_User_Id__c', enabled: true, remark: null };
   const owner = await service.createManagedDmlFieldRule(policy.id, input, 'admin');
@@ -315,9 +315,12 @@ test('fallback rules support opt-in update while preserving strict rules, valida
   await assert.rejects(service.updateManagedDmlFieldRule(policy.id, owner.id,
     { ...input, strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', rowVersion: owner.rowVersion }, 'admin'),
     (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_CONCURRENT_MODIFICATION');
-  for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: null }, { lookupMatchFieldApiName: 'Bad.Field' }, { applyOnUpdate: true }]) {
+  for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: null }, { lookupMatchFieldApiName: 'Bad.Field' }, { applyOnUpdate: true }, { applyOnCreate: false }, { applyOnCreate: false, applyOnUpdate: true }]) {
     await assert.rejects(service.createManagedDmlFieldRule(policy.id,
       { ...input, targetFieldApiName: 'Other__c', strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', ...invalid }, 'admin'),
+      (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID');
+    await assert.rejects(service.updateManagedDmlFieldRule(policy.id, fallback.id,
+      { ...input, strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', rowVersion: fallback.rowVersion, ...invalid }, 'admin'),
       (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID');
   }
   const audits = await store.repositories.audits.search({ limit: 10, offset: 0 });

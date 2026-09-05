@@ -12,7 +12,8 @@ import { z } from 'zod';
 import { ContextToolFacade } from '../context-tool-facade.js';
 import type { RuntimeManagedDmlFieldRule } from '../dml-managed-fields.js';
 
-test('host enriches action context with only current object/action safe managed field facts', async () => {
+for (const objectApiName of ['Order__c', 'order__c', 'ORDER__C']) {
+test('host enriches case-insensitive object/action managed field facts: ' + objectApiName, async () => {
   const facade = new ContextToolFacade({
     tool: new ActionContextTool(),
     context: createRequestContext({ platformUserId: 'action-user', correlationId: 'action-managed' }, process.cwd()),
@@ -26,20 +27,20 @@ test('host enriches action context with only current object/action safe managed 
     toolTimeoutMs: 1_000,
     logger: new NoopRuntimeLogger(),
     clientId: 'context-test',
-    managedDmlFieldRules: [rule('Lead', 'Requested_By__c', true, true), rule('Lead', 'Created_By_AI__c', true, false, 'AI_CREATED_MARKER'), rule('Lead', 'Order_Owner__c', true, false, 'PLATFORM_USER_LOOKUP_FALLBACK'), rule('Account', 'Owner_Contact__c', true, true)],
+    managedDmlFieldRules: [rule('Order__c', 'Requested_By__c', true, true), rule('Order__c', 'Created_By_AI__c', true, false, 'AI_CREATED_MARKER'), rule('Order__c', 'Order_Owner__c', true, false, 'PLATFORM_USER_LOOKUP_FALLBACK'), rule('Account', 'Owner_Contact__c', true, true)],
   });
 
   assert.ok(Object.hasOwn(facade.getConfig().outputSchema ?? {}, 'managedDmlFields'));
-  const result = await facade.execute({ objectApiName: 'Lead', action: 'UPDATE', recordId: '00Q000000000001AAA' }, extra());
+  const result = await facade.execute({ objectApiName, action: 'UPDATE', recordId: '00Q000000000001AAA' }, extra());
   const managed = result.structuredContent?.managedDmlFields;
   assert.deepEqual(managed, [{
-    objectApiName: 'Lead',
+    objectApiName: 'Order__c',
     fieldApiName: 'Requested_By__c',
     operations: ['UPDATE'],
     managedBy: 'MCP',
     strategy: 'PLATFORM_IDENTITY',
   }]);
-  const created = await facade.execute({ objectApiName: 'Lead', action: 'CREATE' }, extra());
+  const created = await facade.execute({ objectApiName, action: 'CREATE' }, extra());
   const createManaged = created.structuredContent?.managedDmlFields;
   assert.ok(Array.isArray(createManaged));
   assert.deepEqual(createManaged.map((field: { strategy: string }) => field.strategy).sort(),
@@ -49,6 +50,7 @@ test('host enriches action context with only current object/action safe managed 
   const serialized = JSON.stringify([managed, createManaged]);
   assert.doesNotMatch(serialized, /lookup|Contact|Platform_User_Id__c|action-user|003000/u);
 });
+}
 
 function rule(
   objectApiName: string,

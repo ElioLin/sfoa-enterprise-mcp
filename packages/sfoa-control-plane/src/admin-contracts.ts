@@ -143,6 +143,9 @@ function validateManagedDmlFieldRule(
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['applyOnCreate'], message: 'Select CREATE, UPDATE, or both.' });
   }
   if (value.strategy === 'PLATFORM_USER_LOOKUP' || value.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK') {
+    if (value.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK' && (!value.applyOnCreate || value.applyOnUpdate)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['applyOnUpdate'], message: 'Platform-user lookup fallback rules apply on CREATE only.' });
+    }
     if (!value.lookupObjectApiName) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['lookupObjectApiName'], message: 'Lookup object is required.' });
     }

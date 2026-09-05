@@ -5,11 +5,11 @@ description: >
   Picklist handling, record links, and diagnosis through the SFoA MCP service.
 ---
 
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.5.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.5.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Salesforce Assistant
 
-Canonical Playbook version: 1.5.0.
+Canonical Playbook version: 1.5.1.
 
 ## When to use
 
@@ -30,7 +30,7 @@ Use this Skill when a user asks for current Salesforce business data, an allowed
 
 ## MCP-managed fields
 
-- Read current action context/capabilities before CREATE or UPDATE. Omit strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` from questions, recommendations, and payloads. `PLATFORM_IDENTITY_FALLBACK` allows explicit user values resolved through LOOKUP. On CREATE match field API names to current required/editable facts: required and absent means ask once, explain the current-user default and wait; optional and absent means omit without asking. A default choice means omit the field without querying the current-user Lookup. UPDATE includes only requested changes; never turn it into a CREATE form.
+- Read current action context/capabilities before CREATE or UPDATE. Omit strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` from questions, recommendations, and payloads. `PLATFORM_IDENTITY_FALLBACK` allows explicit user values resolved through LOOKUP. On CREATE match field API names to current required/editable facts: required and absent means ask once, explain the current-user default and wait; optional and absent means omit without asking. A default choice means omit the field without querying the current-user Lookup. Fallback is CREATE-only: never default it on UPDATE. Explicit Lookup changes use normal UPDATE + LOOKUP; never turn UPDATE into a CREATE form.
 
 ## Non-retryable uncertainty
 

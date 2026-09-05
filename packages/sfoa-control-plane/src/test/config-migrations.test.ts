@@ -96,6 +96,11 @@ test('versioned migrations remain immutable and P7 adds normalized bounded audit
   assert.match(fallback, /DROP CHECK chk_sfoa_dml_managed_field_strategy/u);
   assert.match(fallback, /ADD CONSTRAINT chk_sfoa_dml_managed_field_strategy CHECK/u);
   assert.doesNotMatch(fallback, /UPDATE sfoa_|INSERT INTO|DELETE FROM/iu);
+  assert.equal(migrationChecksumSha256(fallback), 'da26f0d3109754a1b8d99b04a838a8f701ba6bd56ae3bf2c6ac5a0dd19913b76');
+  const createOnly = await readFile(path.join(directory, '011_managed_fallback_create_only.sql'), 'utf8');
+  assert.equal(splitSqlStatements(createOnly).length, 1);
+  assert.match(createOnly, /strategy = 'PLATFORM_USER_LOOKUP_FALLBACK' AND apply_on_create = 1 AND apply_on_update = 0/u);
+  assert.doesNotMatch(createOnly, /UPDATE sfoa_|INSERT INTO|DELETE FROM/iu);
   assert.equal(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 1;\r\n'));
   assert.notEqual(migrationChecksumSha256('SELECT 1;\n'), migrationChecksumSha256('SELECT 2;\n'));
 

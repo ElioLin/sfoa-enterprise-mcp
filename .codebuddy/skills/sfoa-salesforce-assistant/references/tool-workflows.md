@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.5.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.5.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.5.0
+Playbook-Version: 1.5.1
 
 ## READ — Read current Salesforce data
 
@@ -57,7 +57,7 @@ Playbook-Version: 1.5.0
 - Call `get_record_action_context` for UPDATE when field semantics or editability are uncertain and the context Tool is enabled.
 - Do not turn one-field UPDATE into a CREATE form: CREATE-required fields are not automatically required on every UPDATE. Ask for an additional field only when current UPDATE context or Salesforce enforcement proves it is necessary.
 - Send only fields the user asked to change. Never copy, clear, or rewrite unrelated business fields.
-- Exclude strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from questions, recommendations, and the `update_record.fields` payload; the server-owned value wins if a client nevertheless supplies one. For `PLATFORM_IDENTITY_FALLBACK`, resolve and submit an explicit requested change using LOOKUP and current `fieldUpdateable` / `layoutEditableForUpdate` facts. If no change was requested, omit the field and let the configured `applyOnUpdate` scope govern fallback; never ask CREATE-required questions on every UPDATE.
+- Exclude strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from questions, recommendations, and the `update_record.fields` payload; the server-owned value wins if a client nevertheless supplies one. `PLATFORM_IDENTITY_FALLBACK` is CREATE-only and is not an automatic UPDATE default. Do not inject or default the field on unrelated UPDATEs. If the user explicitly requests changing that Lookup field, use the normal UPDATE + LOOKUP workflow with current `fieldUpdateable` / `layoutEditableForUpdate` and Salesforce FLS/context. If no change was requested, omit the field; never ask CREATE-required questions on every UPDATE.
 - Call `update_record` once after target, changes, and user intent are clear.
 - After proven success, return the target display/name field, a trusted record link when available, and only the fields actually changed.
 

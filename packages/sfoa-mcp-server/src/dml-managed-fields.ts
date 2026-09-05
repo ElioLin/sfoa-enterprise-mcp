@@ -9,7 +9,7 @@ import {
   platformUserIdSchema,
   type ManagedDmlFieldRuleRecord,
 } from '@sfoa/control-plane';
-import type { DmlOperation } from '@sfoa/mcp-provider-sfoa-dml';
+import { DmlRuntimeError, type DmlOperation } from '@sfoa/mcp-provider-sfoa-dml';
 import type { RequestContext } from '@sfoa/identity-runtime';
 import { RemoteRuntimeError } from './errors.js';
 
@@ -53,12 +53,19 @@ export class ManagedDmlFieldResolver {
     const fields: Record<string, unknown> = { ...input.fields };
     const applied: AppliedManagedDmlField[] = [];
     const targets = new Set<string>();
-    for (const rule of applicable) {
+    // Validate every applicable target before any platform lookup or mutation.
+    const matchedTargets = applicable.map((rule) => {
       const normalizedTarget = rule.targetFieldApiName.toLocaleLowerCase('en-US');
       if (targets.has(normalizedTarget)) throw invalidConfig('Managed field rules contain a duplicate target field.');
       targets.add(normalizedTarget);
-      const agentFieldName = Object.keys(fields).find((fieldName) =>
+      const matchingKeys = Object.keys(fields).filter((fieldName) =>
         fieldName.toLocaleLowerCase('en-US') === normalizedTarget);
+      if (matchingKeys.length > 1) {
+        throw new DmlRuntimeError('MCP_DML_INPUT_INVALID', `Duplicate client field aliases for ${rule.targetFieldApiName}.`);
+      }
+      return { rule, agentFieldName: matchingKeys[0] };
+    });
+    for (const { rule, agentFieldName } of matchedTargets) {
       const agentValueOverridden = agentFieldName !== undefined;
       // Presence preserves clear/invalid-value intent; Salesforce remains the validator.
       if (rule.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK' && agentFieldName !== undefined) {
@@ -144,6 +151,9 @@ function assertValidRule(rule: RuntimeManagedDmlFieldRule): void {
     throw invalidConfig('Managed field rule contains an invalid Salesforce identifier or operation scope.');
   }
   if (rule.strategy === 'PLATFORM_USER_LOOKUP' || rule.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK') {
+    if (rule.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK' && (!rule.applyOnCreate || rule.applyOnUpdate)) {
+      throw invalidConfig('Platform-user lookup fallback rules must apply on CREATE only.');
+    }
     if (!rule.lookupObjectApiName || !objectApiNameSchema.safeParse(rule.lookupObjectApiName).success
       || !rule.lookupMatchFieldApiName || !fieldApiNameSchema.safeParse(rule.lookupMatchFieldApiName).success) {
       throw invalidConfig('Platform-user lookup rule is missing a valid lookup object or match field.');

@@ -2,7 +2,7 @@
 
 Pure TypeScript canonical Salesforce Agent operating contract for SFoA P6-Agent-01.
 
-Production modules define Playbook version `1.5.0`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
+Production modules define Playbook version `1.5.1`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
 
 The Node-only `scripts/sync-generated.mjs` adapter owns checked-in Dify and WorkBuddy artifacts:
 

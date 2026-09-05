@@ -14,7 +14,7 @@ import {
 
 describe('canonical SFoA Agent Playbook', () => {
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.5.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.5.1');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -70,7 +70,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.5\.0/u);
+      assert.match(output, /1\.5\.1/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -126,7 +126,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.5\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.5\.1; DO NOT EDIT DIRECTLY/u,
     );
   });
 
@@ -194,7 +194,7 @@ describe('canonical SFoA Agent Playbook', () => {
 
 describe('strategy-aware managed fallback behavior contract', () => {
   it('normalizes fallback capabilities independently from strict fields', () => {
-    const field = { objectApiName: 'Order__c', fieldApiName: 'Order_Owner__c', operations: ['CREATE', 'UPDATE'] as const,
+    const field = { objectApiName: 'Order__c', fieldApiName: 'Order_Owner__c', operations: ['CREATE'] as const,
       managedBy: 'MCP' as const, strategy: 'PLATFORM_IDENTITY_FALLBACK' as const };
     assert.deepEqual(createAgentCapabilities({ enabledTools: ['create_record', 'update_record'],
       createAllowedObjects: ['Order__c'], updateAllowedObjects: ['Order__c'], managedDmlFields: [field] }).managedDmlFields, [field]);
@@ -220,7 +220,10 @@ describe('strategy-aware managed fallback behavior contract', () => {
     }
     const update = renderWorkflow('UPDATE');
     assert.match(update, /fieldUpdateable.*layoutEditableForUpdate/u);
-    assert.match(update, /applyOnUpdate/u);
+    assert.match(update, /not an automatic UPDATE default/u);
+    assert.match(update, /Do not inject or default the field on unrelated UPDATEs/u);
+    assert.match(update, /normal UPDATE \+ LOOKUP workflow/u);
+    assert.doesNotMatch(update, /applyOnUpdate/u);
     assert.match(update, /CREATE-required fields are not automatically required/u);
     assert.match(update, /Send only fields the user asked to change/u);
   });

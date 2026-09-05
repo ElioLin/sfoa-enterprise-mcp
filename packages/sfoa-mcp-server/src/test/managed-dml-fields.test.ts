@@ -263,7 +263,7 @@ function runtimeRule(overrides: Partial<RuntimeManagedDmlFieldRule>): RuntimeMan
     targetFieldApiName: 'Requested_By__c',
     strategy: 'PLATFORM_USER_LOOKUP',
     applyOnCreate: true,
-    applyOnUpdate: true,
+    applyOnUpdate: overrides.strategy !== 'PLATFORM_USER_LOOKUP_FALLBACK',
     lookupObjectApiName: 'Contact',
     lookupMatchFieldApiName: 'Platform_User_Id__c',
     enabled: true,
@@ -307,12 +307,13 @@ function extra(): RequestHandlerExtra<ServerRequest, ServerNotification> {
 
 const emptySchema = z.object({});
 class CapturingCreateTool extends McpTool<typeof emptySchema.shape> {
+  public constructor(private readonly toolName = 'create_record') { super(); }
   public executions = 0;
   public semantic: SalesforceApiSemanticEvidence | undefined;
   public input: Readonly<Record<string, unknown>> | undefined;
   public getReleaseState(): ReleaseState { return ReleaseState.GA; }
   public getToolsets(): Toolset[] { return [Toolset.DATA]; }
-  public getName(): string { return 'create_record'; }
+  public getName(): string { return this.toolName; }
   public getConfig(): McpToolConfig<typeof emptySchema.shape> { return { inputSchema: emptySchema.shape }; }
   public async exec(input: Readonly<Record<string, unknown>>): Promise<CallToolResult> {
     this.semantic = currentSalesforceCallSemanticScope()?.bind('11111111-1111-4111-8111-111111111111');
@@ -333,6 +334,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 for (const operation of ['CREATE', 'UPDATE'] as const) {
   for (const strategy of ['PLATFORM_USER_LOOKUP', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const) {
+    if (operation === 'UPDATE' && strategy === 'PLATFORM_USER_LOOKUP_FALLBACK') continue;
     test(strategy + ' ' + operation + ' omitted field reuses bounded platform lookup', async () => {
       let queries = 0;
       const resolver = new ManagedDmlFieldResolver(queryConnection(async (soql) => {
@@ -346,6 +348,7 @@ for (const operation of ['CREATE', 'UPDATE'] as const) {
       assert.deepEqual(result.applied, [{ fieldApiName: 'Requested_By__c', strategy, agentValueOverridden: false }]);
     });
   }
+  if (operation === 'UPDATE') continue; // Fallback is CREATE-only; UPDATE passthrough is tested below.
   for (const fieldName of ['Requested_By__c', 'requested_by__c', 'REQUESTED_BY__C']) {
     for (const value of [CONTACT_B, null, '', undefined, 'invalid-client-id']) {
       test('fallback preserves explicit ' + fieldName + ' ' + String(value) + ' on ' + operation, async () => {
@@ -434,4 +437,61 @@ for (const supplied of [true, false]) {
     }]);
     assert.doesNotMatch(JSON.stringify(summary), /platform-li-si|003000000000001AAA|003000000000002AAA/u);
   });
+}
+
+for (const fields of [{ Description: 'changed' }, { Order_Owner__c: CONTACT_B }, { Order_Owner__c: null }]) {
+  test('CREATE-only fallback leaves normal UPDATE payload unchanged: ' + JSON.stringify(fields), async () => {
+    const context = createRequestContext({ platformUserId: 'update-user', correlationId: 'hotfix' }, process.cwd());
+    let queries = 0;
+    const resolver = new ManagedDmlFieldResolver(queryConnection(async () => { queries += 1; return { records: [] }; }), context,
+      [runtimeRule({ objectApiName: 'Order__c', targetFieldApiName: 'Order_Owner__c', strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' })]);
+    const tool = new CapturingCreateTool('update_record');
+    const facade = new DmlToolFacade({ tool, context, route: userRoute('update-user'), toolTimeoutMs: 1000,
+      logger: new RecordingLogger(), clientId: 'hotfix', managedFieldResolver: resolver, mutationStarted: () => false });
+    const result = await facade.execute({ objectApiName: 'Order__c', recordId: CONTACT_A, fields }, extra());
+    assert.equal(result.isError, undefined);
+    assert.equal(tool.executions, 1);
+    assert.deepEqual(tool.input?.fields, fields);
+    assert.equal(queries, 0);
+  });
+}
+
+for (const operation of ['CREATE', 'UPDATE'] as const) {
+  test('invalid fallback UPDATE scope fails closed before ' + operation + ' dispatch', async () => {
+    const context = createRequestContext({ platformUserId: 'invalid-user', correlationId: 'hotfix' }, process.cwd());
+    let queries = 0;
+    const resolver = new ManagedDmlFieldResolver(queryConnection(async () => { queries += 1; return { records: [] }; }), context,
+      [runtimeRule({ strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', applyOnUpdate: true })]);
+    const tool = new CapturingCreateTool(operation === 'CREATE' ? 'create_record' : 'update_record');
+    const facade = new DmlToolFacade({ tool, context, route: userRoute('invalid-user'), toolTimeoutMs: 1000,
+      logger: new RecordingLogger(), clientId: 'hotfix', managedFieldResolver: resolver, mutationStarted: () => false });
+    const result = await facade.execute({ objectApiName: 'Lead', recordId: CONTACT_A, fields: { Description: 'changed' } }, extra());
+    assert.equal(errorCode(result), 'MCP_DML_MANAGED_FIELD_CONFIG_INVALID');
+    assert.equal(tool.executions, 0);
+    assert.equal(queries, 0);
+  });
+}
+
+for (const strategy of ['PLATFORM_USER_LOOKUP', 'PLATFORM_USER_LOOKUP_FALLBACK', 'AI_CREATED_MARKER'] as const) {
+  for (const reverse of [false, true]) {
+    test(strategy + ' rejects duplicate case aliases before any lookup, order reversed = ' + reverse, async () => {
+      const context = createRequestContext({ platformUserId: 'duplicate-user', correlationId: 'hotfix' }, process.cwd());
+      let queries = 0;
+      const resolver = new ManagedDmlFieldResolver(queryConnection(async () => { queries += 1; return { records: [{ Id: CONTACT_A }] }; }), context,
+        [runtimeRule({ targetFieldApiName: 'First_Lookup__c' }), runtimeRule({ targetFieldApiName: 'Order_Owner__c', strategy,
+          applyOnUpdate: false, ...(strategy === 'AI_CREATED_MARKER' ? { lookupObjectApiName: null, lookupMatchFieldApiName: null } : {}) })]);
+      const fields = Object.fromEntries((reverse
+        ? [['order_owner__c', 'private-second'], ['Order_Owner__c', 'private-first']]
+        : [['Order_Owner__c', 'private-first'], ['order_owner__c', 'private-second']]));
+      const tool = new CapturingCreateTool();
+      const logger = new RecordingLogger();
+      const facade = new DmlToolFacade({ tool, context, route: userRoute('duplicate-user'), toolTimeoutMs: 1000,
+        logger, clientId: 'hotfix', managedFieldResolver: resolver, mutationStarted: () => false });
+      const result = await facade.execute({ objectApiName: 'Lead', fields }, extra());
+      assert.equal(errorCode(result), 'MCP_DML_INPUT_INVALID');
+      assert.equal(tool.executions, 0);
+      assert.equal(queries, 0, 'a previous valid managed target must not query either');
+      assert.doesNotMatch(JSON.stringify([result, logger.events.map((event) => event.requestSummary)]), /private-first|private-second|duplicate-user/u);
+    });
+  }
 }

@@ -2,7 +2,7 @@
 
 Status: implemented; deterministic and mocked integration Gates pass; live Salesforce Gates remain Maintainer-run.
 
-Date: 2026-08-27; fallback capability update: 2026-09-05 (Playbook 1.5.0)
+Date: 2026-08-27; fallback capability update: 2026-09-05 (Playbook 1.5.1)
 
 ## Purpose
 
@@ -45,7 +45,7 @@ The parent-plus-target unique constraint prevents duplicate rules. No production
 - Explicit client value > MCP platform-user fallback. Explicit means the target key exists case-insensitively in input.fields, including null, empty string, or an in-process undefined value. Canonicalizing the key never changes the value.
 - When explicit, preserve it and do not execute the platform-user Lookup. A missing default mapping cannot block this path. Rule configuration is still validated first.
 - When omitted, reuse the existing resolvePlatformUserLookup() with the same request-scoped USER Connection, platformUserId, LIMIT 2, and error codes.
-- Applies only to configured CREATE/UPDATE scopes. It is not a generic Default Value Engine and does not resolve person names.
+- CREATE-only: applyOnCreate=true and applyOnUpdate=false are required by Admin, Runtime, and migration 011. It never automatically defaults a field on UPDATE; explicit Lookup changes still use normal Salesforce UPDATE. It is not a generic Default Value Engine and does not resolve person names.
 - Existing input schemas and Salesforce validate explicit values; an invalid Lookup value fails transparently and is never silently replaced with the default.
 
 ### `AI_CREATED_MARKER`
@@ -73,7 +73,7 @@ authenticated request
 
 The Control Plane reads enabled Tool, DML policy, and managed-rule rows in one repeatable-read Runtime snapshot. Objects and arrays are deeply frozen. There is no managed-field cache, mutable global current user, Connection pool, cross-request singleton, or retry queue.
 
-The resolver validates all enabled rules for the target object before operation filtering. Bad persisted history therefore fails closed instead of being silently ignored. The host checks the existing object/operation allowlist before any managed Lookup query.
+The resolver validates all enabled rules for the target object before operation filtering. Bad persisted history therefore fails closed instead of being silently ignored. The host checks the existing object/operation allowlist before any managed Lookup query. Object matching in Action Context and Runtime is case-insensitive without rewriting the Salesforce input object name. More than one client casing alias for any applicable managed target returns MCP_DML_INPUT_INVALID before any managed Lookup or mutation; errors contain only the safe field API name.
 
 | Strategy | Priority |
 | --- | --- |
@@ -91,7 +91,7 @@ Managed Lookup resolution occurs before mutation dispatch. A pre-dispatch valida
 
 ## Agent contract
 
-Canonical Playbook 1.5.0, Server Instructions, capability Resource, Prompt, Tool fallback, Dify, WorkBuddy Skill/references, and Admin preview distinguish:
+Canonical Playbook 1.5.1, Server Instructions, capability Resource, Prompt, Tool fallback, Dify, WorkBuddy Skill/references, and Admin preview distinguish:
 
 - PLATFORM_IDENTITY (strict PLATFORM_USER_LOOKUP): do not ask, recommend, submit, derive, or override.
 - AI_CREATED_MARKER: do not ask or submit; server owns the marker.
@@ -101,7 +101,7 @@ On CREATE, an already supplied person is resolved through the existing LOOKUP wo
 
 Required and absent: ask once, explain that another person may be specified and otherwise the current user will be used, and wait before mutation. A default/current-user choice means omit the field without querying the current-user Lookup Id. Optional and absent: omit without an extra question. Optional and explicitly supplied: resolve and submit that person.
 
-UPDATE retains minimum mutation: only collect requested changes; never turn CREATE layout requirements into questions on every UPDATE. An omitted field follows the administrator-configured applyOnUpdate flag. Required/editable decisions belong to Salesforce Action Context and the Agent; Runtime handles only value priority.
+UPDATE retains minimum mutation: only collect requested changes; never turn CREATE layout requirements into questions on every UPDATE. An omitted fallback field is never injected on UPDATE; explicit changes follow the normal UPDATE + LOOKUP workflow. Required/editable decisions belong to Salesforce Action Context and the Agent; Runtime handles only value priority.
 
 Capabilities expose only object, target field, safe strategy, and operation scope; no mapping details, platform identity, Lookup result, or secret.
 
@@ -117,9 +117,9 @@ Runtime/facade and Playbook contract tests cover these decisions and payloads. T
 
 ## Configuration and migration
 
-Migration 004 actually uses an ENUM and a strategy CHECK. New forward-only migration 010_managed_platform_user_lookup_fallback.sql appends the enum value and extends the lookup CHECK in one ALTER TABLE. It changes no existing row, enum ordinal, operation flag, or rule strategy. Historical migration files remain immutable.
+Migration 004 actually uses an ENUM and a strategy CHECK. New forward-only migration 010_managed_platform_user_lookup_fallback.sql appends the enum value and extends the lookup CHECK in one ALTER TABLE. It changes no existing row, enum ordinal, operation flag, or rule strategy. Historical migration files remain immutable. HOTFIX01 adds 011_managed_fallback_create_only.sql to constrain fallback to CREATE without changing 010 checksums. At inspection, both accessible development and persistent test ledgers had no applied 010; 011 is retained because this does not establish the state of every shared environment. If unsafe fallback UPDATE rows exist elsewhere, 011 fails without rewriting them; an administrator must explicitly correct their scope before rerunning migration.
 
-Deploy the migration with the existing yarn db:migrate command before starting the upgraded services; distribute Playbook 1.5.0 with the Runtime/Admin build. In Admin → DML 策略 → the object's 托管字段 → edit the desired owner rule, select 当前平台用户 Lookup（缺省回填，可由用户指定）, retain the lookup object/match field, review applyOnCreate/applyOnUpdate, and save. Only explicitly selected rules change. Keep trusted identity fields on 当前平台用户 Lookup（强制托管）. Do not bulk-convert existing rules.
+Deploy the migration with the existing yarn db:migrate command before starting the upgraded services; distribute Playbook 1.5.1 with the Runtime/Admin build. In Admin → DML 策略 → the object's 托管字段 → edit the desired owner rule, select 当前平台用户 Lookup（创建缺省回填，可由用户指定）, retain the lookup object/match field, confirm CREATE-only scope, and save. Only explicitly selected rules change. Keep trusted identity fields on 当前平台用户 Lookup（强制托管）. Do not bulk-convert existing rules.
 
 ## Trusted record links
 

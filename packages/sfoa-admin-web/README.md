@@ -1,6 +1,6 @@
 # SFoA P6 Admin Web
 
-The React Admin Console manages only SFoA-owned identity routing, executable Tool enablement, CREATE/UPDATE object policy, Diagnostic integration configuration, safe runtime settings, audit, and system status. Its Agent Integration page renders canonical Playbook `1.5.0`, distinguishes Buntu, USER_BOUND, and Internal/Inspector identity setup, and previews deterministic Dify/WorkBuddy guidance from current safe capability facts. It never receives Salesforce tokens, JWT keys, database credentials, or the MCP client secret.
+The React Admin Console manages only SFoA-owned identity routing, executable Tool enablement, CREATE/UPDATE object policy, Diagnostic integration configuration, safe runtime settings, audit, and system status. Its Agent Integration page renders canonical Playbook `1.5.1`, distinguishes Buntu, USER_BOUND, and Internal/Inspector identity setup, and previews deterministic Dify/WorkBuddy guidance from current safe capability facts. It never receives Salesforce tokens, JWT keys, database credentials, or the MCP client secret.
 
 ```powershell
 yarn workspace @sfoa/admin-web dev

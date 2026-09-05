@@ -119,10 +119,15 @@ test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, 
   const managedCreated = await postJson(`${root}/dml-policies/1/managed-fields`, managedInput, ORIGIN, cookie, session.csrfToken);
   assert.equal(managedCreated.status, 201);
   const fallbackInput = { ...managedInput, strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' };
-  for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: null }]) {
+  for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: null }, { applyOnCreate: false }, { applyOnUpdate: true }]) {
     const response = await postJson(
       root + '/dml-policies/1/managed-fields', { ...fallbackInput, ...invalid }, ORIGIN, cookie, session.csrfToken);
     assert.equal(response.status, 400);
+    const update = await fetch(root + '/dml-policies/1/managed-fields/7', {
+      method: 'PUT', headers: mutationHeaders(cookie, session.csrfToken),
+      body: JSON.stringify({ ...fallbackInput, rowVersion: '1', ...invalid }),
+    });
+    assert.equal(update.status, 400);
   }
   const fallbackCreated = await postJson(root + '/dml-policies/1/managed-fields', fallbackInput, ORIGIN, cookie, session.csrfToken);
   assert.equal(fallbackCreated.status, 201);
