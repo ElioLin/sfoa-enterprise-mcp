@@ -619,7 +619,7 @@ function assertManagedDmlFieldRule(
   if (!input.applyOnCreate && !input.applyOnUpdate) {
     throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'A managed field rule must apply on CREATE, UPDATE, or both.');
   }
-  if (input.strategy === 'PLATFORM_USER_LOOKUP') {
+  if (input.strategy === 'PLATFORM_USER_LOOKUP' || input.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK') {
     if (!input.lookupObjectApiName || !objectApiNameSchema.safeParse(input.lookupObjectApiName).success
       || !input.lookupMatchFieldApiName || !fieldApiNameSchema.safeParse(input.lookupMatchFieldApiName).success) {
       throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Platform-user lookup rules require valid lookup object and match field API names.');

@@ -26,7 +26,7 @@ test('host enriches action context with only current object/action safe managed 
     toolTimeoutMs: 1_000,
     logger: new NoopRuntimeLogger(),
     clientId: 'context-test',
-    managedDmlFieldRules: [rule('Lead', 'Requested_By__c', true, true), rule('Lead', 'Created_By_AI__c', true, false, 'AI_CREATED_MARKER'), rule('Account', 'Owner_Contact__c', true, true)],
+    managedDmlFieldRules: [rule('Lead', 'Requested_By__c', true, true), rule('Lead', 'Created_By_AI__c', true, false, 'AI_CREATED_MARKER'), rule('Lead', 'Order_Owner__c', true, false, 'PLATFORM_USER_LOOKUP_FALLBACK'), rule('Account', 'Owner_Contact__c', true, true)],
   });
 
   assert.ok(Object.hasOwn(facade.getConfig().outputSchema ?? {}, 'managedDmlFields'));
@@ -39,8 +39,15 @@ test('host enriches action context with only current object/action safe managed 
     managedBy: 'MCP',
     strategy: 'PLATFORM_IDENTITY',
   }]);
-  const serialized = JSON.stringify(managed);
-  assert.doesNotMatch(serialized, /lookup|Contact|Platform_User_Id__c/iu);
+  const created = await facade.execute({ objectApiName: 'Lead', action: 'CREATE' }, extra());
+  const createManaged = created.structuredContent?.managedDmlFields;
+  assert.ok(Array.isArray(createManaged));
+  assert.deepEqual(createManaged.map((field: { strategy: string }) => field.strategy).sort(),
+    ['AI_CREATED_MARKER', 'PLATFORM_IDENTITY', 'PLATFORM_IDENTITY_FALLBACK']);
+  const schema = facade.getConfig().outputSchema?.managedDmlFields;
+  assert.ok(schema?.safeParse(createManaged).success);
+  const serialized = JSON.stringify([managed, createManaged]);
+  assert.doesNotMatch(serialized, /lookup|Contact|Platform_User_Id__c|action-user|003000/u);
 });
 
 function rule(
@@ -48,7 +55,7 @@ function rule(
   targetFieldApiName: string,
   applyOnCreate: boolean,
   applyOnUpdate: boolean,
-  strategy: 'PLATFORM_USER_LOOKUP' | 'AI_CREATED_MARKER' = 'PLATFORM_USER_LOOKUP',
+  strategy: RuntimeManagedDmlFieldRule['strategy'] = 'PLATFORM_USER_LOOKUP',
 ): RuntimeManagedDmlFieldRule {
   return Object.freeze({
     id: `${objectApiName}-${targetFieldApiName}`,
@@ -58,8 +65,8 @@ function rule(
     strategy,
     applyOnCreate,
     applyOnUpdate,
-    lookupObjectApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Contact' : null,
-    lookupMatchFieldApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Platform_User_Id__c' : null,
+    lookupObjectApiName: strategy !== 'AI_CREATED_MARKER' ? 'Contact' : null,
+    lookupMatchFieldApiName: strategy !== 'AI_CREATED_MARKER' ? 'Platform_User_Id__c' : null,
     enabled: true,
     remark: null,
     rowVersion: '1',

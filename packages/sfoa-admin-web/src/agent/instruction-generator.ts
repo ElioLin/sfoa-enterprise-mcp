@@ -1,3 +1,4 @@
+import { MANAGED_DML_FIELD_SAFE_STRATEGIES } from '@sfoa/control-plane/contracts';
 import {
   AGENT_RECOGNIZED_TOOL_NAMES,
   createAgentCapabilities,
@@ -75,7 +76,7 @@ export function deriveDifyInstructionFacts(input: DifyInstructionInput): DifyIns
         ...(rule.applyOnUpdate ? ['UPDATE' as const] : []),
       ],
       managedBy: 'MCP' as const,
-      strategy: rule.strategy === 'PLATFORM_USER_LOOKUP' ? 'PLATFORM_IDENTITY' as const : 'AI_CREATED_MARKER' as const,
+      strategy: MANAGED_DML_FIELD_SAFE_STRATEGIES[rule.strategy],
     })),
   });
 

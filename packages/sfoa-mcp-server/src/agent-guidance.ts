@@ -1,3 +1,4 @@
+import { MANAGED_DML_FIELD_SAFE_STRATEGIES } from '@sfoa/control-plane/contracts';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -84,7 +85,7 @@ export function createRuntimeAgentCapabilities(
         ...(rule.applyOnUpdate ? ['UPDATE' as const] : []),
       ],
       managedBy: 'MCP' as const,
-      strategy: rule.strategy === 'PLATFORM_USER_LOOKUP' ? 'PLATFORM_IDENTITY' as const : 'AI_CREATED_MARKER' as const,
+      strategy: MANAGED_DML_FIELD_SAFE_STRATEGIES[rule.strategy],
     })),
   });
 }

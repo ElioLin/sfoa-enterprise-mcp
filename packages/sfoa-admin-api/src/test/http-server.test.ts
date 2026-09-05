@@ -118,10 +118,20 @@ test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, 
   } as const;
   const managedCreated = await postJson(`${root}/dml-policies/1/managed-fields`, managedInput, ORIGIN, cookie, session.csrfToken);
   assert.equal(managedCreated.status, 201);
+  const fallbackInput = { ...managedInput, strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' };
+  for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: null }]) {
+    const response = await postJson(
+      root + '/dml-policies/1/managed-fields', { ...fallbackInput, ...invalid }, ORIGIN, cookie, session.csrfToken);
+    assert.equal(response.status, 400);
+  }
+  const fallbackCreated = await postJson(root + '/dml-policies/1/managed-fields', fallbackInput, ORIGIN, cookie, session.csrfToken);
+  assert.equal(fallbackCreated.status, 201);
+  assert.equal((await fallbackCreated.json() as { strategy: string }).strategy, 'PLATFORM_USER_LOOKUP_FALLBACK');
   const managedUpdated = await fetch(`${root}/dml-policies/1/managed-fields/7`, {
-    method: 'PUT', headers: mutationHeaders(cookie, session.csrfToken), body: JSON.stringify({ ...managedInput, rowVersion: '1' }),
+    method: 'PUT', headers: mutationHeaders(cookie, session.csrfToken), body: JSON.stringify({ ...fallbackInput, rowVersion: '1' }),
   });
   assert.equal(managedUpdated.status, 200);
+  assert.equal((await managedUpdated.json() as { strategy: string }).strategy, 'PLATFORM_USER_LOOKUP_FALLBACK');
   const managedDisabled = await postJson(`${root}/dml-policies/1/managed-fields/7/disable`, { rowVersion: '2' }, ORIGIN, cookie, session.csrfToken);
   assert.equal(managedDisabled.status, 200);
   const managedDeleted = await fetch(`${root}/dml-policies/1/managed-fields/7`, {
@@ -649,7 +659,7 @@ function managedDmlFieldRecord(input: Readonly<{
   id: string;
   dmlPolicyId: string;
   targetFieldApiName: string;
-  strategy: 'PLATFORM_USER_LOOKUP' | 'AI_CREATED_MARKER';
+  strategy: 'PLATFORM_USER_LOOKUP' | 'PLATFORM_USER_LOOKUP_FALLBACK' | 'AI_CREATED_MARKER';
   applyOnCreate: boolean;
   applyOnUpdate: boolean;
   lookupObjectApiName: string | null;

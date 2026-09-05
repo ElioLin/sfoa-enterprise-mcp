@@ -68,11 +68,12 @@ if (!setup) {
       '007_p7_soql_dml_audit_evidence',
       '008_p7_payload_evidence_runtime',
       '009_identity_route_user_name',
+      '010_managed_platform_user_lookup_fallback',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
 
-  test('an empty database initializes through 009 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
+  test('an empty database initializes through 010 and a populated P6 schema upgrades without losing legacy audit rows', { timeout: 120_000 }, async () => {
     await withIsolatedDatabase(config, 'empty', async (database) => {
       const migrations = await migrateDatabase(database);
       assert.deepEqual(migrations.map((entry) => entry.version), [
@@ -85,6 +86,7 @@ if (!setup) {
         '007_p7_soql_dml_audit_evidence',
         '008_p7_payload_evidence_runtime',
         '009_identity_route_user_name',
+        '010_managed_platform_user_lookup_fallback',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -101,7 +103,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '009_identity_route_user_name');
+      assert.equal(migrations.at(-1)?.version, '010_managed_platform_user_lookup_fallback');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -186,6 +188,39 @@ if (!setup) {
       assert.equal(row.operation_name, 'LEGACY_API_EVIDENCE');
       assert.equal(row.endpoint, '/services/data/v65.0/query');
       assert.match(row.public_api_call_id, /^[0-9a-f-]{36}$/u);
+    });
+  });
+
+  test('010 preserves strict and marker rows and permits only valid fallback configuration', { timeout: 120_000 }, async () => {
+    await withIsolatedDatabase(config, 'fallback', async (database) => {
+      await installP6Schema(database);
+      await sql.raw("INSERT INTO sfoa_dml_policy (object_api_name, allow_create, allow_update, enabled) VALUES ('Order__c', 1, 1, 1)").execute(database);
+      await sql.raw(`INSERT INTO sfoa_dml_managed_field_rule (dml_policy_id, target_field_api_name, strategy,
+        apply_on_create, apply_on_update, lookup_object_api_name, lookup_match_field_api_name)
+        SELECT id, 'Requested_By__c', 'PLATFORM_USER_LOOKUP', 1, 1, 'Contact', 'Platform_User_Id__c' FROM sfoa_dml_policy`).execute(database);
+      await sql.raw(`INSERT INTO sfoa_dml_managed_field_rule (dml_policy_id, target_field_api_name, strategy, apply_on_create)
+        SELECT id, 'Created_By_AI__c', 'AI_CREATED_MARKER', 1 FROM sfoa_dml_policy`).execute(database);
+      const before = await database.selectFrom('sfoa_dml_managed_field_rule').selectAll().orderBy('id').execute();
+      await migrateDatabase(database);
+      const after = await database.selectFrom('sfoa_dml_managed_field_rule').selectAll().orderBy('id').execute();
+      assert.deepEqual(after, before);
+      const isolated = new MySqlControlPlaneStore(database);
+      const policyId = String(before[0]!.dml_policy_id);
+      const fallback = await isolated.repositories.managedDmlFieldRules.create({
+        dmlPolicyId: policyId, targetFieldApiName: 'Order_Owner__c', strategy: 'PLATFORM_USER_LOOKUP_FALLBACK',
+        applyOnCreate: true, applyOnUpdate: true, lookupObjectApiName: 'Contact', lookupMatchFieldApiName: 'Platform_User_Id__c',
+        enabled: true, remark: null,
+      });
+      const snapshot = await loadMySqlRequestPolicySnapshot(database, 'unmapped-user');
+      assert.equal(snapshot.managedDmlFieldRules.find((rule) => rule.id === fallback.id)?.strategy, 'PLATFORM_USER_LOOKUP_FALLBACK');
+      const strict = await isolated.repositories.managedDmlFieldRules.getById(String(before[0]!.id));
+      assert.ok(strict);
+      await isolated.repositories.managedDmlFieldRules.update(strict.id, { ...strict, strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' });
+      assert.equal((await isolated.repositories.managedDmlFieldRules.getById(strict.id))?.strategy, 'PLATFORM_USER_LOOKUP_FALLBACK');
+      for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: null }, { applyOnCreate: false, applyOnUpdate: false }]) {
+        await assert.rejects(isolated.repositories.managedDmlFieldRules.create({ ...fallback, targetFieldApiName: 'Invalid__c', ...invalid }));
+      }
+      await assert.rejects(sql.raw("UPDATE sfoa_dml_managed_field_rule SET apply_on_update = 1 WHERE strategy = 'AI_CREATED_MARKER'").execute(database));
     });
   });
 

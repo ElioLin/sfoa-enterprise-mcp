@@ -60,6 +60,13 @@ export class ManagedDmlFieldResolver {
       const agentFieldName = Object.keys(fields).find((fieldName) =>
         fieldName.toLocaleLowerCase('en-US') === normalizedTarget);
       const agentValueOverridden = agentFieldName !== undefined;
+      // Presence preserves clear/invalid-value intent; Salesforce remains the validator.
+      if (rule.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK' && agentFieldName !== undefined) {
+        const agentValue = fields[agentFieldName];
+        if (agentFieldName !== rule.targetFieldApiName) delete fields[agentFieldName];
+        fields[rule.targetFieldApiName] = agentValue;
+        continue;
+      }
       if (agentFieldName && agentFieldName !== rule.targetFieldApiName) delete fields[agentFieldName];
       fields[rule.targetFieldApiName] = rule.strategy === 'AI_CREATED_MARKER'
         ? true
@@ -136,7 +143,7 @@ function assertValidRule(rule: RuntimeManagedDmlFieldRule): void {
     || (!rule.applyOnCreate && !rule.applyOnUpdate)) {
     throw invalidConfig('Managed field rule contains an invalid Salesforce identifier or operation scope.');
   }
-  if (rule.strategy === 'PLATFORM_USER_LOOKUP') {
+  if (rule.strategy === 'PLATFORM_USER_LOOKUP' || rule.strategy === 'PLATFORM_USER_LOOKUP_FALLBACK') {
     if (!rule.lookupObjectApiName || !objectApiNameSchema.safeParse(rule.lookupObjectApiName).success
       || !rule.lookupMatchFieldApiName || !fieldApiNameSchema.safeParse(rule.lookupMatchFieldApiName).success) {
       throw invalidConfig('Platform-user lookup rule is missing a valid lookup object or match field.');

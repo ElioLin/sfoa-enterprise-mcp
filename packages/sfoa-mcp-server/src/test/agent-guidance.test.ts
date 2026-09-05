@@ -46,7 +46,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
   const client = await connectClient(server, TEST_PLATFORM_USER_A);
   try {
     assert.equal(connectionFactory.creations.length, 0, 'initialize must not create Salesforce Connections');
-    assert.match(client.getInstructions() ?? '', /SFoA Salesforce Agent Playbook 1\.4\.1/u);
+    assert.match(client.getInstructions() ?? '', /SFoA Salesforce Agent Playbook 1\.5\.0/u);
     assert.match(client.getInstructions() ?? '', /MCP_DML_OUTCOME_UNKNOWN/u);
     assert.match(client.getInstructions() ?? '', /Identity is MCP-owned/u);
     assert.match(client.getInstructions() ?? '', /get_record_action_context/u);
@@ -58,7 +58,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       AGENT_PLAYBOOK_RESOURCE_URI,
     ]);
     const playbook = await client.readResource({ uri: AGENT_PLAYBOOK_RESOURCE_URI });
-    assert.match(resourceText(playbook), /Playbook-Version: 1\.4\.1/u);
+    assert.match(resourceText(playbook), /Playbook-Version: 1\.5\.0/u);
     assert.match(resourceText(playbook), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
     assert.match(resourceText(playbook), /READ \(SOQL\) scope/u);
     assert.match(resourceText(playbook), /NOT bounded by the CREATE\/UPDATE allowlists/u);
@@ -69,7 +69,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       await client.readResource({ uri: AGENT_CAPABILITIES_RESOURCE_URI }),
     )) as unknown;
     assert.deepEqual(capabilities, {
-      playbookVersion: '1.4.1',
+      playbookVersion: '1.5.0',
       enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook', 'get_record_links'],
       createAllowedObjects: [],
       updateAllowedObjects: [],
@@ -120,7 +120,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
 
     const fallback = await client.callTool({ name: 'get_agent_playbook', arguments: { workflow: 'CREATE' } });
     assert.equal(fallback.isError, undefined);
-    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.4.1');
+    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.5.0');
     assert.equal(asRecord(fallback.structuredContent).workflow, 'CREATE');
     assert.match(String(asRecord(fallback.structuredContent).guidance), /## CREATE —/u);
     assert.match(String(asRecord(fallback.structuredContent).guidance), /MCP_DML_OUTCOME_UNKNOWN/u);
@@ -237,7 +237,7 @@ test('request-scoped capability Resources do not leak Tool or DML policy facts a
           route('2', TEST_PLATFORM_USER_B, TEST_USERNAME_B),
           ['run_soql_query', 'update_record', 'get_agent_playbook'],
           [dmlPolicy('2', 'Contact', false, true)],
-          [managedRule('22', '2', 'Requested_By__c', 'PLATFORM_USER_LOOKUP', false, true)],
+          [managedRule('22', '2', 'Requested_By__c', 'PLATFORM_USER_LOOKUP', false, true), managedRule('23', '2', 'Owner_Contact__c', 'PLATFORM_USER_LOOKUP_FALLBACK', false, true)],
         ),
   };
   const server = await startRemoteMcpServer({
@@ -260,6 +260,8 @@ test('request-scoped capability Resources do not leak Tool or DML policy facts a
       objectApiName: 'Account', fieldApiName: 'Created_By_AI__c', operations: ['CREATE'], managedBy: 'MCP', strategy: 'AI_CREATED_MARKER',
     }]);
     assert.deepEqual(capabilitiesB.managedDmlFields, [{
+      objectApiName: 'Contact', fieldApiName: 'Owner_Contact__c', operations: ['UPDATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY_FALLBACK',
+    }, {
       objectApiName: 'Contact', fieldApiName: 'Requested_By__c', operations: ['UPDATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY',
     }]);
     assert.equal(capabilitiesA.enabledTools.includes('get_record_links'), true);
@@ -332,14 +334,14 @@ function managedRule(
   id: string,
   dmlPolicyId: string,
   targetFieldApiName: string,
-  strategy: 'PLATFORM_USER_LOOKUP' | 'AI_CREATED_MARKER',
+  strategy: ManagedDmlFieldRuleRecord['strategy'],
   applyOnCreate: boolean,
   applyOnUpdate: boolean,
 ): ManagedDmlFieldRuleRecord {
   return Object.freeze({
     id, dmlPolicyId, targetFieldApiName, strategy, applyOnCreate, applyOnUpdate,
-    lookupObjectApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Contact' : null,
-    lookupMatchFieldApiName: strategy === 'PLATFORM_USER_LOOKUP' ? 'Platform_User_Id__c' : null,
+    lookupObjectApiName: strategy !== 'AI_CREATED_MARKER' ? 'Contact' : null,
+    lookupMatchFieldApiName: strategy !== 'AI_CREATED_MARKER' ? 'Platform_User_Id__c' : null,
     enabled: true, remark: null, rowVersion: '1', createdAt: NOW, updatedAt: NOW,
   });
 }

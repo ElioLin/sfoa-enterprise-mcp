@@ -6,6 +6,10 @@ import type { Connection } from '@salesforce/core';
 import { McpTool, ReleaseState, Toolset, type McpToolConfig } from '@salesforce/mcp-provider-api';
 import type { ManagedDmlFieldRuleRecord } from '@sfoa/control-plane';
 import {
+  currentSalesforceCallSemanticScope,
+  RequestAuditContextController,
+  runWithRequestAuditContext,
+  type SalesforceApiSemanticEvidence,
   createRequestContext,
   createSalesforceIdentityRoute,
   type RuntimeLogEvent,
@@ -304,12 +308,14 @@ function extra(): RequestHandlerExtra<ServerRequest, ServerNotification> {
 const emptySchema = z.object({});
 class CapturingCreateTool extends McpTool<typeof emptySchema.shape> {
   public executions = 0;
+  public semantic: SalesforceApiSemanticEvidence | undefined;
   public input: Readonly<Record<string, unknown>> | undefined;
   public getReleaseState(): ReleaseState { return ReleaseState.GA; }
   public getToolsets(): Toolset[] { return [Toolset.DATA]; }
   public getName(): string { return 'create_record'; }
   public getConfig(): McpToolConfig<typeof emptySchema.shape> { return { inputSchema: emptySchema.shape }; }
   public async exec(input: Readonly<Record<string, unknown>>): Promise<CallToolResult> {
+    this.semantic = currentSalesforceCallSemanticScope()?.bind('11111111-1111-4111-8111-111111111111');
     this.executions += 1;
     this.input = input;
     return { content: [{ type: 'text', text: 'created' }], structuredContent: { success: true, recordId: '00Q000000000001AAA' } };
@@ -323,4 +329,109 @@ class RecordingLogger implements RuntimeLogger {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+for (const operation of ['CREATE', 'UPDATE'] as const) {
+  for (const strategy of ['PLATFORM_USER_LOOKUP', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const) {
+    test(strategy + ' ' + operation + ' omitted field reuses bounded platform lookup', async () => {
+      let queries = 0;
+      const resolver = new ManagedDmlFieldResolver(queryConnection(async (soql) => {
+        queries += 1;
+        assert.equal(soql, "SELECT Id FROM Contact WHERE Platform_User_Id__c = 'platform-user-a' LIMIT 2");
+        return { records: [{ Id: CONTACT_A }] };
+      }), createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'fallback-test' }, process.cwd()), [runtimeRule({ strategy })]);
+      const result = await resolver.resolve(operation, { objectApiName: 'Lead', fields: { LastName: 'Test' } });
+      assert.equal(queries, 1);
+      assert.equal(fieldValue(result.input, 'Requested_By__c'), CONTACT_A);
+      assert.deepEqual(result.applied, [{ fieldApiName: 'Requested_By__c', strategy, agentValueOverridden: false }]);
+    });
+  }
+  for (const fieldName of ['Requested_By__c', 'requested_by__c', 'REQUESTED_BY__C']) {
+    for (const value of [CONTACT_B, null, '', undefined, 'invalid-client-id']) {
+      test('fallback preserves explicit ' + fieldName + ' ' + String(value) + ' on ' + operation, async () => {
+        let queries = 0;
+        const resolver = new ManagedDmlFieldResolver(queryConnection(async () => {
+          queries += 1;
+          return { records: [] }; // Default mapping would be NOT_FOUND if called.
+        }), createRequestContext({ platformUserId: 'unmapped-user', correlationId: 'fallback-test' }, process.cwd()),
+        [runtimeRule({ strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' })]);
+        const input = { objectApiName: 'Lead', fields: { [fieldName]: value } };
+        const result = await resolver.resolve(operation, input);
+        assert.deepEqual(result.input.fields, { Requested_By__c: value });
+        assert.deepEqual(input.fields, { [fieldName]: value });
+        assert.deepEqual(result.applied, []);
+        assert.equal(queries, 0);
+      });
+    }
+  }
+}
+
+test('fallback omission retains existing failure codes and explicit values cannot hide invalid config', async () => {
+  const context = createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'fallback-test' }, process.cwd());
+  for (const [records, code] of [
+    [[], 'MCP_DML_MANAGED_LOOKUP_NOT_FOUND'],
+    [[{ Id: CONTACT_A }, { Id: CONTACT_B }], 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS'],
+    [[{ Id: 'bad-id' }], 'MCP_DML_MANAGED_LOOKUP_FAILED'],
+  ] as const) {
+    await assertRejectsCode(new ManagedDmlFieldResolver(queryConnection(async () => ({ records })), context,
+      [runtimeRule({ strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' })]), code);
+  }
+  await assertRejectsCode(new ManagedDmlFieldResolver(queryConnection(async () => { throw new Error('query failed'); }), context,
+    [runtimeRule({ strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' })]), 'MCP_DML_MANAGED_LOOKUP_FAILED');
+  for (const invalid of [{ lookupObjectApiName: null }, { lookupMatchFieldApiName: 'Bad.Field' }, { applyOnCreate: false, applyOnUpdate: false }]) {
+    const resolver = new ManagedDmlFieldResolver(queryConnection(async () => { throw new Error('must not query'); }), context,
+      [runtimeRule({ strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', ...invalid })]);
+    await assert.rejects(resolver.resolve('CREATE', { objectApiName: 'Lead', fields: { Requested_By__c: CONTACT_B } }),
+      (error: unknown) => isRecord(error) && error.code === 'MCP_DML_MANAGED_FIELD_CONFIG_INVALID');
+  }
+});
+
+test('fallback obeys applyOnUpdate and does not add fields to an unrelated UPDATE', async () => {
+  const resolver = new ManagedDmlFieldResolver(queryConnection(async () => { throw new Error('must not query'); }),
+    createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'fallback-test' }, process.cwd()),
+    [runtimeRule({ strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', applyOnUpdate: false })]);
+  const input = { objectApiName: 'Lead', fields: { Company: 'Changed' } };
+  const result = await resolver.resolve('UPDATE', input);
+  assert.deepEqual(result.input, input);
+  assert.deepEqual(result.applied, []);
+});
+
+test('AI marker also writes true when omitted', async () => {
+  const resolver = new ManagedDmlFieldResolver(queryConnection(async () => { throw new Error('must not query'); }),
+    createRequestContext({ platformUserId: 'marker-user', correlationId: 'fallback-test' }, process.cwd()),
+    [runtimeRule({ targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER', applyOnUpdate: false,
+      lookupObjectApiName: null, lookupMatchFieldApiName: null })]);
+  const result = await resolver.resolve('CREATE', { objectApiName: 'Lead', fields: {} });
+  assert.equal(fieldValue(result.input, 'Created_By_AI__c'), true);
+  assert.equal(result.applied[0]?.agentValueOverridden, false);
+});
+
+for (const supplied of [true, false]) {
+  test('order owner acceptance and audit: explicit supplied = ' + supplied, async () => {
+    const context = createRequestContext({ platformUserId: 'platform-li-si', correlationId: 'fallback-test' }, process.cwd());
+    const tool = new CapturingCreateTool();
+    const logger = new RecordingLogger();
+    let queries = 0;
+    const resolver = new ManagedDmlFieldResolver(queryConnection(async () => {
+      queries += 1;
+      return { records: [{ Id: CONTACT_A }] }; // Li Si default; explicit CONTACT_B is Zhang San.
+    }), context, [runtimeRule({ objectApiName: 'Order__c', targetFieldApiName: 'Order_Owner__c', strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' })]);
+    const facade = new DmlToolFacade({ tool, context, route: userRoute('platform-li-si'), toolTimeoutMs: 1000,
+      logger, clientId: 'fallback-audit', managedFieldResolver: resolver, mutationStarted: () => false });
+    const fields = supplied ? { order_owner__c: CONTACT_B } : {};
+    const auditContext = RequestAuditContextController.create({ channel: 'MCP_HTTP', toolName: 'create_record' });
+    const result = await runWithRequestAuditContext(auditContext, () => facade.execute({ objectApiName: 'Order__c', fields }, extra()));
+    assert.equal(result.isError, undefined);
+    assert.equal(tool.executions, 1);
+    assert.equal(queries, supplied ? 0 : 1);
+    assert.equal(fieldValue(tool.input, 'Order_Owner__c'), supplied ? CONTACT_B : CONTACT_A);
+    assert.deepEqual(tool.semantic?.requestedFields, fields);
+    assert.deepEqual(tool.semantic?.managedFields, supplied ? {} : { Order_Owner__c: CONTACT_A });
+    const summary = logger.events[0]?.requestSummary;
+    assert.ok(isRecord(summary));
+    assert.deepEqual(summary.managedFieldsApplied, supplied ? [] : [{
+      fieldApiName: 'Order_Owner__c', strategy: 'PLATFORM_USER_LOOKUP_FALLBACK', agentValueOverridden: false,
+    }]);
+    assert.doesNotMatch(JSON.stringify(summary), /platform-li-si|003000000000001AAA|003000000000002AAA/u);
+  });
 }

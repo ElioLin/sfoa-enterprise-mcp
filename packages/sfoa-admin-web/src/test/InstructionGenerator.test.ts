@@ -1,5 +1,5 @@
 import { AGENT_PLAYBOOK_VERSION } from '@sfoa/agent-playbook';
-import type { AdminToolRecordDto, DiagnosticConfigRecord, DmlPolicyRecord } from '@sfoa/control-plane';
+import type { AdminToolRecordDto, DiagnosticConfigRecord, DmlPolicyRecord, ManagedDmlFieldRuleRecord } from '@sfoa/control-plane';
 import { describe, expect, it } from 'vitest';
 import { deriveDifyInstructionFacts, generateDifyAgentInstruction } from '../agent/instruction-generator.js';
 
@@ -164,3 +164,21 @@ function diagnostic(overrides: Partial<DiagnosticConfigRecord> = {}): Diagnostic
     ...overrides,
   });
 }
+
+
+it('Admin preview retains distinct safe strategies without mapping details', () => {
+  const strategies = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const;
+  const managedDmlFields = strategies.map((strategy, index): ManagedDmlFieldRuleRecord & { objectApiName: string } => ({
+    id: String(index), dmlPolicyId: '1', objectApiName: 'Order__c', targetFieldApiName: 'Field_' + index + '__c',
+    strategy, applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: strategy === 'AI_CREATED_MARKER' ? null : 'Contact',
+    lookupMatchFieldApiName: strategy === 'AI_CREATED_MARKER' ? null : 'Platform_User_Id__c', enabled: true,
+    remark: 'private-mapping-remark', rowVersion: '1', createdAt: NOW, updatedAt: NOW,
+  }));
+  const input = { ...fixture([tool('create_record')], [policy('Order__c', true, false)]), managedDmlFields };
+  const capabilities = deriveDifyInstructionFacts(input).capabilities;
+  expect(capabilities.managedDmlFields.map((field) => field.strategy)).toEqual(['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK']);
+  const instruction = generateDifyAgentInstruction(input);
+  expect(instruction).toContain('PLATFORM_IDENTITY_FALLBACK');
+  expect(instruction).toContain('required and absent, ask once');
+  expect(instruction).not.toMatch(/private-mapping-remark|Platform_User_Id__c|lookupObjectApiName/);
+});

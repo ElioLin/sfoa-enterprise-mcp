@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.4.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.5.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.4.1
+Playbook-Version: 1.5.0
 
 ## READ — Read current Salesforce data
 
@@ -38,8 +38,12 @@ Playbook-Version: 1.4.1
 - When the current identity has no available Record Type, stop and tell the user the record cannot be created; never create under an unavailable or guessed Record Type.
 - Run CREATE as a two-stage dialog when the first action context reports `recordTypeSelectionRequired=true`: the create facts are not yet loaded, so show only the `availableRecordTypes`, get (or confirm) one user choice, and do not begin Layout, Picklist, or Record-Type-dependent field questions before those facts exist; after the choice is made, call `get_record_action_context` again with the same `recordTypeId`, and only when the second context reports `recordTypeSelectionRequired=false` with Create Defaults, Layout, Picklists, and required/editable facts loaded do the full field collection; pass that same `recordTypeId` to `create_record` so the created record uses exactly the Record Type whose context you collected.
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
-- Ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value.
-- Exclude MCP-managed fields from required questions, optional recommendations, and the `create_record.fields` payload even when they appear required or editable in generic Salesforce context.
+- For ordinary fields, ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value. Managed fields follow the strategy-specific rules below.
+- Exclude only strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from required questions, optional recommendations, and the `create_record.fields` payload even when Salesforce context marks them required or editable.
+- For `PLATFORM_IDENTITY_FALLBACK` on CREATE, use current `apiRequired` or `layoutRequired` to determine required status and `fieldCreateable` / `layoutEditableForCreate` to assess explicit input. Do not infer required status from names or from the existence of a fallback. Missing or non-editable evidence is not permission to bypass Salesforce; explain the limitation.
+- If the user already specified a fallback field, do not ask for it again because it is required. Resolve an explicit other person using the LOOKUP workflow and submit the uniquely proven Salesforce Id, never the name. This also applies when the field is optional.
+- If a CREATE fallback field is required and absent, ask once before mutation and wait for the answer: explain that the field is required, another person may be specified, and otherwise the current user will be the default. Do not immediately call `create_record` even though a platform default exists.
+- If the user chooses default/current user/no other person (for example 默认、当前用户、不用指定、就我自己), omit the fallback field; never query or guess the current platform-user Lookup Id yourself. If the fallback field is optional and absent, omit it without an extra question.
 - Send only fields that belong to the target object. Never carry a field across objects — for example, do not write an Opportunity field such as `Opportunity_Summary__c` into a Lead `create_record`; every field must come from the target object's own current context.
 - Recommend only 3 to 8 high-value optional fields when helpful, state that they may be skipped, and choose them from the user goal plus current visible/editable layout order, labels, types, Record Type, and safe Salesforce defaults. Exclude IDs, audit/system fields, auto numbers, formulas, and non-editable fields.
 - Resolve ambiguous Lookups through bounded USER reads and use only Picklist values returned for the active Record Type.
@@ -53,7 +57,7 @@ Playbook-Version: 1.4.1
 - Call `get_record_action_context` for UPDATE when field semantics or editability are uncertain and the context Tool is enabled.
 - Do not turn one-field UPDATE into a CREATE form: CREATE-required fields are not automatically required on every UPDATE. Ask for an additional field only when current UPDATE context or Salesforce enforcement proves it is necessary.
 - Send only fields the user asked to change. Never copy, clear, or rewrite unrelated business fields.
-- Exclude MCP-managed fields from questions, recommendations, and the `update_record.fields` payload; the server-owned value wins if a client nevertheless supplies one.
+- Exclude strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from questions, recommendations, and the `update_record.fields` payload; the server-owned value wins if a client nevertheless supplies one. For `PLATFORM_IDENTITY_FALLBACK`, resolve and submit an explicit requested change using LOOKUP and current `fieldUpdateable` / `layoutEditableForUpdate` facts. If no change was requested, omit the field and let the configured `applyOnUpdate` scope govern fallback; never ask CREATE-required questions on every UPDATE.
 - Call `update_record` once after target, changes, and user intent are clear.
 - After proven success, return the target display/name field, a trusted record link when available, and only the fields actually changed.
 
@@ -66,9 +70,9 @@ Playbook-Version: 1.4.1
 
 ## LOOKUP — Resolve Lookup and reference values
 
-- Identify the referenced object and the smallest user-provided identifying facts.
-- Use a bounded USER read to return candidate IDs and useful disambiguating labels.
-- Use a candidate only when exactly one target is proven. Ask the user when no candidate or multiple candidates remain.
+- Identify the referenced object from current action context `referenceTo` and the smallest user-provided identifying facts, including explicit values for `PLATFORM_IDENTITY_FALLBACK`. Never write a person name directly into a Lookup Id field.
+- Use a bounded USER read such as `run_soql_query` to return candidate Salesforce IDs and useful disambiguating business fields.
+- Use a candidate only when exactly one target is proven. For zero candidates, tell the user no match was found; for multiple candidates, ask the user to disambiguate. Never guess or silently replace an explicit unresolved or rejected value with the platform default.
 
 ## PICKLIST — Resolve Picklist and dependent values
 

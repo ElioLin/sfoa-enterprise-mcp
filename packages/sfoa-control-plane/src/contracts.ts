@@ -92,9 +92,15 @@ export type DmlPolicyRecord = Readonly<{
   updatedAt: string;
 }>;
 
-export const MANAGED_DML_FIELD_STRATEGIES = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER'] as const;
+export const MANAGED_DML_FIELD_STRATEGIES = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const;
 export const managedDmlFieldStrategySchema = z.enum(MANAGED_DML_FIELD_STRATEGIES);
 export type ManagedDmlFieldStrategy = z.infer<typeof managedDmlFieldStrategySchema>;
+
+export const MANAGED_DML_FIELD_SAFE_STRATEGIES = Object.freeze({
+  PLATFORM_USER_LOOKUP: 'PLATFORM_IDENTITY',
+  AI_CREATED_MARKER: 'AI_CREATED_MARKER',
+  PLATFORM_USER_LOOKUP_FALLBACK: 'PLATFORM_IDENTITY_FALLBACK',
+} as const satisfies Record<ManagedDmlFieldStrategy, string>);
 
 export type ManagedDmlFieldRuleRecord = Readonly<{
   id: string;

@@ -1,3 +1,5 @@
+import { MANAGED_DML_FIELD_CAPABILITY_STRATEGIES } from '@sfoa/agent-playbook';
+import { MANAGED_DML_FIELD_SAFE_STRATEGIES } from '@sfoa/control-plane/contracts';
 import { createHash } from 'node:crypto';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type {
@@ -64,7 +66,7 @@ export class ContextToolFacade {
     if (this.getName() !== 'get_record_action_context') return config;
     return {
       ...config,
-      description: `${config.description} The host also returns current-operation MCP-managed field facts; agents must not ask for, recommend, or submit those fields.`,
+      description: `${config.description} The host also returns current-operation MCP-managed field facts; omit server-owned PLATFORM_IDENTITY and AI_CREATED_MARKER fields. PLATFORM_IDENTITY_FALLBACK permits explicit user values; follow the strategy-aware Playbook and current required/editable action facts.`,
       outputSchema: {
         ...config.outputSchema,
         managedDmlFields: z.array(z.object({
@@ -72,7 +74,7 @@ export class ContextToolFacade {
           fieldApiName: z.string(),
           operations: z.array(z.enum(['CREATE', 'UPDATE'])),
           managedBy: z.literal('MCP'),
-          strategy: z.enum(['PLATFORM_IDENTITY', 'AI_CREATED_MARKER']),
+          strategy: z.enum(MANAGED_DML_FIELD_CAPABILITY_STRATEGIES),
         }).strict()).optional(),
       },
     };
@@ -244,7 +246,7 @@ function enrichManagedDmlFields(
       fieldApiName: rule.targetFieldApiName,
       operations: Object.freeze([action]),
       managedBy: 'MCP' as const,
-      strategy: rule.strategy === 'PLATFORM_USER_LOOKUP' ? 'PLATFORM_IDENTITY' as const : 'AI_CREATED_MARKER' as const,
+      strategy: MANAGED_DML_FIELD_SAFE_STRATEGIES[rule.strategy],
     }));
   return {
     ...result,

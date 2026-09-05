@@ -119,12 +119,13 @@ The capability Resource contains safe managed-field descriptors in addition to T
 
 ## P6 trusted managed DML fields
 
-When a listed CREATE/UPDATE object has enabled `managedDmlFields`, clients and Agents must not ask for, recommend, send, override, derive, or guess those targets. The MCP host writes them after checking the ordinary object/operation allowlist and before invoking the existing generic DML Tool:
+When a listed CREATE/UPDATE object has enabled `managedDmlFields`, clients and Agents distinguish strict `PLATFORM_IDENTITY` / `AI_CREATED_MARKER` (do not ask, recommend, submit, or override) from `PLATFORM_IDENTITY_FALLBACK` (explicit user values allowed). The MCP host writes them after checking the ordinary object/operation allowlist and before invoking the existing generic DML Tool:
 
 - `PLATFORM_USER_LOOKUP` resolves exactly one Salesforce record from the authenticated request's immutable `platformUserId` and current USER Connection. The query is bounded to two rows.
+- `PLATFORM_USER_LOOKUP_FALLBACK` preserves any case-insensitively present client key without changing its value or resolving the default. If omitted, it reuses the existing platform Lookup and errors.
 - `AI_CREATED_MARKER` is CREATE-only and writes Boolean `true`.
 
-The client cannot supply `platformUserId`, a Lookup result, or a marker value as authority. If it nevertheless sends a managed target, case-insensitive server ownership wins. The operation still goes through normal Salesforce CRUD/FLS/sharing/validation/Flow/Trigger enforcement.
+The client cannot supply `platformUserId` or a marker value as authority. Strict targets remain server-owned. Explicit fallback values must use the normal LOOKUP workflow and Salesforce validation. Playbook 1.5.0 requires one clarification for a required CREATE fallback field when absent, explaining the current-user default; default choice means omit, optional and absent means omit without asking. UPDATE remains limited to requested changes and configured applyOnUpdate scope. The operation still goes through normal Salesforce CRUD/FLS/sharing/validation/Flow/Trigger enforcement.
 
 Managed-field resolution has no cache and never dispatches DML after its own deadline. A validation/Lookup/timeout failure before provider mutation start is a normal `FAILED` result. Only an interruption after the public SDK mutation is marked started may be `MCP_DML_OUTCOME_UNKNOWN`.
 

@@ -24,7 +24,7 @@ export type AgentRecognizedToolName = (typeof AGENT_RECOGNIZED_TOOL_NAMES)[numbe
 export const DYNAMIC_FORM_EVIDENCE_VALUES = ['AVAILABLE', 'PARTIAL', 'NOT_AVAILABLE'] as const;
 export type DynamicFormEvidence = (typeof DYNAMIC_FORM_EVIDENCE_VALUES)[number];
 
-export const MANAGED_DML_FIELD_CAPABILITY_STRATEGIES = ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER'] as const;
+export const MANAGED_DML_FIELD_CAPABILITY_STRATEGIES = ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK'] as const;
 export type ManagedDmlFieldCapabilityStrategy = (typeof MANAGED_DML_FIELD_CAPABILITY_STRATEGIES)[number];
 export type ManagedDmlFieldCapability = Readonly<{
   objectApiName: string;

@@ -631,9 +631,10 @@ The HTTP host already constructs a fresh MCP server for each POST. It now calcul
 `sfoa_dml_managed_field_rule` is a child of an existing object DML policy and does not duplicate the object name. Parent-plus-target is unique. Its only strategies are:
 
 - `PLATFORM_USER_LOOKUP`: CREATE/UPDATE as permitted by the parent; bounded exact-one Salesforce Lookup from immutable `RequestContext.platformUserId` through the current USER Connection;
+- `PLATFORM_USER_LOOKUP_FALLBACK`: explicit case-insensitive client key wins unchanged and skips default lookup; omission reuses the same resolver;
 - `AI_CREATED_MARKER`: CREATE only; server writes Boolean `true` and Lookup configuration is forbidden.
 
-The Runtime loads enabled rules in the same repeatable-read snapshot as Tool and DML policy and deeply freezes the result. The existing allowlist is checked before any Lookup query. Enabled rules for the target object are validated before operation filtering so corrupt history fails closed. Managed targets are compared case-insensitively and the server-owned value wins over any Agent-supplied copy.
+The Runtime loads enabled rules in the same repeatable-read snapshot as Tool and DML policy and deeply freezes the result. The existing allowlist is checked before any Lookup query. Enabled rules for the target object are validated before operation filtering so corrupt history fails closed. Managed targets are compared case-insensitively. Strict strategies retain server precedence; fallback preserves explicit input, including null/empty values. Migration 010 extends ENUM/CHECK without modifying existing rules.
 
 Safe runtime audit records only target field API name, strategy, and whether a client value was overridden; it excludes the derived Lookup ID and platform identity. There is no Lookup/Connection/policy cache, retry queue, default-value engine, constant strategy, metadata sync, or object-specific seed.
 
@@ -643,7 +644,7 @@ Lookup/configuration failures and timeouts before mutation dispatch return norma
 
 `get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from `SFOA_LIGHTNING_BASE_URL`. The setting must be a credential-free HTTPS origin root with no path, query, or fragment. No host/base URL is accepted from the client, no Salesforce API is called, and `Connection.instanceUrl` is not a fallback. Missing configuration returns Tool-level `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; invalid configured origins fail closed.
 
-Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and now marks managed targets so an Agent omits them. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.2.0` instructs every MCP/Dify/WorkBuddy surface not to ask for, recommend, send, override, derive, or guess managed values. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
+Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and marks targets with distinct strict/fallback safe strategies. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.5.0` keeps strict fields omitted, permits explicit fallback values through LOOKUP, asks once for required-and-absent CREATE fallback fields with a current-user default explanation, and omits optional absent fields. UPDATE retains minimum mutation. Runtime does not inspect Page Layout required facts. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
 
 ## P7-01 compatible end-to-end Audit data model
 

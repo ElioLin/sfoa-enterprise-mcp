@@ -2,6 +2,12 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-05 — User-overridable managed platform Lookup fallback
+
+- Added opt-in PLATFORM_USER_LOOKUP_FALLBACK across Control Plane, Runtime, Admin, safe capabilities, and Playbook 1.5.0. Explicit keys preserve user values and skip default lookup; omission reuses the existing resolver. Strict Lookup and AI marker remain server-forced.
+- Migration 010 extends existing ENUM/CHECK without changing configured rules. No identity, permission, Tool governance, DML allowlist, or official Provider changes.
+- Added runtime, audit, Action Context, generated-contract, Admin, and MySQL migration regressions; see P6_DML_01_MANAGED_FIELDS.md.
+
 ## 2026-09-03 — MCP transport-probe classification and self-describing MCP_REQUEST_INVALID audits
 
 - Diagnosed recurring `MCP_REQUEST_INVALID` ERROR rows as benign Streamable HTTP capability negotiation: each round, WorkBuddy/undici clients issue a non-POST probe against the POST-only `/mcp` endpoint (typically `GET /mcp` → 405), and every probe was previously persisted as an all-null ERROR audit row.

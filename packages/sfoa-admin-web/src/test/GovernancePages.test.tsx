@@ -136,7 +136,7 @@ describe('Admin governance pages', () => {
     expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({ objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null });
   });
 
-  it('manages trusted fields in the policy drawer with duplicate validation and disable/delete semantics', async () => {
+  it.each(['PLATFORM_USER_LOOKUP', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const)('manages %s fields with duplicate validation and disable/delete semantics', async (strategy) => {
     const enabledRule = managedFieldRecord();
     const disabledRule = managedFieldRecord({ id: '8', targetFieldApiName: 'Created_By_AI__c', strategy: 'AI_CREATED_MARKER', enabled: false });
     const fetchMock = asFetchMock((url, init) => {
@@ -165,6 +165,12 @@ describe('Admin governance pages', () => {
     expect(await screen.findByText('该对象已存在同名托管字段规则。')).toBeInTheDocument();
     await user.clear(target);
     await user.type(target, 'Owner_Contact__c');
+    expect(screen.getByText('无论客户端是否提交，均由 MCP 根据当前平台用户强制赋值。')).toBeInTheDocument();
+    if (strategy === 'PLATFORM_USER_LOOKUP_FALLBACK') {
+      await user.click(screen.getByRole('combobox', { name: '托管策略' }));
+      await user.click(await screen.findByText('当前平台用户 Lookup（缺省回填，可由用户指定）'));
+      expect(screen.getByText('用户/智能体显式提交该字段时保留用户值；未提交时，根据当前平台用户解析 Lookup 并自动回填。')).toBeInTheDocument();
+    }
     await user.type(screen.getByLabelText('Lookup 对象 API 名称'), 'Contact');
     await user.type(screen.getByLabelText('身份匹配字段 API 名称'), 'Platform_User_Id__c');
     await user.click(screen.getByRole('button', { name: '保存规则' }));
@@ -173,7 +179,7 @@ describe('Admin governance pages', () => {
     const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/dml-policies/1/managed-fields') && init?.method === 'POST');
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
       targetFieldApiName: 'Owner_Contact__c',
-      strategy: 'PLATFORM_USER_LOOKUP',
+      strategy,
       applyOnCreate: true,
       applyOnUpdate: false,
       lookupObjectApiName: 'Contact',

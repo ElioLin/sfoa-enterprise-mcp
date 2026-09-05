@@ -1,3 +1,4 @@
+import { MANAGED_DML_FIELD_STRATEGIES } from '@sfoa/control-plane/contracts';
 import {
   CheckCircleOutlined,
   DeleteOutlined,
@@ -264,7 +265,7 @@ export default function DmlPoliciesPage() {
               type="info"
               showIcon
               title="值由 MCP 管理"
-              description="Agent 不应询问、推荐或提交这些字段。身份映射始终使用当前请求的可信 platformUserId 和 USER Connection；服务端托管值覆盖客户端同名字段。"
+              description="强制托管字段由服务端赋值；缺省回填字段允许用户指定，未提交时才使用当前用户。身份默认值始终通过当前请求的 USER Connection 解析。"
             />
             <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
               <Descriptions.Item label="对象 API"><code>{managedPolicy.objectApiName}</code></Descriptions.Item>
@@ -290,7 +291,7 @@ export default function DmlPoliciesPage() {
                   { title: '生效操作', width: 120, render: (_value, record) => <Space wrap size={4}>{record.applyOnCreate && <Tag>创建</Tag>}{record.applyOnUpdate && <Tag>编辑</Tag>}</Space> },
                   {
                     title: '来源摘要', width: 220,
-                    render: (_value, record) => record.strategy === 'PLATFORM_USER_LOOKUP'
+                    render: (_value, record) => record.strategy !== 'AI_CREATED_MARKER'
                       ? <code>{record.lookupObjectApiName}.{record.lookupMatchFieldApiName}</code>
                       : <span>自动写入 <code>true</code></span>,
                   },
@@ -400,7 +401,7 @@ function ManagedFieldModal({
   const strategy = Form.useWatch('strategy', form);
   return (
     <Modal open={open} title={editingRule === 'create' ? '添加 MCP 托管字段' : '编辑 MCP 托管字段'} okText="保存规则" confirmLoading={saving} onCancel={onCancel} onOk={() => void form.submit()} destroyOnHidden>
-      <Alert className="margin-bottom" type="warning" showIcon title="服务端值优先" description="若 Agent 仍提交同名字段，MCP 会覆盖其值；审计仅记录字段名、策略和是否覆盖，不记录派生值。" />
+      <Alert className="margin-bottom" type="warning" showIcon title="字段赋值优先级由策略决定" description="强制托管始终使用 MCP 值；缺省回填保留用户显式值。审计摘要仅记录字段名、策略和是否覆盖，不记录字段值。" />
       <Form<ManagedFieldForm> form={form} layout="vertical" onFinish={(values) => onSave({ ...values, remark: values.remark || null })}>
         <Form.Item
           name="targetFieldApiName"
@@ -421,10 +422,7 @@ function ManagedFieldModal({
         ><Input autoComplete="off" placeholder="Custom_Field__c" /></Form.Item>
         <Form.Item name="strategy" label="托管策略" rules={[{ required: true }]}>
           <Select
-            options={[
-              { value: 'PLATFORM_USER_LOOKUP', label: '当前平台用户 Lookup' },
-              { value: 'AI_CREATED_MARKER', label: 'AI 创建标记', disabled: !policy?.allowCreate },
-            ]}
+            options={MANAGED_DML_FIELD_STRATEGIES.map((value) => ({ value, label: strategyLabel(value), disabled: value === 'AI_CREATED_MARKER' && !policy?.allowCreate }))}
             onChange={(value: ManagedDmlFieldStrategy) => {
               if (value === 'AI_CREATED_MARKER') form.setFieldsValue({ applyOnCreate: true, applyOnUpdate: false, lookupObjectApiName: null, lookupMatchFieldApiName: null });
             }}
@@ -435,10 +433,12 @@ function ManagedFieldModal({
         ) : null}
         <Typography.Paragraph type="secondary">
           {strategy === 'AI_CREATED_MARKER'
-            ? '经 SFoA MCP 创建记录时自动将目标字段写为 true，仅在创建时生效。'
-            : '使用当前可信平台用户编号，在指定 Salesforce 对象和字段中唯一匹配记录，并把其 Id 写入目标 Lookup 字段。'}
+            ? '经 SFoA MCP 创建记录时强制将目标字段写为 true，仅在创建时生效。'
+            : strategy === 'PLATFORM_USER_LOOKUP_FALLBACK'
+              ? '用户/智能体显式提交该字段时保留用户值；未提交时，根据当前平台用户解析 Lookup 并自动回填。'
+              : '无论客户端是否提交，均由 MCP 根据当前平台用户强制赋值。'}
         </Typography.Paragraph>
-        {strategy === 'PLATFORM_USER_LOOKUP' ? (
+        {strategy && strategy !== 'AI_CREATED_MARKER' ? (
           <>
             <Space size="large" wrap className="policy-toggles">
               <Form.Item
@@ -496,7 +496,12 @@ function ManagedFieldsButton({ policy, onOpen }: Readonly<{
 }
 
 function strategyLabel(value: ManagedDmlFieldStrategy): string {
-  return value === 'PLATFORM_USER_LOOKUP' ? '当前平台用户 Lookup' : 'AI 创建标记';
+  const labels: Record<ManagedDmlFieldStrategy, string> = {
+    PLATFORM_USER_LOOKUP: '当前平台用户 Lookup（强制托管）',
+    PLATFORM_USER_LOOKUP_FALLBACK: '当前平台用户 Lookup（缺省回填，可由用户指定）',
+    AI_CREATED_MARKER: 'AI 创建标记（强制托管）',
+  };
+  return labels[value];
 }
 
 async function invalidatePolicies(queryClient: ReturnType<typeof useQueryClient>): Promise<void> {

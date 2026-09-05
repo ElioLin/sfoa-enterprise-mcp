@@ -5,6 +5,10 @@
 - Extends: ADR-0008 generic DML, ADR-0011 Control Plane persistence, ADR-0012 unified identity, and ADR-0013 MCP-native Agent Playbook
 - Supersedes: ADR-0013 only where it selected the current Salesforce Connection instance origin for record links
 
+## 2026-09-05 compatible extension
+
+The original strict strategies below retain their behavior. [Managed Fields](../P6_DML_01_MANAGED_FIELDS.md) adds the opt-in `PLATFORM_USER_LOOKUP_FALLBACK`: explicit user value wins; omission reuses the same platform resolver. Migration 010 preserves existing rules, and Playbook 1.5.0 distinguishes strict fields from fallback fields without adding a form or permission engine.
+
 ## Context
 
 Some CREATE/UPDATE records need a platform-user Lookup and a server-owned AI-created marker. Asking an Agent to collect or derive those values would make untrusted prompt input an identity authority. Hardcoding object/field rules in a Tool would duplicate the generic DML path and create business-specific provider drift.
