@@ -18,11 +18,13 @@ import {
   SfoaContextMcpProvider,
   isSfoaContextToolName,
   type SfoaContextToolName,
+  type EffectiveUiOptions,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
   NoopRuntimeLogger,
   OfficialDxCoreToolSource,
   RequestAuditContextController,
+  currentRequestAuditContext,
   RequestScopedToolExecutionAdapter,
   currentSalesforceCallSemanticScope,
   runWithRequestAuditContext,
@@ -80,6 +82,7 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
   lightningBaseUrl?: string;
   requestAuditContext?: RequestAuditContextController;
+  effectiveUi?: Omit<EffectiveUiOptions, 'audit' | 'managedFields'>;
   auditIdentity: Readonly<{
     identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
     identityCredentialId?: string;
@@ -191,6 +194,7 @@ export async function createGovernedMcpServer(
     options.initializedProvider.dmlAllowlist,
     options.diagnosticReady,
     options.managedDmlFieldRules ?? [],
+    options.effectiveUi?.policies.some((policy) => policy.mode === 'ENFORCE') ?? false,
   );
   const server = new McpServer(
     { name: 'sfoa-mcp-server', version: '0.1.0-p6-agent' },
@@ -263,6 +267,14 @@ export async function createGovernedMcpServer(
         );
       }
       const contextProvider = new SfoaContextMcpProvider({
+        effectiveUi: {
+          policies: options.effectiveUi?.policies ?? [],
+          loadSnapshot: options.effectiveUi?.loadSnapshot ?? (async () => undefined),
+          ...options.effectiveUi,
+          managedFields: (options.managedDmlFieldRules ?? []).filter((rule) => rule.enabled && rule.applyOnCreate)
+            .map((rule) => `${rule.objectApiName}.${rule.targetFieldApiName}`),
+          audit: (evidence) => recordUiContextAudit(options.requestAuditContext, evidence),
+        },
         toolNames: contextToolNames as readonly SfoaContextToolName[],
         ...(officialQueryTool
           ? {
@@ -368,6 +380,21 @@ export async function createGovernedMcpServer(
     await server.close().catch(() => undefined);
     throw error;
   }
+}
+
+function recordUiContextAudit(controller: RequestAuditContextController | undefined, evidence: Readonly<Record<string, unknown>>): void {
+  controller ??= currentRequestAuditContext();
+  if (!controller) return;
+  try {
+    const { fields, rules, ...summary } = evidence;
+    const collector = controller.collector();
+    const sequence = collector.recordEvent({ eventCategory: 'TOOL', eventType: evidence.fallbackUsed ? 'UI_CONTEXT_RESOLUTION_FAILED' : 'UI_CONTEXT_RESOLVED',
+      eventName: 'UI Context', status: 'SUCCESS', safeSummary: summary });
+    if (sequence !== null && (fields || rules)) collector.recordPayloadEvidence({
+      payloadType: 'UI_CONTEXT', contentType: 'application/json',
+      auditEventSequence: sequence, payload: JSON.stringify({ resolutionId: evidence.resolutionId, fields, rules }),
+    });
+  } catch { /* UI evidence cannot alter CREATE. */ }
 }
 
 function runAuditedToolInvocation<T>(

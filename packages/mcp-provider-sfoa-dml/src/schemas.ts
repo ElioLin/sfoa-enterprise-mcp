@@ -62,6 +62,7 @@ export const createRecordInputSchema = z
   .object({
     objectApiName: objectApiNameSchema,
     recordTypeId: recordTypeIdSchema.optional(),
+    uiContextResolutionId: z.string().uuid().optional().describe('Optional opaque ID returned by the last CREATE action context. Audit provenance only; never changes authorization or Salesforce payload.'),
     fields: fieldsSchema,
   })
   .strict()

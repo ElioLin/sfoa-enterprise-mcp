@@ -24,6 +24,22 @@ import { DmlToolFacade } from '../dml-tool-facade.js';
 const CONTACT_A = '003000000000001AAA';
 const CONTACT_B = '003000000000002AAA';
 
+test('P8 CREATE records optional UI provenance without extra Salesforce reads or changing submitted fields', async () => {
+  for (const id of [undefined, '12345678-1234-4123-8123-123456789012']) {
+    const tool = new CapturingCreateTool();
+    const controller = RequestAuditContextController.create({ channel: 'MCP_HTTP', toolName: 'create_record' });
+    const facade = new DmlToolFacade({ tool,
+      context: createRequestContext({ platformUserId: 'platform-user-a', correlationId: 'p804' }, process.cwd()),
+      route: userRoute('platform-user-a'), toolTimeoutMs: 1000, logger: new RecordingLogger(), clientId: 'p804', mutationStarted: () => false,
+    });
+    await runWithRequestAuditContext(controller, () => facade.execute({ objectApiName: 'Lead', fields: { LastName: 'Test' }, ...(id ? { uiContextResolutionId: id } : {}) }, extra()));
+    assert.deepEqual(tool.input?.fields, { LastName: 'Test' });
+    const link = controller.finalizeAudit()!.auditEvents.find((event) => event.eventType === 'UI_CONTEXT_LINK');
+    assert.equal((link?.safeSummary as { contextLinkStatus: string }).contextLinkStatus, id ? 'CLIENT_PROVIDED_UNVERIFIED' : 'NOT_PROVIDED');
+    assert.equal((link?.safeSummary as { uiContextResolutionId: unknown }).uiContextResolutionId, id ?? null);
+  }
+});
+
 test('managed resolver overrides agent values and never exposes trusted values in the safe audit summary', async () => {
   const logger = new RecordingLogger();
   const tool = new CapturingCreateTool();

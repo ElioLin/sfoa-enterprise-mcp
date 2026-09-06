@@ -55,7 +55,7 @@ test('P3 tools/list exposes only explicitly enabled CREATE/UPDATE and keeps all 
       assert.match(tool.description ?? '', /read-only Tool/iu);
       assert.equal(tool.annotations?.idempotentHint, false);
     }
-    assert.deepEqual(Object.keys(readProperties(create.inputSchema)).sort(), ['fields', 'objectApiName']);
+    assert.deepEqual(Object.keys(readProperties(create.inputSchema)).sort(), ['fields', 'objectApiName', 'recordTypeId', 'uiContextResolutionId']);
     assert.deepEqual(Object.keys(readProperties(update.inputSchema)).sort(), ['fields', 'objectApiName', 'recordId']);
     assert.equal('operation' in readProperties(create.inputSchema), false);
     assert.equal('platformUserId' in readProperties(create.inputSchema), false);

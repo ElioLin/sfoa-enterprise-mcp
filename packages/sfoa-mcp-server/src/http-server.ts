@@ -8,7 +8,7 @@ import {
 } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ControlPlaneError } from '@sfoa/control-plane';
+import { ControlPlaneError, dynamicFormsObjectPoliciesSchema } from '@sfoa/control-plane';
 import {
   dmlOutcomeUnknownError,
   type DmlOperation,
@@ -16,6 +16,7 @@ import {
 import {
   SFOA_CONTEXT_TOOL_ROLES,
   isSfoaContextToolName,
+  type EffectiveUiOptions,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
   formatRuntimeError,
@@ -102,6 +103,7 @@ export type StartRemoteMcpServerOptions = Readonly<{
   /** @deprecated Supply identityProvider for new integrations. */
   authenticator?: ClientAuthenticator;
   policySnapshotSource?: RuntimePolicySnapshotSource;
+  loadUiSnapshot?: EffectiveUiOptions['loadSnapshot'];
 }>;
 
 type RequestObservation = {
@@ -144,6 +146,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       identityRuntime: options.identityRuntime,
       initializedProvider,
       policySnapshotSource: options.policySnapshotSource,
+      loadUiSnapshot: options.loadUiSnapshot,
       identityProvider,
       allowedHosts,
       allowedOrigins,
@@ -248,6 +251,7 @@ type HandleRemoteRequestOptions = Readonly<{
   identityRuntime: IdentityRuntime;
   initializedProvider: InitializedProviderRuntime;
   policySnapshotSource?: RuntimePolicySnapshotSource;
+  loadUiSnapshot?: EffectiveUiOptions['loadSnapshot'];
   identityProvider: IdentityProvider;
   allowedHosts: readonly string[];
   allowedOrigins: readonly string[];
@@ -530,9 +534,18 @@ async function executeMcpPost(
   let initializedProvider = options.initializedProvider;
   let diagnosticReady = false;
   let managedDmlFieldRules: ReturnType<typeof snapshotManagedDmlFieldRules> = Object.freeze([]);
+  let uiPolicies: EffectiveUiOptions['policies'] = [];
+  let integrationDefaultApp: string | undefined;
+  let uiConfigurationError: string | undefined;
   let scope: RequestScope;
   if (options.policySnapshotSource) {
     const snapshot = await options.policySnapshotSource.load(identity.platformUserId);
+    const parsedUiPolicy = dynamicFormsObjectPoliciesSchema.safeParse(snapshot.runtimeSettings.dynamicFormsObjectPolicies ?? []);
+    uiPolicies = parsedUiPolicy.success ? Object.freeze(parsedUiPolicy.data.map((row) => Object.freeze(row))) : [];
+    if (!parsedUiPolicy.success) uiConfigurationError = 'UI_POLICY_INVALID';
+    const configuredApp = snapshot.runtimeSettings.integrationDefaultSalesforceAppDeveloperName;
+    integrationDefaultApp = typeof configuredApp === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,254}$/u.test(configuredApp) ? configuredApp : undefined;
+    if (configuredApp != null && !integrationDefaultApp) uiConfigurationError = 'APP_CONTEXT_INVALID';
     const userRoute = snapshotUserRoute(snapshot);
     if (!userRoute) {
       throw new IdentityRuntimeError(
@@ -611,6 +624,18 @@ async function executeMcpPost(
     initializedProvider,
     diagnosticReady,
     managedDmlFieldRules,
+    effectiveUi: {
+      policies: uiPolicies, integrationDefaultApp,
+      // App context is not an identity selector; validate access through the USER apps API.
+      appDeveloperName: typeof headers['x-salesforce-app-developer-name'] === 'string'
+        ? headers['x-salesforce-app-developer-name'] : undefined,
+      formFactor: headers['x-salesforce-form-factor'] === 'Small' ? 'Small'
+        : headers['x-salesforce-form-factor'] === 'Medium' ? 'Medium' : 'Large',
+      requestContextError: headers['x-salesforce-form-factor'] !== undefined
+        && !['Large', 'Medium', 'Small'].includes(String(headers['x-salesforce-form-factor']))
+        ? 'FORM_FACTOR_CONTEXT_INVALID' : uiConfigurationError,
+      loadSnapshot: options.loadUiSnapshot ?? (async () => undefined),
+    },
     lightningBaseUrl: options.config.lightningBaseUrl,
     auditIdentity: {
       identitySource: principal.identitySource,

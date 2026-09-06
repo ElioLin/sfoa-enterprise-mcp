@@ -26,6 +26,7 @@ import {
   redactSensitiveText,
   runWithSalesforceApiPurpose,
   runWithSalesforceDmlSemantic,
+  currentRequestAuditContext,
 } from '@sfoa/identity-runtime';
 import type { z } from 'zod';
 import type { AppliedManagedDmlField, ManagedDmlFieldResolver } from './dml-managed-fields.js';
@@ -74,6 +75,16 @@ export class DmlToolFacade {
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
     const started = performance.now();
+    if (this.operation === 'CREATE') {
+      try {
+        const id = typeof input.uiContextResolutionId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(input.uiContextResolutionId) ? input.uiContextResolutionId : null;
+        currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL', eventType: 'UI_CONTEXT_LINK',
+          eventName: 'CREATE context provenance', status: 'SUCCESS', safeSummary: {
+            uiContextResolutionId: id, contextLinkStatus: id ? 'CLIENT_PROVIDED_UNVERIFIED' : 'NOT_PROVIDED',
+            objectApiName: input.objectApiName, recordTypeId: input.recordTypeId ?? null,
+          } });
+      } catch { /* Audit fail-open; this ID never authorizes a mutation. */ }
+    }
     if (this.options.route.connectionRole !== 'USER') {
       const error = new RemoteRuntimeError(
         'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',

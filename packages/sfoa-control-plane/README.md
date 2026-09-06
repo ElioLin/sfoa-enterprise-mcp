@@ -2,6 +2,13 @@
 
 `@sfoa/control-plane` owns only SFoA enterprise governance persistence and durable safe audit. It provides versioned MySQL 8 migrations, repository interfaces and MySQL implementations, immutable per-request policy snapshots, an idempotent environment bootstrap, and a resilient runtime audit adapter.
 
+P8-04 migration 012 adds one current `sfoa_ui_snapshot` row per org/object (12
+columns; normalized JSON <=2 MiB), with hash, refresh status/timestamp/error/parser
+and a short refresh lease. Existing settings hold exact object modes/default App
+and the integration default App; no wildcard ENFORCE. Failed refreshes retain old
+data. P7's existing payload ENUM gains UI_CONTEXT for bounded field/rule evidence.
+No raw Metadata/history or user business records are stored in the snapshot.
+
 P7-01 evolves the existing `sfoa_audit_log` ledger without moving historical rows and adds normalized Event, Salesforce API Call, and bounded Payload Evidence tables. Existing Runtime/Admin callers keep the compatible `audits` repository; P7 trace persistence uses the separate `auditTraces` contract and cohesive MySQL audit module. Repository writes apply centralized secret redaction, summaries are bounded, Payload Evidence is capped at 256 KiB, and ordinary Audit lists never select the payload table.
 
 P7-02 lets `DatabaseRuntimeLogger` consume the active request audit context and create exactly one `MCP_TOOL_CALL` with the context's server-generated public Audit ID. This reuses the existing final Runtime audit write; it adds no stage writes, Event insert, queue, batch writer, Salesforce API, Workbench API/UI, or diagnostic MCP Tool.

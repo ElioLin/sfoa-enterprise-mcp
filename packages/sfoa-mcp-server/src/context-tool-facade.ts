@@ -1,6 +1,6 @@
 import { MANAGED_DML_FIELD_CAPABILITY_STRATEGIES } from '@sfoa/agent-playbook';
 import { MANAGED_DML_FIELD_SAFE_STRATEGIES } from '@sfoa/control-plane/contracts';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type {
   CallToolResult,
@@ -22,6 +22,7 @@ import type {
 } from '@sfoa/identity-runtime';
 import {
   IdentityRuntimeError,
+  currentRequestAuditContext,
   runWithSalesforceApiPurpose,
   runWithSalesforceQuerySemantic,
   runtimeErrorToolResult,
@@ -151,6 +152,18 @@ export class ContextToolFacade {
     input: ToolInput = {},
     response?: CallToolResult,
   ): Promise<void> {
+    if (this.getName() === 'get_record_action_context' && !response?.structuredContent?.uiContextResolutionId) {
+      try {
+        currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL',
+          eventType: result === 'PASS' ? 'UI_CONTEXT_RESOLVED' : 'UI_CONTEXT_RESOLUTION_FAILED',
+          eventName: 'UI Context', status: 'SUCCESS', safeSummary: {
+            resolutionId: randomUUID(), ...safeContextRequestSummary(this.getName(), input) as object,
+            usedForAgent: false, dynamicFormsEvaluated: false,
+            resolutionStatus: result === 'PASS' ? 'NOT_APPLICABLE' : 'UNRESOLVED',
+            reason: errorCode ?? (input.action !== 'CREATE' ? 'CREATE_ONLY' : 'RECORD_TYPE_SELECTION_REQUIRED'),
+          } });
+      } catch { /* P7 remains fail-open. */ }
+    }
     await Promise.resolve(this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,

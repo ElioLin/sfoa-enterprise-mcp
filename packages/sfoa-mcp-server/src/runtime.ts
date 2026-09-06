@@ -14,6 +14,7 @@ import {
   DEFAULT_AUDIT_FLUSH_TIMEOUT_MS,
   MySqlAuditBatchSink,
   MySqlControlPlaneStore,
+  MySqlUiSnapshotRepository,
   MySqlIdentityRepository,
   type ControlPlaneDatabaseClient,
 } from '@sfoa/control-plane';
@@ -70,6 +71,7 @@ export async function startConfiguredRemoteRuntime(
       config,
       identityRuntime,
       policySnapshotSource: new MySqlRuntimePolicySnapshotSource(database),
+      loadUiSnapshot: (organizationId, objectApiName) => new MySqlUiSnapshotRepository(database).get(organizationId, objectApiName),
       identityProvider: new UnifiedIdentityProvider(buildCredentialAuthenticators(config, store, databaseLogger)),
     });
     let closed = false;

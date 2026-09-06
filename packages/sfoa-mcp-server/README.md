@@ -6,7 +6,15 @@ P7-02 creates one server-authoritative Request Audit Context for every definite 
 
 The default remote contract is stateless Streamable HTTP at `http://127.0.0.1:8080/mcp`, registration-time default-deny Tool governance, the official read facades `get_username` and `run_soql_query`, and the safe SFoA infrastructure Tools `get_agent_playbook` and `get_record_links`. Internal clients use a shared bearer plus authenticated `X-Platform-User-Id`; WorkBuddy uses a USER_BOUND bearer without that Header; 小犇/Dify uses its current Buntu bearer without that Header. Official facades require the pinned Tool contract to match the executable audit baseline, expose only explicitly allowed Agent fields, inject host-owned identity/workspace fields, and then invoke unchanged official `Tool.exec()`.
 
-P6-Agent-01 publishes concise Server Instructions, `sfoa://agent-playbook/current`, request-scoped `sfoa://agent-capabilities/current`, Prompt `sfoa_salesforce_assistant`, and the Tool-only fallback. `get_record_links` derives up to 50 credential-free Lightning links from the configured trusted `SFOA_LIGHTNING_BASE_URL` and performs no Salesforce API call. All guidance comes from `@sfoa/agent-playbook` version `1.5.1`; Dynamic Forms evidence is `NOT_AVAILABLE` and no Runtime Form Engine is implemented.
+P6-Agent-01 publishes concise Server Instructions, `sfoa://agent-playbook/current`, request-scoped `sfoa://agent-capabilities/current`, Prompt `sfoa_salesforce_assistant`, and the Tool-only fallback. `get_record_links` derives up to 50 credential-free Lightning links from the configured trusted `SFOA_LIGHTNING_BASE_URL` and performs no Salesforce API call. Guidance comes from canonical Playbook `1.6.0`; Dynamic Forms availability depends on the request's exact object policy and context result.
+
+P8-04 uses optional per-object OFF/SHADOW/ENFORCE settings (default OFF), a current
+org/object MySQL configuration snapshot and current USER SOAP/Profile/Apps/FLS facts.
+`X-Salesforce-App-Developer-Name` overrides configured App defaults only after USER
+access validation; `X-Salesforce-Form-Factor` defaults Large. Unsupported resolution
+falls back to the existing Page Layout fields with P7 evidence. `create_record`
+accepts optional `uiContextResolutionId` as unverified provenance only and makes no
+Metadata call. See [ADR-0019](../../docs/sfoa/adr/ADR-0019-effective-create-ui-context.md).
 
 P7-09 creates the request scope, route, Control Plane snapshot, local workspace directories, Services, and MCP server without Salesforce authentication. `initialize`, `tools/list`, Resources, Prompts, `get_username`, `get_agent_playbook`, and `get_record_links` therefore create zero Salesforce Connections/API attempts. The first allowed SOQL, DML, USER context, or DIAGNOSTIC Salesforce Tool initializes one role-bound Connection Promise for that HTTP request; no Connection is shared across requests or roles.
 

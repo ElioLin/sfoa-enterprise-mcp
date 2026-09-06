@@ -30,7 +30,7 @@ test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection
   );
 
   assert.equal(
-    await executor.create({ objectApiName: 'Lead', fields: { LastName: 'P3', Company: 'SFoA' } }),
+    await executor.create({ objectApiName: 'Lead', fields: { LastName: 'P3', Company: 'SFoA' }, uiContextResolutionId: '12345678-1234-4123-8123-123456789012' }),
     '00Q000000000001AAA',
   );
   assert.equal(

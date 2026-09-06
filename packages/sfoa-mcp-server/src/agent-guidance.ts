@@ -65,6 +65,7 @@ export function createRuntimeAgentCapabilities(
   dmlAllowlist: DmlAllowlistPolicy,
   diagnosticReady: boolean,
   managedDmlFieldRules: readonly RuntimeManagedDmlFieldRule[] = [],
+  dynamicFormsConfigured = false,
 ): AgentCapabilities {
   const rules = dmlAllowlist.getRules();
   return createAgentCapabilities({
@@ -76,7 +77,7 @@ export function createRuntimeAgentCapabilities(
       .filter((rule) => rule.operations.includes('UPDATE'))
       .map((rule) => rule.objectApiName),
     diagnosticReady,
-    dynamicFormEvidence: 'NOT_AVAILABLE',
+    dynamicFormEvidence: dynamicFormsConfigured ? 'PARTIAL' : 'NOT_AVAILABLE',
     managedDmlFields: managedDmlFieldRules.filter((rule) => rule.enabled).map((rule) => ({
       objectApiName: rule.objectApiName,
       fieldApiName: rule.targetFieldApiName,

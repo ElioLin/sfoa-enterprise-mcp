@@ -6,7 +6,7 @@ import { UI_PARSER_VERSION, UI_RESOLVER_VERSION, UI_SNAPSHOT_TTL_MS, uiSnapshotS
   type EffectiveUiOptions, type UiContext, type UiSnapshotRecord, type UiPage } from './effective-ui-contracts.js';
 import { evaluateVisibility, combineVisibility, type VisibilityFacts } from './visibility.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
-import { boundDefaultValue, boundPicklist, type ResolvedActionFacts } from './record-action-executor.js';
+import { boundDefaultValue, boundPicklist, MAX_OUTPUT_BYTES, type ResolvedActionFacts } from './record-action-executor.js';
 import { sameSalesforceId, type ObjectInfo } from './ui-api.js';
 import { ContextRuntimeError } from './errors.js';
 
@@ -30,6 +30,7 @@ export class EffectiveRecordUiContextResolver {
       visibilityRuleCount: 0, resolvedRuleCount: 0, unknownRuleCount: 0, coverage: 'NONE',
       effectiveRequiredCount: baseline.fields?.filter((field) => field.apiRequired || field.layoutRequired).length ?? 0,
       optionalCandidateCount: 0, cache: 'BYPASS', metadataApiCallCount: 0, additionalUserApiCallCount: 0,
+      ...(this.options.requestContextError ? { configurationWarning: this.options.requestContextError } : {}),
     };
     const audit = (): void => { try { this.options.audit({ ...evidence, durationMs: Math.round(performance.now() - started) }); } catch { /* P7 is observational. */ } };
     if (mode === 'OFF') { audit(); return { ...baseline, uiContextResolutionId: resolutionId }; }
@@ -104,6 +105,7 @@ export class EffectiveRecordUiContextResolver {
                 ...(computed.truncated ? ['Picklist/default evidence was truncated; do not guess omitted values.'] : []),
                 ...(evidence.snapshotWarning ? ['SNAPSHOT_STALE: using the last valid configuration; Admin refresh is recommended.'] : []),
               ] } : undefined };
+          if (Buffer.byteLength(JSON.stringify(result)) > MAX_OUTPUT_BYTES) throw new Error('EFFECTIVE_OUTPUT_BOUND');
           evidence.usedForAgent = true;
         }
       }

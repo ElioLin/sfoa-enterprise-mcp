@@ -36,7 +36,7 @@ const MAX_PICKLIST_VALUES_TOTAL = 500;
 const MAX_CONTROLLER_VALUES_PER_FIELD = 200;
 const MAX_VALID_FOR_PER_VALUE = 200;
 const MAX_DEFAULT_VALUE_BYTES = 4_096;
-const MAX_OUTPUT_BYTES = 524_288;
+export const MAX_OUTPUT_BYTES = 524_288;
 
 type BoundedDefault = Readonly<{ value: unknown | null; truncated: boolean }>;
 
