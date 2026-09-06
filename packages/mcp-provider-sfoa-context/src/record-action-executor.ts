@@ -2,6 +2,8 @@ import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 import { z } from 'zod';
 import { ContextRuntimeError } from './errors.js';
+import type { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
+import { validateDraft } from './effective-ui-resolver.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
 import {
   addNames,
@@ -57,7 +59,7 @@ type CreateResolution =
   | { kind: 'select' };
 
 export class RecordActionContextExecutor {
-  public constructor(private readonly orgService: OrgService) {}
+  public constructor(private readonly orgService: OrgService, private readonly effectiveUi?: EffectiveRecordUiContextResolver) {}
 
   public async execute(input: RecordActionContextInput): Promise<RecordActionContextOutput> {
     const started = performance.now();
@@ -75,6 +77,8 @@ export class RecordActionContextExecutor {
       if (objectInfo.apiName.toLocaleLowerCase('en-US') !== input.objectApiName.toLocaleLowerCase('en-US')) {
         throw unsupported('Salesforce UI API returned object context for a different object.');
       }
+
+      if (input.action === 'CREATE' && input.draftFields) validateDraft(input.draftFields, objectInfo);
 
       // The Tool contract's `availableRecordTypes` must contain only Record Types the
       // current USER may actually use (`available === true`), because the Agent branches
@@ -94,6 +98,12 @@ export class RecordActionContextExecutor {
               picklists: resolution.picklists,
               sources: resolution.sources,
             }, metrics, durationMs);
+        if (resolution.kind === 'ready' && this.effectiveUi) {
+          output = await this.effectiveUi.resolve(input, connection, objectInfo, {
+            recordType: resolution.recordType, layout: resolution.layout, defaults: resolution.defaults,
+            picklists: resolution.picklists, sources: resolution.sources,
+          }, output);
+        }
       } else {
         const resolved = await this.resolveUpdate(connection, apiVersion, input, objectInfo, metrics);
         output = buildOutput(input, objectInfo, availableRecordTypes, resolved, metrics, durationMs);
@@ -273,7 +283,7 @@ export class RecordActionContextExecutor {
   }
 }
 
-type ResolvedActionFacts = Readonly<{
+export type ResolvedActionFacts = Readonly<{
   recordType: z.infer<typeof recordTypeInfoSchema>;
   layout: Layout;
   defaults: Readonly<Record<string, z.infer<typeof uiRecordFieldSchema>>>;
@@ -528,7 +538,7 @@ function resolveAvailableRecordType(objectInfo: ObjectInfo, candidate: string | 
   return recordType;
 }
 
-function boundPicklist(
+export function boundPicklist(
   controllerName: string | null,
   source: z.infer<typeof picklistFieldSchema>,
   globalRemaining: number,
@@ -565,7 +575,7 @@ function boundPicklist(
   };
 }
 
-function boundDefaultValue(value: unknown): BoundedDefault {
+export function boundDefaultValue(value: unknown): BoundedDefault {
   if (value === undefined || value === null) return { value: null, truncated: false };
   try {
     const serialized = JSON.stringify(value);

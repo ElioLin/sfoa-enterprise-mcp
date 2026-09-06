@@ -42,7 +42,7 @@ export const uiSnapshotSchema = z.object({
   apps: z.array(z.object({
     appId: uiNameSchema, developerName: uiNameSchema, fullName: uiNameSchema,
   }).strict()).max(100),
-  profiles: z.array(z.object({ id: uiNameSchema, name: uiNameSchema }).strict()).max(500),
+  profiles: z.array(z.object({ id: uiNameSchema, name: uiNameSchema, fullName: uiNameSchema }).strict()).max(500),
   recordTypes: z.array(z.object({ id: uiNameSchema, fullName: uiNameSchema }).strict()).max(200),
   assignments: z.array(uiAssignmentSchema).max(5000),
   pages: z.array(uiPageSchema).max(100),
@@ -80,6 +80,7 @@ export type EffectiveUiOptions = Readonly<{
   integrationDefaultApp?: string;
   appDeveloperName?: string;
   formFactor?: FormFactor;
+  requestContextError?: string;
   managedFields?: readonly string[];
   loadSnapshot(organizationId: string, objectApiName: string): Promise<UiSnapshotRecord | undefined>;
   audit(evidence: Readonly<Record<string, unknown>>): void;

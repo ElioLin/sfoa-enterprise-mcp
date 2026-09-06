@@ -1,6 +1,8 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
 import type { DiagnosticToolingQueryExecutor, MetadataComponentContextExecutor } from './contracts.js';
 import { RecordActionContextExecutor } from './record-action-executor.js';
+import { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
+import type { EffectiveUiOptions } from './effective-ui-contracts.js';
 import { RecordDisplayContextExecutor } from './record-display-executor.js';
 import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.js';
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
@@ -25,6 +27,7 @@ export function isSfoaContextToolName(value: string): value is SfoaContextToolNa
 }
 
 export type SfoaContextProviderOptions = Readonly<{
+  effectiveUi?: EffectiveUiOptions;
   toolNames?: readonly SfoaContextToolName[];
   diagnosticQueryExecutor?: DiagnosticToolingQueryExecutor;
   metadataContextExecutor?: MetadataComponentContextExecutor;
@@ -43,7 +46,8 @@ export class SfoaContextMcpProvider extends McpProvider {
     const requested = this.options.toolNames ?? SFOA_CONTEXT_TOOL_NAMES;
     const tools: McpTool[] = [];
     if (requested.includes('get_record_action_context')) {
-      tools.push(new RecordActionContextMcpTool(new RecordActionContextExecutor(services.getOrgService())));
+      tools.push(new RecordActionContextMcpTool(new RecordActionContextExecutor(services.getOrgService(),
+        this.options.effectiveUi ? new EffectiveRecordUiContextResolver(this.options.effectiveUi) : undefined)));
     }
     if (requested.includes('run_diagnostic_tooling_query')) {
       if (!this.options.diagnosticQueryExecutor) {

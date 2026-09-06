@@ -9,3 +9,6 @@ export * from './tools/diagnostic-tooling-query.js';
 export * from './tools/metadata-component-context.js';
 export * from './tools/record-action-context.js';
 export * from './tools/record-display-context.js';
+export * from './effective-ui-contracts.js';
+export * from './effective-ui-resolver.js';
+export * from './ui-snapshot-refresh.js';
