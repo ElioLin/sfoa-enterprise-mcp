@@ -10,11 +10,18 @@ import {
   renderWorkflow,
   renderWorkBuddySkill,
   renderWorkBuddySystemPrompt,
+  renderWorkflowReference,
 } from '../index.js';
 
 describe('canonical SFoA Agent Playbook', () => {
+  it('distributes the bounded effective CREATE workflow without asking Agents to parse metadata', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
+      for (const token of ['draftFields', 'PENDING', 'UNKNOWN', 'optionalCandidate', 'uiContextResolutionId', 'effectiveRequired']) assert.ok(output.includes(token), token);
+      assert.match(output, /(?:three|3).*refinement|refinement.*(?:three|3)/iu);
+    }
+  });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.5.1');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.6.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -70,7 +77,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.5\.1/u);
+      assert.match(output, /1\.6\.0/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -126,7 +133,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.5\.1; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.6\.0; DO NOT EDIT DIRECTLY/u,
     );
   });
 

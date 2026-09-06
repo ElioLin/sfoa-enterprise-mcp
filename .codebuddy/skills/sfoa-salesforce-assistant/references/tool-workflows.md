@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.5.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.6.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.5.1
+Playbook-Version: 1.6.0
 
 ## READ — Read current Salesforce data
 
@@ -32,6 +32,11 @@ Playbook-Version: 1.5.1
 
 ## CREATE — Create a record
 
+- When CREATE fields include visibilityState, use the effective context: ask only for VISIBLE + effectiveRequired + missing values, except API-required fields remain required regardless of UI visibility. Respect effectiveEditable and managed-field strategy. Without these effective properties, follow the existing Page Layout workflow below.
+- Extract values already explicit in the original user prompt into draftFields using exact field API names and scalar values. Resolve explicit Lookups to proven IDs. Never ask again for a valid supplied value. If visibility is PENDING, use known dependency values first; otherwise ask for the missing dependsOn field, then call get_record_action_context with the same Record Type and draftFields. Increment refinement from 1 through at most 3; when refinementLimitReached=true or dependencies stop changing, stop refining, retain resolved fields, and explain remaining PENDING/UNKNOWN evidence.
+- HIDDEN fields are not questions or recommendations. UNKNOWN is not visible or hidden: do not guess or promote UI requiredness. PENDING conditionalRequired becomes a question only after visibility resolves VISIBLE. API-required semantics always survive. Do not ask for hidden dependencies; explain unresolved visibility instead.
+- For a Dynamic Forms result, recommend only fields with optionalCandidate=true: choose 3 to 8 relevant high-value fields when enough exist. Never recommend HIDDEN/PENDING/UNKNOWN, non-createable, read-only, system/formula/auto-number or MCP-managed fields. Reuse available defaults and Picklist/dependency/Lookup facts.
+- Pass the latest uiContextResolutionId unchanged to create_record when supplied. It is audit provenance only. If absent, creation still follows the existing workflow; never invent an ID.
 - Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.
 - Collect only values the user supplied, then call `get_record_action_context` when available and inspect CREATE context: Record Type, API-required and layout-required fields, defaults, createability/editability, Picklists, and dependencies.
 - Choose the Record Type from action context instead of the default by habit: when `availableRecordTypes` has exactly one entry, use it without an extra prompt; when it has several and the user has not uniquely and reliably named one, ask the user which Record Type to use and pass the chosen value as `recordTypeId` — never silently create under the default. A user phrasing that matches exactly one available Record Type may be used directly; an ambiguous match must be asked about.
@@ -40,7 +45,7 @@ Playbook-Version: 1.5.1
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.
 - For ordinary fields, ask for required information that the user did not supply and Salesforce did not default. When context supplies a reliable default, explain it when useful and do not ask the user to re-enter it; never invent a default or necessary value. Managed fields follow the strategy-specific rules below.
 - Exclude only strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from required questions, optional recommendations, and the `create_record.fields` payload even when Salesforce context marks them required or editable.
-- For `PLATFORM_IDENTITY_FALLBACK` on CREATE, use current `apiRequired` or `layoutRequired` to determine required status and `fieldCreateable` / `layoutEditableForCreate` to assess explicit input. Do not infer required status from names or from the existence of a fallback. Missing or non-editable evidence is not permission to bypass Salesforce; explain the limitation.
+- For `PLATFORM_IDENTITY_FALLBACK` on CREATE, use effectiveRequired / effectiveEditable when provided; otherwise use current `apiRequired` or `layoutRequired` to determine required status and `fieldCreateable` / `layoutEditableForCreate` to assess explicit input. Do not infer required status from names or from the existence of a fallback. Missing or non-editable evidence is not permission to bypass Salesforce; explain the limitation.
 - If the user already specified a fallback field, do not ask for it again because it is required. Resolve an explicit other person using the LOOKUP workflow and submit the uniquely proven Salesforce Id, never the name. This also applies when the field is optional.
 - If a CREATE fallback field is required and absent, ask once before mutation and wait for the answer: explain that the field is required, another person may be specified, and otherwise the current user will be the default. Do not immediately call `create_record` even though a platform default exists.
 - If the user chooses default/current user/no other person (for example 默认、当前用户、不用指定、就我自己), omit the fallback field; never query or guess the current platform-user Lookup Id yourself. If the fallback field is optional and absent, omit it without an extra question.

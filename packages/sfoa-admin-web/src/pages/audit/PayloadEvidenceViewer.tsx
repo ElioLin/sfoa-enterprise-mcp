@@ -72,6 +72,7 @@ export function PayloadEvidenceViewer({
 
 export function payloadTypeLabel(type: AuditPayloadEvidenceSummaryRecord['payloadType']): string {
   switch (type) {
+    case 'UI_CONTEXT': return '字段与可见性依据';
     case 'MCP_REQUEST': return 'MCP 请求';
     case 'MCP_RESPONSE': return 'MCP 响应';
     case 'SALESFORCE_REQUEST': return 'Salesforce 请求';

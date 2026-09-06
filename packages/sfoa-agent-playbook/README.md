@@ -2,6 +2,12 @@
 
 Pure TypeScript canonical Salesforce Agent operating contract for SFoA P6-Agent-01.
 
+Version 1.6.0 adds P8-04 effective CREATE fields, prompt-derived draft values,
+PENDING/UNKNOWN handling, at most three refinements and optional context provenance.
+The existing Page Layout and managed Lookup fallback workflows remain available.
+Run `yarn agent:sync` and `yarn agent:check` at the root; generated client artifacts
+must never be edited independently.
+
 Production modules define Playbook version `1.5.1`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
 
 The Node-only `scripts/sync-generated.mjs` adapter owns checked-in Dify and WorkBuddy artifacts:

@@ -30,6 +30,31 @@ const SECRET_MARKERS = ['db-super-secret', 'mcp-super-secret', 'private-key-secr
 const now = '2026-01-01T00:00:00.000Z';
 const TEST_USER_BOUND_TOKEN = `sfoa_ub1_${'a'.repeat(43)}`;
 
+test('P8 snapshot Admin boundary authenticates, checks CSRF, rejects raw metadata and refreshes one object', async (context) => {
+  const refreshes: string[] = [];
+  const server = await startAdminApiServer({ ...createOptions(PASSWORD, createRepositories()),
+    uiSnapshots: { list: async () => [], get: async () => undefined },
+    refreshUiSnapshot: async (object, actor) => { refreshes.push(`${object}:${actor}`); },
+  });
+  context.after(() => server.close());
+  const root = server.baseUrl.href.replace(/\/$/u, '');
+  assert.equal((await fetch(`${root}/ui-context/snapshots`)).status, 401);
+  const login = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
+  const cookie = login.headers.get('set-cookie')!;
+  const { csrfToken } = await login.json() as { csrfToken: string };
+  assert.equal((await fetch(`${root}/ui-context/snapshots`, { headers: { Cookie: cookie } })).status, 200);
+  const endpoint = `${root}/ui-context/Sample__c/refresh`;
+  assert.equal((await postJson(endpoint, {}, ORIGIN, cookie)).status, 403);
+  assert.equal((await postJson(endpoint, { rawMetadata: '<xml/>' }, ORIGIN, cookie, csrfToken)).status, 400);
+  assert.equal(refreshes.length, 0);
+  assert.equal((await postJson(endpoint, {}, ORIGIN, cookie, csrfToken)).status, 200);
+  assert.deepEqual(refreshes, [`Sample__c:${ADMIN}`]);
+  for (const value of [[{ objectApiName: '*', mode: 'ENFORCE' }], [{ objectApiName: 'Sample__c', mode: 'ENFORCE' }, { objectApiName: 'sample__c', mode: 'OFF' }]]) {
+    const response = await fetch(`${root}/system/settings/dynamicFormsObjectPolicies`, { method: 'PUT', headers: mutationHeaders(cookie, csrfToken), body: JSON.stringify({ value }) });
+    assert.equal(response.status, 400);
+  }
+});
+
 test('Admin liveness stays UP while database readiness fails with 503', async (context) => {
   const options = createOptions(PASSWORD, createRepositories());
   const server = await startAdminApiServer({

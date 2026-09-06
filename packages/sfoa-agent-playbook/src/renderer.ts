@@ -157,7 +157,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
   if (!capabilities) {
     return [
       '- This is a distribution template. Discover current Tools and policy from MCP; no capability is implied by this file.',
-      '- Dynamic Forms evidence: `NOT_AVAILABLE` for P6-Agent-01.',
+      '- Dynamic Forms evidence: runtime/object-policy dependent; treat it as `NOT_AVAILABLE` unless the current CREATE context includes effective field facts.',
     ];
   }
   return [

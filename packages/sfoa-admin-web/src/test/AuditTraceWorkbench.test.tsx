@@ -9,6 +9,22 @@ import { asFetchMock, jsonResponse, renderAdmin } from './helpers.js';
 const NOW = '2026-09-01T00:00:00.000Z';
 
 describe('P7-07 Audit Trace Workbench', () => {
+  it('shows UI resolution and loads field decisions only on demand', async () => {
+    const base = traceFixture(true);
+    const fetchMock = asFetchMock(() => jsonResponse({ ...base.payloadMetadata[0], payloadType: 'UI_CONTEXT', safePayload: '{"fields":[{"apiName":"Name","visibilityState":"VISIBLE"}]}' }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderAdmin(<AuditTraceWorkbench trace={{ ...base,
+      events: [{ ...base.events[0]!, eventType: 'UI_CONTEXT_RESOLVED', safeSummary: { mode: 'ENFORCE', page: 'Create_Page', hiddenCount: 2, resolutionId: 'resolution-fixture' } }],
+      payloadMetadata: [{ ...base.payloadMetadata[0]!, payloadType: 'UI_CONTEXT' }],
+    }} />);
+    expect(screen.getByText('页面上下文 / UI Context')).toBeInTheDocument();
+    expect(screen.getByText('Create_Page')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('字段依据（按需加载）'));
+    fireEvent.click(screen.getByRole('button', { name: '查看字段 / Required 来源 / Visibility / Dependency / Section' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect((await screen.findAllByText(/visibilityState/u)).length).toBeGreaterThan(0);
+  });
   it('renders SOQL, DML field provenance, and deterministic failure evidence', async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });

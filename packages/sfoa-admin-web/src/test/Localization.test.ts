@@ -13,6 +13,7 @@ describe('zh-CN Admin presentation contract', () => {
       ['/tool-governance', '工具治理'],
       ['/dml-policies', 'DML 操作策略'],
       ['/diagnostic', '系统诊断'],
+      ['/ui-context', 'CREATE 页面上下文'],
       ['/audit', '调用审计'],
       ['/system', '系统状态'],
       ['/agent-integration', '智能体接入'],

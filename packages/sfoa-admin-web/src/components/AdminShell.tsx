@@ -30,6 +30,7 @@ export const ADMIN_NAVIGATION = [
   { key: '/tool-governance', icon: <ToolOutlined />, label: '工具治理' },
   { key: '/dml-policies', icon: <SafetyCertificateOutlined />, label: 'DML 操作策略' },
   { key: '/diagnostic', icon: <ExperimentOutlined />, label: '系统诊断' },
+  { key: '/ui-context', icon: <DatabaseOutlined />, label: 'CREATE 页面上下文' },
   { key: '/audit', icon: <AuditOutlined />, label: '调用审计' },
   { key: '/system', icon: <DatabaseOutlined />, label: '系统状态' },
   { key: '/agent-integration', icon: <RobotOutlined />, label: '智能体接入' },

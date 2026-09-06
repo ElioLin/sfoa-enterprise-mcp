@@ -46,10 +46,11 @@ import {
   type McpPublicEndpointDto,
   type ProviderVersionDto,
   type SystemStatusDto,
+  type MySqlUiSnapshotRepository,
 } from '@sfoa/control-plane';
 import type { IdentityRuntime } from '@sfoa/identity-runtime';
 import type { UpstreamInventoryComparison } from '@sfoa/mcp-server';
-import { ZodError, type ZodType } from 'zod';
+import { z, ZodError, type ZodType } from 'zod';
 import { AdminSessionManager, LoginRateLimiter, verifyAdminPassword, type AdminSession } from './auth.js';
 import type { AdminApiConfig } from './config.js';
 import { AdminHttpError, invalidAdminInput, mapAdminError } from './errors.js';
@@ -88,6 +89,8 @@ export type AdminSystemRuntimeInfo = Readonly<{
 }>;
 
 export type StartAdminApiServerOptions = Readonly<{
+  uiSnapshots?: Pick<MySqlUiSnapshotRepository, 'list' | 'get'>;
+  refreshUiSnapshot?(objectApiName: string, actor: string): Promise<void>;
   config: AdminApiConfig;
   store: Readonly<{
     repositories: ControlPlaneRepositoriesWithAuditTrace;
@@ -703,13 +706,26 @@ async function dispatchAuthenticated(
     return;
   }
 
+  if (path === `${ADMIN_API_PREFIX}/ui-context/snapshots`) {
+    assertMethod(request, 'GET'); assertNoQuery(url);
+    writeJson(response, 200, await options.uiSnapshots?.list() ?? []); return;
+  }
+  const uiRefresh = /^\/admin\/api\/ui-context\/([A-Za-z][A-Za-z0-9_]{0,127})\/refresh$/u.exec(path);
+  if (uiRefresh) {
+    assertMethod(request, 'POST'); assertNoQuery(url);
+    parseWithSchema(z.object({}).strict(), await readJsonBody(request));
+    if (!options.refreshUiSnapshot) throw notFound();
+    await options.refreshUiSnapshot(uiRefresh[1] as string, session.username);
+    writeJson(response, 200, { status: 'READY' }); return;
+  }
+
   const settingMatch = matchResourcePath(path, 'system/settings');
   if (settingMatch) {
     if (settingMatch.action !== null) throw notFound();
     assertMethod(request, 'PUT');
     assertNoQuery(url);
     const key = parseWithSchema(adminRuntimeSettingKeySchema, settingMatch.identifier);
-    const input = parseWithSchema(adminRuntimeSettingUpdateSchemas[key], await readJsonBody(request));
+    const input = parseWithSchema(adminRuntimeSettingUpdateSchemas[key] as ZodType<{ value: unknown; rowVersion?: string | null }>, await readJsonBody(request));
     writeJson(response, 200, await options.adminService.updateRuntimeSetting(
       key,
       input.value,

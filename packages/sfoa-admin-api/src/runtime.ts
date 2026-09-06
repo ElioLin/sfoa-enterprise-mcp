@@ -6,6 +6,7 @@ import {
   loadIdentityCredentialCipher,
   loadControlPlaneConfig,
   MySqlControlPlaneStore,
+  MySqlUiSnapshotRepository,
   MySqlIdentityRepository,
   type McpPublicEndpointDto,
 } from '@sfoa/control-plane';
@@ -20,6 +21,7 @@ import {
   inspectOfficialDxCoreInventory,
   isLoopbackBindHost,
   loadRemoteRuntimeConfig,
+  refreshCurrentUiSnapshot,
 } from '@sfoa/mcp-server';
 import { loadAdminApiConfig } from './config.js';
 import {
@@ -124,6 +126,9 @@ export async function startConfiguredAdminApi(
       ]),
     });
     const server = await startAdminApiServer({
+      uiSnapshots: new MySqlUiSnapshotRepository(database),
+      refreshUiSnapshot: (objectApiName, actor) => refreshCurrentUiSnapshot(identityRuntime, store.repositories,
+        new MySqlUiSnapshotRepository(database), objectApiName, actor),
       config: adminConfig,
       store,
       adminService,

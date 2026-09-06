@@ -15,6 +15,7 @@ const DmlPoliciesPage = lazy(() => import('./pages/DmlPoliciesPage.js'));
 const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
 const SystemPage = lazy(() => import('./pages/SystemPage.js'));
+const UiContextPage = lazy(() => import('./pages/UiContextPage.js'));
 const AgentIntegrationPage = lazy(() => import('./pages/AgentIntegrationPage.js'));
 
 export function App() {
@@ -47,6 +48,7 @@ export function App() {
               <Route path="/diagnostic" element={<DiagnosticPage />} />
               <Route path="/audit" element={<AuditPage />} />
               <Route path="/system" element={<SystemPage />} />
+              <Route path="/ui-context" element={<UiContextPage />} />
               <Route path="/agent-integration" element={<AgentIntegrationPage />} />
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

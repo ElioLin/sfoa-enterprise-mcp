@@ -96,6 +96,7 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
       </section>
 
       <section className="audit-section-card audit-error-center">
+        <UiContextEvidence trace={trace} onPayload={setPayload} />
         <SectionTitle title="问题定位" subtitle="确定性展示首个失败节点，不使用 AI 推测根因。" />
         {trace.firstFailure ? (
           <Alert
@@ -205,6 +206,34 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
       <PayloadEvidenceViewer payload={payload} open={payload !== null} onClose={() => setPayload(null)} />
     </div>
   );
+}
+
+function UiContextEvidence({ trace, onPayload }: Readonly<{ trace: AdminAuditTraceDto; onPayload(value: AuditPayloadEvidenceSummaryRecord): void }>) {
+  const events = trace.events.filter((event) => ['UI_CONTEXT_RESOLVED', 'UI_CONTEXT_RESOLUTION_FAILED', 'UI_CONTEXT_LINK'].includes(event.eventType));
+  if (!events.length) return null;
+  const labels: Record<string, string> = {
+    objectApiName: '对象', action: '操作', mode: '模式', salesforceUserId: 'Salesforce USER', profileId: 'Profile',
+    recordType: 'Record Type', app: 'App', formFactor: 'Form Factor', formSource: '页面来源', pageLayoutId: 'Page Layout',
+    page: 'Lightning Page', assignmentSource: '页面分配', snapshot: '快照版本与时间', resolverVersion: '解析器', coverage: '覆盖情况',
+    visibleCount: '可见', hiddenCount: '隐藏', pendingCount: '待定', unknownCount: '未知', fallbackUsed: '已回退', fallbackReason: '回退原因',
+    resolutionId: 'Resolution ID', uiContextResolutionId: '关联 Resolution ID', contextLinkStatus: '关联状态',
+  };
+  return <section aria-label="页面上下文">
+    <Typography.Title level={4}>页面上下文 / UI Context</Typography.Title>
+    {events.map((event) => {
+      const summary = event.safeSummary && typeof event.safeSummary === 'object' && !Array.isArray(event.safeSummary)
+        ? event.safeSummary as Record<string, unknown> : {};
+      return <Descriptions key={event.id} size="small" bordered column={{ xs: 1, sm: 2 }}>
+        {Object.entries(labels).filter(([key]) => summary[key] !== undefined).map(([key, label]) => <Descriptions.Item key={key} label={label}>
+          {typeof summary[key] === 'object' ? JSON.stringify(summary[key]) : String(summary[key] ?? '—')}
+        </Descriptions.Item>)}
+      </Descriptions>;
+    })}
+    <details><summary>字段依据（按需加载）</summary>
+      {trace.payloadMetadata.filter((item) => item.payloadType === 'UI_CONTEXT').map((item) =>
+        <Button key={item.id} onClick={() => onPayload(item)}>查看字段 / Required 来源 / Visibility / Dependency / Section</Button>)}
+    </details>
+  </section>;
 }
 
 type TimelineFilter = 'ALL' | 'ERROR' | 'API' | 'SOQL' | 'DML' | 'MCP';

@@ -8,13 +8,15 @@ import { ErrorState, LoadingState, MutationError } from '../components/QueryStat
 import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
 
-const SETTING_LABELS: Readonly<Record<RuntimeSettingKey, Readonly<{ title: string; description: string; min: number; max: number }>>> = Object.freeze({
+type NumericSettingKey = Extract<RuntimeSettingKey, 'auditRetentionDays' | 'adminDefaultPageSize'>;
+type NumericSetting = RuntimeSettingRecord & { settingKey: NumericSettingKey };
+const SETTING_LABELS: Readonly<Record<NumericSettingKey, Readonly<{ title: string; description: string; min: number; max: number }>>> = Object.freeze({
   auditRetentionDays: Object.freeze({ title: '审计保留天数', description: '持久审计维护的运维保留目标。', min: 1, max: 3650 }),
   adminDefaultPageSize: Object.freeze({ title: 'Admin 默认分页大小', description: '兼容 Admin 列表客户端使用的有界默认值。', min: 10, max: 100 }),
 });
 
 export default function SystemPage() {
-  const [editing, setEditing] = useState<RuntimeSettingRecord | null>(null);
+  const [editing, setEditing] = useState<NumericSetting | null>(null);
   const [form] = Form.useForm<{ value: number }>();
   const queryClient = useQueryClient();
   const { message } = App.useApp();
@@ -31,7 +33,7 @@ export default function SystemPage() {
       void message.success('Runtime 设置已保存，将应用于新请求。');
     },
   });
-  const openEdit = (record: RuntimeSettingRecord): void => {
+  const openEdit = (record: NumericSetting): void => {
     form.setFieldsValue({ value: numericValue(record.settingValue) });
     setEditing(record);
   };
@@ -105,7 +107,7 @@ export default function SystemPage() {
           <Card title="可编辑的非 secret 设置" className="surface-card">
             {settings.isPending ? <LoadingState rows={2} /> : settings.isError ? <ErrorState error={settings.error} onRetry={() => void settings.refetch()} /> : (
               <List
-                dataSource={[...settings.data]}
+                dataSource={settings.data.filter((record): record is NumericSetting => record.settingKey === 'auditRetentionDays' || record.settingKey === 'adminDefaultPageSize')}
                 renderItem={(record) => (
                   <List.Item actions={[<Button key="edit" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>]}>
                     <List.Item.Meta title={SETTING_LABELS[record.settingKey].title} description={SETTING_LABELS[record.settingKey].description} />

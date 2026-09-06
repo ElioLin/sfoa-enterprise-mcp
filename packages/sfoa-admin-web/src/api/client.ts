@@ -30,6 +30,7 @@ import type {
   RouteVerificationDto,
   RuntimeSettingKey,
   RuntimeSettingRecord,
+  UiSnapshotSummary,
   SystemStatusDto,
   ToolControlRecord,
 } from '@sfoa/control-plane';
@@ -54,6 +55,8 @@ export class ApiError extends Error {
 export type AuditFilters = AdminAuditQuery;
 
 export const adminApi = Object.freeze({
+  uiSnapshots: () => request<readonly UiSnapshotSummary[]>('/ui-context/snapshots'),
+  refreshUiSnapshot: (objectApiName: string) => request<{ status: string }>(`/ui-context/${encodeURIComponent(objectApiName)}/refresh`, { method: 'POST', body: {} }),
   login: async (input: Readonly<{ username: string; password: string }>): Promise<AdminSessionDto> => {
     const session = await request<AdminSessionDto>('/auth/login', { method: 'POST', body: input, skipCsrf: true });
     csrfToken = session.csrfToken;
@@ -150,7 +153,7 @@ export const adminApi = Object.freeze({
   auditPayload: (id: string) => request<AuditPayloadEvidenceRecord>(`/audit-payloads/${encodeURIComponent(id)}`),
   systemStatus: () => request<SystemStatusDto>('/system/status'),
   runtimeSettings: () => request<readonly RuntimeSettingRecord[]>('/system/settings'),
-  updateRuntimeSetting: (key: RuntimeSettingKey, value: number, rowVersion?: string) => request<RuntimeSettingRecord>(
+  updateRuntimeSetting: (key: RuntimeSettingKey, value: unknown, rowVersion?: string) => request<RuntimeSettingRecord>(
     `/system/settings/${encodeURIComponent(key)}`,
     { method: 'PUT', body: { value, rowVersion: rowVersion ?? null } },
   ),
