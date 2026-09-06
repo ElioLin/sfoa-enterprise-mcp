@@ -43,7 +43,13 @@ P8-04 future Dynamic Forms CREATE work must read
 `docs/sfoa/P8-04-DYNAMIC-FORMS-BASELINE.md` and
 `docs/sfoa/P8-04A-01-FEASIBILITY-EVIDENCE.md`. The source is
 `feature/managed-platform-user-lookup-fallback` at `f60a134715d639b8129af0f3160549d52dec210d`.
-A-01 is read-only evidence, not a production resolver. Preserve the existing Page
+A-01 is COMPLETE — BLOCKED: configuration shapes are available, but activation/New
+UI precedence and the mandatory same-RT different-USER golden are unverified.
+Read-only reruns: `node scripts/p8-04a-feasibility.mjs` and `--targeted`; outputs are
+sanitized dev evidence under `.temp`, never production snapshots. SOAP getUserInfo
+works for USER ProfileId where User SOQL fails; `/ui-api/apps?formFactor=Large`
+returns effective USER Apps. These facts do not authorize A-02 or ENFORCE.
+Preserve the existing Page
 Layout path and explicit managed fallback semantics; missing App/assignment evidence
 cannot become a guessed active page. Later runtime work needs the scoped task gate.
 

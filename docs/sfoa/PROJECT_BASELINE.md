@@ -104,7 +104,11 @@ P8-04 has its scoped authoritative plan in
 [`P8-04-DYNAMIC-FORMS-BASELINE.md`](P8-04-DYNAMIC-FORMS-BASELINE.md), based on
 `feature/managed-platform-user-lookup-fallback` at
 `f60a134715d639b8129af0f3160549d52dec210d` (not main). The 2026-09-06 delivery
-authorizes A-01 read-only feasibility evidence only. Existing P8 Page Layout CREATE,
+authorizes A-01 read-only feasibility evidence only. A-01 is **COMPLETE — BLOCKED**:
+metadata shapes and lightweight USER facts were obtained, but actual CREATE
+activation precedence and the mandatory same-RT/different-USER golden remain
+unverified; see [A-01 evidence](P8-04A-01-FEASIBILITY-EVIDENCE.md).
+Existing P8 Page Layout CREATE,
 managed lookup fallback, identity, P7, DML and Agent behavior remain unchanged;
 no Shadow runtime or ENFORCE is authorized by this baseline entry.
 

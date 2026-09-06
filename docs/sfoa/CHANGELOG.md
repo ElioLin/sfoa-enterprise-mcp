@@ -8,6 +8,10 @@ This changelog records SFoA baseline and architecture changes. Salesforce Upstre
   request USER authority, four-state uncertainty, P7 reuse and all accuracy gates.
 - Source is managed-platform-user-lookup-fallback at `f60a134715d639b8129af0f3160549d52dec210d`;
   this delivery stops at read-only SFoA feasibility. No production behavior changes.
+- A-01 COMPLETE — BLOCKED: verified v67 SOAP USER ProfileId, USER App inventory,
+  six relevant pages, assignment shapes, Layout ID/name matches and Metadata costs;
+  independent New UI precedence and mandatory same-RT/different-USER golden remain
+  unverified. Three evidence-backed baseline amendments; no A-02 or ENFORCE.
 
 ## 2026-09-05 — Managed Lookup fallback HOTFIX01
 

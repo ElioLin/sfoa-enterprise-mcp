@@ -1,6 +1,6 @@
 # P8-04 — Dynamic Forms-Aware Effective CREATE Context
 
-Status: A-01 evidence collection; later tasks are not authorized in this delivery.
+Status: A-01 COMPLETE — BLOCKED; later tasks are not authorized in this delivery.
 Date: 2026-09-06. Authority: this scoped baseline supplements PROJECT_BASELINE.md;
 current source and verified SFoA evidence outrank historical descriptions.
 
@@ -178,6 +178,65 @@ COMPLETE — BLOCKED, or INCOMPLETE. Missing core facts cannot be filled with gu
 
 ## Baseline Amendments
 
-None at initial freeze. Append evidence-backed changes using Amendment ID, Task,
-Original Assumption, Evidence, Decision, Reason and Impact. Non-negotiables and
-accuracy denominators cannot be silently weakened.
+### P8-04-AMEND-001 — USER facts without setup SOQL
+
+- Task: A-01.
+- Original Assumption: query the current User/Profile and permission assignments
+  when the existing route lacks these facts.
+- Evidence: three actual USER connections reject even `SELECT Id, ProfileId FROM
+  User` (INVALID_FIELD) and PermissionSetAssignment (INVALID_TYPE). The same USER
+  connections succeed with SDK `connection.soap.getUserInfo()`: returned userId
+  matches identity and profileId matches a separate DIAGNOSTIC read in all three.
+- Decision: prefer this single request-USER SOAP read for identity/Profile/language
+  facts. Unsupported permission criteria remain UNKNOWN; do not build a permission
+  replica or route business reads through DIAGNOSTIC.
+- Reason: smaller, successful under actual least-privileged users, avoids an
+  otherwise unnecessary runtime role crossover to obtain the user's own ProfileId.
+- Impact: no production changes; Q1 feasibility improved, no gate weakened.
+
+### P8-04-AMEND-002 — USER App inventory before assignment retrieval
+
+- Task: A-01.
+- Original Assumption: derive applicable Apps from Profile/permission metadata or
+  enumerate all CustomApplication metadata on each request.
+- Evidence: `GET /ui-api/apps?formFactor=Large` succeeds for all three USERs and
+  returns two apps each; omitting the parameter returns INVALID_API_INPUT. Full
+  SFoA discovery has 35 apps and costly metadata; Profile read is ~770–802 KB JSON.
+- Decision: use the USER API's accessible App set; an explicitly supplied App must
+  be validated against it. Read only relevant assignment facts. Treat developerName
+  mapping to namespaced/standard Metadata fullName as a validated join, not a guessed
+  string prefix (Approvals vs standard__Approvals is observed here).
+- Reason: Salesforce supplies effective access, avoiding Profile/PermissionSet
+  entitlement reconstruction. Last-selected/default App is not this request's App.
+- Impact: missing App still requires convergence, else AMBIGUOUS/APP_CONTEXT_REQUIRED.
+  A tiny explicit integration App setting is evidence-justified for consideration,
+  not implemented. No silent FRN/Sales/default App selection.
+
+### P8-04-AMEND-003 — classify effective components, preserve CREATE uncertainty
+
+- Task: A-01.
+- Original Assumption: Record Detail plus Field Sections implies MIXED and all
+  component visibility reacts to draft values alike.
+- Evidence: all three retrieved Dynamic Forms pages have Field Instances AND
+  `force:recordDetailPanelMobile`; none has desktop `force:detailPanel`. Actual
+  single field criteria exist, but no section visibility rules occur on those
+  three pages. Salesforce's official considerations distinguish field, section,
+  hidden tab and mobile behavior (links in A-01 evidence).
+- Decision: mobile fallback presence alone is not proof of MIXED. Keep component
+  kind/form-factor applicability and CREATE entry proof separate from structural
+  classification. Do not apply field draft semantics to section/container rules
+  until a real CREATE golden validates that behavior.
+- Reason: avoids false MIXED and a generic evaluator that misrepresents Salesforce.
+- Impact: Q3/Q5/Q7 remain partial or blocked; no runtime evaluator and no success
+  claim for mobile or section visibility. All original gates remain mandatory.
+
+### Freeze decision
+
+Core metadata retrieval is feasible; production-effective CREATE correctness is
+not yet proved. A-01 is COMPLETE — BLOCKED because activation precedence and the
+actual New-entry behavior have no independent live UI ground truth, and the
+mandatory same-object/same-RT/different-USER form-source golden is unavailable in
+the tested identities. Resolve these A-01 blockers before A-02. Configuration
+presence, documentation, or an unavailable benchmark cannot be counted as accuracy.
+No non-negotiable is proposed for removal; no maintainer approval is sought for
+implementing around missing evidence.
