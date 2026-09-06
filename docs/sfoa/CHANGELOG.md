@@ -2,6 +2,13 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-06 — P8-04 baseline and A-01 feasibility entry
+
+- Freeze a 12-task CREATE-only Dynamic Forms plan with exact Page Layout preservation,
+  request USER authority, four-state uncertainty, P7 reuse and all accuracy gates.
+- Source is managed-platform-user-lookup-fallback at `f60a134715d639b8129af0f3160549d52dec210d`;
+  this delivery stops at read-only SFoA feasibility. No production behavior changes.
+
 ## 2026-09-05 — Managed Lookup fallback HOTFIX01
 
 - Restrict fallback to CREATE in Admin validation/UI, Runtime, and forward-only migration 011; preserve 010 checksums and user deployment history. Ordinary UPDATE never defaults omitted fallback fields.

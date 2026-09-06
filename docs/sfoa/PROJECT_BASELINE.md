@@ -100,6 +100,14 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+P8-04 has its scoped authoritative plan in
+[`P8-04-DYNAMIC-FORMS-BASELINE.md`](P8-04-DYNAMIC-FORMS-BASELINE.md), based on
+`feature/managed-platform-user-lookup-fallback` at
+`f60a134715d639b8129af0f3160549d52dec210d` (not main). The 2026-09-06 delivery
+authorizes A-01 read-only feasibility evidence only. Existing P8 Page Layout CREATE,
+managed lookup fallback, identity, P7, DML and Agent behavior remain unchanged;
+no Shadow runtime or ENFORCE is authorized by this baseline entry.
+
 `P7-01 = COMPLETE; P7-02 = COMPLETE; P7-03 = COMPLETE; P7-04 = COMPLETE; P7-05 = COMPLETE; P7-06 = COMPLETE; P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW; P7-08 = COMPLETE; P7-09 = COMPLETE`
 
 ## Current status

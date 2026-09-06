@@ -39,4 +39,12 @@ Reuse an official Tool, then extend the Provider API/composition seam, then use 
 
 ## Known global-state risk
 
+P8-04 future Dynamic Forms CREATE work must read
+`docs/sfoa/P8-04-DYNAMIC-FORMS-BASELINE.md` and
+`docs/sfoa/P8-04A-01-FEASIBILITY-EVIDENCE.md`. The source is
+`feature/managed-platform-user-lookup-fallback` at `f60a134715d639b8129af0f3160549d52dec210d`.
+A-01 is read-only evidence, not a production resolver. Preserve the existing Page
+Layout path and explicit managed fallback semantics; missing App/assignment evidence
+cannot become a guessed active page. Later runtime work needs the scoped task gate.
+
 Official Tools call `process.chdir(directory)`. Request workspaces plus the shared/exclusive CWD guard contain that side effect. Do not introduce concurrent official metadata execution outside this boundary without proving isolation and restoration.
