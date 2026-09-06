@@ -25,6 +25,7 @@ import {
   MySqlAuditBatchSink,
   MySqlAuditRepository,
   MySqlControlPlaneStore,
+  MySqlUiSnapshotRepository,
   splitSqlStatements,
 } from '../index.js';
 import type { DatabaseConfig } from '../config.js';
@@ -51,6 +52,46 @@ if (!setup) {
   await migrateDatabase(store.database);
   beforeEach(() => cleanTestData(store));
 
+  test('P8 current UI snapshot is org-scoped, refresh-leased, and retains old data after failure', async () => {
+    const snapshots = new MySqlUiSnapshotRepository(store.database);
+    const token = await snapshots.beginRefresh('00D000000000001AAA', 'Sample__c', 'P8-04.1');
+    await assert.rejects(snapshots.beginRefresh('00D000000000001AAA', 'Sample__c', 'P8-04.1'));
+    const value = { organizationId: '00D000000000001AAA', objectApiName: 'Sample__c', parserVersion: 'P8-04.1',
+      pages: [{ fullName: 'Example', formSource: 'DYNAMIC_FORMS', fields: [] }], profiles: [], recordTypes: [], apps: [] };
+    await snapshots.finishRefresh(token, value, 'P8-04.1');
+    const saved = await snapshots.get('00D000000000001AAA', 'sample__c');
+    assert.deepEqual(saved?.snapshot, value);
+    assert.equal(saved?.status, 'READY');
+    assert.equal((await snapshots.get('00D000000000002AAA', 'Sample__c')), undefined);
+    const retry = await snapshots.beginRefresh('00D000000000001AAA', 'Sample__c', 'P8-04.1');
+    await snapshots.failRefresh(retry, 'SNAPSHOT_REFRESH_FAILED');
+    const failed = await snapshots.get('00D000000000001AAA', 'Sample__c');
+    assert.deepEqual(failed?.snapshot, value);
+    assert.equal(failed?.hash, saved?.hash);
+    assert.equal(failed?.status, 'FAILED');
+    const summaries = await snapshots.list();
+    assert.deepEqual(summaries[0]?.pages, ['Example']);
+    assert.equal(Object.hasOwn(summaries[0] ?? {}, 'snapshot'), false);
+    assert.ok(await snapshots.sizeBytes() < 2048);
+    await assert.rejects(snapshots.finishRefresh(token, value, 'P8-04.1'), /lease expired/u);
+  });
+
+  test('P8 UI_CONTEXT evidence persists through the existing P7 sink and payload lookup', async () => {
+    const controller = RequestAuditContextController.create({ channel: 'MCP_HTTP', toolName: 'get_record_action_context' });
+    const resolutionId = '12345678-1234-4123-8123-123456789012';
+    const sequence = controller.collector().recordEvent({ eventCategory: 'TOOL', eventType: 'UI_CONTEXT_RESOLVED',
+      eventName: 'UI Context', status: 'SUCCESS', safeSummary: { resolutionId, mode: 'ENFORCE', page: 'Create_Page' } });
+    controller.collector().recordPayloadEvidence({ payloadType: 'UI_CONTEXT', contentType: 'application/json',
+      auditEventSequence: sequence!, payload: JSON.stringify({ resolutionId, fields: [{ apiName: 'Name', visibilityState: 'VISIBLE', requiredSource: ['API'] }] }) });
+    const snapshot = controller.finalizeAudit()!;
+    const sink = new MySqlAuditBatchSink(store.database);
+    await sink.persist([{ kind: 'SNAPSHOT', snapshot }]);
+    const row = await store.database.selectFrom('sfoa_audit_payload_evidence').selectAll().where('payload_type', '=', 'UI_CONTEXT').executeTakeFirstOrThrow();
+    assert.ok(row.audit_event_id);
+    const audit = await store.database.selectFrom('sfoa_audit_log').select('public_audit_id').where('id', '=', row.audit_id).executeTakeFirstOrThrow();
+    assert.equal(audit.public_audit_id, snapshot.auditCall.publicAuditId);
+  });
+
   test('migrations create and validate the reviewed schema in the isolated test database', async () => {
     const health = await databaseHealth(store.database);
     assert.match(health.version, /^8\./u);
@@ -70,6 +111,7 @@ if (!setup) {
       '009_identity_route_user_name',
       '010_managed_platform_user_lookup_fallback',
       '011_managed_fallback_create_only',
+      '012_p8_ui_snapshot',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
@@ -89,6 +131,7 @@ if (!setup) {
         '009_identity_route_user_name',
         '010_managed_platform_user_lookup_fallback',
       '011_managed_fallback_create_only',
+      '012_p8_ui_snapshot',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -105,7 +148,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '011_managed_fallback_create_only');
+      assert.equal(migrations.at(-1)?.version, '012_p8_ui_snapshot');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -991,6 +1034,7 @@ async function dropIsolatedDatabase(config: DatabaseConfig): Promise<void> {
 
 async function cleanTestData(store: MySqlControlPlaneStore): Promise<void> {
   await store.database.transaction().execute(async (transaction) => {
+    await transaction.deleteFrom('sfoa_ui_snapshot').execute();
     await transaction.deleteFrom('sfoa_audit_log').execute();
     await transaction.deleteFrom('sfoa_identity_credential').execute();
     await transaction.deleteFrom('sfoa_runtime_setting').execute();

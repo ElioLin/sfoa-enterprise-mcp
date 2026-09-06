@@ -1,4 +1,5 @@
 export type RequestAuditPayloadType =
+  | 'UI_CONTEXT'
   | 'MCP_REQUEST'
   | 'MCP_RESPONSE'
   | 'SALESFORCE_REQUEST'

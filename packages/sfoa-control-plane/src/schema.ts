@@ -206,6 +206,7 @@ export interface SchemaMigrationTable {
 }
 
 export interface ControlPlaneDatabase {
+  sfoa_ui_snapshot: UiSnapshotTable;
   sfoa_identity_route: IdentityRouteTable;
   sfoa_identity_credential: IdentityCredentialTable;
   sfoa_tool_control: ToolControlTable;
@@ -218,4 +219,19 @@ export interface ControlPlaneDatabase {
   sfoa_salesforce_api_call: SalesforceApiCallTable;
   sfoa_audit_payload_evidence: AuditPayloadEvidenceTable;
   sfoa_schema_migration: SchemaMigrationTable;
+}
+
+export interface UiSnapshotTable {
+  id: Generated<string>;
+  organization_id: string;
+  object_api_name: string;
+  snapshot_json: string | null;
+  content_hash: string | null;
+  metadata_last_modified: Date | null;
+  refreshed_at: Date | null;
+  refresh_status: 'READY' | 'REFRESHING' | 'FAILED';
+  last_error: string | null;
+  parser_version: string;
+  refresh_started_at: Date | null;
+  refresh_token: string | null;
 }

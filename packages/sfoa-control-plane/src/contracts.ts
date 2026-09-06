@@ -198,6 +198,7 @@ export const salesforceApiResultSchema = z.enum(SALESFORCE_API_RESULTS);
 export type SalesforceApiResult = z.infer<typeof salesforceApiResultSchema>;
 
 export const AUDIT_PAYLOAD_TYPES = [
+  'UI_CONTEXT',
   'MCP_REQUEST', 'MCP_RESPONSE', 'SALESFORCE_REQUEST', 'SALESFORCE_RESPONSE', 'ERROR_RESPONSE',
 ] as const;
 export const auditPayloadTypeSchema = z.enum(AUDIT_PAYLOAD_TYPES);

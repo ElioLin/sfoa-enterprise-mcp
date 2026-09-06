@@ -160,7 +160,7 @@ export type SalesforceApiSemanticEnrichment = Partial<Pick<
   'totalSize' | 'returnedRecords' | 'done' | 'hasNextRecords' | 'recordId'
 >>;
 export type RequestAuditPayloadEvidenceSnapshot = Readonly<{
-  payloadType: 'MCP_REQUEST' | 'MCP_RESPONSE' | 'SALESFORCE_REQUEST' | 'SALESFORCE_RESPONSE' | 'ERROR_RESPONSE';
+  payloadType: 'MCP_REQUEST' | 'MCP_RESPONSE' | 'SALESFORCE_REQUEST' | 'SALESFORCE_RESPONSE' | 'ERROR_RESPONSE' | 'UI_CONTEXT';
   contentType: string;
   safePayload: string;
   originalSizeBytes: number | null;
