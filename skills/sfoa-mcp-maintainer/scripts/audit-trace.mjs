@@ -92,6 +92,11 @@ export function reconstructTrace({ audit, events, apiCalls, payloads, currentSta
       node('TOOLS_CALL', normalizedAudit.auditKind === 'MCP_TOOL_CALL', {
         toolName: normalizedAudit.toolName, operation: normalizedAudit.operation, objectApiName: normalizedAudit.objectApiName,
       }),
+      node('UI_CONTEXT', normalizedEvents.some((event) => event.eventType.startsWith('UI_CONTEXT_')), {
+        events: normalizedEvents.filter((event) => event.eventType.startsWith('UI_CONTEXT_')),
+        payloads: normalizedPayloads.filter((item) => item.payloadType === 'UI_CONTEXT'),
+        caution: 'A client-supplied resolution ID is provenance only. Match the source context USER, object, Record Type and chronology before attributing a CREATE to it.',
+      }),
       node('TOOL_GOVERNANCE', governanceEvents.length > 0 || currentState.tool !== null, {
         events: governanceEvents, currentState: currentState.tool,
         caution: 'Current Tool state is not historical proof of state at call time.',
@@ -118,6 +123,14 @@ export function reconstructTrace({ audit, events, apiCalls, payloads, currentSta
 async function findAudits(database, selector) {
   const clauses = [];
   const parameters = [];
+  if (selector.uiContext) {
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(selector.uiContext)) throw new Error('--ui-context must be a UUID.');
+    clauses.push(`EXISTS (SELECT 1 FROM sfoa_audit_event ui_event WHERE ui_event.audit_id = sfoa_audit_log.id
+      AND ui_event.event_type IN ('UI_CONTEXT_RESOLVED', 'UI_CONTEXT_RESOLUTION_FAILED', 'UI_CONTEXT_LINK')
+      AND (JSON_UNQUOTE(JSON_EXTRACT(ui_event.safe_summary_json, '$.resolutionId')) = ?
+        OR JSON_UNQUOTE(JSON_EXTRACT(ui_event.safe_summary_json, '$.uiContextResolutionId')) = ?))`);
+    parameters.push(selector.uiContext, selector.uiContext);
+  }
   if (selector.audit) {
     const numericId = /^\d+$/u.test(selector.audit);
     clauses.push(numericId ? 'id = ?' : 'public_audit_id = ?');
@@ -289,14 +302,15 @@ async function main() {
   const environment = await loadProjectEnvironment(projectRoot);
   const audit = arguments_.trace ?? arguments_.audit;
   const latestValue = arguments_.latest === true ? 1 : arguments_.latest;
-  const limit = Number(latestValue ?? (arguments_.user || arguments_.correlation || arguments_.tool || arguments_.since ? 5 : 1));
+  const limit = Number(latestValue ?? (arguments_['ui-context'] || arguments_.user || arguments_.correlation || arguments_.tool || arguments_.since ? 5 : 1));
   if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('--latest must be an integer from 1 to 20.');
-  const since = durationToDate(arguments_.since ? String(arguments_.since) : undefined);
+  const since = durationToDate(arguments_.since ? String(arguments_.since) : arguments_['ui-context'] ? '24h' : undefined);
   const report = await analyzeAuditTraces({
     projectRoot,
     environment,
     selector: Object.freeze({
       ...(audit ? { audit: String(audit) } : {}),
+      ...(arguments_['ui-context'] ? { uiContext: String(arguments_['ui-context']) } : {}),
       ...(arguments_.correlation ? { correlation: String(arguments_.correlation) } : {}),
       ...(arguments_.user ? { user: String(arguments_.user) } : {}),
       ...(arguments_.tool ? { tool: String(arguments_.tool) } : {}),

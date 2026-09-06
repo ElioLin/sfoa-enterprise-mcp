@@ -2,6 +2,8 @@
 
 ### Features
 
+- P8-04: implement optional USER-aware effective CREATE context with deterministic Dynamic Forms visibility, one bounded current MySQL snapshot table, per-object OFF/SHADOW/ENFORCE, Admin refresh/status, P7 field evidence and context-to-CREATE provenance, and Playbook 1.6.0. AMEND-006 moves real UI/Agent accuracy to post-implementation UAT; default OFF and existing Page Layout/managed Lookup behavior remain protected.
+
 - Implement P7-07 Audit Trace Workbench with a shared Admin trace Contract, deterministic first-failure timeline, full audit filters, Payload metadata/body separation, UNKNOWN/PARTIAL semantics, SOQL/DML evidence views, URL state, and Buntu identity compatibility.
 - Implement P7-08 Agent-Native Maintainer Skill and local diagnostic toolkit with one canonical source, generated Codex/Claude/CodeBuddy copies, Windows-safe sync/check/ZIP packaging, Project Doctor/Snapshot, predefined read-only MySQL inspection, and secret-safe P7 Audit reconstruction. No business MCP Tool or Runtime hot-path behavior is added.
 - Implement P7-09 lazy request-scoped Salesforce resource lifecycle. Local/route-only Tools and local MCP methods perform zero Salesforce authentication/API calls; Salesforce-dependent USER and DIAGNOSTIC requests create one Promise-memoized role-bound Connection with no cross-request cache and no Tool/identity/governance/Audit contract change.

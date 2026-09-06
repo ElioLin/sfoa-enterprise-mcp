@@ -2,6 +2,11 @@
 
 Allowed results: `PASS`, `PARTIAL`, `FAIL`, `NOT TESTED`, `KNOWN UPSTREAM DEBT`.
 
+P8-04 (2026-09-07): engineering regression results, measurement scope, the reproduced
+pre-existing clean-checkout Skill failure and outstanding real UI/Agent acceptance
+are recorded in [the implementation report](P8-04-IMPLEMENTATION-REPORT.md#n-tests).
+The historical phase results below are not a new P8-04 accuracy claim.
+
 | Gate | Result | Evidence |
 | --- | --- | --- |
 | Git Runtime | PASS | `git version 2.50.0.windows.2`; executable resolved under `D:\Git` |

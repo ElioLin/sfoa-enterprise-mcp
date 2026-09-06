@@ -50,6 +50,15 @@ yarn workspace @sfoa/mcp-server validate:upstream
 
 Root lint is known to reproduce unchanged upstream Code Analyzer debt. `SFOA_CHANGED_CODE_LINT` must still pass; never use upstream debt to waive a new SFoA finding. Windows Yarn Classic and the upstream POSIX `cp` build step have recorded environment debt; report the exact failing command rather than broadly declaring the repository broken.
 
+P8-04 has `node scripts/p8-04-regression.mjs [workspace ...]` for all affected packages,
+MySQL, P3/P4/P5/P7 and upstream validation using direct local executables. Keep
+process isolation for the MCP server suite: its SIGTERM test conflicts with the
+test runner itself under `--test-isolation=none`. Logs are ignored under `.temp`.
+The Admin browser gate is `node node_modules/@playwright/test/cli.js test
+e2e/p8-effective-ui.spec.ts` from `packages/sfoa-admin-web`; its backend is mocked,
+while the Admin HTTP security and MySQL snapshot/payload tests cover those layers
+separately. Real New UI/Agent accuracy remains [post-implementation UAT](p8-04-effective-create.md).
+
 Live Salesforce, Inspector, stdio, HTTP, A/B identity, Diagnostic, and mutation gates are required when their boundary changes and credentials are available. Missing external conditions are `NOT TESTED`.
 
 For request-resource lifecycle changes, automated call-count evidence is mandatory: scope creation and local/protocol methods stay at zero; the first Salesforce operation creates one Connection; repeated/concurrent access in one scope stays at one; two scopes create two isolated Connections; Diagnostic execution creates only its DIAGNOSTIC Connection. Also cover lazy auth/Connection failure taxonomy and unused/failed/aborted cleanup.

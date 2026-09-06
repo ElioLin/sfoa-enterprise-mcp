@@ -644,7 +644,40 @@ Lookup/configuration failures and timeouts before mutation dispatch return norma
 
 `get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from `SFOA_LIGHTNING_BASE_URL`. The setting must be a credential-free HTTPS origin root with no path, query, or fragment. No host/base URL is accepted from the client, no Salesforce API is called, and `Connection.instanceUrl` is not a fallback. Missing configuration returns Tool-level `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; invalid configured origins fail closed.
 
-Current `get_record_action_context` remains the pre-mutation source for Record Type, Page Layout, required/editable/default/Picklist/dependency evidence and marks targets with distinct strict/fallback safe strategies. It does not evaluate Dynamic Forms or a complete Lightning page. Playbook `1.5.1` keeps strict fields omitted, permits explicit fallback values through LOOKUP, asks once for required-and-absent CREATE fallback fields with a current-user default explanation, and omits optional absent fields. UPDATE retains minimum mutation. Runtime does not inspect Page Layout required facts. The Playbook degrades by asking about other uncertainty and respecting Salesforce rejection; no visibility-rule/form engine is introduced.
+`get_record_action_context` remains the pre-mutation source for Record Type, required/editable/default/Picklist/dependency evidence and managed-field facts. P8-04 extends ready CREATE with supported Dynamic Forms effective fields under explicit object policy; the Page Layout calculation remains unchanged. Playbook `1.6.0` retains strict/fallback distinctions, uses effective required/editable facts when present, and bounds draft refinement to three. UPDATE retains minimum mutation. DML does not reparse UI context and Salesforce remains the final authority. See ADR-0019 and the current CREATE architecture below.
+
+## P8-04 effective CREATE context
+
+```text
+Agent -> get_record_action_context -> existing USER ObjectInfo/RT/Create Defaults
+                                     -> EffectiveRecordUiContextResolver
+                                        OFF/resolved PL/fallback -> existing fields
+                                        DF/MIXED + ENFORCE -> effective fields
+                                        SHADOW -> existing fields + Audit only
+     <- fields + optional compact uiContext + opaque resolution ID
+Agent -> create_record(fields, optional uiContextResolutionId) -> existing USER DML
+                              -> P7 provenance event (no metadata resolution)
+
+Admin -> verified independent DIAGNOSTIC SDK configuration reads
+      -> normalized current org/object snapshot in MySQL (migration 012)
+Runtime -> snapshot + current USER SOAP ProfileId / accessible Apps / USER FLS
+P7 -> summary event + bounded, on-demand UI_CONTEXT field/rule evidence
+```
+
+Object policy/default App reuse `sfoa_runtime_setting`, scoped to the existing
+deployment/integration. Snapshot content is separately org/object scoped in one
+12-column table, <=2 MiB per row. Default OFF adds no new Salesforce/snapshot read;
+no global ENFORCE, auto refresh, Metadata history or evaluated cross-USER cache.
+Explicit request App beats object/integration defaults; accessible Apps must
+converge when no App is supplied. Profile IDs join display Name and Metadata
+fullName separately. Assignment/structure/visibility functions remain deterministic
+and bounded; unknown facts never become guessed visible/required optional fields.
+
+Admin refresh has a 120s wait and 180s lease recovery; current snapshots older than
+24h may be used with evidence. USER identity/Apps and DB snapshot reads each have
+3s bounds. Errors fall back to Page Layout without changing its field facts. Actual
+New-entry/Agent accuracy is deferred to Maintainer UAT under AMEND-006, not waived.
+See [ADR-0019](adr/ADR-0019-effective-create-ui-context.md) for limits and tradeoffs.
 
 ## P7-01 compatible end-to-end Audit data model
 

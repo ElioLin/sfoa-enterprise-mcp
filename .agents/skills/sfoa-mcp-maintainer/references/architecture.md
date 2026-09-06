@@ -39,32 +39,18 @@ Reuse an official Tool, then extend the Provider API/composition seam, then use 
 
 ## Known global-state risk
 
-P8-04 future Dynamic Forms CREATE work must read
-`docs/sfoa/P8-04-DYNAMIC-FORMS-BASELINE.md` and
-`docs/sfoa/P8-04A-01-FEASIBILITY-EVIDENCE.md`. The source is
-`feature/managed-platform-user-lookup-fallback` at `f60a134715d639b8129af0f3160549d52dec210d`.
-A-01 is COMPLETE — BLOCKED: configuration shapes are available, but activation/New
-UI precedence and the mandatory same-RT different-USER golden are unverified.
-Read-only reruns: `node scripts/p8-04a-feasibility.mjs` and `--targeted`; outputs are
-sanitized dev evidence under `.temp`, never production snapshots. SOAP getUserInfo
-works for USER ProfileId where User SOQL fails; `/ui-api/apps?formFactor=Large`
-returns effective USER Apps. These facts do not authorize A-02 or ENFORCE.
-HOTFIX01 additionally provides `scripts/p8-04a-candidates.mjs` (bounded route/Profile
-inventory and selected USER reads), `p8-04a-app-join.mjs` (USER App ID and namespace
-join), and offline `p8-04a-evidence-summary.mjs` / `p8-04a-evidence-check.mjs`.
-See `docs/sfoa/P8-04A-01-GOLDEN-CAPTURE.md` for manual New observation and minimal
-test-org preparation. Full live evidence, private name dictionaries and capture
-keys stay ignored under `.temp/`; public Git keeps only small aliased allowlist
-fixtures with source hashes, never detailed normalized business metadata dumps.
-Do not rewrite public history without explicit Maintainer direction. Future
-current-only runtime snapshots belong to conditional B-04, not Git JSON or dev
-evidence schemas. A-03 correctness precedes storage. The proposed integration/client
-scoped `integrationDefaultSalesforceAppDeveloperName` is design-only: current USER
-App access validation is mandatory; invalid/ambiguous context has no silent fallback.
-AppDefinition.DurableId matches USER appId; use returned namespace/DeveloperName
-and verified Metadata fullName, not Metadata directory ID or a guessed prefix.
-Preserve the existing Page
-Layout path and explicit managed fallback semantics; missing App/assignment evidence
-cannot become a guessed active page. Later runtime work needs the scoped task gate.
+P8-04-AMEND-006 supersedes the A-01 development stop. Effective CREATE is implemented
+on base `ac7e31942f5158f5af7ff977b4b8550e121840a4`, preserving the merged managed
+fallback behavior. Default OFF, object-level SHADOW/ENFORCE, a current MySQL
+snapshot, manual Admin refresh and P7 resolution evidence are available for UAT.
+See [P8-04 operation/diagnosis](p8-04-effective-create.md), ADR-0019 and the scoped
+baseline. Independent New UI/Agent accuracy remains a final acceptance gate.
+Page Layout field calculations stay intact; no evaluated result is cached across
+USERs. AppDefinition.DurableId + namespace/DeveloperName joins verified Metadata
+fullName; SOAP ProfileId joins Metadata fullName for assignments and display Name
+for supported USER visibility. Unknown context falls back with evidence.
+Raw metadata, private dictionaries and business identifiers stay out of public
+Git. Dev evidence never supplies production snapshots. Playbook 1.6.0 adds effective
+fields and bounded drafts while preserving the earlier managed fallback rules.
 
 Official Tools call `process.chdir(directory)`. Request workspaces plus the shared/exclusive CWD guard contain that side effect. Do not introduce concurrent official metadata execution outside this boundary without proving isolation and restoration.

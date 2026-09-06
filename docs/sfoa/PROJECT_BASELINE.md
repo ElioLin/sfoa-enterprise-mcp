@@ -29,7 +29,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 - Reimplementing Salesforce's permission engine.
 - Building business-analysis Tools such as `pipeline_analysis` or `customer_analysis` when agents can compose generic data/metadata Tools.
 - DELETE support in the initial mutation phase.
-- Metadata snapshots, evidence graphs, runtime replicas, or a runtime form engine.
+- General Metadata repositories, evidence graphs, runtime replicas, or a runtime form engine. AMEND-006 permits only bounded current UI configuration snapshots for effective CREATE context.
 - Complex Vault, ABAC, approval, zero-trust, RBAC, database, Redis, or key-lifecycle platforms before a proven requirement.
 - A production React Admin UI during P0.
 - A generic default/constant/expression engine, metadata synchronization, object-specific workflow, or client-supplied strict managed value.
@@ -107,6 +107,15 @@ context on `feature/p8-04-effective-ui-context`, base
 snapshot, Admin refresh, canonical Playbook and object-level ENFORCE (default OFF).
 Independent New UI/Agent accuracy gates move to post-implementation UAT and final
 acceptance; they are not waived. Target delivery is READY_FOR_UAT, not COMPLETE.
+
+P8-04 implementation now supplies deterministic effective CREATE fields, normalized
+current MySQL snapshots (migration 012), manual Admin refresh, per-object modes,
+P7 UI context/provenance evidence and canonical Playbook 1.6.0. Default OFF; no
+live object was enabled by this delivery. See [implementation report](P8-04-IMPLEMENTATION-REPORT.md),
+[ADR-0019](adr/ADR-0019-effective-create-ui-context.md) and [real UAT checklist](P8-04-UAT.md).
+Delivery status: **IMPLEMENTED — READY_FOR_UAT_WITH_LIMITATIONS**.
+Known unsupported UI criteria/entry points remain explicit conservative fallbacks;
+P8-04 is not COMPLETE and no real accuracy percentage is claimed.
 
 The following A-01 entry is historical evidence:
 

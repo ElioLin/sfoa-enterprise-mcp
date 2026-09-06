@@ -2,7 +2,21 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
-## 2026-09-06 — P8-04 baseline and A-01 feasibility entry
+## 2026-09-06 — P8-04 effective CREATE implementation for UAT
+
+- AMEND-006 moves independent New UI/Agent accuracy gates after implementation.
+- Preserve Page Layout calculations; add request USER/Profile/RT/App-aware Dynamic
+  Forms CREATE, four-state visibility, FLS/managed intersection and bounded drafts.
+- Migration 012 adds one current-only snapshot table and a P7 UI_CONTEXT payload
+  category. Reuse existing settings for exact per-object OFF/SHADOW/ENFORCE; default OFF.
+- Add bounded independent DIAGNOSTIC Admin refresh, a thin policy/status page,
+  on-demand Audit field evidence and optional context-to-CREATE provenance.
+- Canonical Playbook 1.6.0 and generated clients teach effective field collection
+  and at most three refinements. Existing managed Lookup fallback is preserved.
+- Delivery stops at READY_FOR_UAT_WITH_LIMITATIONS; actual UI/Agent accuracy,
+  service startup and selected live-object enablement remain Maintainer UAT work.
+
+## 2026-09-06 — P8-04 baseline and A-01 feasibility entry (historical)
 
 - Freeze a 12-task CREATE-only Dynamic Forms plan with exact Page Layout preservation,
   request USER authority, four-state uncertainty, P7 reuse and all accuracy gates.

@@ -27,6 +27,7 @@ Never print or paste `.env.local`. The diagnostic scripts load it locally and re
 - TypeScript/React/MCP implementation or review: read [development.md](references/development.md) and the nearest package `README.md` / `DEVELOPING.md`.
 - Startup, health, deployment, and maintenance: read [operations.md](references/operations.md).
 - Gate selection and verification: read [testing.md](references/testing.md).
+- Effective CREATE / Dynamic Forms / UI snapshots: read [p8-04-effective-create.md](references/p8-04-effective-create.md).
 - Skill or durable project-fact changes: read [skill-maintenance.md](references/skill-maintenance.md).
 - The “Lead only; Account/Opportunity unavailable” validation case: read [acceptance-scenario.md](references/acceptance-scenario.md).
 
@@ -42,6 +43,7 @@ yarn ai:db --report dml --object Lead
 yarn ai:audit --trace <publicAuditId>
 yarn ai:audit --correlation <correlationId>
 yarn ai:audit --user <platformUserId> --latest 5 --since 24h
+yarn ai:audit --ui-context <resolutionUuid> --since 24h --latest 20
 ```
 
 These tools are workspace-only maintainer utilities, not MCP Tools. Database access is restricted to predefined `SELECT`/`SHOW`/`DESCRIBE`/`EXPLAIN` operations inside a read-only transaction. Payload bodies are not loaded by default.

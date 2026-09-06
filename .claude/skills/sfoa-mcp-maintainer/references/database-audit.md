@@ -21,7 +21,7 @@ yarn ai:db --report audit-stats
 
 The toolkit uses predefined SQL only, validates the first statement as `SELECT`, `SHOW`, `DESCRIBE`, or `EXPLAIN SELECT`, rejects multi-statement/stateful reads, and starts a MySQL `READ ONLY` transaction.
 
-## Current tables through migration 011
+## Current tables through migration 012
 
 - `sfoa_schema_migration`: version, checksum, application time.
 - `sfoa_identity_route`: case-sensitive `platform_user_id` to Salesforce username, human-readable display `user_name` (added by 009, required on create/edit, display metadata only), enabled state, optimistic `row_version`, optional `remark`.
@@ -30,11 +30,12 @@ The toolkit uses predefined SQL only, validates the first statement as `SELECT`,
 - `sfoa_dml_policy`: object, CREATE/UPDATE booleans, enabled state.
 - `sfoa_dml_managed_field_rule`: policy child, target field, three accepted strategies (strict platform Lookup, CREATE-only user-overridable platform Lookup fallback, CREATE-only AI marker; 010 extends ENUM/CHECK; 011 restricts fallback scope without data conversion or checksum changes), operation flags.
 - `sfoa_diagnostic_config`: singleton fixed Salesforce username and verification state.
-- `sfoa_runtime_setting`: allowlisted JSON settings (`auditRetentionDays`, `adminDefaultPageSize` in current contracts).
+- `sfoa_runtime_setting`: allowlisted JSON settings (`auditRetentionDays`, `adminDefaultPageSize`, `dynamicFormsObjectPolicies`, `integrationDefaultSalesforceAppDeveloperName`).
+- `sfoa_ui_snapshot`: one current normalized configuration row per org/object, <=2 MiB, hash/timestamps/status/error/parser and bounded refresh lease; no raw Metadata/history or business rows. See [P8-04](p8-04-effective-create.md).
 - `sfoa_audit_log`: compatible master ledger and P7 `MCP_TOOL_CALL` rows.
 - `sfoa_audit_event`: ordered per-Audit execution facts and optional same-Audit parent.
 - `sfoa_salesforce_api_call`: ordered real/operation-only Salesforce attempts, SOQL and DML semantics.
-- `sfoa_audit_payload_evidence`: bounded request/response metadata and sanitized body, loaded only on explicit item access.
+- `sfoa_audit_payload_evidence`: bounded request/response and `UI_CONTEXT` metadata/sanitized body, loaded only on explicit item access. Migration 012 extends this existing payload ENUM.
 
 ## Audit analyzer
 
@@ -43,6 +44,7 @@ yarn ai:audit --trace <publicAuditId>
 yarn ai:audit --audit <publicAuditId-or-numeric-id>
 yarn ai:audit --correlation <correlationId> --latest 5
 yarn ai:audit --user <platformUserId> --tool run_soql_query --since 24h
+yarn ai:audit --ui-context <resolutionUuid> --since 24h --latest 20
 ```
 
 The analyzer returns sanitized root summaries, a merged Event/API timeline, deterministic first failure, payload metadata, and current route/Tool/DML context. Current governance state is labeled contextual because it is not historical proof of the state at invocation time. Payload bodies are not selected.

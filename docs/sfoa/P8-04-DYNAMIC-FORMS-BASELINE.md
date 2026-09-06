@@ -1,6 +1,8 @@
 # P8-04 — Dynamic Forms-Aware Effective CREATE Context
 
-Status: IMPLEMENTATION IN PROGRESS under P8-04-AMEND-006; real Agent UAT pending.
+Status: IMPLEMENTED — READY_FOR_UAT_WITH_LIMITATIONS under P8-04-AMEND-006.
+Real Agent UAT and independent New UI accuracy remain pending; see
+[implementation report](P8-04-IMPLEMENTATION-REPORT.md) and [UAT checklist](P8-04-UAT.md).
 Date: 2026-09-06. Authority: this scoped baseline supplements PROJECT_BASELINE.md;
 current source and verified SFoA evidence outrank historical descriptions.
 

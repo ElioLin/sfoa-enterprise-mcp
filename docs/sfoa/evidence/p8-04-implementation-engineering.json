@@ -1,0 +1,311 @@
+{
+  "status": "IMPLEMENTED — READY_FOR_UAT_WITH_LIMITATIONS",
+  "generatedAt": "2026-09-06T21:20:22.055Z",
+  "implementationBase": "ac7e31942f5158f5af7ff977b4b8550e121840a4",
+  "scope": "Sanitized engineering evidence, not a production snapshot or UI/Agent accuracy benchmark.",
+  "suites": [
+    {
+      "suite": "identity",
+      "result": "PASS",
+      "passed": 71,
+      "failed": 0,
+      "localLog": "sfoa-identity-runtime-test.log"
+    },
+    {
+      "suite": "controlPlane",
+      "result": "PASS",
+      "passed": 38,
+      "failed": 0,
+      "localLog": "sfoa-control-plane-test.log"
+    },
+    {
+      "suite": "mysql",
+      "result": "PASS",
+      "passed": 13,
+      "failed": 0,
+      "localLog": "sfoa-control-plane-mysql.log"
+    },
+    {
+      "suite": "context",
+      "result": "PASS",
+      "passed": 42,
+      "failed": 0,
+      "localLog": "context-final.log"
+    },
+    {
+      "suite": "dml",
+      "result": "PASS",
+      "passed": 22,
+      "failed": 0,
+      "localLog": "mcp-provider-sfoa-dml-test.log"
+    },
+    {
+      "suite": "playbook",
+      "result": "PASS",
+      "passed": 19,
+      "failed": 0,
+      "localLog": "sfoa-agent-playbook-test.log"
+    },
+    {
+      "suite": "host",
+      "result": "PASS",
+      "passed": 125,
+      "failed": 0,
+      "localLog": "sfoa-mcp-server-test.log"
+    },
+    {
+      "suite": "p3",
+      "result": "PASS",
+      "passed": 23,
+      "failed": 0,
+      "localLog": "sfoa-mcp-server-p3-test.log"
+    },
+    {
+      "suite": "p4",
+      "result": "PASS",
+      "passed": 8,
+      "failed": 0,
+      "localLog": "sfoa-mcp-server-p4-test.log"
+    },
+    {
+      "suite": "p5",
+      "result": "PASS",
+      "passed": 5,
+      "failed": 0,
+      "localLog": "sfoa-mcp-server-p5-test.log"
+    },
+    {
+      "suite": "p7",
+      "result": "PASS",
+      "passed": 6,
+      "failed": 0,
+      "localLog": "sfoa-mcp-server-p7-test.log"
+    },
+    {
+      "suite": "adminApi",
+      "result": "PASS",
+      "passed": 25,
+      "failed": 0,
+      "localLog": "sfoa-admin-api-test.log"
+    },
+    {
+      "suite": "skillBuiltWorkspace",
+      "result": "PASS",
+      "passed": 12,
+      "failed": 0,
+      "localLog": "skill-test-direct.log"
+    },
+    {
+      "suite": "adminWeb",
+      "result": "PASS_AFTER_TARGETED_RETEST",
+      "passed": 65,
+      "failed": 0,
+      "note": "Initial full suite: 64 pass / 1 selector failure. Ant Design button-space selector corrected; affected test passed on targeted rerun. No claim of one full 65-pass run."
+    },
+    {
+      "suite": "browserDesktopAndMobile",
+      "result": "PASS",
+      "passed": 1,
+      "failed": 0,
+      "note": "Mock Admin API; 1440px and 390px; not Salesforce New UI accuracy."
+    }
+  ],
+  "passedTestCasesAcrossFinalRuns": 475,
+  "additionalChecks": {
+    "affectedWorkspaceBuildAndLint": "PASS",
+    "agentArtifacts": "PASS_5_FILES",
+    "upstreamCompatibility": "PASS_NO_DRIFT",
+    "stdio": "PASS_INITIALIZE_LIST_5_TOOLS_GET_USERNAME",
+    "skillSyncCheckDelivery": "PASS",
+    "realNewUiAndAgentAccuracy": "NOT_RUN",
+    "productionDeploymentAndDml": "NOT_RUN"
+  },
+  "syntheticPerformance": {
+    "p804SyntheticPerformance": [
+      {
+        "scenario": "OFF",
+        "iterations": 100,
+        "medianMs": 0.251,
+        "p95Ms": 1.606,
+        "metadataCalls": 0,
+        "userCalls": 0,
+        "snapshotCalls": 0
+      },
+      {
+        "scenario": "PL",
+        "iterations": 100,
+        "medianMs": 0.382,
+        "p95Ms": 1.504,
+        "metadataCalls": 0,
+        "userCalls": 200,
+        "snapshotCalls": 100
+      },
+      {
+        "scenario": "DF_HIT",
+        "iterations": 100,
+        "medianMs": 0.648,
+        "p95Ms": 4.17,
+        "metadataCalls": 0,
+        "userCalls": 200,
+        "snapshotCalls": 100
+      },
+      {
+        "scenario": "DF_MISS",
+        "iterations": 100,
+        "medianMs": 0.222,
+        "p95Ms": 0.901,
+        "metadataCalls": 0,
+        "userCalls": 100,
+        "snapshotCalls": 100
+      }
+    ],
+    "normalizedPageBytes": 1993,
+    "normalizedSnapshotBytes": 2633,
+    "scope": "Local mocked executor/resolver only; 100 iterations/scenario; no real network/JWT/MySQL/Agent latency. API counts are totals across each scenario."
+  },
+  "readOnlyConfigurationSmoke": {
+    "status": "PASS",
+    "kind": "READ_ONLY_CONFIGURATION_SMOKE_NOT_UI_ACCURACY",
+    "generatedAt": "2026-09-06T15:40:48.110Z",
+    "durationMs": 58034,
+    "parserVersion": "P8-04.1",
+    "normalizedBytes": 29829,
+    "assignmentCount": 24,
+    "appCount": 21,
+    "profileCount": 65,
+    "recordTypeCount": 7,
+    "pages": [
+      {
+        "page": 1,
+        "formSource": "PAGE_LAYOUT",
+        "fields": 0,
+        "rules": 0,
+        "normalizedBytes": 130,
+        "unsupported": []
+      },
+      {
+        "page": 2,
+        "formSource": "DYNAMIC_FORMS",
+        "fields": 50,
+        "rules": 1,
+        "normalizedBytes": 16508,
+        "unsupported": []
+      }
+    ],
+    "apiCount": 11,
+    "api": [
+      {
+        "apiCategory": "SOAP_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 270
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 5148
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 234
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 183
+      },
+      {
+        "apiCategory": "REST_API",
+        "httpMethod": "GET",
+        "httpStatus": 200,
+        "durationMs": 241
+      },
+      {
+        "apiCategory": "REST_API",
+        "httpMethod": "GET",
+        "httpStatus": 200,
+        "durationMs": 200
+      },
+      {
+        "apiCategory": "REST_API",
+        "httpMethod": "GET",
+        "httpStatus": 200,
+        "durationMs": 304
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 18136
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 43041
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 3677
+      },
+      {
+        "apiCategory": "METADATA_API",
+        "httpMethod": "POST",
+        "httpStatus": 200,
+        "durationMs": 5383
+      }
+    ]
+  },
+  "adminRefreshCostNote": "Collector measured 11 API calls. Real Admin refresh adds an initial SOAP identity call before acquiring the database lease; expected 12 for the same configuration. Admin route was not exercised against production.",
+  "snapshotSizeEstimate": {
+    "bytesPerMeasuredDfPage": 16508,
+    "bytesPer100EquivalentPages": 1650800,
+    "bytesPer1000EquivalentPages": 16508000,
+    "sharedDirectoriesAndEnvelopeBytesInMeasuredSnapshot": 13191,
+    "scope": "Page-only projection excludes per-object shared directories and InnoDB/index allocation. Not a claim that 1000 pages fit in one row."
+  },
+  "complexity": {
+    "newTables": 1,
+    "newTableColumns": 12,
+    "newColumnsOnExistingTables": 0,
+    "existingEnumExtensions": 1,
+    "newDependencies": 0,
+    "newBusinessMcpTools": 0,
+    "productionTypeScript": {
+      "files": 40,
+      "added": 1137,
+      "deleted": 25,
+      "net": 1112
+    },
+    "migrationSqlAddedLines": 19,
+    "normalizedBytesInMeasuredSnapshot": 29829
+  },
+  "priorAttemptNotes": [
+    "Serial App reads exceeded a 150s read-only probe bound; bounded concurrency of two batches passed in 58034ms.",
+    "Windows nested Yarn Access is denied was bypassed using the same direct Node executable; no dependency or test reduction."
+  ],
+  "cleanCheckoutSkillSmoke": {
+    "result": "FAIL_PRE_EXISTING",
+    "source": "Committed HEAD bytes materialized by git archive; no local environment or built packages.",
+    "skillTests": {
+      "passed": 11,
+      "failed": 1
+    },
+    "knownFailure": "doctor exposes the org object usage gate without forcing FAIL when the package is unbuilt: Array.isArray(report.orgObjectUsage.problems)",
+    "previousReproduction": "A-01 baseline 8279d21",
+    "otherGates": [
+      "skill:validate PASS",
+      "skill:sync PASS",
+      "skill:check PASS",
+      "ai:snapshot PASS",
+      "ai:doctor missing-env PASS"
+    ],
+    "scope": "Existing unbuilt-Playbook SKIPPED fixture defect; no production code waiver."
+  }
+}
