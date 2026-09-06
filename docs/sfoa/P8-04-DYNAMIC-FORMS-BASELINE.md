@@ -205,12 +205,12 @@ COMPLETE — BLOCKED, or INCOMPLETE. Missing core facts cannot be filled with gu
 - Decision: use the USER API's accessible App set; an explicitly supplied App must
   be validated against it. Read only relevant assignment facts. Treat developerName
   mapping to namespaced/standard Metadata fullName as a validated join, not a guessed
-  string prefix (Approvals vs standard__Approvals is observed here).
+  string prefix (USER App alias APP_36 vs Metadata alias APP_19 in HOTFIX01).
 - Reason: Salesforce supplies effective access, avoiding Profile/PermissionSet
   entitlement reconstruction. Last-selected/default App is not this request's App.
 - Impact: missing App still requires convergence, else AMBIGUOUS/APP_CONTEXT_REQUIRED.
   A tiny explicit integration App setting is evidence-justified for consideration,
-  not implemented. No silent FRN/Sales/default App selection.
+  not implemented. No silent business/Sales/default App selection.
 
 ### P8-04-AMEND-003 — classify effective components, preserve CREATE uncertainty
 
@@ -229,6 +229,61 @@ COMPLETE — BLOCKED, or INCOMPLETE. Missing core facts cannot be filled with gu
 - Reason: avoids false MIXED and a generic evaluator that misrepresents Salesforce.
 - Impact: Q3/Q5/Q7 remain partial or blocked; no runtime evaluator and no success
   claim for mobile or section visibility. All original gates remain mandatory.
+
+### P8-04-AMEND-004 — public evidence minimization
+
+- Task: A-01 HOTFIX01; public repository HEAD policy, no history rewrite.
+- Detailed live normalized metadata, local route/capture keys and name dictionaries
+  remain temporary ignored `.temp/*.json`. Never commit full live dumps, record
+  values, real business Profile/App/Page/RT/field names or identity material.
+- Git fixtures are small, stable-aliased, sanitized, versioned allowlist projections
+  for repeatable checks. Preserve technical shapes, counts, cost, hashes, status and
+  ID-match booleans. Link original local file bytes with SHA-256 `evidenceHash`;
+  keep the alias dictionary private. Configuration fixtures are not UI goldens.
+- Future Runtime UI Snapshot is a separate, conditional B-04 decision: normalized
+  current-only runtime storage, never Git JSON or this dev-evidence schema. Choose
+  MySQL/another existing store only from latency, multi-process needs, invalidation
+  and deployment model. LIGHTWEIGHT_SNAPSHOT_RECOMMENDED remains advice, not
+  IMPLEMENT NOW; A-03 active-page correctness has priority. No DB/cache added here.
+
+### P8-04-AMEND-005 — explicit integration App contract (design only)
+
+- HOTFIX01 confirms USER_1 / OBJECT_3 / RT_19 / Large has two accessible Apps with
+  different configuration pages: APP_7 -> PAGE_DYNAMIC_1; APP_36 -> PAGE_LAYOUT_2.
+  USER appId matches AppDefinition.DurableId; returned NamespacePrefix/DeveloperName
+  joins uniquely to Metadata fullName, then readMetadata verifies that name. The
+  Metadata directory ID is a different identifier. No guessed standard prefix.
+- Product result: APP_CONTEXT_REQUIRED for this case. Missing Dify/WorkBuddy App
+  cannot resolve uniquely. This proves configuration ambiguity, not observed New UI.
+- Proposed key: `integrationDefaultSalesforceAppDeveloperName`, explicitly scoped
+  to the authenticated integration/client, never one global default for all users.
+  Use only when trusted request App context is absent. Explicit trusted request
+  context takes priority; conflicting explicit contexts remain AMBIGUOUS.
+- Validate against the current request USER `/ui-api/apps?formFactor=Large` set.
+  Absent/unavailable app -> APP_CONTEXT_INVALID; ambiguous mapping -> AMBIGUOUS;
+  incomplete/failed authoritative reads -> UNRESOLVED. Never silently fall back to
+  a business App, Sales, last-selected/default App, DIAGNOSTIC App access or Layout.
+- APP_CONTEXT_NOT_REQUIRED_FOR_THIS_CASE requires a complete applicable App set,
+  independently verified New precedence/entry, and convergence of all effective
+  pages. No HOTFIX case meets this proof yet. Navigation omission alone cannot
+  exclude an App or establish convergence.
+- Persistence placement belongs to A-02/A-03; this amendment implements no setting,
+  schema, migration, Tool parameter, Playbook change or production resolver.
+
+### HOTFIX01 freeze evidence
+
+All 6 enabled routes mapped in one bounded DIAGNOSTIC batch to 4 Profiles; four
+real USER representatives verified, with two bounded App-join follow-ups. No
+mandatory same-object/available-RT/App/different-Profile page pair was obtained.
+Same-Profile unselected USER access remains unverified; this is not an org-wide
+nonexistence proof. See the aliased A-01 report and
+`P8-04A-01-GOLDEN-CAPTURE.md` for explicit PL/DF candidates and test-org preparation.
+
+Assignment precedence is PARTIAL as configuration evidence. USER/Profile/RT/App
+access and Layout identity are known facts; no precedence tier is yet eligible for
+RESOLVED Active New Page. View-to-New applicability, App/standard fallback and
+unobserved entry semantics stay UNKNOWN/UNRESOLVED. Amendment 003 remains intact;
+desktop MIXED, section visibility and Custom New positive cases are untested.
 
 ### Freeze decision
 

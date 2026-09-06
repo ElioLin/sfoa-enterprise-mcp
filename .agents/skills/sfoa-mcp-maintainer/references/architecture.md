@@ -49,6 +49,20 @@ Read-only reruns: `node scripts/p8-04a-feasibility.mjs` and `--targeted`; output
 sanitized dev evidence under `.temp`, never production snapshots. SOAP getUserInfo
 works for USER ProfileId where User SOQL fails; `/ui-api/apps?formFactor=Large`
 returns effective USER Apps. These facts do not authorize A-02 or ENFORCE.
+HOTFIX01 additionally provides `scripts/p8-04a-candidates.mjs` (bounded route/Profile
+inventory and selected USER reads), `p8-04a-app-join.mjs` (USER App ID and namespace
+join), and offline `p8-04a-evidence-summary.mjs` / `p8-04a-evidence-check.mjs`.
+See `docs/sfoa/P8-04A-01-GOLDEN-CAPTURE.md` for manual New observation and minimal
+test-org preparation. Full live evidence, private name dictionaries and capture
+keys stay ignored under `.temp/`; public Git keeps only small aliased allowlist
+fixtures with source hashes, never detailed normalized business metadata dumps.
+Do not rewrite public history without explicit Maintainer direction. Future
+current-only runtime snapshots belong to conditional B-04, not Git JSON or dev
+evidence schemas. A-03 correctness precedes storage. The proposed integration/client
+scoped `integrationDefaultSalesforceAppDeveloperName` is design-only: current USER
+App access validation is mandatory; invalid/ambiguous context has no silent fallback.
+AppDefinition.DurableId matches USER appId; use returned namespace/DeveloperName
+and verified Metadata fullName, not Metadata directory ID or a guessed prefix.
 Preserve the existing Page
 Layout path and explicit managed fallback semantics; missing App/assignment evidence
 cannot become a guessed active page. Later runtime work needs the scoped task gate.

@@ -9,6 +9,7 @@
 
 ### Fixes
 
+- P8-04A-01 HOTFIX01: minimize public evidence into aliased fixtures, broaden read-only route/Profile candidate discovery, verify App identity joins, and document explicit integration App context plus manual New UI capture. A-01 remains COMPLETE — BLOCKED; no production package behavior, migration, snapshot or A-02 implementation changes.
 - Eliminate mixed Control Plane/Admin API declarations and stabilize Windows Node test execution with Node 24's in-process test isolation mode.
 - Close P7-08 maintainer Skill delivery: relocate helper modules from `scripts/lib` to `scripts/shared` (the root `.gitignore` `lib` pattern silently excluded them from commits) and add a Git trackability `delivery` gate plus a clean-checkout `smoke` proof so a fresh clone always carries the full Skill runtime.
 - P7-09 HOTFIX01: replace the implicit `hostOwnedArguments.includes('usernameOrAlias')` Connection heuristic with an explicit `requiresSalesforceConnection` boolean on each remote Tool contract (get_username=false, run_soql_query/retrieve_metadata=true), enforced by an upstream-drift guard so no remote Tool falls back to guessing. Align the DML lazy-authentication failure onto the standard DML output contract (`success=false`/`errorCode`/redacted `message`). Pin the Tool `durationMs` as end-to-end latency including lazy auth/connection.

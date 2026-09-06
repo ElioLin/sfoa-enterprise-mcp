@@ -1,50 +1,437 @@
 {
-  "sourceBranch": "feature/managed-platform-user-lookup-fallback",
-  "baseSha": "f60a134715d639b8129af0f3160549d52dec210d",
-  "branch": "feature/p8-04-effective-ui-context",
+  "schema": "P8_04A_01_HOTFIX01_DEV_SUMMARY_V1",
   "status": "COMPLETE — BLOCKED",
-  "interpretation": "Sanitized dev evidence only. API PASS is not effective CREATE accuracy. No raw XML, record values, credentials or runtime metadata snapshot.",
+  "sourceSha": "8279d21",
+  "branch": "feature/p8-04-effective-ui-context",
   "apiVersion": "67.0",
-  "users": [
+  "policy": "Minimal allowlisted aliased evidence; configuration candidates are not observed New UI; no business record values.",
+  "sources": [
     {
-      "label": "USER_1",
-      "role": "USER",
-      "profileName": "FRN业务员/业务主管",
-      "sameProfileAsFirst": true,
-      "profileEvidenceRole": "DIAGNOSTIC"
+      "localPath": ".temp/p8-04a-feasibility.json",
+      "evidenceHash": "7e4283c81e148c903dfac7b56a592afcc1366f855d745cf4a9da516640a96d46",
+      "generatedAt": "2026-09-06T00:56:09.634Z"
     },
     {
-      "label": "USER_2",
-      "role": "USER",
-      "profileName": "CRN管理组/业务员",
-      "sameProfileAsFirst": false,
-      "profileEvidenceRole": "DIAGNOSTIC"
+      "localPath": ".temp/p8-04a-candidates.json",
+      "evidenceHash": "563561bc61238f68a76f979de993d8fbffd955c2c45576492a7eebbc1c6c49b0",
+      "generatedAt": "2026-09-06T02:14:54.506Z"
     },
     {
-      "label": "USER_3",
-      "role": "USER",
-      "profileName": "CRN管理组/业务员",
-      "sameProfileAsFirst": false,
-      "profileEvidenceRole": "DIAGNOSTIC"
+      "localPath": ".temp/p8-04a-targeted.json",
+      "evidenceHash": "41700068801e3ecbd2b72af46753d6fd1b318ce3014a3aae1f1a1f6d5887fc89",
+      "generatedAt": "2026-09-06T02:17:10.882Z"
     },
     {
-      "label": "DIAGNOSTIC",
-      "role": "DIAGNOSTIC",
-      "profileName": "系统管理员",
-      "sameProfileAsFirst": null
+      "localPath": ".temp/p8-04a-candidates-bound-stop.json",
+      "evidenceHash": "67af422f7587a9f92058c52bb2b87beb5072bd30f17020d5f066a815053719fc",
+      "generatedAt": "2026-09-06T02:13:35.414Z"
+    },
+    {
+      "localPath": ".temp/p8-04a-hotfix-targeted-before-hygiene.json",
+      "evidenceHash": "63d502db2d6c65d412ceae481580c3d2d30c5d19d54f0a0b6d16061a638700c8",
+      "generatedAt": "2026-09-06T02:14:01.181Z"
+    },
+    {
+      "localPath": ".temp/p8-04a-app-join.json",
+      "evidenceHash": "5dae08e21808a00ece925784def32ff258109fb9b3e32c0e41075879f5b66dd0",
+      "generatedAt": "2026-09-06T02:22:41.734Z"
+    },
+    {
+      "localPath": ".temp/p8-04a-app-join-initial.json",
+      "evidenceHash": "df1b6bfcec9e992d4a5bb2f65474aba85a40a940f0c87b9379692f296a6257e5",
+      "generatedAt": "2026-09-06T02:21:32.506Z"
     }
   ],
   "inventory": {
-    "flexiPages": 191,
-    "appCount": 35,
-    "appDiscoveryTruncated": false,
-    "relevantPageTruncated": false
+    "enabledRouteCount": 6,
+    "truncated": false,
+    "distinctSalesforceUsers": 6,
+    "mappedUsers": 6,
+    "unmappedUsers": 0,
+    "profiles": [
+      {
+        "alias": "PROFILE_1",
+        "routeUserCount": 1
+      },
+      {
+        "alias": "PROFILE_2",
+        "routeUserCount": 3
+      },
+      {
+        "alias": "PROFILE_3",
+        "routeUserCount": 1
+      },
+      {
+        "alias": "PROFILE_4",
+        "routeUserCount": 1
+      }
+    ],
+    "relevantAppCount": 15,
+    "selectedUsers": [
+      "USER_6",
+      "USER_2",
+      "USER_4",
+      "USER_1"
+    ],
+    "profileSelectionTruncated": false,
+    "userConnectionsAttempted": 4,
+    "userConnectionsOpened": 4,
+    "appRefreshTruncated": false,
+    "pageSelectionTruncated": false
   },
+  "candidateDiscovery": {
+    "assignmentCandidateCount": 27,
+    "comparedProfilePairs": 27,
+    "sameAvailableRtCount": 0,
+    "sameAccessibleAppCount": 0,
+    "golden": "GOLDEN_CASE_NOT_AVAILABLE",
+    "recordTypeIdMappingComplete": true,
+    "scope": "All enabled routes mapped; one USER per Profile verified. Other same-Profile USER app/RT access remains unverified."
+  },
+  "users": [
+    {
+      "user": "USER_6",
+      "profile": "PROFILE_1",
+      "identityMatches": true,
+      "apps": [
+        "APP_5",
+        "APP_17",
+        "APP_36"
+      ],
+      "objects": [
+        {
+          "object": "OBJECT_1",
+          "createable": true,
+          "fieldCount": 133,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_1",
+              "master": true
+            },
+            {
+              "rt": "RT_2",
+              "master": false
+            },
+            {
+              "rt": "RT_3",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_2",
+          "createable": true,
+          "fieldCount": 103,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_4",
+              "master": true
+            },
+            {
+              "rt": "RT_5",
+              "master": false
+            },
+            {
+              "rt": "RT_6",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_3",
+          "createable": true,
+          "fieldCount": 183,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_7",
+              "master": true
+            },
+            {
+              "rt": "RT_8",
+              "master": false
+            },
+            {
+              "rt": "RT_9",
+              "master": false
+            },
+            {
+              "rt": "RT_10",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        }
+      ]
+    },
+    {
+      "user": "USER_2",
+      "profile": "PROFILE_2",
+      "identityMatches": true,
+      "apps": [
+        "APP_29",
+        "APP_36"
+      ],
+      "objects": [
+        {
+          "object": "OBJECT_1",
+          "createable": true,
+          "fieldCount": 127,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_1",
+              "master": true
+            },
+            {
+              "rt": "RT_11",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_2",
+          "createable": true,
+          "fieldCount": 102,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_4",
+              "master": true
+            },
+            {
+              "rt": "RT_12",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_3",
+          "createable": true,
+          "fieldCount": 179,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_7",
+              "master": true
+            },
+            {
+              "rt": "RT_13",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        }
+      ]
+    },
+    {
+      "user": "USER_4",
+      "profile": "PROFILE_3",
+      "identityMatches": true,
+      "apps": [
+        "APP_2",
+        "APP_36"
+      ],
+      "objects": [
+        {
+          "object": "OBJECT_1",
+          "createable": true,
+          "fieldCount": 127,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_1",
+              "master": true
+            },
+            {
+              "rt": "RT_14",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_2",
+          "createable": true,
+          "fieldCount": 102,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_4",
+              "master": true
+            },
+            {
+              "rt": "RT_15",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_3",
+          "createable": true,
+          "fieldCount": 178,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_7",
+              "master": true
+            },
+            {
+              "rt": "RT_16",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        }
+      ]
+    },
+    {
+      "user": "USER_1",
+      "profile": "PROFILE_4",
+      "identityMatches": true,
+      "apps": [
+        "APP_7",
+        "APP_36"
+      ],
+      "objects": [
+        {
+          "object": "OBJECT_1",
+          "createable": true,
+          "fieldCount": 138,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_1",
+              "master": true
+            },
+            {
+              "rt": "RT_17",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_2",
+          "createable": true,
+          "fieldCount": 106,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_4",
+              "master": true
+            },
+            {
+              "rt": "RT_18",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        },
+        {
+          "object": "OBJECT_3",
+          "createable": true,
+          "fieldCount": 187,
+          "availableRecordTypes": [
+            {
+              "rt": "RT_7",
+              "master": true
+            },
+            {
+              "rt": "RT_19",
+              "master": false
+            }
+          ],
+          "createDefaultsReadCount": 2
+        }
+      ]
+    }
+  ],
+  "goldenCases": [
+    {
+      "case": "A_PL",
+      "user": "USER_1",
+      "profile": "PROFILE_4",
+      "object": "OBJECT_1",
+      "rt": "RT_17",
+      "app": "APP_7",
+      "formFactor": "Large",
+      "candidateFormSource": "PAGE_LAYOUT",
+      "candidatePage": "PAGE_LAYOUT_3",
+      "assignmentProvenance": "OBJECT_DEFAULT",
+      "status": "EXPECTED CANDIDATE — NOT YET GROUND TRUTH",
+      "expectedFormSource": null,
+      "expectedPage": null,
+      "visibleFieldsHash": null,
+      "requiredFieldsHash": null,
+      "fieldCount": null,
+      "requiredCount": null
+    },
+    {
+      "case": "B_DF",
+      "user": "USER_1",
+      "profile": "PROFILE_4",
+      "object": "OBJECT_3",
+      "rt": "RT_19",
+      "app": "APP_7",
+      "formFactor": "Large",
+      "candidateFormSource": "DYNAMIC_FORMS",
+      "candidatePage": "PAGE_DYNAMIC_1",
+      "assignmentProvenance": "APP_PROFILE_RT",
+      "status": "EXPECTED CANDIDATE — NOT YET GROUND TRUTH",
+      "expectedFormSource": null,
+      "expectedPage": null,
+      "visibleFieldsHash": null,
+      "requiredFieldsHash": null,
+      "fieldCount": null,
+      "requiredCount": null
+    }
+  ],
+  "appComparisons": [
+    {
+      "user": "USER_1",
+      "object": "OBJECT_3",
+      "rt": "RT_19",
+      "candidates": [
+        {
+          "app": "APP_7",
+          "page": "PAGE_DYNAMIC_1",
+          "provenance": "APP_PROFILE_RT",
+          "liveMetadataRead": true
+        },
+        {
+          "app": "APP_36",
+          "page": "PAGE_LAYOUT_2",
+          "provenance": "OBJECT_DEFAULT",
+          "liveMetadataRead": true
+        }
+      ],
+      "status": "APP_CONTEXT_REQUIRED",
+      "observedEffectiveNewUi": false
+    }
+  ],
+  "appIdJoin": [
+    {
+      "user": "USER_1",
+      "uiApp": "APP_7",
+      "metadataApp": "APP_7",
+      "durableIdMatches": true,
+      "developerNameMatches": true,
+      "namespaceQualifiedMetadataNameMatches": true
+    },
+    {
+      "user": "USER_1",
+      "uiApp": "APP_36",
+      "metadataApp": "APP_19",
+      "durableIdMatches": true,
+      "developerNameMatches": true,
+      "namespaceQualifiedMetadataNameMatches": true
+    }
+  ],
+  "appUnknownCaseCount": 27,
   "pages": [
     {
-      "fullName": "FlexiPage151",
-      "sobjectType": "Opportunity",
+      "page": "PAGE_DYNAMIC_1",
+      "object": "OBJECT_3",
       "type": "RecordPage",
+      "regionCount": 56,
+      "fieldCount": 94,
       "components": [
         "force:highlightsPanel",
         "runtime_sales_pathassistant:pathAssistant",
@@ -59,12 +446,21 @@
         "flexipage:tabset",
         "force:relatedListContainer"
       ],
-      "fieldInstanceCount": 94
+      "uiBehaviorCounts": {
+        "readonly": 50,
+        "required": 23,
+        "none": 21
+      },
+      "fieldRuleCount": 0,
+      "sectionRuleCount": 1,
+      "liveRereadHash": "371dc8c5c1a29688ec4337109d79e0ccd8b9a036d065f388b42cb9176ad76be1"
     },
     {
-      "fullName": "Lead_Record_Page",
-      "sobjectType": "Lead",
+      "page": "PAGE_LAYOUT_1",
+      "object": "OBJECT_2",
       "type": "RecordPage",
+      "regionCount": 7,
+      "fieldCount": 0,
       "components": [
         "force:highlightsPanel",
         "runtime_sales_lead:pathAssistant",
@@ -75,18 +471,23 @@
         "flexipage:tab",
         "flexipage:tabset",
         "lst:dynamicRelatedList",
-        "showSHRNLeadLWC",
+        "COMPONENT_1",
         "force:relatedListQuickLinksContainer",
         "runtime_sales_merge:mergeCandidatesPreviewCard",
-        "reminderOfSimilarCluesOutAuthority",
+        "COMPONENT_2",
         "force:relatedListContainer"
       ],
-      "fieldInstanceCount": 0
+      "uiBehaviorCounts": {},
+      "fieldRuleCount": 0,
+      "sectionRuleCount": 0,
+      "liveRereadHash": null
     },
     {
-      "fullName": "Opportunity_Record_Type",
-      "sobjectType": "Opportunity",
+      "page": "PAGE_LAYOUT_2",
+      "object": "OBJECT_3",
       "type": "RecordPage",
+      "regionCount": 7,
+      "fieldCount": 0,
       "components": [
         "force:highlightsPanel",
         "runtime_sales_pathassistant:pathAssistant",
@@ -99,12 +500,17 @@
         "flexipage:tabset",
         "force:relatedListContainer"
       ],
-      "fieldInstanceCount": 0
+      "uiBehaviorCounts": {},
+      "fieldRuleCount": 0,
+      "sectionRuleCount": 0,
+      "liveRereadHash": "b6b107a2d6ff7fc9b8ac8a3b6c593150710aa219890c50b160437851e821023f"
     },
     {
-      "fullName": "Quote_Record_Page",
-      "sobjectType": "Quote__c",
+      "page": "PAGE_LAYOUT_3",
+      "object": "OBJECT_1",
       "type": "RecordPage",
+      "regionCount": 12,
+      "fieldCount": 0,
       "components": [
         "force:highlightsPanel",
         "runtime_sales_pathassistant:pathAssistant",
@@ -115,16 +521,21 @@
         "force:detailPanel",
         "runtime_sales_activities:activityPanel",
         "flexipage:tab",
-        "BatchImportQuoteProductCMP",
+        "COMPONENT_3",
         "flexipage:tabset",
-        "genericOaViewer"
+        "COMPONENT_4"
       ],
-      "fieldInstanceCount": 0
+      "uiBehaviorCounts": {},
+      "fieldRuleCount": 0,
+      "sectionRuleCount": 0,
+      "liveRereadHash": null
     },
     {
-      "fullName": "SHRN_Lead_Record_Page",
-      "sobjectType": "Lead",
+      "page": "PAGE_DYNAMIC_2",
+      "object": "OBJECT_2",
       "type": "RecordPage",
+      "regionCount": 25,
+      "fieldCount": 50,
       "components": [
         "force:highlightsPanel",
         "flexipage:richText",
@@ -136,20 +547,29 @@
         "forceChatter:recordFeedContainer",
         "flexipage:tab",
         "flexipage:tabset",
-        "genericOaViewer",
+        "COMPONENT_4",
         "lst:dynamicRelatedList",
-        "showSHRNLeadLWC",
+        "COMPONENT_1",
         "force:relatedListQuickLinksContainer",
         "runtime_sales_merge:mergeCandidatesPreviewCard",
-        "reminderOfSimilarCluesOutAuthority",
+        "COMPONENT_2",
         "force:relatedListContainer"
       ],
-      "fieldInstanceCount": 50
+      "uiBehaviorCounts": {
+        "required": 20,
+        "none": 22,
+        "readonly": 8
+      },
+      "fieldRuleCount": 1,
+      "sectionRuleCount": 0,
+      "liveRereadHash": null
     },
     {
-      "fullName": "WRN_Opportunity_Record_Type",
-      "sobjectType": "Opportunity",
+      "page": "PAGE_DYNAMIC_3",
+      "object": "OBJECT_3",
       "type": "RecordPage",
+      "regionCount": 35,
+      "fieldCount": 56,
       "components": [
         "force:highlightsPanel",
         "runtime_sales_pathassistant:pathAssistant",
@@ -162,5445 +582,330 @@
         "forceChatter:recordFeedContainer",
         "flexipage:tab",
         "flexipage:tabset",
-        "genericOaViewer",
+        "COMPONENT_4",
         "force:relatedListContainer"
       ],
-      "fieldInstanceCount": 56
-    }
-  ],
-  "fieldShapeSamples": [
-    {
-      "fullName": "SHRN_Lead_Record_Page",
-      "fields": [
-        {
-          "fieldInstance": {
-            "fieldItem": "Record.Partner__c",
-            "identifier": "RecordPartner__cField",
-            "fieldInstanceProperties": {
-              "name": "uiBehavior",
-              "value": "required"
-            },
-            "visibilityRule": {
-              "criteria": {
-                "leftValue": "{!Record.Is_cooperative_disk__c}",
-                "operator": "EQUAL",
-                "rightValue": "[REDACTED]"
-              }
-            }
-          },
-          "criterionLiteralKinds": [
-            "BOOLEAN_TEXT"
-          ]
-        }
-      ]
-    },
-    {
-      "fullName": "WRN_Opportunity_Record_Type",
-      "fields": [
-        {
-          "fieldInstance": {
-            "fieldItem": "Record.OA_Approval_Page_URL__c",
-            "identifier": "RecordOA_Approval_Page_URL_cField",
-            "fieldInstanceProperties": {
-              "name": "uiBehavior",
-              "value": "none"
-            },
-            "visibilityRule": {
-              "criteria": {
-                "leftValue": "{!Record.OA_Process_Id__c}",
-                "operator": "NE"
-              }
-            }
-          },
-          "criterionLiteralKinds": [
-            "ABSENT"
-          ]
-        },
-        {
-          "fieldInstance": {
-            "fieldItem": "Record.WRN_Level2_Classification__c",
-            "identifier": "RecordWRN_Level2_Classification_cField",
-            "fieldInstanceProperties": {
-              "name": "uiBehavior",
-              "value": "required"
-            },
-            "visibilityRule": {
-              "criteria": {
-                "leftValue": "{!Record.No_Existing_productline__c}",
-                "operator": "EQUAL",
-                "rightValue": "[REDACTED]"
-              }
-            }
-          },
-          "criterionLiteralKinds": [
-            "BOOLEAN_TEXT"
-          ]
-        },
-        {
-          "fieldInstance": {
-            "fieldItem": "Record.WRN_Level2_Classification__c",
-            "identifier": "RecordWRN_Level2_Classification_cField2",
-            "fieldInstanceProperties": {
-              "name": "uiBehavior",
-              "value": "none"
-            },
-            "visibilityRule": {
-              "criteria": {
-                "leftValue": "{!Record.No_Existing_productline__c}",
-                "operator": "EQUAL",
-                "rightValue": "[REDACTED]"
-              }
-            }
-          },
-          "criterionLiteralKinds": [
-            "BOOLEAN_TEXT"
-          ]
-        }
-      ]
-    }
-  ],
-  "profileAssignmentSample": [
-    {
-      "actionName": "View",
-      "content": "FlexiPage151",
-      "formFactor": "Large",
-      "pageOrSobjectType": "Opportunity",
-      "recordType": "Opportunity.FRN",
-      "type": "Flexipage",
-      "profile": "FRN业务员/业务主管"
-    },
-    {
-      "actionName": "View",
-      "content": "FlexiPage151",
-      "formFactor": "Large",
-      "pageOrSobjectType": "Opportunity",
-      "recordType": "Opportunity.FRN",
-      "type": "Flexipage",
-      "profile": "FRN产品经理"
-    },
-    {
-      "actionName": "View",
-      "content": "FlexiPage151",
-      "formFactor": "Large",
-      "pageOrSobjectType": "Opportunity",
-      "recordType": "Opportunity.FRN",
-      "type": "Flexipage",
-      "profile": "FRN管理层/管理组"
-    },
-    {
-      "actionName": "View",
-      "content": "FlexiPage151",
-      "formFactor": "Large",
-      "pageOrSobjectType": "Opportunity",
-      "recordType": "Opportunity.FRN",
-      "type": "Flexipage",
-      "profile": "Admin"
-    }
-  ],
-  "objectOverrides": [
-    {
-      "fullName": "Quote__c",
-      "actionOverrides": [
-        {
-          "actionName": "New",
-          "type": "Default"
-        },
-        {
-          "actionName": "New",
-          "formFactor": "Large",
-          "type": "Default"
-        },
-        {
-          "actionName": "New",
-          "formFactor": "Small",
-          "type": "Default"
-        },
-        {
-          "actionName": "View",
-          "comment": "Action override created by Lightning App Builder during activation.",
-          "content": "Quote_Record_Page",
-          "formFactor": "Small",
-          "skipRecordTypeSelect": false,
-          "type": "Flexipage"
-        },
-        {
-          "actionName": "View",
-          "comment": "Action override created by Lightning App Builder during activation.",
-          "content": "Quote_Record_Page",
-          "formFactor": "Large",
-          "skipRecordTypeSelect": false,
-          "type": "Flexipage"
-        },
-        {
-          "actionName": "View",
-          "type": "Default"
-        }
-      ],
-      "recordTypes": [
-        {
-          "fullName": "APIS",
-          "active": true
-        },
-        {
-          "fullName": "CBU",
-          "active": true
-        },
-        {
-          "fullName": "FRNRecordType",
-          "active": true
-        },
-        {
-          "fullName": "PriceAdjustment",
-          "active": false
-        },
-        {
-          "fullName": "QuoteRecordType",
-          "active": true
-        },
-        {
-          "fullName": "SHRNRecordType",
-          "active": true
-        },
-        {
-          "fullName": "USRN",
-          "active": true
-        },
-        {
-          "fullName": "WRNRecordType",
-          "active": true
-        }
-      ]
-    },
-    {
-      "fullName": "Lead",
-      "actionOverrides": [
-        {
-          "actionName": "New",
-          "type": "Default"
-        },
-        {
-          "actionName": "New",
-          "formFactor": "Large",
-          "type": "Default"
-        },
-        {
-          "actionName": "New",
-          "formFactor": "Small",
-          "type": "Default"
-        },
-        {
-          "actionName": "View",
-          "comment": "Action override created by Lightning App Builder during activation.",
-          "content": "Lead_Record_Page",
-          "formFactor": "Large",
-          "skipRecordTypeSelect": false,
-          "type": "Flexipage"
-        },
-        {
-          "actionName": "View",
-          "type": "Default"
-        },
-        {
-          "actionName": "View",
-          "formFactor": "Small",
-          "type": "Default"
-        }
-      ],
-      "recordTypes": [
-        {
-          "fullName": "APIS",
-          "active": true
-        },
-        {
-          "fullName": "CBU_FMRN",
-          "active": true
-        },
-        {
-          "fullName": "EASO",
-          "active": true
-        },
-        {
-          "fullName": "FRN",
-          "active": true
-        },
-        {
-          "fullName": "SHRN",
-          "active": true
-        },
-        {
-          "fullName": "USRN",
-          "active": true
-        },
-        {
-          "fullName": "WRN",
-          "active": true
-        }
-      ]
-    },
-    {
-      "fullName": "Opportunity",
-      "actionOverrides": [
-        {
-          "actionName": "New",
-          "type": "Default"
-        },
-        {
-          "actionName": "New",
-          "formFactor": "Large",
-          "type": "Default"
-        },
-        {
-          "actionName": "New",
-          "formFactor": "Small",
-          "type": "Default"
-        },
-        {
-          "actionName": "View",
-          "comment": "Action override updated by Lightning App Builder during activation.",
-          "content": "Opportunity_Record_Type",
-          "formFactor": "Large",
-          "skipRecordTypeSelect": false,
-          "type": "Flexipage"
-        },
-        {
-          "actionName": "View",
-          "comment": "Action override created by Lightning App Builder during activation.",
-          "content": "Opportunity_Record_Type",
-          "formFactor": "Small",
-          "skipRecordTypeSelect": false,
-          "type": "Flexipage"
-        },
-        {
-          "actionName": "View",
-          "type": "Default"
-        }
-      ],
-      "recordTypes": [
-        {
-          "fullName": "APIS",
-          "active": true
-        },
-        {
-          "fullName": "CBU_FMRN",
-          "active": true
-        },
-        {
-          "fullName": "EASO",
-          "active": true
-        },
-        {
-          "fullName": "FRN",
-          "active": true
-        },
-        {
-          "fullName": "SHRN_Land",
-          "active": true
-        },
-        {
-          "fullName": "SHRN_Single_Item",
-          "active": true
-        },
-        {
-          "fullName": "SHRN_Strategic_Sourcing",
-          "active": true
-        },
-        {
-          "fullName": "USRN",
-          "active": true
-        },
-        {
-          "fullName": "WRN",
-          "active": true
-        },
-        {
-          "fullName": "WRN_Single_Item",
-          "active": true
-        }
-      ]
-    }
-  ],
-  "profileEvidence": [
-    {
-      "label": "Profile:FRN业务员%2F业务主管",
-      "fullName": "FRN业务员%2F业务主管",
-      "layoutAssignments": [
-        {
-          "layout": "Lead-Lead Layout"
-        },
-        {
-          "layout": "Lead-Lead_Layout_APIS",
-          "recordType": "Lead.APIS"
-        },
-        {
-          "layout": "Lead-Lead_Layout_CBU",
-          "recordType": "Lead.CBU_FMRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_EASO",
-          "recordType": "Lead.EASO"
-        },
-        {
-          "layout": "Lead-Lead_Layout_FRN",
-          "recordType": "Lead.FRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_SHRN",
-          "recordType": "Lead.SHRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_USRN",
-          "recordType": "Lead.USRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_WRN",
-          "recordType": "Lead.WRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity Layout"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_APIS",
-          "recordType": "Opportunity.APIS"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_CBU",
-          "recordType": "Opportunity.CBU_FMRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_EASO",
-          "recordType": "Opportunity.EASO"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_FRN",
-          "recordType": "Opportunity.FRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_LD%EF%BC%88落地%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Land"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_SP%EF%BC%88单项目%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Single_Item"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_SS%EF%BC%88战采%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Strategic_Sourcing"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_USRN",
-          "recordType": "Opportunity.USRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_WRN",
-          "recordType": "Opportunity.WRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_WRN%EF%BC%88单项目%EF%BC%89",
-          "recordType": "Opportunity.WRN_Single_Item"
-        },
-        {
-          "layout": "Quote__c-APIS报价单页面",
-          "recordType": "Quote__c.APIS"
-        },
-        {
-          "layout": "Quote__c-CBU%2FFMRN报价单页面",
-          "recordType": "Quote__c.CBU"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面",
-          "recordType": "Quote__c.QuoteRecordType"
-        },
-        {
-          "layout": "Quote__c-FRN报价单页面",
-          "recordType": "Quote__c.FRNRecordType"
-        },
-        {
-          "layout": "Quote__c-SHRN报价单页面",
-          "recordType": "Quote__c.SHRNRecordType"
-        },
-        {
-          "layout": "Quote__c-USRN报价单页面",
-          "recordType": "Quote__c.USRN"
-        },
-        {
-          "layout": "Quote__c-WRN报价单页面",
-          "recordType": "Quote__c.WRNRecordType"
-        },
-        {
-          "layout": "Quote__c-调价",
-          "recordType": "Quote__c.PriceAdjustment"
-        }
-      ],
-      "profileActionOverrides": [],
-      "visibleApps": [
-        {
-          "application": "FRN_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "FRN_CRM_PC",
-          "default": true,
-          "visible": true
-        },
-        {
-          "application": "standard__Approvals",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "standard__SalesCloudMobile",
-          "default": false,
-          "visible": true
-        }
-      ]
-    },
-    {
-      "label": "Profile:CRN管理组%2F业务员",
-      "fullName": "CRN管理组%2F业务员",
-      "layoutAssignments": [
-        {
-          "layout": "Lead-Lead Layout"
-        },
-        {
-          "layout": "Lead-Lead_Layout_APIS",
-          "recordType": "Lead.APIS"
-        },
-        {
-          "layout": "Lead-Lead_Layout_CBU",
-          "recordType": "Lead.CBU_FMRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_EASO",
-          "recordType": "Lead.EASO"
-        },
-        {
-          "layout": "Lead-Lead_Layout_FRN",
-          "recordType": "Lead.FRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_SHRN",
-          "recordType": "Lead.SHRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_USRN",
-          "recordType": "Lead.USRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_WRN",
-          "recordType": "Lead.WRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity Layout"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_APIS",
-          "recordType": "Opportunity.APIS"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_CBU",
-          "recordType": "Opportunity.CBU_FMRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_EASO",
-          "recordType": "Opportunity.EASO"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_FRN",
-          "recordType": "Opportunity.FRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_LD%EF%BC%88落地%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Land"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_SP%EF%BC%88单项目%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Single_Item"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_SS%EF%BC%88战采%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Strategic_Sourcing"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_USRN",
-          "recordType": "Opportunity.USRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_WRN",
-          "recordType": "Opportunity.WRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_WRN%EF%BC%88单项目%EF%BC%89",
-          "recordType": "Opportunity.WRN_Single_Item"
-        },
-        {
-          "layout": "Quote__c-APIS报价单页面",
-          "recordType": "Quote__c.APIS"
-        },
-        {
-          "layout": "Quote__c-CBU%2FFMRN报价单页面",
-          "recordType": "Quote__c.CBU"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面",
-          "recordType": "Quote__c.FRNRecordType"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面",
-          "recordType": "Quote__c.QuoteRecordType"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面",
-          "recordType": "Quote__c.USRN"
-        },
-        {
-          "layout": "Quote__c-SHRN报价单页面",
-          "recordType": "Quote__c.SHRNRecordType"
-        },
-        {
-          "layout": "Quote__c-WRN报价单页面",
-          "recordType": "Quote__c.WRNRecordType"
-        },
-        {
-          "layout": "Quote__c-调价",
-          "recordType": "Quote__c.PriceAdjustment"
-        }
-      ],
-      "profileActionOverrides": [],
-      "visibleApps": [
-        {
-          "application": "CBU_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "CBU_CRM_PC",
-          "default": true,
-          "visible": true
-        },
-        {
-          "application": "standard__Approvals",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "standard__SalesCloudMobile",
-          "default": false,
-          "visible": true
-        }
-      ]
-    },
-    {
-      "label": "Profile:Admin",
-      "fullName": "Admin",
-      "layoutAssignments": [
-        {
-          "layout": "Lead-Lead Layout"
-        },
-        {
-          "layout": "Lead-Lead_Layout_APIS",
-          "recordType": "Lead.APIS"
-        },
-        {
-          "layout": "Lead-Lead_Layout_CBU",
-          "recordType": "Lead.CBU_FMRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_EASO",
-          "recordType": "Lead.EASO"
-        },
-        {
-          "layout": "Lead-Lead_Layout_FRN",
-          "recordType": "Lead.FRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_SHRN",
-          "recordType": "Lead.SHRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_USRN",
-          "recordType": "Lead.USRN"
-        },
-        {
-          "layout": "Lead-Lead_Layout_WRN",
-          "recordType": "Lead.WRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity Layout"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_APIS",
-          "recordType": "Opportunity.APIS"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_CBU",
-          "recordType": "Opportunity.CBU_FMRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_EASO",
-          "recordType": "Opportunity.EASO"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_FRN",
-          "recordType": "Opportunity.FRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_LD%EF%BC%88落地%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Land"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_SP%EF%BC%88单项目%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Single_Item"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_SHRN_SS%EF%BC%88战采%EF%BC%89",
-          "recordType": "Opportunity.SHRN_Strategic_Sourcing"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_USRN",
-          "recordType": "Opportunity.USRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_WRN",
-          "recordType": "Opportunity.WRN"
-        },
-        {
-          "layout": "Opportunity-Opportunity_Layout_WRN%EF%BC%88单项目%EF%BC%89",
-          "recordType": "Opportunity.WRN_Single_Item"
-        },
-        {
-          "layout": "Quote__c-APIS报价单页面",
-          "recordType": "Quote__c.APIS"
-        },
-        {
-          "layout": "Quote__c-CBU%2FFMRN报价单页面",
-          "recordType": "Quote__c.CBU"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面"
-        },
-        {
-          "layout": "Quote__c-EASO报价单页面",
-          "recordType": "Quote__c.QuoteRecordType"
-        },
-        {
-          "layout": "Quote__c-FRN报价单页面",
-          "recordType": "Quote__c.FRNRecordType"
-        },
-        {
-          "layout": "Quote__c-SHRN报价单页面",
-          "recordType": "Quote__c.SHRNRecordType"
-        },
-        {
-          "layout": "Quote__c-USRN报价单页面",
-          "recordType": "Quote__c.USRN"
-        },
-        {
-          "layout": "Quote__c-WRN报价单页面",
-          "recordType": "Quote__c.WRNRecordType"
-        },
-        {
-          "layout": "Quote__c-调价",
-          "recordType": "Quote__c.PriceAdjustment"
-        }
-      ],
-      "profileActionOverrides": [],
-      "visibleApps": [
-        {
-          "application": "APIS_Platform",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "APIS_Platform_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "CBU_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "CBU_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "CXG__Connected_Experiences_Gateway",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "EASO_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "EASO_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "FRN_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "FRN_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "Runner_Group_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "Runner_Group_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "SHRN_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "SHRN_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "USRN_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "WRN_CRM_Mobile",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "WRN_CRM_PC",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "standard__AppLauncher",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "standard__Approvals",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "standard__FlowsApp",
-          "default": false,
-          "visible": true
-        },
-        {
-          "application": "standard__LightningSales",
-          "default": true,
-          "visible": true
-        },
-        {
-          "application": "standard__SalesCloudMobile",
-          "default": false,
-          "visible": true
-        }
-      ]
-    }
-  ],
-  "userVerification": [
-    {
-      "label": "USER_1:SOAP.getUserInfo",
-      "status": "PASS",
-      "evidence": {
-        "keys": [
-          "accessibilityMode",
-          "chatterExternal",
-          "currencySymbol",
-          "orgAttachmentFileSizeLimit",
-          "orgDefaultCurrencyIsoCode",
-          "orgDefaultCurrencyLocale",
-          "orgDisallowHtmlAttachments",
-          "orgHasPersonAccounts",
-          "organizationId",
-          "organizationMultiCurrency",
-          "organizationName",
-          "profileId",
-          "roleId",
-          "sessionSecondsValid",
-          "userDefaultCurrencyIsoCode",
-          "userEmail",
-          "userFullName",
-          "userId",
-          "userLanguage",
-          "userLocale",
-          "userName",
-          "userTimeZone",
-          "userType",
-          "userUiSkin"
-        ],
-        "profileIdPresent": true,
-        "matchesIdentity": true
-      }
-    },
-    {
-      "label": "USER_2:SOAP.getUserInfo",
-      "status": "PASS",
-      "evidence": {
-        "keys": [
-          "accessibilityMode",
-          "chatterExternal",
-          "currencySymbol",
-          "orgAttachmentFileSizeLimit",
-          "orgDefaultCurrencyIsoCode",
-          "orgDefaultCurrencyLocale",
-          "orgDisallowHtmlAttachments",
-          "orgHasPersonAccounts",
-          "organizationId",
-          "organizationMultiCurrency",
-          "organizationName",
-          "profileId",
-          "roleId",
-          "sessionSecondsValid",
-          "userDefaultCurrencyIsoCode",
-          "userEmail",
-          "userFullName",
-          "userId",
-          "userLanguage",
-          "userLocale",
-          "userName",
-          "userTimeZone",
-          "userType",
-          "userUiSkin"
-        ],
-        "profileIdPresent": true,
-        "matchesIdentity": true
-      }
-    },
-    {
-      "label": "USER_3:SOAP.getUserInfo",
-      "status": "PASS",
-      "evidence": {
-        "keys": [
-          "accessibilityMode",
-          "chatterExternal",
-          "currencySymbol",
-          "orgAttachmentFileSizeLimit",
-          "orgDefaultCurrencyIsoCode",
-          "orgDefaultCurrencyLocale",
-          "orgDisallowHtmlAttachments",
-          "orgHasPersonAccounts",
-          "organizationId",
-          "organizationMultiCurrency",
-          "organizationName",
-          "profileId",
-          "roleId",
-          "sessionSecondsValid",
-          "userDefaultCurrencyIsoCode",
-          "userEmail",
-          "userFullName",
-          "userId",
-          "userLanguage",
-          "userLocale",
-          "userName",
-          "userTimeZone",
-          "userType",
-          "userUiSkin"
-        ],
-        "profileIdPresent": true,
-        "matchesIdentity": true
-      }
-    },
-    {
-      "label": "DIAGNOSTIC:SOAP.getUserInfo",
-      "status": "PASS",
-      "evidence": {
-        "keys": [
-          "accessibilityMode",
-          "chatterExternal",
-          "currencySymbol",
-          "orgAttachmentFileSizeLimit",
-          "orgDefaultCurrencyIsoCode",
-          "orgDefaultCurrencyLocale",
-          "orgDisallowHtmlAttachments",
-          "orgHasPersonAccounts",
-          "organizationId",
-          "organizationMultiCurrency",
-          "organizationName",
-          "profileId",
-          "roleId",
-          "sessionSecondsValid",
-          "userDefaultCurrencyIsoCode",
-          "userEmail",
-          "userFullName",
-          "userId",
-          "userLanguage",
-          "userLocale",
-          "userName",
-          "userTimeZone",
-          "userType",
-          "userUiSkin"
-        ],
-        "profileIdPresent": true,
-        "matchesIdentity": true
-      }
-    },
-    {
-      "label": "USER_1:DIAGNOSTIC.User.Profile",
-      "status": "PASS",
-      "evidence": {
-        "profileName": "FRN业务员/业务主管",
-        "matchesSoapProfile": true
-      }
-    },
-    {
-      "label": "USER_1:LayoutIdentity:主类型",
-      "status": "PASS",
-      "evidence": {
-        "count": 1,
-        "name": "EASO报价单页面",
-        "exactIdMatches": true
-      }
-    },
-    {
-      "label": "USER_1:LayoutIdentity:FRN",
-      "status": "PASS",
-      "evidence": {
-        "count": 1,
-        "name": "FRN报价单页面",
-        "exactIdMatches": true
-      }
-    },
-    {
-      "label": "USER_2:DIAGNOSTIC.User.Profile",
-      "status": "PASS",
-      "evidence": {
-        "profileName": "CRN管理组/业务员",
-        "matchesSoapProfile": true
-      }
-    },
-    {
-      "label": "USER_2:LayoutIdentity:主类型",
-      "status": "PASS",
-      "evidence": {
-        "count": 1,
-        "name": "EASO报价单页面",
-        "exactIdMatches": true
-      }
-    },
-    {
-      "label": "USER_2:LayoutIdentity:CBU/FMRN",
-      "status": "PASS",
-      "evidence": {
-        "count": 1,
-        "name": "CBU/FMRN报价单页面",
-        "exactIdMatches": true
-      }
-    },
-    {
-      "label": "USER_3:DIAGNOSTIC.User.Profile",
-      "status": "PASS",
-      "evidence": {
-        "profileName": "CRN管理组/业务员",
-        "matchesSoapProfile": true
-      }
-    },
-    {
-      "label": "USER_3:LayoutIdentity:主类型",
-      "status": "PASS",
-      "evidence": {
-        "count": 1,
-        "name": "EASO报价单页面",
-        "exactIdMatches": true
-      }
-    },
-    {
-      "label": "USER_3:LayoutIdentity:CBU/FMRN",
-      "status": "PASS",
-      "evidence": {
-        "count": 1,
-        "name": "CBU/FMRN报价单页面",
-        "exactIdMatches": true
-      }
-    }
-  ],
-  "correctedAppsProbe": {
-    "method": "GET",
-    "resource": "/services/data/v67.0/ui-api/apps?formFactor=Large",
-    "results": [
-      {
-        "label": "USER_1",
-        "status": "PASS",
-        "elapsedMs": 920,
-        "decodedJsonBytes": 29000,
-        "keys": [
-          "apps",
-          "eTag"
-        ],
-        "apps": [
-          {
-            "keys": [
-              "appId",
-              "description",
-              "developerName",
-              "eTag",
-              "formFactors",
-              "headerColor",
-              "iconUrl",
-              "isNavAutoTempTabsDisabled",
-              "isNavPersonalizationDisabled",
-              "isNavTabPersistenceDisabled",
-              "isOmniPinnedViewEnabled",
-              "label",
-              "logoUrl",
-              "mobileStartUrl",
-              "navItems",
-              "selected",
-              "startUrl",
-              "type",
-              "userNavItems"
-            ],
-            "developerName": "FRN_CRM_PC",
-            "label": "百霖CRM平台",
-            "formFactors": [
-              "Large"
-            ]
-          },
-          {
-            "keys": [
-              "appId",
-              "description",
-              "developerName",
-              "eTag",
-              "formFactors",
-              "headerColor",
-              "iconUrl",
-              "isNavAutoTempTabsDisabled",
-              "isNavPersonalizationDisabled",
-              "isNavTabPersistenceDisabled",
-              "isOmniPinnedViewEnabled",
-              "label",
-              "logoUrl",
-              "mobileStartUrl",
-              "navItems",
-              "selected",
-              "startUrl",
-              "type",
-              "userNavItems"
-            ],
-            "developerName": "Approvals",
-            "label": "批准",
-            "formFactors": [
-              "Large"
-            ]
-          }
-        ]
+      "uiBehaviorCounts": {
+        "readonly": 15,
+        "required": 18,
+        "none": 23
       },
-      {
-        "label": "USER_2",
-        "status": "PASS",
-        "elapsedMs": 832,
-        "decodedJsonBytes": 24000,
-        "keys": [
-          "apps",
-          "eTag"
-        ],
-        "apps": [
-          {
-            "keys": [
-              "appId",
-              "description",
-              "developerName",
-              "eTag",
-              "formFactors",
-              "headerColor",
-              "iconUrl",
-              "isNavAutoTempTabsDisabled",
-              "isNavPersonalizationDisabled",
-              "isNavTabPersistenceDisabled",
-              "isOmniPinnedViewEnabled",
-              "label",
-              "logoUrl",
-              "mobileStartUrl",
-              "navItems",
-              "selected",
-              "startUrl",
-              "type",
-              "userNavItems"
-            ],
-            "developerName": "CBU_CRM_PC",
-            "label": "建霖CRM平台",
-            "formFactors": [
-              "Large"
-            ]
-          },
-          {
-            "keys": [
-              "appId",
-              "description",
-              "developerName",
-              "eTag",
-              "formFactors",
-              "headerColor",
-              "iconUrl",
-              "isNavAutoTempTabsDisabled",
-              "isNavPersonalizationDisabled",
-              "isNavTabPersistenceDisabled",
-              "isOmniPinnedViewEnabled",
-              "label",
-              "logoUrl",
-              "mobileStartUrl",
-              "navItems",
-              "selected",
-              "startUrl",
-              "type",
-              "userNavItems"
-            ],
-            "developerName": "Approvals",
-            "label": "批准",
-            "formFactors": [
-              "Large"
-            ]
-          }
-        ]
-      },
-      {
-        "label": "USER_3",
-        "status": "PASS",
-        "elapsedMs": 752,
-        "decodedJsonBytes": 24000,
-        "keys": [
-          "apps",
-          "eTag"
-        ],
-        "apps": [
-          {
-            "keys": [
-              "appId",
-              "description",
-              "developerName",
-              "eTag",
-              "formFactors",
-              "headerColor",
-              "iconUrl",
-              "isNavAutoTempTabsDisabled",
-              "isNavPersonalizationDisabled",
-              "isNavTabPersistenceDisabled",
-              "isOmniPinnedViewEnabled",
-              "label",
-              "logoUrl",
-              "mobileStartUrl",
-              "navItems",
-              "selected",
-              "startUrl",
-              "type",
-              "userNavItems"
-            ],
-            "developerName": "CBU_CRM_PC",
-            "label": "建霖CRM平台",
-            "formFactors": [
-              "Large"
-            ]
-          },
-          {
-            "keys": [
-              "appId",
-              "description",
-              "developerName",
-              "eTag",
-              "formFactors",
-              "headerColor",
-              "iconUrl",
-              "isNavAutoTempTabsDisabled",
-              "isNavPersonalizationDisabled",
-              "isNavTabPersistenceDisabled",
-              "isOmniPinnedViewEnabled",
-              "label",
-              "logoUrl",
-              "mobileStartUrl",
-              "navItems",
-              "selected",
-              "startUrl",
-              "type",
-              "userNavItems"
-            ],
-            "developerName": "Approvals",
-            "label": "批准",
-            "formFactors": [
-              "Large"
-            ]
-          }
-        ]
-      }
-    ]
+      "fieldRuleCount": 3,
+      "sectionRuleCount": 0,
+      "liveRereadHash": "743851122eec0ecf61ec2f203428da018cc3045cf62e06f8e1f34a221f4e0deb"
+    }
+  ],
+  "fieldShapes": [
+    {
+      "page": "PAGE_DYNAMIC_2",
+      "field": "FIELD_1",
+      "uiBehavior": "required",
+      "criteriaShape": "object",
+      "booleanFilter": null,
+      "criteria": [
+        {
+          "criterionType": "RECORD_FIELD",
+          "leftValue": "FIELD_2",
+          "operator": "EQUAL",
+          "rightValueKind": "BOOLEAN_TEXT"
+        }
+      ]
+    },
+    {
+      "page": "PAGE_DYNAMIC_3",
+      "field": "FIELD_3",
+      "uiBehavior": "none",
+      "criteriaShape": "object",
+      "booleanFilter": null,
+      "criteria": [
+        {
+          "criterionType": "RECORD_FIELD",
+          "leftValue": "FIELD_4",
+          "operator": "NE",
+          "rightValueKind": "ABSENT"
+        }
+      ]
+    },
+    {
+      "page": "PAGE_DYNAMIC_3",
+      "field": "FIELD_5",
+      "uiBehavior": "required",
+      "criteriaShape": "object",
+      "booleanFilter": null,
+      "criteria": [
+        {
+          "criterionType": "RECORD_FIELD",
+          "leftValue": "FIELD_6",
+          "operator": "EQUAL",
+          "rightValueKind": "BOOLEAN_TEXT"
+        }
+      ]
+    },
+    {
+      "page": "PAGE_DYNAMIC_3",
+      "field": "FIELD_5",
+      "uiBehavior": "none",
+      "criteriaShape": "object",
+      "booleanFilter": null,
+      "criteria": [
+        {
+          "criterionType": "RECORD_FIELD",
+          "leftValue": "FIELD_6",
+          "operator": "EQUAL",
+          "rightValueKind": "BOOLEAN_TEXT"
+        }
+      ]
+    }
+  ],
+  "assignmentShape": {
+    "actionName": "View",
+    "content": "PAGE_DYNAMIC_1",
+    "formFactor": "Large",
+    "pageOrSobjectType": "OBJECT_3",
+    "recordType": "RT_19",
+    "type": "Flexipage",
+    "profile": "PROFILE_4",
+    "app": "APP_7"
   },
-  "discovery": {
-    "generatedAt": "2026-09-06T00:56:09.634Z",
-    "operations": [
-      {
-        "label": "AUTH_USER_1",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 696,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 226,
-            "requestSizeBytes": 774,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 195,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 148,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:identity",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 492,
-        "decodedJsonBytes": 2654,
-        "jsonParseMeanMs": 0.014,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 192,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 294,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:User.Profile",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 184,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 179,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:User.ProfileId-only",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 280,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 277,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:PermissionSetAssignment",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_TYPE",
-        "elapsedMs": 153,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 152,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Quote__c:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 251,
-        "decodedJsonBytes": 114724,
-        "jsonParseMeanMs": 0.91,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 235,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Quote__c:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 649,
-        "decodedJsonBytes": 1048233,
-        "jsonParseMeanMs": 6.145,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 562,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Quote__c:create-defaults:FRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 880,
-        "decodedJsonBytes": 1049807,
-        "jsonParseMeanMs": 5.239,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 806,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Lead:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 229,
-        "decodedJsonBytes": 92005,
-        "jsonParseMeanMs": 0.497,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 221,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Lead:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 516,
-        "decodedJsonBytes": 554752,
-        "jsonParseMeanMs": 9.167,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 402,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Lead:create-defaults:FRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 705,
-        "decodedJsonBytes": 684892,
-        "jsonParseMeanMs": 6,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 627,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Opportunity:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 278,
-        "decodedJsonBytes": 159814,
-        "jsonParseMeanMs": 1.28,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 260,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Opportunity:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 443,
-        "decodedJsonBytes": 569371,
-        "jsonParseMeanMs": 3.781,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 386,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Opportunity:create-defaults:FRN商机",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 682,
-        "decodedJsonBytes": 726310,
-        "jsonParseMeanMs": 2.699,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 644,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:FlexiPage.list",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "READ_FAILED",
-        "elapsedMs": 152,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 500,
-            "durationMs": 148,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "AUTH_USER_2",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 542,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 192,
-            "requestSizeBytes": 769,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 177,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 154,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:identity",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 423,
-        "decodedJsonBytes": 2650,
-        "jsonParseMeanMs": 0.005,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 136,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 286,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:User.Profile",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 183,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 182,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:User.ProfileId-only",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 143,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 143,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:PermissionSetAssignment",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_TYPE",
-        "elapsedMs": 178,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 177,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Quote__c:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 195,
-        "decodedJsonBytes": 106054,
-        "jsonParseMeanMs": 0.286,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 191,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Quote__c:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 539,
-        "decodedJsonBytes": 1014525,
-        "jsonParseMeanMs": 3.277,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 492,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Quote__c:create-defaults:CBU/FMRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 563,
-        "decodedJsonBytes": 1014491,
-        "jsonParseMeanMs": 3.164,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 520,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Lead:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 198,
-        "decodedJsonBytes": 88227,
-        "jsonParseMeanMs": 0.324,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 192,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Lead:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 480,
-        "decodedJsonBytes": 545402,
-        "jsonParseMeanMs": 2.703,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 441,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Lead:create-defaults:CBU/FMRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 650,
-        "decodedJsonBytes": 468047,
-        "jsonParseMeanMs": 1.408,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 628,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Opportunity:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 255,
-        "decodedJsonBytes": 153180,
-        "jsonParseMeanMs": 0.466,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 247,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Opportunity:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 396,
-        "decodedJsonBytes": 557860,
-        "jsonParseMeanMs": 4.549,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 338,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Opportunity:create-defaults:CBU/FMRN商机",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 499,
-        "decodedJsonBytes": 688161,
-        "jsonParseMeanMs": 3.587,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 443,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:FlexiPage.list",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "READ_FAILED",
-        "elapsedMs": 143,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 500,
-            "durationMs": 141,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "AUTH_USER_3",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 603,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 224,
-            "requestSizeBytes": 765,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 221,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 129,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:identity",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 412,
-        "decodedJsonBytes": 2647,
-        "jsonParseMeanMs": 0.012,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 194,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 217,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:User.Profile",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 200,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 199,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:User.ProfileId-only",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 140,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 138,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:PermissionSetAssignment",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_TYPE",
-        "elapsedMs": 155,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 155,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Quote__c:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 180,
-        "decodedJsonBytes": 106054,
-        "jsonParseMeanMs": 0.401,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 172,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Quote__c:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 829,
-        "decodedJsonBytes": 1014525,
-        "jsonParseMeanMs": 8.436,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 711,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Quote__c:create-defaults:CBU/FMRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 658,
-        "decodedJsonBytes": 1014491,
-        "jsonParseMeanMs": 8.377,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 550,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Lead:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 254,
-        "decodedJsonBytes": 88227,
-        "jsonParseMeanMs": 0.464,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 246,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Lead:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 461,
-        "decodedJsonBytes": 545402,
-        "jsonParseMeanMs": 3.895,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 411,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Lead:create-defaults:CBU/FMRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 417,
-        "decodedJsonBytes": 468047,
-        "jsonParseMeanMs": 3.461,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 371,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Opportunity:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 204,
-        "decodedJsonBytes": 153180,
-        "jsonParseMeanMs": 1.184,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 187,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Opportunity:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 373,
-        "decodedJsonBytes": 557860,
-        "jsonParseMeanMs": 2.837,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 330,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Opportunity:create-defaults:CBU/FMRN商机",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 431,
-        "decodedJsonBytes": 688161,
-        "jsonParseMeanMs": 3.282,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 379,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:FlexiPage.list",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "READ_FAILED",
-        "elapsedMs": 124,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 500,
-            "durationMs": 123,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "AUTH_DIAGNOSTIC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 593,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 191,
-            "requestSizeBytes": 769,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 215,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 165,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:identity",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 598,
-        "decodedJsonBytes": 2669,
-        "jsonParseMeanMs": 0.007,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 192,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 405,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 181,
-        "decodedJsonBytes": 325,
-        "jsonParseMeanMs": 0.005,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 180,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:PermissionSetAssignment",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 200,
-        "decodedJsonBytes": 9748,
-        "jsonParseMeanMs": 0.057,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 198,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_1:DIAGNOSTIC.User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 182,
-        "decodedJsonBytes": 335,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 181,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_2:DIAGNOSTIC.User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 230,
-        "decodedJsonBytes": 332,
-        "jsonParseMeanMs": 0.002,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 229,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "USER_3:DIAGNOSTIC.User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 167,
-        "decodedJsonBytes": 332,
-        "jsonParseMeanMs": 0.004,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 166,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Quote__c:CustomObject",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3540,
-        "decodedJsonBytes": 393202,
-        "jsonParseMeanMs": 2.316,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3330,
-            "requestSizeBytes": 699,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Quote__c:Tooling.Layout",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 270,
-        "decodedJsonBytes": 40,
-        "jsonParseMeanMs": 0.001,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 268,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Lead:CustomObject",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3128,
-        "decodedJsonBytes": 522963,
-        "jsonParseMeanMs": 2.495,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 2967,
-            "requestSizeBytes": 695,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Lead:Tooling.Layout",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 304,
-        "decodedJsonBytes": 2566,
-        "jsonParseMeanMs": 0.009,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 303,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Opportunity:CustomObject",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3681,
-        "decodedJsonBytes": 853152,
-        "jsonParseMeanMs": 3.892,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3460,
-            "requestSizeBytes": 702,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Opportunity:Tooling.Layout",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 226,
-        "decodedJsonBytes": 4928,
-        "jsonParseMeanMs": 0.023,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 225,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage.list",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 178,
-        "decodedJsonBytes": 73287,
-        "jsonParseMeanMs": 0.164,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 156,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication.list",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 165,
-        "decodedJsonBytes": 14179,
-        "jsonParseMeanMs": 0.051,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 161,
-            "requestSizeBytes": 723,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:Runner_Group_CRM_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3980,
-        "decodedJsonBytes": 125974,
-        "jsonParseMeanMs": 0.573,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3948,
-            "requestSizeBytes": 719,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:EASO_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 16670,
-        "decodedJsonBytes": 137954,
-        "jsonParseMeanMs": 3.199,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 16403,
-            "requestSizeBytes": 707,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__SalesCloudMobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 173,
-        "decodedJsonBytes": 715,
-        "jsonParseMeanMs": 0.009,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 170,
-            "requestSizeBytes": 722,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Community",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 267,
-        "decodedJsonBytes": 684,
-        "jsonParseMeanMs": 0.007,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 265,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:WRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3733,
-        "decodedJsonBytes": 99647,
-        "jsonParseMeanMs": 0.939,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3666,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:Sales_Operations",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 5677,
-        "decodedJsonBytes": 43616,
-        "jsonParseMeanMs": 0.273,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5657,
-            "requestSizeBytes": 712,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3368,
-        "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.72,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3307,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:Relationship_Management",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 5636,
-        "decodedJsonBytes": 43637,
-        "jsonParseMeanMs": 0.116,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5623,
-            "requestSizeBytes": 719,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__AppLauncher",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 151,
-        "decodedJsonBytes": 621,
-        "jsonParseMeanMs": 0.002,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 150,
-            "requestSizeBytes": 717,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:Runner_Group_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 17822,
-        "decodedJsonBytes": 138837,
-        "jsonParseMeanMs": 1.048,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 17748,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__ServiceConsole",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 230,
-        "decodedJsonBytes": 3702,
-        "jsonParseMeanMs": 0.043,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 227,
-            "requestSizeBytes": 720,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__AllTabSet",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 167,
-        "decodedJsonBytes": 309,
-        "jsonParseMeanMs": 0.004,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 166,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:CBU_CRM_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4541,
-        "decodedJsonBytes": 127873,
-        "jsonParseMeanMs": 0.514,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4492,
-            "requestSizeBytes": 710,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Platform",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 173,
-        "decodedJsonBytes": 686,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 172,
-            "requestSizeBytes": 714,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Chatter",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 182,
-        "decodedJsonBytes": 608,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 180,
-            "requestSizeBytes": 713,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Service",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 165,
-        "decodedJsonBytes": 718,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 163,
-            "requestSizeBytes": 713,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:USRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 2992,
-        "decodedJsonBytes": 91893,
-        "jsonParseMeanMs": 0.289,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 2969,
-            "requestSizeBytes": 707,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:SHRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 5919,
-        "decodedJsonBytes": 137092,
-        "jsonParseMeanMs": 0.468,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5886,
-            "requestSizeBytes": 707,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Approvals",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 142,
-        "decodedJsonBytes": 631,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 141,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Marketing",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 150,
-        "decodedJsonBytes": 741,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 149,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__FlowsApp",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 254,
-        "decodedJsonBytes": 532,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 253,
-            "requestSizeBytes": 714,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:Sales_Leadership",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 5649,
-        "decodedJsonBytes": 43621,
-        "jsonParseMeanMs": 0.113,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5639,
-            "requestSizeBytes": 712,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:FRN_CRM_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 9651,
-        "decodedJsonBytes": 69552,
-        "jsonParseMeanMs": 0.268,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 9634,
-            "requestSizeBytes": 710,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:APIS_Platform",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1100,
-        "decodedJsonBytes": 22343,
-        "jsonParseMeanMs": 0.07,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1094,
-            "requestSizeBytes": 709,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__SalesforceCMS",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4839,
-        "decodedJsonBytes": 43576,
-        "jsonParseMeanMs": 0.138,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4828,
-            "requestSizeBytes": 719,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:CXG__Connected_Experiences_Gateway",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 266,
-        "decodedJsonBytes": 999,
-        "jsonParseMeanMs": 0.005,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 265,
-            "requestSizeBytes": 730,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__LightningBolt",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4813,
-        "decodedJsonBytes": 43048,
-        "jsonParseMeanMs": 0.138,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4803,
-            "requestSizeBytes": 719,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__Sales",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 253,
-        "decodedJsonBytes": 836,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 253,
-            "requestSizeBytes": 711,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:CBU_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 5868,
-        "decodedJsonBytes": 140398,
-        "jsonParseMeanMs": 0.429,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5837,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:Lead_Generation",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 6053,
-        "decodedJsonBytes": 43568,
-        "jsonParseMeanMs": 0.172,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 6041,
-            "requestSizeBytes": 711,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:APIS_Platform_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3486,
-        "decodedJsonBytes": 21921,
-        "jsonParseMeanMs": 0.068,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3480,
-            "requestSizeBytes": 716,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:standard__LightningSales",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1993,
-        "decodedJsonBytes": 43771,
-        "jsonParseMeanMs": 0.172,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1983,
-            "requestSizeBytes": 720,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:SHRN_CRM_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4537,
-        "decodedJsonBytes": 124674,
-        "jsonParseMeanMs": 0.653,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4486,
-            "requestSizeBytes": 711,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:EASO_CRM_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4106,
-        "decodedJsonBytes": 127762,
-        "jsonParseMeanMs": 0.409,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4074,
-            "requestSizeBytes": 711,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "CustomApplication:WRN_CRM_Mobile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3481,
-        "decodedJsonBytes": 78983,
-        "jsonParseMeanMs": 0.232,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3464,
-            "requestSizeBytes": 710,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1830,
-        "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.207,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1819,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage:Lead_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1312,
-        "decodedJsonBytes": 11391,
-        "jsonParseMeanMs": 0.105,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1308,
-            "requestSizeBytes": 704,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage:Opportunity_Record_Type",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1301,
-        "decodedJsonBytes": 9704,
-        "jsonParseMeanMs": 0.047,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1297,
-            "requestSizeBytes": 711,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1279,
-        "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.15,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1271,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage:SHRN_Lead_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4070,
-        "decodedJsonBytes": 26108,
-        "jsonParseMeanMs": 0.126,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4063,
-            "requestSizeBytes": 709,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "FlexiPage:WRN_Opportunity_Record_Type",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1269,
-        "decodedJsonBytes": 29292,
-        "jsonParseMeanMs": 0.134,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1262,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Profile.list",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 153,
-        "decodedJsonBytes": 23380,
-        "jsonParseMeanMs": 0.074,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 148,
-            "requestSizeBytes": 713,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Profile:FRN业务员%2F业务主管",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 13716,
-        "decodedJsonBytes": 774858,
-        "jsonParseMeanMs": 7.658,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 13083,
-            "requestSizeBytes": 713,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Profile:CRN管理组%2F业务员",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 5627,
-        "decodedJsonBytes": 770077,
-        "jsonParseMeanMs": 2.68,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5422,
-            "requestSizeBytes": 710,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Profile:Admin",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 6042,
-        "decodedJsonBytes": 801928,
-        "jsonParseMeanMs": 2.985,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 5828,
-            "requestSizeBytes": 691,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      },
-      {
-        "label": "Tooling.FlexiPage",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 164,
-        "decodedJsonBytes": 6049,
-        "jsonParseMeanMs": 0.019,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 164,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ]
-      }
-    ]
+  "newOverrides": [
+    {
+      "object": "OBJECT_1",
+      "overrides": [
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "UNSPECIFIED"
+        },
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "Large"
+        },
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "Small"
+        }
+      ]
+    },
+    {
+      "object": "OBJECT_2",
+      "overrides": [
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "UNSPECIFIED"
+        },
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "Large"
+        },
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "Small"
+        }
+      ]
+    },
+    {
+      "object": "OBJECT_3",
+      "overrides": [
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "UNSPECIFIED"
+        },
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "Large"
+        },
+        {
+          "actionName": "New",
+          "type": "Default",
+          "formFactor": "Small"
+        }
+      ]
+    }
+  ],
+  "gates": {
+    "activeNewPrecedence": "BLOCKED",
+    "newPageLayout": "NOT TESTED",
+    "newDynamicForms": "NOT TESTED",
+    "mandatoryGolden": "GOLDEN_CASE_NOT_AVAILABLE",
+    "mixedDesktop": "NOT TESTED",
+    "sectionVisibility": "NOT TESTED",
+    "customNewPositive": "NOT AVAILABLE"
   },
-  "costInitial": {
-    "generatedAt": "2026-09-06T00:59:18.372Z",
-    "operations": [
+  "costs": {
+    "priorDiscovery": {
+      "logicalOperations": 106,
+      "httpAttempts": 118,
+      "decodedJsonBytes": 20526001,
+      "operationElapsedMs": 196311,
+      "pass": 94,
+      "blocked": 12
+    },
+    "inventoryBoundStop": {
+      "logicalOperations": 2,
+      "httpAttempts": 4,
+      "decodedJsonBytes": 2152,
+      "operationElapsedMs": 1484,
+      "pass": 2,
+      "blocked": 0
+    },
+    "discovery": {
+      "logicalOperations": 62,
+      "httpAttempts": 74,
+      "decodedJsonBytes": 21478713,
+      "operationElapsedMs": 94536,
+      "pass": 62,
+      "blocked": 0,
+      "elapsedMs": 95069
+    },
+    "firstTargeted": {
+      "logicalOperations": 58,
+      "httpAttempts": 70,
+      "decodedJsonBytes": 7103065,
+      "operationElapsedMs": 48135,
+      "pass": 46,
+      "blocked": 12
+    },
+    "finalTargeted": {
+      "logicalOperations": 58,
+      "httpAttempts": 70,
+      "decodedJsonBytes": 7103065,
+      "operationElapsedMs": 65489,
+      "pass": 46,
+      "blocked": 12
+    },
+    "finalTargetedSamples": [
       {
-        "label": "COST_1:FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1092,
+        "type": "FlexiPage",
+        "target": "PAGE_LAYOUT_3",
+        "elapsedMs": 2291,
         "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.184,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1069,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          44037
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44037,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_1:FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4212,
+        "type": "FlexiPage",
+        "target": "PAGE_DYNAMIC_1",
+        "elapsedMs": 1742,
         "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.22,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4201,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          57231
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 57231,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_1:CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3044,
+        "type": "CustomApplication",
+        "target": "APP_7",
+        "elapsedMs": 10667,
         "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.315,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3014,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          133436
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 133436,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_2:FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1037,
+        "type": "FlexiPage",
+        "target": "PAGE_LAYOUT_3",
+        "elapsedMs": 924,
         "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.155,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1030,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          44037
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44037,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_2:FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4315,
+        "type": "FlexiPage",
+        "target": "PAGE_DYNAMIC_1",
+        "elapsedMs": 1818,
         "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.21,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4298,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          57231
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 57231,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_2:CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3861,
+        "type": "CustomApplication",
+        "target": "APP_7",
+        "elapsedMs": 12065,
         "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.533,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3815,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          133436
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 133436,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_3:FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 878,
+        "type": "FlexiPage",
+        "target": "PAGE_LAYOUT_3",
+        "elapsedMs": 887,
         "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.116,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 870,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          44037
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44037,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_3:FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1694,
+        "type": "FlexiPage",
+        "target": "PAGE_DYNAMIC_1",
+        "elapsedMs": 1340,
         "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.259,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1684,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          57231
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 57231,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       },
       {
-        "label": "COST_3:CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 2808,
+        "type": "CustomApplication",
+        "target": "APP_7",
+        "elapsedMs": 12143,
         "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.215,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 2786,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
+        "httpAttempts": 1,
+        "responseBodyBytes": [
+          133436
         ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 133436,
-            "truncated": false
-          }
-        ]
+        "status": "PASS"
       }
-    ]
+    ],
+    "appJoinInitial": {
+      "logicalOperations": 5,
+      "httpAttempts": 9,
+      "decodedJsonBytes": 47453,
+      "operationElapsedMs": 2792,
+      "pass": 5,
+      "blocked": 0,
+      "elapsedMs": 3168
+    },
+    "appJoinFinal": {
+      "logicalOperations": 7,
+      "httpAttempts": 11,
+      "decodedJsonBytes": 135868,
+      "operationElapsedMs": 5544,
+      "pass": 7,
+      "blocked": 0,
+      "elapsedMs": 5977
+    }
   },
-  "targeted": {
-    "generatedAt": "2026-09-06T01:02:25.154Z",
-    "operations": [
-      {
-        "label": "AUTH_USER_1",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 724,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 270,
-            "requestSizeBytes": 774,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 179,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 176,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 347,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 88,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:identity",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 459,
-        "decodedJsonBytes": 2654,
-        "jsonParseMeanMs": 0.008,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 154,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 301,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2372,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2654,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:User.Profile",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 131,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 129,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 353,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:SOAP.getUserInfo",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 156,
-        "decodedJsonBytes": 753,
-        "jsonParseMeanMs": 0.004,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "SOAP_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 150,
-            "requestSizeBytes": 617,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 1554,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:User.ProfileId-only",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 126,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 125,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 371,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:PermissionSetAssignment",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_TYPE",
-        "elapsedMs": 194,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 192,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 416,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:UI_API.apps",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_API_INPUT",
-        "elapsedMs": 165,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 164,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 96,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Quote__c:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 187,
-        "decodedJsonBytes": 114724,
-        "jsonParseMeanMs": 0.388,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 180,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 114724,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Quote__c:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 568,
-        "decodedJsonBytes": 1048233,
-        "jsonParseMeanMs": 3.267,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 522,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": null,
-            "truncated": true
-          }
-        ]
-      },
-      {
-        "label": "USER_1:Quote__c:create-defaults:FRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 745,
-        "decodedJsonBytes": 1049807,
-        "jsonParseMeanMs": 3.361,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 699,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": null,
-            "truncated": true
-          }
-        ]
-      },
-      {
-        "label": "USER_1:FlexiPage.list",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "READ_FAILED",
-        "elapsedMs": 140,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 500,
-            "durationMs": 137,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 429,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "AUTH_USER_2",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 717,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 255,
-            "requestSizeBytes": 769,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 212,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 232,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 347,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 88,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:identity",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 370,
-        "decodedJsonBytes": 2650,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 135,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 234,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2372,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2650,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:User.Profile",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 137,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 136,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 353,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:SOAP.getUserInfo",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 189,
-        "decodedJsonBytes": 749,
-        "jsonParseMeanMs": 0.004,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "SOAP_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 187,
-            "requestSizeBytes": 617,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 1550,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:User.ProfileId-only",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 181,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 180,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 371,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:PermissionSetAssignment",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_TYPE",
-        "elapsedMs": 137,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 136,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 416,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:UI_API.apps",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_API_INPUT",
-        "elapsedMs": 140,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 140,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 96,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Quote__c:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 318,
-        "decodedJsonBytes": 106054,
-        "jsonParseMeanMs": 0.31,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 312,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 106054,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Quote__c:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 644,
-        "decodedJsonBytes": 1014525,
-        "jsonParseMeanMs": 3.668,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 593,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": null,
-            "truncated": true
-          }
-        ]
-      },
-      {
-        "label": "USER_2:Quote__c:create-defaults:CBU/FMRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 831,
-        "decodedJsonBytes": 1014491,
-        "jsonParseMeanMs": 3.122,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 788,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": null,
-            "truncated": true
-          }
-        ]
-      },
-      {
-        "label": "USER_2:FlexiPage.list",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "READ_FAILED",
-        "elapsedMs": 183,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 500,
-            "durationMs": 182,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 429,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "AUTH_USER_3",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 667,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 376,
-            "requestSizeBytes": 765,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 137,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 133,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 347,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 88,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:identity",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 332,
-        "decodedJsonBytes": 2647,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 129,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 202,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2372,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2647,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:User.Profile",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 153,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 152,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 353,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:SOAP.getUserInfo",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 194,
-        "decodedJsonBytes": 746,
-        "jsonParseMeanMs": 0.005,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "SOAP_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 193,
-            "requestSizeBytes": 617,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 1547,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:User.ProfileId-only",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_FIELD",
-        "elapsedMs": 214,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 214,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 371,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:PermissionSetAssignment",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_TYPE",
-        "elapsedMs": 128,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 127,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 416,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:UI_API.apps",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "INVALID_API_INPUT",
-        "elapsedMs": 128,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 128,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 96,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Quote__c:object-info",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 248,
-        "decodedJsonBytes": 106054,
-        "jsonParseMeanMs": 0.335,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 243,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 106054,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Quote__c:create-defaults:主类型",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 827,
-        "decodedJsonBytes": 1014525,
-        "jsonParseMeanMs": 3.791,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 777,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": null,
-            "truncated": true
-          }
-        ]
-      },
-      {
-        "label": "USER_3:Quote__c:create-defaults:CBU/FMRN",
-        "role": "USER",
-        "status": "PASS",
-        "elapsedMs": 632,
-        "decodedJsonBytes": 1014491,
-        "jsonParseMeanMs": 3.073,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "UI_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 590,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": null,
-            "truncated": true
-          }
-        ]
-      },
-      {
-        "label": "USER_3:FlexiPage.list",
-        "role": "USER",
-        "status": "BLOCKED",
-        "errorCode": "READ_FAILED",
-        "elapsedMs": 117,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 500,
-            "durationMs": 116,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 429,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "AUTH_DIAGNOSTIC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 695,
-        "httpAttemptCount": 3,
-        "http": [
-          {
-            "apiCategory": "OAUTH",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 237,
-            "requestSizeBytes": 769,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 400,
-            "durationMs": 195,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 251,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 347,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 171,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:identity",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 476,
-        "decodedJsonBytes": 2669,
-        "jsonParseMeanMs": 0.006,
-        "httpAttemptCount": 2,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 156,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          },
-          {
-            "apiCategory": "UNKNOWN",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 319,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2470,
-            "truncated": false
-          },
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 2669,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 166,
-        "decodedJsonBytes": 325,
-        "jsonParseMeanMs": 0.002,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 165,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 325,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:SOAP.getUserInfo",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 190,
-        "decodedJsonBytes": 755,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "SOAP_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 189,
-            "requestSizeBytes": 617,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 1556,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "DIAGNOSTIC:PermissionSetAssignment",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 265,
-        "decodedJsonBytes": 9748,
-        "jsonParseMeanMs": 0.028,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 264,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 9748,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:DIAGNOSTIC.User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 218,
-        "decodedJsonBytes": 335,
-        "jsonParseMeanMs": 0.002,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 217,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 335,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:LayoutIdentity:主类型",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 216,
-        "decodedJsonBytes": 236,
-        "jsonParseMeanMs": 0.001,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 216,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 291,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_1:LayoutIdentity:FRN",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 188,
-        "decodedJsonBytes": 235,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 187,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 290,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:DIAGNOSTIC.User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 188,
-        "decodedJsonBytes": 332,
-        "jsonParseMeanMs": 0.002,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 187,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 332,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:LayoutIdentity:主类型",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 185,
-        "decodedJsonBytes": 236,
-        "jsonParseMeanMs": 0.001,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 185,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 291,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_2:LayoutIdentity:CBU/FMRN",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 292,
-        "decodedJsonBytes": 240,
-        "jsonParseMeanMs": 0.001,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 292,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 295,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:DIAGNOSTIC.User.Profile",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 146,
-        "decodedJsonBytes": 332,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "REST_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 146,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 332,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:LayoutIdentity:主类型",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 172,
-        "decodedJsonBytes": 236,
-        "jsonParseMeanMs": 0.003,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 170,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 291,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "USER_3:LayoutIdentity:CBU/FMRN",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 185,
-        "decodedJsonBytes": 240,
-        "jsonParseMeanMs": 0.001,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "TOOLING_API",
-            "httpMethod": "GET",
-            "httpStatus": 200,
-            "durationMs": 184,
-            "requestSizeBytes": null,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "application/json;charset=UTF-8",
-            "originalSizeBytes": 295,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_1:FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3122,
-        "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.244,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3101,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44037,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_1:FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4848,
-        "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.257,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4831,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 57231,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_1:CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 3277,
-        "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.335,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 3231,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 133436,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_2:FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 2423,
-        "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.171,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 2412,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44037,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_2:FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 2160,
-        "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.417,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 2146,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 57231,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_2:CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 10607,
-        "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.312,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 10575,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 133436,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_3:FlexiPage:Quote_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1242,
-        "decodedJsonBytes": 28148,
-        "jsonParseMeanMs": 0.156,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1235,
-            "requestSizeBytes": 705,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44037,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_3:FlexiPage:FlexiPage151",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1885,
-        "decodedJsonBytes": 37949,
-        "jsonParseMeanMs": 0.229,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1876,
-            "requestSizeBytes": 700,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 57231,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "COST_3:CustomApplication:FRN_CRM_PC",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 12728,
-        "decodedJsonBytes": 87784,
-        "jsonParseMeanMs": 0.28,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 12701,
-            "requestSizeBytes": 706,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 133436,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "FIELD_RULES:SHRN_Lead_Record_Page",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 4339,
-        "decodedJsonBytes": 26108,
-        "jsonParseMeanMs": 0.16,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 4330,
-            "requestSizeBytes": 709,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 40591,
-            "truncated": false
-          }
-        ]
-      },
-      {
-        "label": "FIELD_RULES:WRN_Opportunity_Record_Type",
-        "role": "DIAGNOSTIC",
-        "status": "PASS",
-        "elapsedMs": 1409,
-        "decodedJsonBytes": 29292,
-        "jsonParseMeanMs": 0.132,
-        "httpAttemptCount": 1,
-        "http": [
-          {
-            "apiCategory": "METADATA_API",
-            "httpMethod": "POST",
-            "httpStatus": 200,
-            "durationMs": 1402,
-            "requestSizeBytes": 715,
-            "responseSizeBytes": null,
-            "visibility": "EXACT_HTTP"
-          }
-        ],
-        "responsePayloads": [
-          {
-            "contentType": "text/xml; charset=utf-8",
-            "originalSizeBytes": 44293,
-            "truncated": false
-          }
-        ]
-      }
-    ]
+  "storage": "LIGHTWEIGHT_SNAPSHOT_RECOMMENDED; no implementation; A-03 correctness before B-04 storage decision",
+  "invariants": {
+    "productionPackageDiff": 0,
+    "newDbMigrations": 0,
+    "newMcpTools": 0,
+    "salesforceSaves": 0,
+    "a02Started": false
   }
 }

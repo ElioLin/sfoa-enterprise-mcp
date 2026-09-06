@@ -1,6 +1,6 @@
 // Dev-only, read-only SFoA evidence. No MCP registration, DML, deploy, or DB writes.
 // Run from repository root: node scripts/p8-04a-feasibility.mjs [--targeted]
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadProjectEnvironment, sanitizeForOutput } from '../skills/sfoa-mcp-maintainer/scripts/shared/project.mjs';
@@ -52,7 +52,7 @@ async function measured(label, role, operation, project = () => ({})) {
     .filter((payload) => ['SALESFORCE_RESPONSE', 'ERROR_RESPONSE'].includes(payload.payloadType))
     .map((payload) => select(payload, ['contentType', 'originalSizeBytes', 'truncated']));
   report.operations.push(entry);
-  console.log(JSON.stringify({ label, status: entry.status, elapsedMs: entry.elapsedMs, httpAttemptCount: entry.httpAttemptCount }));
+  console.log(JSON.stringify({ operation: report.operations.length, role, status: entry.status, elapsedMs: entry.elapsedMs, httpAttemptCount: entry.httpAttemptCount }));
   return value;
 }
 
@@ -172,6 +172,14 @@ try {
   if (!metadataIdentity) report.metadataStatus = 'BLOCKED_NO_DIAGNOSTIC_ROUTE';
   else if (targeted) {
     const { connection: conn, role } = metadataIdentity;
+    // Local discovery supplies live names; keep business configuration out of Git source.
+    const seed = JSON.parse(await readFile(path.join(root, '.temp/p8-04a-feasibility.json'), 'utf8'));
+    const hasFields = (page) => page.regions.some((region) => region.items.some((item) => item.fieldInstance));
+    const layoutPage = seed.pages.find((page) => page.sobjectType === objects[0] && !hasFields(page));
+    const dynamicPage = seed.pages.find(hasFields);
+    const relevantApp = seed.apps.find((app) => app.profileActionOverrides.some((override) =>
+      override.content === dynamicPage?.fullName && override.profile === seed.users[0].profileName));
+    if (!layoutPage || !dynamicPage || !relevantApp) throw new Error('TARGETED_SEED_INCOMPLETE');
     for (const user of connections.filter((item) => item.role === 'USER')) {
       const result = await measured(`${user.label}:DIAGNOSTIC.User.Profile`, role,
         () => conn.query(`SELECT Id, ProfileId, Profile.Name FROM User WHERE Id = '${user.userId}' LIMIT 1`),
@@ -185,12 +193,12 @@ try {
       }
     }
     for (let trial = 1; trial <= 3; trial++) {
-      for (const [type, name] of [['FlexiPage', 'Quote_Record_Page'], ['FlexiPage', 'FlexiPage151'], ['CustomApplication', 'FRN_CRM_PC']]) {
+      for (const [type, name] of [['FlexiPage', layoutPage.fullName], ['FlexiPage', dynamicPage.fullName], ['CustomApplication', relevantApp.fullName]]) {
         await measured(`COST_${trial}:${type}:${name}`, role, () => conn.metadata.read(type, name),
           (value) => ({ fullName: value.fullName, type: value.type, sobjectType: value.sobjectType }));
       }
     }
-    for (const name of ['SHRN_Lead_Record_Page', 'WRN_Opportunity_Record_Type']) {
+    for (const name of seed.pages.filter((page) => hasFields(page) && page.fullName !== dynamicPage.fullName).slice(0, 2).map((page) => page.fullName)) {
       const page = await measured(`FIELD_RULES:${name}`, role, () => conn.metadata.read('FlexiPage', name),
         (value) => ({ fullName: value.fullName, type: value.type, sobjectType: value.sobjectType }));
       if (page) report.pages.push(pageShape(page));

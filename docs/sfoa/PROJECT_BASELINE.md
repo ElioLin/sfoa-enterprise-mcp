@@ -108,6 +108,11 @@ authorizes A-01 read-only feasibility evidence only. A-01 is **COMPLETE — BLOC
 metadata shapes and lightweight USER facts were obtained, but actual CREATE
 activation precedence and the mandatory same-RT/different-USER golden remain
 unverified; see [A-01 evidence](P8-04A-01-FEASIBILITY-EVIDENCE.md).
+HOTFIX01 broadens the route inventory to all six enabled routes / four Profiles,
+verifies four real USER representatives, closes the explicit App-context contract,
+and replaces public detailed evidence with minimal aliased fixtures. Independent
+New UI ground truth and the mandatory same-RT Golden remain blocked; manual
+capture is documented in `P8-04A-01-GOLDEN-CAPTURE.md`. No A-02 work is authorized.
 Existing P8 Page Layout CREATE,
 managed lookup fallback, identity, P7, DML and Agent behavior remain unchanged;
 no Shadow runtime or ENFORCE is authorized by this baseline entry.

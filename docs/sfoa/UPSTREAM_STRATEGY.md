@@ -71,6 +71,12 @@ Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
 
 ## Package-release drift
 
+P8-04A-01 HOTFIX01 adds only one entry to the existing SFoA `CHANGELOG.md` preface
+to record the durable public-evidence policy and blocked phase status. Alternative:
+leave the required project changelog stale; rejected. Merge risk is LOW and
+localized to the preface. All probes/fixtures/docs remain SFoA-owned; zero official
+Salesforce implementation, package manifest, dependency or lockfile changes.
+
 The monorepo source and the versions bundled by `packages/mcp/package.json` can differ temporarily during release choreography. At the audited commit, the source workspace `@salesforce/mcp-provider-dx-core` is 0.10.0 while the server manifest declares 0.9.8. Because the exact dependency does not satisfy the workspace version, Yarn can resolve the published package instead of the local workspace.
 
 Implications:
