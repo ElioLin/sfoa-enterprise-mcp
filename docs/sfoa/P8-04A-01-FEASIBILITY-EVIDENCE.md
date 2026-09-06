@@ -8,6 +8,7 @@
 
 - 工作分支：`feature/p8-04-effective-ui-context`；开始时工作区干净。
 - Baseline：`2673cea`；A-01 / HOTFIX 输入 SHA：`8279d21`。
+- HOTFIX implementation/evidence commit：`8175a990c90af0da1857cc73ddf46e886d359189`。
 - 最终交付 SHA：包含本报告的 HOTFIX commit（`git log -1 --format=%H`）。
 - 未 checkout 其他分支、从 main 开分支、merge/rebase、rewrite history、force push。
 - 只改文档和 dev-only probes / offline evidence checks；`packages/**` diff = 0。
@@ -183,10 +184,17 @@ fresh clone可离线fixture check，无需live凭据；原始hash及本地敏感
 | MCP Server build + managed-action-context / managed-dml-fields | PASS，45/45 |
 | Identity Runtime build + lazy-connection-resource | PASS，5/5 |
 | skill sync / check / test / delivery | PASS，12/12；三份生成副本一致且可Git交付 |
+| 额外skill:smoke（committed 8175a99） | FAIL：干净归档skill:test为11/12；其他smoke gates通过；原8279d21归档复现同一失败 |
 | git diff --check / secret & evidence hygiene | PASS；16个交付文件，7份local source SHA-256核验，0个truth-labelled New case |
 | ai:snapshot | PASS；指定分支/20 workspaces/011 migration |
 | ai:doctor / ai:db | Yarn子进程Access denied旧问题；直接Node确认DB及MCP/Admin服务PASS；未改无关工具 |
 | New UI / target Agent benchmark / CREATE | NOT TESTED / NOT RUN；0次Save/Create |
+
+干净归档失败位于既有 `skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs:106`：
+未构建Playbook时Doctor返回SKIPPED但没有problems数组，测试仍断言Array.isArray(problems)。
+本HOTFIX没有更改该测试/Doctor/smoke runner；对8279d21执行git archive后同名focused test复现。
+这是额外smoke的已确认baseline失败，不能报告全绿，也不作为本任务扩展去修改无关工具。
+本地完整skill:test 12/12与干净归档11/12分别保留，日志仅在ignored `.temp/`。
 
 get_record_action_context behavior changed=NO；create_record changed=NO；Playbook changed=NO；
 DML changed=NO；Identity behavior changed=NO；Audit schema changed=NO；DB migrations=0；
