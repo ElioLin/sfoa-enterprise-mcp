@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  dynamicFormsObjectPoliciesSchema,
   fieldApiNameSchema,
   normalizeSalesforceUsername,
   objectApiNameSchema,
@@ -675,6 +676,13 @@ function safeManagedDmlFieldSummary(record: ManagedDmlFieldRuleRecord, objectApi
 }
 
 function assertRuntimeSettingValue(key: RuntimeSettingKey, value: unknown): void {
+  if (key === 'dynamicFormsObjectPolicies' && !dynamicFormsObjectPoliciesSchema.safeParse(value).success) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Dynamic Forms policy must name unique objects and OFF/SHADOW/ENFORCE modes.');
+  }
+  if (key === 'integrationDefaultSalesforceAppDeveloperName' && value !== null
+    && (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,254}$/u.test(value))) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'Default Salesforce App must be an exact developer name or null.');
+  }
   if (key === 'auditRetentionDays' && (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 3650)) {
     throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'auditRetentionDays must be an integer from 1 to 3650.');
   }

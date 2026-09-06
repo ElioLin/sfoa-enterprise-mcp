@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  dynamicFormsObjectPoliciesSchema,
   fieldApiNameSchema,
   idSchema,
   auditIntegrityStatusSchema,
@@ -230,8 +231,16 @@ export const adminAuditQuerySchema = z.object({
   }
 });
 
-export const adminRuntimeSettingKeySchema = z.enum(['auditRetentionDays', 'adminDefaultPageSize']);
+export const adminRuntimeSettingKeySchema = z.enum(['auditRetentionDays', 'adminDefaultPageSize', 'dynamicFormsObjectPolicies', 'integrationDefaultSalesforceAppDeveloperName']);
 export const adminRuntimeSettingUpdateSchemas = Object.freeze({
+  dynamicFormsObjectPolicies: z.object({
+    value: dynamicFormsObjectPoliciesSchema,
+    rowVersion: rowVersionSchema.nullable().optional(),
+  }).strict(),
+  integrationDefaultSalesforceAppDeveloperName: z.object({
+    value: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,254}$/u).nullable(),
+    rowVersion: rowVersionSchema.nullable().optional(),
+  }).strict(),
   auditRetentionDays: z.object({
     value: z.number().int().min(1).max(3650),
     rowVersion: rowVersionSchema.nullable().optional(),

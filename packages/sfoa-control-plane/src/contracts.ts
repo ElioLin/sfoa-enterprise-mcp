@@ -136,7 +136,13 @@ export type DiagnosticConfigRecord = Readonly<{
   updatedAt: string;
 }>;
 
-export const RUNTIME_SETTING_KEYS = ['auditRetentionDays', 'adminDefaultPageSize'] as const;
+export const RUNTIME_SETTING_KEYS = ['auditRetentionDays', 'adminDefaultPageSize', 'dynamicFormsObjectPolicies', 'integrationDefaultSalesforceAppDeveloperName'] as const;
+export const dynamicFormsObjectPoliciesSchema = z.array(z.object({
+  objectApiName: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,127}$/u),
+  mode: z.enum(['OFF', 'SHADOW', 'ENFORCE']),
+  defaultApp: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,254}$/u).nullable().optional(),
+}).strict()).max(25).refine((rows) => new Set(rows.map((row) => row.objectApiName.toLowerCase())).size === rows.length,
+  'Object policies must be unique; global/wildcard ENFORCE is not supported');
 export type RuntimeSettingKey = (typeof RUNTIME_SETTING_KEYS)[number];
 
 export type RuntimeSettingRecord = Readonly<{

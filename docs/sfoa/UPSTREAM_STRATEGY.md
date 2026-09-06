@@ -71,6 +71,11 @@ Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
 
 ## Package-release drift
 
+P8-04-AMEND-006 and implementation update only the existing SFoA CHANGELOG preface
+among upstream-owned files. Runtime, Admin and tests use SFoA composition seams;
+no official Salesforce Tool implementation, dependency or lockfile is changed.
+Alternative: omit the required project changelog update; rejected. Merge risk LOW.
+
 P8-04A-01 HOTFIX01 adds only one entry to the existing SFoA `CHANGELOG.md` preface
 to record the durable public-evidence policy and blocked phase status. Alternative:
 leave the required project changelog stale; rejected. Merge risk is LOW and

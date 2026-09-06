@@ -1,6 +1,6 @@
 # P8-04 — Dynamic Forms-Aware Effective CREATE Context
 
-Status: A-01 COMPLETE — BLOCKED; later tasks are not authorized in this delivery.
+Status: IMPLEMENTATION IN PROGRESS under P8-04-AMEND-006; real Agent UAT pending.
 Date: 2026-09-06. Authority: this scoped baseline supplements PROJECT_BASELINE.md;
 current source and verified SFoA evidence outrank historical descriptions.
 
@@ -9,10 +9,38 @@ current source and verified SFoA evidence outrank historical descriptions.
 - Source Branch: `feature/managed-platform-user-lookup-fallback`
 - P8_04_BASE_SHA: `f60a134715d639b8129af0f3160549d52dec210d`
 - P8-04 Branch: `feature/p8-04-effective-ui-context`
+- P8_04_IMPLEMENTATION_BASE_SHA: `ac7e31942f5158f5af7ff977b4b8550e121840a4`
 - Fetched origin, checked out source, pulled ff-only, recorded HEAD, checked local
   and remote target-branch absence, then created this branch. No main integration.
 
 ## Outcome and non-negotiables
+
+### P8-04-AMEND-006 — Direct Implementation + Post-Implementation UAT
+
+Maintainer authorization, 2026-09-06: independent Salesforce New UI ground truth
+and the Golden Benchmark cease to be prerequisites for production development.
+This amendment supersedes the historical A-01 stop rule and pre-implementation
+gates below; their historical evidence remains unchanged.
+
+Implement active-page resolution, deterministic Dynamic Forms parsing/visibility,
+effective CREATE context, a lightweight current MySQL snapshot, manual Admin
+refresh, P7 evidence, canonical Playbook and object-level OFF/SHADOW/ENFORCE policy.
+Global default is OFF; no global ENFORCE switch. A-01 measured Metadata latency
+justifies normalized current snapshots (no raw XML, history or business records).
+
+Accuracy gates are retained for **Post-Implementation UAT / Final Acceptance**:
+Page Layout regression = 100%; Dynamic Forms target >= 90%; RESOLVED accuracy
+target >= 95%; Agent extraction, required questions and recommendations >= 90%.
+The detailed metric definitions below remain applicable. Engineering fixtures
+and regression tests do not establish real UI/Agent accuracy or P8-04 COMPLETE.
+
+Release sequence: IMPLEMENT → OFF/SHADOW → selected-object ENFORCE → real Agent
+UAT → Audit-guided HOTFIX → FINAL ACCEPTANCE. This delivery stops at
+IMPLEMENTED — READY_FOR_UAT (or honestly stated limitations/incomplete status).
+Existing Page Layout code, request USER/FLS authority, managed lookup fallback,
+generic DML, and fail-open P7 evidence remain mandatory protection boundaries.
+
+Historical sections below describe the prior staged plan where superseded.
 
 Salesforce supplies facts, deterministic MCP code interprets supported facts,
 ordinary Agents understand the original prompt and organize the conversation.

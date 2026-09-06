@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { uiContextSchema, visibilityStateSchema } from './effective-ui-contracts.js';
 
 const apiNamePattern = /^[A-Za-z][A-Za-z0-9_]*$/u;
 const salesforceIdPattern = /^(?:[A-Za-z0-9]{15}|[A-Za-z0-9]{18})$/u;
@@ -21,9 +22,16 @@ export const recordActionContextInputObjectSchema = z.object({
     action: z.enum(['CREATE', 'UPDATE']).describe('Record action whose current USER context is required.'),
     recordTypeId: salesforceIdSchema.optional().describe('Optional currently available Salesforce Record Type ID.'),
     recordId: salesforceIdSchema.optional().describe('Required for UPDATE; forbidden for CREATE.'),
+    draftFields: z.record(objectApiNameSchema, z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]))
+      .refine((value) => Object.keys(value).length <= 200 && JSON.stringify(value).length <= 32768, 'draftFields exceeds its bound')
+      .optional().describe('CREATE only: known prompt values for conditional visibility; missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
+    refinement: z.number().int().min(0).max(3).optional().describe('CREATE only: Dynamic Context refinement number, 0 initially, at most 3. Stop asking for refinements at 3.'),
   }).strict();
 
 export const recordActionContextInputSchema = recordActionContextInputObjectSchema.superRefine((input, context) => {
+    if (input.action === 'UPDATE' && (input.draftFields !== undefined || input.refinement !== undefined)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'draftFields and refinement are CREATE-only' });
+    }
     if (input.action === 'CREATE' && input.recordId) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['recordId'], message: 'recordId is forbidden for CREATE' });
     }
@@ -120,6 +128,15 @@ const recordFieldContextSchema = z
     relationshipName: z.string().nullable(),
     referenceTo: z.array(z.string()),
     picklist: picklistContextSchema.optional(),
+    visibilityState: visibilityStateSchema.optional(),
+    requiredSource: z.array(z.enum(['API', 'PAGE_LAYOUT', 'DYNAMIC_FORM'])).optional(),
+    effectiveRequired: z.boolean().optional(),
+    effectiveEditable: z.boolean().optional(),
+    optionalCandidate: z.boolean().optional(),
+    conditionalRequired: z.boolean().optional(),
+    dependsOn: z.array(z.string()).optional(),
+    sectionOrder: z.number().int().nonnegative().optional(),
+    column: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -142,6 +159,8 @@ export const recordActionContextOutputSchema = z
     recordType: recordTypeDescriptorSchema.optional(),
     availableRecordTypes: z.array(recordTypeDescriptorSchema).optional(),
     recordTypeSelectionRequired: z.boolean().optional(),
+    uiContext: uiContextSchema.optional(),
+    uiContextResolutionId: z.string().uuid().optional(),
     fields: z.array(recordFieldContextSchema).optional(),
     coverage: z
       .object({
@@ -154,7 +173,7 @@ export const recordActionContextOutputSchema = z
         totalPicklistValues: z.number().int().nonnegative(),
         returnedPicklistValues: z.number().int().nonnegative(),
         truncated: z.boolean(),
-        dynamicFormsEvaluated: z.literal(false),
+        dynamicFormsEvaluated: z.boolean(),
         completeLightningPageEvaluated: z.literal(false),
         warnings: z.array(z.string()),
       })

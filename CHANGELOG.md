@@ -414,3 +414,8 @@
 ### Bug Fixes
 
 - commit for release ([b72b9dc](https://github.com/salesforcecli/mcp/commit/b72b9dce44b9c97428574a3ce89043e1030c73f9))
+# SFoA P8-04 (2026-09-06, implementation in progress)
+
+- AMEND-006 authorizes direct Dynamic Forms-aware CREATE implementation with
+  default OFF, object-level rollout and lightweight current snapshots. Existing
+  Page Layout behavior and post-implementation real UI/Agent accuracy gates remain.

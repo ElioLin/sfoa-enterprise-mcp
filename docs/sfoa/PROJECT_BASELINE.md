@@ -100,6 +100,16 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+2026-09-06 Maintainer amendment **P8-04-AMEND-006** supersedes the historical
+A-01 development stop below: directly implement the production effective CREATE
+context on `feature/p8-04-effective-ui-context`, base
+`ac7e31942f5158f5af7ff977b4b8550e121840a4`. Permit a lightweight current MySQL UI
+snapshot, Admin refresh, canonical Playbook and object-level ENFORCE (default OFF).
+Independent New UI/Agent accuracy gates move to post-implementation UAT and final
+acceptance; they are not waived. Target delivery is READY_FOR_UAT, not COMPLETE.
+
+The following A-01 entry is historical evidence:
+
 P8-04 has its scoped authoritative plan in
 [`P8-04-DYNAMIC-FORMS-BASELINE.md`](P8-04-DYNAMIC-FORMS-BASELINE.md), based on
 `feature/managed-platform-user-lookup-fallback` at
