@@ -104,6 +104,58 @@ test('invalid DF draft values fail open in OFF/SHADOW and remain structured inpu
   }
 });
 
+test('Case A: ENFORCE + resolved PAGE_LAYOUT + invalid draftFields returns exact pre-P8-04 legacy', async (t) => {
+  t.mock.method(performance, 'now', () => 1000);
+  const fixture = runtimeFixture('ENFORCE', pageLayout());
+  const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input, draftFields: { NoFls__c: 'x' } });
+  assert.deepStrictEqual(result.structuredContent, legacy);
+  assert.deepStrictEqual(result.content, [{ type: 'text', text: JSON.stringify(legacy) }]);
+  assert.equal(result.isError, undefined);
+  assert.equal(fixture.evidence[0]?.usedForAgent, false);
+  assert.equal(fixture.evidence[0]?.formSource, 'PAGE_LAYOUT');
+  assert.equal(fixture.evidence[0]?.failureKind, undefined);
+});
+
+test('Case B: ENFORCE + APP_CONTEXT_REQUIRED fallback + invalid draftFields returns exact legacy', async (t) => {
+  t.mock.method(performance, 'now', () => 1000);
+  const fixture = runtimeFixture('ENFORCE', appRequired());
+  const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input, draftFields: { NoFls__c: 'x' } });
+  assert.deepStrictEqual(result.structuredContent, legacy);
+  assert.equal(result.isError, undefined);
+  assert.equal(fixture.evidence[0]?.usedForAgent, false);
+  assert.equal(fixture.evidence[0]?.fallbackReason, 'APP_CONTEXT_REQUIRED');
+});
+
+test('Case C: ENFORCE + snapshot/parser fallback + invalid draftFields returns exact legacy', async (t) => {
+  t.mock.method(performance, 'now', () => 1000);
+  const invalid = { NoFls__c: 'x' } as NonNullable<RecordActionContextInput['draftFields']>;
+  const fallbacks: Array<{ name: string; snapshot: () => UiSnapshot | null; reason: string }> = [
+    { name: 'snapshot missing', snapshot: () => null, reason: 'SNAPSHOT_MISSING' },
+    { name: 'parser failure', snapshot: () => ({ ...fixtureSnapshot(), parserVersion: 'invalid' }) as unknown as UiSnapshot, reason: 'PARSER_ERROR' },
+  ];
+  for (const fallback of fallbacks) {
+    const fixture = runtimeFixture('ENFORCE', fallback.snapshot());
+    const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input, draftFields: invalid });
+    assert.deepStrictEqual(result.structuredContent, legacy, fallback.name);
+    assert.equal(result.isError, undefined, fallback.name);
+    assert.equal(fixture.evidence[0]?.usedForAgent, false, fallback.name);
+    assert.equal(fixture.evidence[0]?.fallbackReason, fallback.reason, fallback.name);
+    assert.equal(fixture.evidence[0]?.failureKind, 'DYNAMIC_RESOLUTION_FAILURE', fallback.name);
+  }
+});
+
+test('Case D: ENFORCE + supported DYNAMIC_FORMS + invalid draftFields stays a structured MCP_RECORD_ACTION_CONTEXT_INVALID', async (t) => {
+  t.mock.method(performance, 'now', () => 1000);
+  const snapshot = fixtureSnapshot();
+  snapshot.pages[0]!.formSource = 'DYNAMIC_FORMS';
+  const fixture = runtimeFixture('ENFORCE', snapshot);
+  const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input, draftFields: { NoFls__c: 'x' } });
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent?.errorCode, 'MCP_RECORD_ACTION_CONTEXT_INVALID');
+  assert.equal(fixture.evidence[0]?.failureKind, 'USER_INPUT_ERROR');
+  assert.equal(fixture.evidence[0]?.usedForAgent, false);
+});
+
 test('original USER platform, object and record-type failures retain legacy error semantics in SHADOW', async (t) => {
   for (const layer of ['object-info', 'record-defaults', 'picklist-values', 'recordType', 'object', 'identity']) {
     const fixture = runtimeFixture('SHADOW');

@@ -49,8 +49,6 @@ export class EffectiveRecordUiContextResolver {
     // One budget across all extra reads; do not start another read after it expires.
     const readDeadline = started + 3000;
     try {
-      failureLayer = 'USER_INPUT_ERROR';
-      const validatedDraft = validateDraft(input.draftFields ?? {}, objectInfo);
       failureLayer = 'USER_CONTEXT_ERROR';
       if (ui.app && !/^[A-Za-z][A-Za-z0-9_]{0,254}$/u.test(ui.app)) {
         ui.app = null; throw new Error('APP_CONTEXT_INVALID');
@@ -93,6 +91,12 @@ export class EffectiveRecordUiContextResolver {
         failureLayer = 'VISIBILITY_EVALUATION_ERROR';
         const page = snapshot.pages.find((entry) => entry.fullName === active.page);
         if (!page) throw new Error('SNAPSHOT_MISSING');
+        // Draft semantic validation is a Dynamic Forms refinement, not a legacy input gate:
+        // validate only after this call is proven to use Dynamic Forms/MIXED with no fallback,
+        // so PAGE_LAYOUT and every fallback keep exact legacy input behavior.
+        failureLayer = 'USER_INPUT_ERROR';
+        const validatedDraft = validateDraft(input.draftFields ?? {}, objectInfo);
+        failureLayer = 'VISIBILITY_EVALUATION_ERROR';
         const draftFields = { ...Object.fromEntries(Object.entries(facts.defaults).filter(([_name, entry]) => entry.value !== undefined
           && (entry.value === null || ['string', 'number', 'boolean'].includes(typeof entry.value))).map(([name, entry]) => [name, entry.value])),
           ...validatedDraft };

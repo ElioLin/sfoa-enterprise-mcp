@@ -6,7 +6,9 @@ Maintainer starts the services and selects the objects/USERs; do not enable all 
 
 ## Prepare
 
-1. Apply the normal forward migrations through 012 and deploy the built packages.
+1. **Before starting real UAT, the UAT database must reach migration 012**
+   (`012_p8_ui_snapshot`). Apply the normal forward migrations through 012, confirm
+   the migration ledger ends at `012_p8_ui_snapshot`, and deploy the built packages.
    The production database/services/policies were not changed by the implementation.
 2. Verify the independent DIAGNOSTIC identity in Admin. In CREATE 页面上下文 add one
    selected object as SHADOW, configure the actual App DeveloperName and refresh.

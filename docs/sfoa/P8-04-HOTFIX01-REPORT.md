@@ -6,7 +6,9 @@ P8-04 product status remains **IMPLEMENTED — PRE-UAT**; real Agent/New UI acce
 
 ## Result
 
-Verification in progress. Final gate results below are completed before the HOTFIX commit.
+**HOTFIX_COMPLETE — READY_FOR_REAL_AGENT_UAT.** Final gate results below are from a
+re-executed full regression at committed HEAD `2c4dd7668e620f052cfd8e3b145fbaf54317f5d5`
+plus the final closure commit on top of it. No gate remains Pending.
 
 ## Changes and evidence
 
@@ -18,8 +20,12 @@ DYNAMIC_FORMS or supported, validated MIXED and no fallback returns the effectiv
 fields, uiContext and matching uiContextResolutionId (`usedForAgent=true`).
 
 Draft semantic validation moved out of the legacy executor into the extra-work
-boundary. OFF ignores it. SHADOW catches it and returns the exact baseline.
-ENFORCE preserves structured invalid-draft errors. Classification uses the actual
+boundary. It runs only after resolution proves this call uses supported
+DYNAMIC_FORMS/MIXED with no fallback, so OFF, SHADOW, resolved PAGE_LAYOUT and
+every Dynamic fallback never reject an Agent draft they would not have used.
+OFF ignores it. SHADOW catches it and returns the exact baseline. ENFORCE
+preserves structured invalid-draft errors only on a proven Dynamic page.
+Classification uses the actual
 validation stage, not just the ContextRuntimeError class: a ContextRuntimeError
 from snapshot infrastructure is still a Dynamic resolution failure and fallback.
 Original object/Record Type/identity/ObjectInfo/CreateDefaults/Picklist failures
@@ -63,6 +69,32 @@ cover infrastructure ContextRuntimeError, field/FLS/type/formula/auto-number dra
 failures, aggregation bounds, sync/async Audit failure, stale snapshots, timeouts,
 Dynamic/MIXED ENFORCE, USER isolation and original platform error semantics.
 
+### Final closure change: draft validation stays behind a proven Dynamic page
+
+The earlier HOTFIX hoisted `validateDraft` to the start of the resolver so it could
+classify a `ContextRuntimeError` as `USER_INPUT_ERROR` (distinct from a snapshot
+infrastructure `ContextRuntimeError`, which must remain a Dynamic resolution
+failure and fallback). That hoisting made an ENFORCE request reject an invalid
+Agent draft *before* the resolver knew the request would resolve to PAGE_LAYOUT or
+need a Page Layout fallback, so a draft the legacy path would never have used could
+surface as `MCP_RECORD_ACTION_CONTEXT_INVALID`.
+
+The resolver now resolves USER → snapshot → App → active page first. Draft semantic
+validation runs only inside the already-gated Dynamic block, after the page record
+exists and after `PAGE_LAYOUT`/fallback have returned legacy. `effective-ui-resolver.ts`
+therefore keeps Codex's failure-layer classification (`failureLayer = 'USER_INPUT_ERROR'`
+surrounds only `validateDraft`) while restoring exact legacy input behavior for every
+non-Dynamic outcome. Added Cases A–D assert this at the Tool boundary:
+
+- **Case A** — ENFORCE + resolved PAGE_LAYOUT + invalid `draftFields` → exact pre-P8-04 legacy.
+- **Case B** — ENFORCE + APP_CONTEXT_REQUIRED fallback + invalid `draftFields` → exact legacy.
+- **Case C** — ENFORCE + snapshot-missing/parser fallback + invalid `draftFields` → exact legacy.
+- **Case D** — ENFORCE + supported DYNAMIC_FORMS + invalid `draftFields` → structured
+  `MCP_RECORD_ACTION_CONTEXT_INVALID`, Audit `failureKind=USER_INPUT_ERROR`,
+  `usedForAgent=false`.
+
+All existing tests were retained unchanged and pass alongside the four new cases.
+
 ### Layout human-readable identity: PAGE_LAYOUT_FULL_NAME_DEFERRED
 
 The runtime's reliable identity is the Layout ID returned by current USER Create
@@ -89,8 +121,9 @@ or an independent HTTP request deadline. No scheduling/cache/workers were added.
 
 Latency measurements use in-memory USER/snapshot integration fixtures, 10 warm-ups
 and 100 measured Shadow resolver calls. They measure extra resolution work only,
-not Salesforce network/MySQL latency or real Agent performance. Measured extra
-work: **p50 0.8491 ms / p95 3.8412 ms**. The never-settling USER test returned
+not Salesforce network/MySQL latency or real Agent performance. The closure-run
+in-memory sample measured extra work at **p50 0.66 ms / p95 1.91 ms**. The
+never-settling USER test returned
 legacy after approximately 3016 ms. Live p50/p95 remains a real UAT measurement.
 
 Manual refresh/current-only retention is unchanged. Tests confirm stale READY,
@@ -109,32 +142,36 @@ upstream compatibility. Detailed disposable logs are in `.temp/p8-04-regression`
 | Identity Runtime lint/build/test | PASS, 71 tests |
 | Control Plane lint/build/test | PASS, 38 tests |
 | Control Plane MySQL | PASS, 13 tests |
-| Context Provider lint/build/test | PASS, 62 tests |
+| Context Provider lint/build/test | PASS, 66 tests |
 | DML Provider lint/build/test | PASS, 22 tests |
 | Playbook lint/build/test | PASS, 19 tests |
 | MCP Server lint/build/unit | PASS, 125 tests |
 | MCP Server P3/P4/P5/P7 | PASS, 23 / 8 / 5 / 6 tests |
 | Upstream compatibility | PASS, no drift |
 | Admin API lint/build/test | PASS, 25 tests |
-| Admin Web lint/build/test | Pending final runner result |
+| Admin Web lint/build/test | PASS, 65 tests (12 files) |
 | Focused desktop/mobile browser | PASS, 1 test (mocked Admin API) |
 | Agent canonical generation/check | PASS, 5 artifacts unchanged |
 | Skill sync/check/delivery/test | PASS, 12 tests |
 | Git diff and staged diff check | PASS |
 
-Known environment result: `yarn agent:sync` encountered the existing Windows nested
-Yarn `Access is denied` failure. The same TypeScript build and canonical
-`sync-generated.mjs --write` / `--check` completed directly with Node; all five
-generated artifacts remain unchanged. `yarn agent:check` also passed.
+In the final closure run the standard `yarn agent:check` completed successfully
+(`Agent artifact check PASS (5 files)`) and the canonical direct-Node build plus
+`sync-generated.mjs --check` also passed, so all five generated artifacts remain
+byte-identical to their canonical sources. The earlier nested-Yarn `Access is
+denied` failure reported against a prior environment did not reproduce here; the
+working command is recorded, not an unrelated tooling change.
 
-`yarn skill:smoke` was run before committing against archived original HEAD
-`e51f671bf299c00313fd39caf7ed12445733ddde`. It reproduced the existing unbuilt
-Playbook doctor fixture failure (`Array.isArray(report.orgObjectUsage.problems)`):
-11 passed / 1 failed. **PRE-EXISTING**; no unrelated toolkit fixes were added.
-The built-workspace `yarn skill:test` passed all 12 tests.
+`yarn skill:smoke` was re-run against committed HEAD `2c4dd7668e620f052cfd8e3b145fbaf54317f5d5`.
+It reproduced the same existing unbuilt Playbook doctor fixture failure
+(`Array.isArray(report.orgObjectUsage.problems)`): skill:test 11 passed / 1
+failed. **PRE-EXISTING** (identical on the archived `e51f671…` HEAD); no unrelated
+toolkit fixes were added. The built-workspace `yarn skill:test` passed all 12
+tests at the closure HEAD.
 
 Managed-platform-user-lookup-fallback regression passes: explicit client values
-win, omission keeps the existing managed lookup and evidence, USER routing is
+win (valid/null/empty/undefined/invalid-client, any casing), omission keeps the
+existing managed lookup and evidence, USER routing is
 unchanged and CREATE-only fallback does not alter UPDATE payloads.
 
 P7-09 regression passes: `agent-guidance.test.ts` asserts zero Connection
@@ -144,17 +181,23 @@ Identity Runtime tests retain request-scoped memoization and USER isolation.
 ## UAT handoff and scope
 
 The local `ai:doctor` read-only check found the application database at migrations
-001–011; existing P8-04 migration 012 was not yet applied there. Before real UAT,
-deploy the reviewed build, apply the existing migration 012 in the UAT environment,
-manually refresh the selected object and choose its policy/App context. This HOTFIX
-does not enable any live object, refresh production snapshots or perform live DML.
+001–011; existing P8-04 migration 012 was not yet applied there. Migration 012
+(`012_p8_ui_snapshot`) is present and the Control Plane MySQL regression applies it
+from an empty/controlled schema and passes (13 tests), so a UAT database brought to
+012 is proven ready. Before real UAT, the UAT database must reach migration 012
+first, then deploy the reviewed build, manually refresh the selected object and
+choose its policy/App context. This HOTFIX does not enable any live object, refresh
+production snapshots or perform live DML.
 
 Changes in quantity: snapshot tables 0; other tables 0; migrations 0;
 dependencies 0; Agent Tools 0; providers 0. The existing single current snapshot
-table, bounded JSON format and parser version are unchanged. No raw retrieved
+table, bounded JSON format and parser version are unchanged. The final closure
+commit changes one resolver control-flow placement (draft validation gated behind a
+proven Dynamic page) and adds four Tool-boundary regression tests. No raw retrieved
 Metadata/XML, secrets, authorization records or business data were committed.
 Fixture IDs/names/draft values are synthetic. No Identity refactor, managed DML
 behavior change, visibility expansion, scheduler or Metadata platform was added.
 
 Real 小犇 / WorkBuddy / Salesforce New UI / Audit UAT remains the final acceptance
 authority. Stop after this compatibility closure; do not declare P8-04 COMPLETE.
+Final result: **HOTFIX_COMPLETE — READY_FOR_REAL_AGENT_UAT**.

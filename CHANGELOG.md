@@ -12,6 +12,7 @@
 ### Fixes
 
 - P8-04 HOTFIX01: preserve exact legacy CREATE output in OFF/SHADOW/Page Layout/fallback; expose UI provenance only for enforced Dynamic Forms, isolate SHADOW draft and infrastructure errors, share one 3s extra-read budget, and retain internal Audit identity independently of Agent output. No new table, dependency, Tool or snapshot format.
+- P8-04 HOTFIX01 closure: run Dynamic draft semantic validation only after resolution proves a supported Dynamic Forms/MIXED page with no fallback, so ENFORCE + PAGE_LAYOUT and every Page Layout fallback ignore an Agent draft they would not use while enforced Dynamic Forms still returns structured `MCP_RECORD_ACTION_CONTEXT_INVALID`. Adds four Tool-boundary regression cases (A–D) to the exact-legacy fixture suite.
 
 - P8-04A-01 HOTFIX01: minimize public evidence into aliased fixtures, broaden read-only route/Profile candidate discovery, verify App identity joins, and document explicit integration App context plus manual New UI capture. A-01 remains COMPLETE — BLOCKED; no production package behavior, migration, snapshot or A-02 implementation changes.
 - Eliminate mixed Control Plane/Admin API declarations and stabilize Windows Node test execution with Node 24's in-process test isolation mode.
