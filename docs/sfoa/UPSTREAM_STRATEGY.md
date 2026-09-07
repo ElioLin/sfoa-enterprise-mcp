@@ -154,6 +154,10 @@ Generated build output and local dependencies are ignored and are not modificati
 
 ## Merge-risk target
 
+P8-04 HOTFIX01 changes only SFoA context/host/Admin code and regression fixtures.
+The root `CHANGELOG.md` update is covered by its existing modification-matrix row;
+no official runtime source, manifest, dependency or lockfile changes are needed.
+
 Target: **LOW**
 
 The target is achieved only if SFoA production behavior remains in new composition packages and official server behavior stays testable unchanged.

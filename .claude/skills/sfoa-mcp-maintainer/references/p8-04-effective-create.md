@@ -9,7 +9,8 @@ architecture is ADR-0019. Historical A-01 development stop instructions are supe
 
 `get_record_action_context` keeps the existing Page Layout algorithm. CREATE alone
 may evaluate Dynamic Forms. Inputs `draftFields` and `refinement` are optional;
-draft keys/types must match current USER ObjectInfo. Missing/null/false/zero/empty
+in ENFORCE, draft keys/types must match current USER ObjectInfo. OFF ignores DF
+semantic validation; SHADOW records invalid drafts without changing the legacy result. Missing/null/false/zero/empty
 remain distinct. The Agent can refine at most three times and must stop on stable
 dependencies or `refinementLimitReached`. No conversation state is stored by this
 contract; clients must preserve the refinement count.
@@ -31,10 +32,16 @@ join. Without an App, every accessible App must converge. `X-Salesforce-Form-Fac
 accepts Large/Medium/Small (default Large); Medium/Small conservatively fall back.
 These headers select UI context, never Salesforce identity or permissions.
 
-OFF adds no Metadata/USER/snapshot reads. SHADOW returns original Page Layout
-fields. Resolved PAGE_LAYOUT physically returns the existing calculation. ENFORCE
-returns effective fields only for supported DYNAMIC_FORMS/MIXED. All failures
-return the Page Layout fields with a reason in Audit; no strict mode exists.
+OFF adds no Metadata/USER/snapshot reads. OFF, SHADOW, resolved PAGE_LAYOUT and
+all Page Layout fallbacks return the exact legacy Tool output, including coverage
+and managed-field enrichment: no UI protocol or resolution ID. Only ENFORCE with
+supported DYNAMIC_FORMS/validated MIXED and no fallback exposes uiContext and
+uiContextResolutionId. SHADOW isolates all extra-work errors, including draft
+semantics and synchronous/asynchronous Audit errors. ENFORCE retains structured
+USER_INPUT_ERROR for invalid drafts; infrastructure/parser/evaluator errors remain
+DYNAMIC_RESOLUTION_FAILURE fallbacks. Original USER UI API/input failures keep
+their existing semantics. Resolver version P8-04.2 uses one 3s total extra-read
+budget; underlying API cancellation is not guaranteed. No background work/cache.
 
 ## Refresh and stale snapshots
 
@@ -76,7 +83,11 @@ not guaranteed, but abort checks prevent subsequent batches/late publication.
    pageLayoutId, page, assignmentSource, snapshot hash/refreshedAt, parser/resolver,
    profile reference, App, form factor, coverage and fallback reason. The master
    Audit row carries the request identity reference. `usedForAgent` indicates that
-   effective DF fields replaced the legacy result; OFF/SHADOW/PL are false.
+   effective DF fields replaced the legacy result; OFF/SHADOW/PL/fallback are false.
+   Their resolution IDs remain internal. Admin displays usedForAgent and
+   SNAPSHOT_STALE alongside snapshot hash/refreshedAt. Layout fullName remains
+   deferred: current refresh has no reliable Layout ID/name map; do not infer a
+   name from Lightning Page or add a runtime Metadata lookup.
 5. In Admin Audit detail open 页面上下文 and then 字段依据. Only explicit payload
    access loads bounded `UI_CONTEXT` fields/rules. These contain decision results,
    criterion kinds, required provenance and dependencies, never original draft

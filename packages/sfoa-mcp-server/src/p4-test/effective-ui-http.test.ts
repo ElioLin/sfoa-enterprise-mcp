@@ -8,15 +8,18 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { Connection } from '@salesforce/core';
 import type { AuditSnapshot, SalesforceConnectionFactory, RuntimeLogger } from '@sfoa/identity-runtime';
 import { freezeSnapshot } from '@sfoa/control-plane';
-import { UI_PARSER_VERSION, type UiSnapshot } from '@sfoa/mcp-provider-sfoa-context';
+import { UI_PARSER_VERSION, type UiSnapshot, type UiMode } from '@sfoa/mcp-provider-sfoa-context';
 import { startRemoteMcpServer } from '../http-server.js';
 import { createTestIdentityRuntime, createTestRemoteConfig, mcpHeaders, waitFor, TEST_PLATFORM_USER_A, TEST_PLATFORM_USER_B, TEST_USERNAME_A, TEST_USERNAME_B } from '../test/helpers.js';
 
-test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, and links CREATE audit', async () => {
+test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, and links CREATE audit', async (t) => {
+  t.mock.method(performance, 'now', () => 1000);
   const root = await mkdtemp(path.join(tmpdir(), 'sfoa-p804-http-'));
   const traces: AuditSnapshot[] = [];
   const submitted: unknown[] = [];
   let metadataCalls = 0;
+  let mode: UiMode = 'ENFORCE';
+  let snapshotMissing = false;
   const rt = '012000000000001AAA';
   const org = '00D000000000001AAA';
   const profileA = '00e000000000001AAA';
@@ -48,14 +51,14 @@ test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, a
   const logger: RuntimeLogger = { log: () => undefined, finalizeRequestAudit: (context) => { const trace = context.finalizeAudit(); if (trace) traces.push(trace); } };
   const server = await startRemoteMcpServer({ config: createTestRemoteConfig({ controlPlane: { mode: 'mysql' }, requestTimeoutMs: 10000, toolTimeoutMs: 5000 }),
     identityRuntime: createTestIdentityRuntime(root, factory, logger),
-    loadUiSnapshot: async (organizationId, object) => { assert.equal(organizationId, org); assert.equal(object, 'Lead'); return {
+    loadUiSnapshot: async (organizationId, object) => { assert.equal(organizationId, org); assert.equal(object, 'Lead'); if (snapshotMissing) return undefined; return {
       id: '1', organizationId: org, objectApiName: 'Lead', snapshot, hash: 'a'.repeat(64), lastModified: null, refreshedAt: now, status: 'READY', lastError: null, parserVersion: UI_PARSER_VERSION }; },
     policySnapshotSource: { load: async (platformUserId) => freezeSnapshot({ mode: 'mysql', loadedAt: now,
       identityRoute: { id: platformUserId === TEST_PLATFORM_USER_A ? '1' : '2', platformUserId, userName: 'Test',
         salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now },
       enabledTools: ['get_record_action_context', 'create_record'], managedDmlFieldRules: [], diagnostic: null,
       dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now }],
-      runtimeSettings: { dynamicFormsObjectPolicies: [{ objectApiName: 'Lead', mode: 'ENFORCE' }], integrationDefaultSalesforceAppDeveloperName: 'App_A' },
+      runtimeSettings: { dynamicFormsObjectPolicies: [{ objectApiName: 'Lead', mode }], integrationDefaultSalesforceAppDeveloperName: 'App_A' },
     }) },
   });
   const clients: Client[] = [];
@@ -71,6 +74,7 @@ test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, a
     const contextB = b!.structuredContent as Record<string, unknown>;
     assert.equal((contextA.uiContext as { formSource: string }).formSource, 'DYNAMIC_FORMS');
     assert.equal(contextB.uiContext, undefined);
+    assert.equal(contextB.uiContextResolutionId, undefined);
     assert.deepEqual((contextB.fields as { apiName: string }[]).map((field) => field.apiName), ['Legacy__c', 'Name']);
     const resolutionId = contextA.uiContextResolutionId;
     const created = await clients[0]!.callTool({ name: 'create_record', arguments: { objectApiName: 'Lead', fields: { Name: 'Test' }, recordTypeId: rt, uiContextResolutionId: resolutionId } });
@@ -85,6 +89,24 @@ test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, a
     assert.equal(evidence.length, 1);
     assert.doesNotMatch(evidence[0]!.safePayload ?? '', /PRIVATE_DRAFT/u);
     assert.match(evidence[0]!.safePayload ?? '', /DYNAMIC_FORM/u);
+    const args = { objectApiName: 'Lead', action: 'CREATE' };
+    mode = 'OFF';
+    const baseline = await clients[0]!.callTool({ name: 'get_record_action_context', arguments: args });
+    assert.deepStrictEqual(baseline.structuredContent, contextB);
+    for (const selected of ['SHADOW', 'ENFORCE'] as const) {
+      mode = selected;
+      snapshotMissing = selected === 'ENFORCE';
+      assert.deepStrictEqual(await clients[0]!.callTool({ name: 'get_record_action_context', arguments: args }), baseline);
+    }
+    await waitFor(() => traces.filter((trace) => trace.auditCall.toolName === 'get_record_action_context').length === 5, 2000);
+    for (const trace of traces.filter((entry) => entry.auditCall.toolName === 'get_record_action_context')) {
+      const resolutions = trace.auditEvents.filter((event) => event.eventType.startsWith('UI_CONTEXT_'));
+      assert.equal(resolutions.length, 1, 'internal Audit must not depend on Agent-visible ID');
+      const summary = resolutions[0]!.safeSummary as { resolutionId: string; usedForAgent: boolean; reason?: string };
+      assert.ok(summary.resolutionId);
+      assert.equal(summary.usedForAgent, summary.resolutionId === resolutionId);
+      assert.equal(summary.reason, undefined, 'ready Page Layout must not be mislabeled selection-required');
+    }
   } finally {
     await Promise.all(clients.map((client) => client.close())); await server.close();
     await rm(root, { recursive: true, force: true });

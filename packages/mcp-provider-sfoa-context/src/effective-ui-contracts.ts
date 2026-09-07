@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const UI_RESOLVER_VERSION = 'P8-04.1';
+export const UI_RESOLVER_VERSION = 'P8-04.2';
 export const UI_PARSER_VERSION = 'P8-04.1';
 export const UI_SNAPSHOT_TTL_MS = 86_400_000;
 export const uiNameSchema = z.string().min(1).max(255);

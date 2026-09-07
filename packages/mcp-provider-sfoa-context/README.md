@@ -13,7 +13,9 @@ It preserves the existing Page Layout executor and supports object-level OFF
 (default), SHADOW and ENFORCE. `draftFields` is optional and validated against
 current USER ObjectInfo; `refinement` is bounded 0–3. Supported DF fields add
 visibility/required-source/dependency/order/effective editability facts. An optional
-opaque `uiContextResolutionId` is audit provenance only. UPDATE/READ stay unchanged.
+opaque `uiContextResolutionId` is supplied only for enforced Dynamic Forms/MIXED
+without fallback, and is audit provenance only. OFF/SHADOW/Page Layout/fallback
+return the complete legacy response unchanged; correlation IDs remain internal. UPDATE/READ stay unchanged.
 
 Configuration is loaded through an injected org/object snapshot reader. This
 package's Admin-only `collectUiSnapshot` uses the official SDK and returns bounded

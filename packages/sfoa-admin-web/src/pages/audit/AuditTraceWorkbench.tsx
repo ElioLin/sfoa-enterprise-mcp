@@ -217,6 +217,7 @@ function UiContextEvidence({ trace, onPayload }: Readonly<{ trace: AdminAuditTra
     page: 'Lightning Page', assignmentSource: '页面分配', snapshot: '快照版本与时间', resolverVersion: '解析器', coverage: '覆盖情况',
     visibleCount: '可见', hiddenCount: '隐藏', pendingCount: '待定', unknownCount: '未知', fallbackUsed: '已回退', fallbackReason: '回退原因',
     resolutionId: 'Resolution ID', uiContextResolutionId: '关联 Resolution ID', contextLinkStatus: '关联状态',
+    usedForAgent: '用于 Agent 有效上下文', snapshotWarning: '快照提示', failureKind: '失败类别',
   };
   return <section aria-label="页面上下文">
     <Typography.Title level={4}>页面上下文 / UI Context</Typography.Title>

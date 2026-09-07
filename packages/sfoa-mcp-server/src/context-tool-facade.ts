@@ -152,7 +152,9 @@ export class ContextToolFacade {
     input: ToolInput = {},
     response?: CallToolResult,
   ): Promise<void> {
-    if (this.getName() === 'get_record_action_context' && !response?.structuredContent?.uiContextResolutionId) {
+    // A ready CREATE is audited by the resolver even when its internal ID is not Agent-visible.
+    if (this.getName() === 'get_record_action_context'
+      && !(input.action === 'CREATE' && response?.structuredContent?.recordTypeSelectionRequired === false)) {
       try {
         currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL',
           eventType: result === 'PASS' ? 'UI_CONTEXT_RESOLVED' : 'UI_CONTEXT_RESOLUTION_FAILED',

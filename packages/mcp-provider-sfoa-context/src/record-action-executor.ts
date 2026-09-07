@@ -3,7 +3,6 @@ import type { OrgService } from '@salesforce/mcp-provider-api';
 import { z } from 'zod';
 import { ContextRuntimeError } from './errors.js';
 import type { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
-import { validateDraft } from './effective-ui-resolver.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
 import {
   addNames,
@@ -77,8 +76,6 @@ export class RecordActionContextExecutor {
       if (objectInfo.apiName.toLocaleLowerCase('en-US') !== input.objectApiName.toLocaleLowerCase('en-US')) {
         throw unsupported('Salesforce UI API returned object context for a different object.');
       }
-
-      if (input.action === 'CREATE' && input.draftFields) validateDraft(input.draftFields, objectInfo);
 
       // The Tool contract's `availableRecordTypes` must contain only Record Types the
       // current USER may actually use (`available === true`), because the Agent branches

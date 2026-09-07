@@ -113,7 +113,9 @@ current MySQL snapshots (migration 012), manual Admin refresh, per-object modes,
 P7 UI context/provenance evidence and canonical Playbook 1.6.0. Default OFF; no
 live object was enabled by this delivery. See [implementation report](P8-04-IMPLEMENTATION-REPORT.md),
 [ADR-0019](adr/ADR-0019-effective-create-ui-context.md) and [real UAT checklist](P8-04-UAT.md).
-Delivery status: **IMPLEMENTED — READY_FOR_UAT_WITH_LIMITATIONS**.
+P8-04 remains **IMPLEMENTED — PRE-UAT**. HOTFIX01 restores complete legacy
+response transparency and isolates SHADOW work; see
+[HOTFIX01 report](P8-04-HOTFIX01-REPORT.md) for gates and UAT limitations.
 Known unsupported UI criteria/entry points remain explicit conservative fallbacks;
 P8-04 is not COMPLETE and no real accuracy percentage is claimed.
 

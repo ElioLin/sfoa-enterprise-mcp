@@ -11,6 +11,8 @@
 
 ### Fixes
 
+- P8-04 HOTFIX01: preserve exact legacy CREATE output in OFF/SHADOW/Page Layout/fallback; expose UI provenance only for enforced Dynamic Forms, isolate SHADOW draft and infrastructure errors, share one 3s extra-read budget, and retain internal Audit identity independently of Agent output. No new table, dependency, Tool or snapshot format.
+
 - P8-04A-01 HOTFIX01: minimize public evidence into aliased fixtures, broaden read-only route/Profile candidate discovery, verify App identity joins, and document explicit integration App context plus manual New UI capture. A-01 remains COMPLETE — BLOCKED; no production package behavior, migration, snapshot or A-02 implementation changes.
 - Eliminate mixed Control Plane/Admin API declarations and stabilize Windows Node test execution with Node 24's in-process test isolation mode.
 - Close P7-08 maintainer Skill delivery: relocate helper modules from `scripts/lib` to `scripts/shared` (the root `.gitignore` `lib` pattern silently excluded them from commits) and add a Git trackability `delivery` gate plus a clean-checkout `smoke` proof so a fresh clone always carries the full Skill runtime.

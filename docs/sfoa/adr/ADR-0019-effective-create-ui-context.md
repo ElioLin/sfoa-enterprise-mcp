@@ -18,11 +18,13 @@ identity and accessible Apps. It consumes a normalized current configuration
 snapshot through an injected read function. No new business MCP Tool is added.
 UPDATE, READ, governance, identity routing and the DML executor retain their roles.
 
-OFF is the default and adds no Salesforce or snapshot read. SHADOW evaluates and
-audits but returns the existing Page Layout fields. ENFORCE is explicit per object;
-unsupported or uncertain resolution returns the existing fields and an audited
-fallback. An additive opaque resolution ID links context and CREATE requests
-because P7 has no reliable cross-call session/task identity. The client-provided
+OFF is the default and adds no Salesforce or snapshot read. HOTFIX01 (2026-09-07)
+clarifies that OFF, SHADOW, resolved Page Layout and fallback return the exact
+complete legacy response. SHADOW extra-work errors are fail-open; ENFORCE retains
+explicit draft input errors and audits Dynamic resolution fallbacks. An opaque
+resolution ID is Agent-visible only for ENFORCE Dynamic Forms/validated MIXED
+without fallback; other IDs remain internal P7 evidence. The supplied ID links
+context and CREATE because P7 has no reliable cross-call session/task identity. The client-provided
 ID is not authorization or proof of source ownership; inspect the linked source
 USER/object/RT and chronology before attributing a create to it.
 

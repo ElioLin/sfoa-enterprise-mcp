@@ -22,7 +22,8 @@ Maintainer starts the services and selects the objects/USERs; do not enable all 
 
 | Case | Check |
 | --- | --- |
-| Page Layout-only object | Same RT, fields/order, required/editability, defaults, picklists/dependencies, lookup facts and managed fields before/after; zero runtime Metadata reads |
+| Page Layout-only object | Exact complete legacy response for OFF, SHADOW, resolved PL and fallback PL; no uiContext/resolution ID/effective properties; unchanged managed fields; zero runtime Metadata reads |
+| SHADOW failure isolation | Extra USER/App/snapshot/parser/draft/evaluator/Audit errors leave the complete legacy response unchanged; inspect failure evidence and usedForAgent=false in P7 |
 | Simple Dynamic Forms | Correct active page, visible required/optional candidates, readonly/FLS intersection; no LLM Metadata parsing |
 | Prompt supplies dependency | Agent extracts existing facts into draftFields, does not ask again, refines and asks only missing effective required fields |
 | Prompt lacks dependency | PENDING identifies dependsOn, Agent asks dependency first; hidden dependency/UNKNOWN is explained without guessing |
@@ -30,10 +31,10 @@ Maintainer starts the services and selects the objects/USERs; do not enable all 
 | Two USERs / Profiles | Same permitted RT/App with differing assignments produces the corresponding distinct context; no draft/identity leakage |
 | Different Apps | Explicit/default App verifies USER access; divergent unspecified Apps produce APP_CONTEXT_REQUIRED and PL fallback |
 | Missing/stale/failed snapshot | Missing/invalid falls back; old usable snapshot warns; failed Admin refresh retains the previous data |
-| Unsupported/custom UI | Custom New, Small/Medium, inherited pages and unsupported rules are reported; no guessed Dynamic Forms form |
+| Unsupported/custom UI | Custom New, Small/Medium, inherited pages and unsupported rules are reported in Audit; fallback Agent output stays exact legacy |
 | Bounded dialog | At most three refinements; stable dependencies/limit stop the loop with current resolved facts and unresolved evidence |
 | Managed Lookup fallback | Explicit user value wins, required absent asks once with default choice, optional absent omits, UPDATE never defaults |
-| Context→CREATE | Pass latest opaque ID; source and DML audit match USER/object/RT/time; absent ID is NOT_PROVIDED and DML still works |
+| Context→CREATE | Pass latest opaque ID only when supplied with enforced Dynamic/MIXED uiContext; source and DML audit match USER/object/RT/time; legacy has no ID and DML still works (NOT_PROVIDED) |
 
 ## Record and diagnose
 

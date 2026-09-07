@@ -32,8 +32,10 @@ export class EffectiveRecordUiContextResolver {
       optionalCandidateCount: 0, cache: 'BYPASS', metadataApiCallCount: 0, additionalUserApiCallCount: 0,
       ...(this.options.requestContextError ? { configurationWarning: this.options.requestContextError } : {}),
     };
-    const audit = (): void => { try { this.options.audit({ ...evidence, durationMs: Math.round(performance.now() - started) }); } catch { /* P7 is observational. */ } };
-    if (mode === 'OFF') { audit(); return { ...baseline, uiContextResolutionId: resolutionId }; }
+    const audit = (): void => { try {
+      void Promise.resolve(this.options.audit({ ...evidence, durationMs: Math.round(performance.now() - started) })).catch(() => undefined);
+    } catch { /* P7 is observational. */ } };
+    if (mode === 'OFF') { audit(); return baseline; }
     const ui: UiContext = {
       resolutionId, mode, formSource: 'UNRESOLVED', resolutionStatus: 'UNRESOLVED',
       app: this.options.appDeveloperName ?? policy?.defaultApp ?? this.options.integrationDefaultApp ?? null,
@@ -43,34 +45,43 @@ export class EffectiveRecordUiContextResolver {
     };
     let snapshotRecord: UiSnapshotRecord | undefined;
     let failureLayer = 'USER_CONTEXT_ERROR';
-    let result = { ...baseline, uiContextResolutionId: resolutionId };
+    let result = baseline;
+    // One budget across all extra reads; do not start another read after it expires.
+    const readDeadline = started + 3000;
     try {
+      failureLayer = 'USER_INPUT_ERROR';
+      const validatedDraft = validateDraft(input.draftFields ?? {}, objectInfo);
+      failureLayer = 'USER_CONTEXT_ERROR';
       if (ui.app && !/^[A-Za-z][A-Za-z0-9_]{0,254}$/u.test(ui.app)) {
         ui.app = null; throw new Error('APP_CONTEXT_INVALID');
       }
       if (this.options.requestContextError) throw new Error(this.options.requestContextError);
       if (ui.formFactor !== 'Large') throw new Error('UNSUPPORTED_FORM_FACTOR');
-      evidence.additionalUserApiCallCount = 1;
-      const user = await boundedRead(connection.soap.getUserInfo());
+      const user = await boundedRead(() => {
+        evidence.additionalUserApiCallCount = 1;
+        return connection.soap.getUserInfo();
+      }, readDeadline);
       evidence.salesforceUserId = user.userId;
       evidence.profileId = user.profileId;
       if (!user.organizationId || !user.userId || !user.profileId) throw new Error('USER_CONTEXT_ERROR');
       failureLayer = 'SNAPSHOT_UNAVAILABLE';
-      snapshotRecord = await boundedRead(this.options.loadSnapshot(user.organizationId, objectInfo.apiName));
+      snapshotRecord = await boundedRead(() => this.options.loadSnapshot(user.organizationId, objectInfo.apiName), readDeadline);
       evidence.cache = snapshotRecord?.snapshot ? 'HIT' : 'MISS';
       if (!snapshotRecord?.snapshot) throw new Error('SNAPSHOT_MISSING');
+      evidence.snapshot = { id: snapshotRecord.id, hash: snapshotRecord.hash, lastModified: snapshotRecord.lastModified,
+        refreshedAt: snapshotRecord.refreshedAt, status: snapshotRecord.status };
       failureLayer = 'PARSER_ERROR';
       const snapshot = uiSnapshotSchema.parse(snapshotRecord.snapshot);
       if (!sameSalesforceId(snapshot.organizationId, user.organizationId) || snapshot.objectApiName !== objectInfo.apiName) throw new Error('SNAPSHOT_SCOPE_MISMATCH');
-      evidence.snapshot = { id: snapshotRecord.id, hash: snapshotRecord.hash, lastModified: snapshotRecord.lastModified,
-        refreshedAt: snapshotRecord.refreshedAt, status: snapshotRecord.status };
       if (!snapshotRecord.refreshedAt || Date.now() - Date.parse(snapshotRecord.refreshedAt) > UI_SNAPSHOT_TTL_MS || snapshotRecord.status !== 'READY') {
         evidence.snapshotWarning = 'SNAPSHOT_STALE';
       }
-      evidence.additionalUserApiCallCount = 2;
       failureLayer = 'APP_CONTEXT_ERROR';
-      const apps = appsSchema.parse(await boundedRead(connection.request({ method: 'GET',
-        url: `/services/data/v${connection.getApiVersion()}/ui-api/apps?formFactor=${ui.formFactor}` })));
+      const apps = appsSchema.parse(await boundedRead(() => {
+        evidence.additionalUserApiCallCount = 2;
+        return connection.request({ method: 'GET',
+          url: `/services/data/v${connection.getApiVersion()}/ui-api/apps?formFactor=${ui.formFactor}` });
+      }, readDeadline));
       const active = resolveActivePage(snapshot, { profileId: user.profileId, recordTypeId: facts.recordType.recordTypeId,
         formFactor: ui.formFactor, apps: apps.apps, ...(ui.app ? { appDeveloperName: ui.app } : {}) });
       Object.assign(ui, active);
@@ -84,7 +95,7 @@ export class EffectiveRecordUiContextResolver {
         if (!page) throw new Error('SNAPSHOT_MISSING');
         const draftFields = { ...Object.fromEntries(Object.entries(facts.defaults).filter(([_name, entry]) => entry.value !== undefined
           && (entry.value === null || ['string', 'number', 'boolean'].includes(typeof entry.value))).map(([name, entry]) => [name, entry.value])),
-          ...validateDraft(input.draftFields ?? {}, objectInfo) };
+          ...validatedDraft };
         const computed = effectiveFields(page, objectInfo, facts, {
           draftFields, fieldTypes: Object.fromEntries(Object.values(objectInfo.fields).map((field) => [field.apiName, field.dataType])),
           user: { Id: user.userId, ProfileId: user.profileId, 'Profile.Id': user.profileId,
@@ -93,7 +104,7 @@ export class EffectiveRecordUiContextResolver {
         }, this.options.managedFields ?? []);
         ui.coverage = computed.partial ? 'PARTIAL' : 'COMPLETE';
         Object.assign(evidence, computed.evidence);
-        if (mode === 'ENFORCE') {
+        if (mode === 'ENFORCE' && ['DYNAMIC_FORMS', 'MIXED'].includes(ui.formSource)) {
           result = { ...baseline, fields: computed.fields, uiContext: ui, uiContextResolutionId: resolutionId,
             coverage: baseline.coverage ? { ...baseline.coverage, dynamicFormsEvaluated: true,
               totalVisibleFields: computed.fields.filter((field) => field.visibilityState === 'VISIBLE').length,
@@ -110,23 +121,29 @@ export class EffectiveRecordUiContextResolver {
         }
       }
     } catch (error) {
-      if (error instanceof ContextRuntimeError) throw error;
+      const userInputError = failureLayer === 'USER_INPUT_ERROR' && error instanceof ContextRuntimeError;
+      evidence.failureKind = userInputError ? 'USER_INPUT_ERROR' : 'DYNAMIC_RESOLUTION_FAILURE';
       ui.formSource = 'UNRESOLVED'; ui.resolutionStatus = 'UNRESOLVED'; ui.fallbackUsed = true;
       const message = error instanceof Error ? error.message : '';
       ui.fallbackReason = /^[A-Z0-9_]{1,128}$/u.test(message) ? message : failureLayer;
+      if (mode === 'ENFORCE' && userInputError) {
+        Object.assign(evidence, ui); audit(); throw error;
+      }
     }
-    if (mode === 'ENFORCE' && ui.fallbackUsed) result = { ...baseline, uiContext: ui, uiContextResolutionId: resolutionId };
+    if (ui.fallbackUsed) { result = baseline; evidence.usedForAgent = false; }
     Object.assign(evidence, ui, { dynamicResolutionStatus: ui.resolutionStatus, fallbackTo: ui.fallbackUsed ? 'PAGE_LAYOUT' : null });
     audit();
     return result;
   }
 }
 
-async function boundedRead<T>(operation: PromiseLike<T>): Promise<T> {
+async function boundedRead<T>(operation: () => PromiseLike<T>, deadline: number): Promise<T> {
+  const remainingMs = deadline - performance.now();
+  if (remainingMs <= 0) throw new Error('UI_CONTEXT_READ_TIMEOUT');
   let timer: NodeJS.Timeout | undefined;
   try {
-    return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('UI_CONTEXT_READ_TIMEOUT')), 3000);
+    return await Promise.race([operation(), new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('UI_CONTEXT_READ_TIMEOUT')), remainingMs);
     })]);
   } finally { clearTimeout(timer); }
 }

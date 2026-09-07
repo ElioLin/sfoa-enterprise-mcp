@@ -14,11 +14,16 @@ describe('P7-07 Audit Trace Workbench', () => {
     const fetchMock = asFetchMock(() => jsonResponse({ ...base.payloadMetadata[0], payloadType: 'UI_CONTEXT', safePayload: '{"fields":[{"apiName":"Name","visibilityState":"VISIBLE"}]}' }));
     vi.stubGlobal('fetch', fetchMock);
     renderAdmin(<AuditTraceWorkbench trace={{ ...base,
-      events: [{ ...base.events[0]!, eventType: 'UI_CONTEXT_RESOLVED', safeSummary: { mode: 'ENFORCE', page: 'Create_Page', hiddenCount: 2, resolutionId: 'resolution-fixture' } }],
+      events: [{ ...base.events[0]!, eventType: 'UI_CONTEXT_RESOLVED', safeSummary: { mode: 'ENFORCE', page: 'Create_Page', hiddenCount: 2, resolutionId: 'resolution-fixture',
+        usedForAgent: false, snapshotWarning: 'SNAPSHOT_STALE', pageLayoutId: '00h000000000001AAA' } }],
       payloadMetadata: [{ ...base.payloadMetadata[0]!, payloadType: 'UI_CONTEXT' }],
     }} />);
     expect(screen.getByText('页面上下文 / UI Context')).toBeInTheDocument();
     expect(screen.getByText('Create_Page')).toBeInTheDocument();
+    expect(screen.getByText('用于 Agent 有效上下文')).toBeInTheDocument();
+    expect(screen.getByText('false')).toBeInTheDocument();
+    expect(screen.getByText('SNAPSHOT_STALE')).toBeInTheDocument();
+    expect(screen.getByText('00h000000000001AAA')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText('字段依据（按需加载）'));
     fireEvent.click(screen.getByRole('button', { name: '查看字段 / Required 来源 / Visibility / Dependency / Section' }));
