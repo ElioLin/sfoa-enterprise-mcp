@@ -84,7 +84,7 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   requestAuditContext?: RequestAuditContextController;
   effectiveUi?: Omit<EffectiveUiOptions, 'audit' | 'managedFields'>;
   auditIdentity: Readonly<{
-    identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
+    identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER';
     identityCredentialId?: string;
   }>;
   auditClientMetadata?: Readonly<{

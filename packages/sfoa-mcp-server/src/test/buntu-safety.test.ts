@@ -665,13 +665,13 @@ test('concurrent mixed-provider authentication never crosses provider boundaries
 
   for (let round = 0; round < ROUNDS; round += 1) {
     const [userBound, internal, buntu] = await Promise.all([
-      provider.authenticate({ authorization: `Bearer ${USER_BOUND_TOKEN}` }, 'X-Platform-User-Id', `crossover-${round}-ub`),
+      provider.authenticate({ authorization: `Bearer ${USER_BOUND_TOKEN}` }, ['X-Platform-User-Id'], `crossover-${round}-ub`),
       provider.authenticate(
         { authorization: `Bearer ${TEST_CLIENT_TOKEN}`, 'x-platform-user-id': USER_A },
-        'X-Platform-User-Id',
+        ['X-Platform-User-Id'],
         `crossover-${round}-internal`,
       ),
-      provider.authenticate({ authorization: `Bearer ${BUNTU_TOKEN_B}` }, 'X-Platform-User-Id', `crossover-${round}-buntu`),
+      provider.authenticate({ authorization: `Bearer ${BUNTU_TOKEN_B}` }, ['X-Platform-User-Id'], `crossover-${round}-buntu`),
     ]);
 
     assert.equal(userBound.identitySource, 'USER_BOUND_TOKEN');

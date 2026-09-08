@@ -31,7 +31,7 @@ test('unified identity provider preserves internal Bearer plus trusted-header co
   const principal = await provider.authenticate({
     authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
     'x-platform-user-id': 'platform-a',
-  }, 'X-Platform-User-Id', 'legacy-correlation');
+  }, ['X-Platform-User-Id'], 'legacy-correlation');
 
   assert.deepEqual(principal, {
     clientId: 'internal-bearer',
@@ -51,12 +51,12 @@ test('USER_BOUND credentials derive A/B identities without a platform header and
 
   const principalA = await provider.authenticate(
     { authorization: `Bearer ${TOKEN_A}` },
-    'X-Platform-User-Id',
+    ['X-Platform-User-Id'],
     'user-bound-a',
   );
   const principalB = await provider.authenticate(
     { authorization: `Bearer ${TOKEN_B}` },
-    'X-Platform-User-Id',
+    ['X-Platform-User-Id'],
     'user-bound-b',
   );
   assert.equal(principalA.platformUserId, 'platform-a');
@@ -69,7 +69,7 @@ test('USER_BOUND credentials derive A/B identities without a platform header and
     provider.authenticate({
       authorization: `Bearer ${TOKEN_A}`,
       'x-platform-user-id': 'platform-b',
-    }, 'X-Platform-User-Id', 'forged-header'),
+    }, ['X-Platform-User-Id'], 'forged-header'),
     (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_IDENTITY_CONTEXT_MISMATCH',
   );
   assert.equal(fixture.lastUsedIds.length, 2, 'a denied header mismatch must not update last_used_at');
@@ -151,7 +151,7 @@ test('deterministic provider routing is mutually exclusive across all three prov
   // 2. Exact MCP_CLIENT_TOKEN must never reach the Buntu provider.
   const internal = await provider.authenticate(
     { authorization: `Bearer ${TEST_CLIENT_TOKEN}`, 'x-platform-user-id': 'platform-a' },
-    'X-Platform-User-Id',
+    ['X-Platform-User-Id'],
     'internal-routing',
   );
   assert.equal(internal.identitySource, 'INTERNAL_SERVICE_HEADER');
@@ -303,6 +303,177 @@ test('a Buntu success=false business rejection is audited with upstreamSuccess=f
   assert.equal(responseSummary?.upstreamSuccess, false);
 });
 
+const PLATFORM_IDENTITY_HEADERS = Object.freeze(['X-Platform-User-Id', 'X-WeCom-User-Id']);
+
+test('WECOM_HEADER: WeCom identity header authenticates to WECOM_HEADER and reuses the existing route id', async () => {
+  const fixture = new MutableIdentityFixture();
+  const principal = await fixture.provider().authenticate({
+    authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+    'x-wecom-user-id': 'platform-a',
+  }, PLATFORM_IDENTITY_HEADERS, 'wecom-a');
+
+  assert.deepEqual(principal, {
+    clientId: 'internal-bearer',
+    identitySource: 'WECOM_HEADER',
+    platformUserId: 'platform-a',
+    correlationId: 'wecom-a',
+  });
+});
+
+test('WECOM_HEADER: the primary internal header still maps to INTERNAL_SERVICE_HEADER when an alias is configured', async () => {
+  const fixture = new MutableIdentityFixture();
+  const principal = await fixture.provider().authenticate({
+    authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+    'x-platform-user-id': 'platform-a',
+  }, PLATFORM_IDENTITY_HEADERS, 'internal-with-wecom-aliased');
+  assert.equal(principal.identitySource, 'INTERNAL_SERVICE_HEADER');
+  assert.equal(principal.platformUserId, 'platform-a');
+});
+
+test('WECOM_HEADER is not a credential: an invalid Bearer is denied even with a valid WeCom header', async () => {
+  const fixture = new MutableIdentityFixture();
+  const provider = fixture.provider();
+  await assert.rejects(
+    provider.authenticate({ 'x-wecom-user-id': 'platform-a' }, PLATFORM_IDENTITY_HEADERS, 'wecom-no-bearer'),
+    hasRemoteCode('MCP_CLIENT_AUTH_INVALID'),
+  );
+  await assert.rejects(
+    provider.authenticate({ authorization: 'Bearer invalid-token', 'x-wecom-user-id': 'platform-a' }, PLATFORM_IDENTITY_HEADERS, 'wecom-bad-bearer'),
+    hasRemoteCode('MCP_CLIENT_AUTH_INVALID'),
+  );
+});
+
+test('WECOM_HEADER: multiple platform identity headers are denied even when the values match', async () => {
+  const fixture = new MutableIdentityFixture();
+  const provider = fixture.provider();
+  const conflictHeaders = [
+    Object.freeze({ 'x-platform-user-id': 'user-a', 'x-wecom-user-id': 'user-b' }),
+    Object.freeze({ 'x-platform-user-id': 'user-a', 'x-wecom-user-id': 'user-a' }),
+  ];
+  for (const headers of conflictHeaders) {
+    await assert.rejects(
+      provider.authenticate(
+        { authorization: `Bearer ${TEST_CLIENT_TOKEN}`, ...headers },
+        PLATFORM_IDENTITY_HEADERS,
+        'wecom-conflict',
+      ),
+      (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_PLATFORM_IDENTITY_CONFLICT',
+    );
+  }
+});
+
+test('WECOM_HEADER: a duplicated single header is ambiguous and denied', async () => {
+  const fixture = new MutableIdentityFixture();
+  await assert.rejects(
+    fixture.provider().authenticate({
+      authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+      'x-wecom-user-id': ['platform-a', 'platform-a'],
+    }, PLATFORM_IDENTITY_HEADERS, 'wecom-ambiguous'),
+    (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_PLATFORM_IDENTITY_CONFLICT',
+  );
+});
+
+test('WECOM_HEADER header names are matched case-insensitively', async () => {
+  const fixture = new MutableIdentityFixture();
+  const principal = await fixture.provider().authenticate({
+    authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+    'X-WECOM-USER-ID': 'platform-a',
+  }, PLATFORM_IDENTITY_HEADERS, 'wecom-case');
+  assert.equal(principal.identitySource, 'WECOM_HEADER');
+  assert.equal(principal.platformUserId, 'platform-a');
+});
+
+test('WECOM_HEADER: a header-based request still requires exactly one platform identity header', async () => {
+  const fixture = new MutableIdentityFixture();
+  await assert.rejects(
+    fixture.provider().authenticate(
+      { authorization: `Bearer ${TEST_CLIENT_TOKEN}` },
+      PLATFORM_IDENTITY_HEADERS,
+      'wecom-missing',
+    ),
+    (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_PLATFORM_USER_REQUIRED',
+  );
+});
+
+test('WECOM_HEADER: empty/whitespace values carry no identity; overlong or control-character values are rejected', async () => {
+  const fixture = new MutableIdentityFixture();
+  const provider = fixture.provider();
+  for (const blank of ['', '   ']) {
+    await assert.rejects(
+      provider.authenticate(
+        { authorization: `Bearer ${TEST_CLIENT_TOKEN}`, 'x-wecom-user-id': blank },
+        PLATFORM_IDENTITY_HEADERS,
+        'wecom-blank',
+      ),
+      (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_PLATFORM_USER_REQUIRED',
+    );
+  }
+  for (const invalid of ['x'.repeat(129), 'platform' + String.fromCharCode(10) + 'user']) {
+    await assert.rejects(
+      provider.authenticate(
+        { authorization: `Bearer ${TEST_CLIENT_TOKEN}`, 'x-wecom-user-id': invalid },
+        PLATFORM_IDENTITY_HEADERS,
+        'wecom-invalid-value',
+      ),
+      (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_REQUEST_SCOPE_FAILED',
+    );
+  }
+});
+
+test('USER_BOUND tokens remain authoritative: a matching WeCom header is optional context; a forged one is denied', async () => {
+  const fixture = new MutableIdentityFixture();
+  fixture.putRoute(route('1', 'platform-a', true));
+  fixture.putCredential(credential('11', '1', TOKEN_A));
+  const provider = fixture.provider();
+
+  const matching = await provider.authenticate(
+    { authorization: `Bearer ${TOKEN_A}`, 'x-wecom-user-id': 'platform-a' },
+    PLATFORM_IDENTITY_HEADERS,
+    'ub-wecom-match',
+  );
+  assert.equal(matching.identitySource, 'USER_BOUND_TOKEN');
+  assert.equal(matching.platformUserId, 'platform-a');
+
+  await assert.rejects(
+    provider.authenticate(
+      { authorization: `Bearer ${TOKEN_A}`, 'x-wecom-user-id': 'platform-b' },
+      PLATFORM_IDENTITY_HEADERS,
+      'ub-wecom-forge',
+    ),
+    (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_IDENTITY_CONTEXT_MISMATCH',
+  );
+});
+
+test('BUNTU tokens remain authoritative: a forged WeCom header cannot override the validated identity', async () => {
+  const fixture = new MutableIdentityFixture();
+  fixture.putRoute(route('1', 'platform-a', true));
+  fixture.validator.result = Object.freeze({
+    valid: true,
+    userId: 'platform-a',
+    httpStatus: 200,
+    durationMs: 5,
+    validatedAt: NOW,
+  });
+  const provider = fixture.provider({ includeBuntu: true });
+
+  const matching = await provider.authenticate(
+    { authorization: `Bearer ${BUNTU_TOKEN}`, 'x-wecom-user-id': 'platform-a' },
+    PLATFORM_IDENTITY_HEADERS,
+    'buntu-wecom-match',
+  );
+  assert.equal(matching.identitySource, 'BUNTU_TOKEN');
+  assert.equal(matching.platformUserId, 'platform-a');
+
+  await assert.rejects(
+    provider.authenticate(
+      { authorization: `Bearer ${BUNTU_TOKEN}`, 'x-wecom-user-id': 'platform-b' },
+      PLATFORM_IDENTITY_HEADERS,
+      'buntu-wecom-forge',
+    ),
+    (error: unknown) => error instanceof IdentityRuntimeError && error.code === 'MCP_IDENTITY_CONTEXT_MISMATCH',
+  );
+});
+
 class MutableIdentityFixture {
   private readonly routes = new Map<string, IdentityRouteRecord>();
   private readonly credentials = new Map<string, IdentityCredentialRecord>();
@@ -382,7 +553,7 @@ class MutableIdentityFixture {
 }
 
 function authenticate(provider: UnifiedIdentityProvider, token: string) {
-  return provider.authenticate({ authorization: `Bearer ${token}` }, 'X-Platform-User-Id', 'dynamic-request');
+  return provider.authenticate({ authorization: `Bearer ${token}` }, ['X-Platform-User-Id'], 'dynamic-request');
 }
 
 class StubBuntuTokenValidator implements BuntuTokenValidator {

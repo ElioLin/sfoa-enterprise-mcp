@@ -173,7 +173,7 @@ export type AuditWrite = Readonly<{
   platformUserId?: string;
   salesforceUsername?: string;
   executionRole?: 'USER' | 'DIAGNOSTIC';
-  identitySource?: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
+  identitySource?: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER';
   identityCredentialId?: string;
   toolName?: string;
   operation?: string;

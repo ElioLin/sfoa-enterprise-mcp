@@ -288,6 +288,128 @@ test('HTTP runtime accepts USER_BOUND A/B without a platform header and applies 
   }
 });
 
+test('P8-05 HTTP: WeCom X-WeCom-User-Id channel authenticates, audits WECOM_HEADER, and stays fail-closed', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-wecom-http-'));
+  const connectionFactory = new RecordingConnectionFactory();
+  const logger = new RecordingLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, connectionFactory, logger);
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({
+      platformUserHeaderAliases: Object.freeze(['X-WeCom-User-Id']),
+      platformIdentityHeaders: Object.freeze(['X-Platform-User-Id', 'X-WeCom-User-Id']),
+    }),
+    identityRuntime,
+  });
+  const clients: Client[] = [];
+
+  try {
+    // X-WeCom-User-Id is identity context, not a credential: without a valid
+    // Bearer the request is still rejected before any identity resolution.
+    const noBearer = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: { accept: 'application/json, text/event-stream', 'content-type': 'application/json', 'x-wecom-user-id': TEST_PLATFORM_USER_A },
+      body: initializeBody(),
+    });
+    assert.equal(noBearer.status, 401);
+    assert.equal(await responseErrorCode(noBearer), 'MCP_CLIENT_AUTH_REQUIRED');
+
+    const invalidBearer = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: wecomRequestHeaders(TEST_PLATFORM_USER_A, 'not-a-real-token'),
+      body: initializeBody(),
+    });
+    assert.equal(invalidBearer.status, 401);
+    assert.equal(await responseErrorCode(invalidBearer), 'MCP_CLIENT_AUTH_INVALID');
+
+    // A valid Bearer still needs exactly one platform identity header.
+    const missingIdentity = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: mcpHeaders(undefined),
+      body: initializeBody(),
+    });
+    assert.equal(missingIdentity.status, 401);
+    assert.equal(await responseErrorCode(missingIdentity), 'MCP_PLATFORM_USER_REQUIRED');
+
+    // WeCom success resolves to the existing env identity route.
+    assert.equal((await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: wecomRequestHeaders(TEST_PLATFORM_USER_A),
+      body: initializeBody(),
+    })).status, 200);
+
+    // Header names are matched case-insensitively at the HTTP boundary.
+    const uppercased = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+        'X-WECOM-USER-ID': TEST_PLATFORM_USER_A,
+      },
+      body: initializeBody(),
+    });
+    assert.equal(uppercased.status, 200);
+
+    // Fail closed: two different identity headers are denied even with a valid
+    // credential (audit attribution would be ambiguous).
+    for (const second of [TEST_PLATFORM_USER_B, TEST_PLATFORM_USER_A]) {
+      const conflict = await fetch(server.mcpUrl, {
+        method: 'POST',
+        headers: {
+          ...mcpHeaders(TEST_PLATFORM_USER_A),
+          'x-wecom-user-id': second,
+        },
+        body: initializeBody(),
+      });
+      assert.equal(conflict.status, 403);
+      assert.equal(await responseErrorCode(conflict), 'MCP_PLATFORM_IDENTITY_CONFLICT');
+    }
+    assert.equal(connectionFactory.creations.length, 0, 'conflict denials must not create Salesforce Connections');
+
+    // Unknown WeCom user: the identity route is not found → deny.
+    const unknownRoute = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: wecomRequestHeaders('unknown-wecom-user'),
+      body: initializeBody(),
+    });
+    assert.equal(unknownRoute.status, 403);
+    assert.equal(await responseErrorCode(unknownRoute), 'MCP_IDENTITY_ROUTE_NOT_FOUND');
+
+    // Host governance still fails closed with the alias channel configured.
+    const badHost = await postWithHost(server.mcpUrl, 'evil.example', initializeBody());
+    assert.equal(badHost.status, 403);
+    assert.equal(responseErrorCodeFromBody(badHost.body), 'MCP_HOST_NOT_ALLOWED');
+
+    // End-to-end tool execution under the WeCom channel reuses the existing
+    // identity route and audits the WECOM_HEADER identity source.
+    const wecomClient = await connectWeComClient(server, TEST_PLATFORM_USER_A, 'wecom-http');
+    clients.push(wecomClient);
+    const username = await withStage('WeCom get_username', wecomClient.callTool({ name: 'get_username', arguments: {} }));
+    assert.match(toolResultText(username), new RegExp(TEST_USERNAME_A.replace('.', '\\.')));
+
+    assert.equal(
+      logger.events.some((event) => event.identitySource === 'WECOM_HEADER' && event.platformUserId === TEST_PLATFORM_USER_A),
+      true,
+      'the WeCom tool call must be audited with identitySource = WECOM_HEADER',
+    );
+    assert.equal(
+      logger.auditSnapshots.some((ctx) => ctx.identitySource === 'WECOM_HEADER' && ctx.platformUserId === TEST_PLATFORM_USER_A),
+      true,
+      'the durable audit snapshot must carry identitySource = WECOM_HEADER',
+    );
+
+    // Durable audit records never expose the Bearer credential or any secret.
+    const serializedEvents = JSON.stringify(logger.events);
+    const serializedAudit = JSON.stringify(logger.auditSnapshots);
+    assert.equal(serializedEvents.includes(TEST_CLIENT_TOKEN), false, 'audit events must not log the Bearer credential');
+    assert.equal(serializedAudit.includes(TEST_CLIENT_TOKEN), false, 'audit snapshots must not log the Bearer credential');
+  } finally {
+    await Promise.allSettled(clients.map((client) => client.close()));
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
 test('MCP_REQUEST_INVALID: non-POST method probes are not audited; malformed MCP requests are audited self-describing', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-transport-invalid-'));
   const logger = new RecordingLogger();
@@ -400,6 +522,30 @@ async function connectUserBoundClient(server: RemoteMcpServer, token: string, na
   const client = new Client({ name, version: '1.0.0' });
   await client.connect(transport);
   return client;
+}
+
+async function connectWeComClient(server: RemoteMcpServer, wecomUserId: string, name: string): Promise<Client> {
+  const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
+    requestInit: {
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+        'x-wecom-user-id': wecomUserId,
+      },
+    },
+  });
+  const client = new Client({ name, version: '1.0.0' });
+  await client.connect(transport);
+  return client;
+}
+
+/** Raw WeCom transport headers: MCP_CLIENT_TOKEN credential plus X-WeCom-User-Id identity context. */
+function wecomRequestHeaders(wecomUserId: string, token = TEST_CLIENT_TOKEN): Record<string, string> {
+  return {
+    accept: 'application/json, text/event-stream',
+    'content-type': 'application/json',
+    authorization: `Bearer ${token}`,
+    'x-wecom-user-id': wecomUserId,
+  };
 }
 
 function rawUserBoundInitialize(server: RemoteMcpServer, token: string): Promise<Response> {

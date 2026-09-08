@@ -237,11 +237,17 @@ function resolveIdentitySources(options: StartRemoteMcpServerOptions): readonly 
   if (options.identityProvider) {
     const sources: string[] = ['USER_BOUND_TOKEN', 'INTERNAL_SERVICE_HEADER'];
     if (options.config.buntuIdentity.enabled) sources.push('BUNTU_TOKEN');
+    if (hasWecomIdentityHeaderAlias(options.config)) sources.push('WECOM_HEADER');
     return Object.freeze(sources);
   }
   return Object.freeze(
     options.config.authMode === 'disabled' ? ['DEVELOPMENT_LOOPBACK'] : ['INTERNAL_SERVICE_HEADER'],
   );
+}
+
+/** True when `X-WeCom-User-Id` is configured as a platform identity header alias. */
+function hasWecomIdentityHeaderAlias(config: RemoteRuntimeConfig): boolean {
+  return config.platformIdentityHeaders.some((name) => name.toLocaleLowerCase('en-US') === 'x-wecom-user-id');
 }
 
 type HandleRemoteRequestOptions = Readonly<{
@@ -514,7 +520,7 @@ async function executeMcpPost(
 
   const principal = await options.identityProvider.authenticate(
     headers,
-    options.config.platformUserHeader,
+    options.config.platformIdentityHeaders,
     observation.correlationId,
   );
   observation.clientId = principal.clientId;
@@ -844,6 +850,7 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
     case 'MCP_IDENTITY_ROUTE_NOT_FOUND':
     case 'MCP_IDENTITY_CONTEXT_MISMATCH':
     case 'MCP_IDENTITY_ROUTE_DISABLED':
+    case 'MCP_PLATFORM_IDENTITY_CONFLICT':
     case 'MCP_CONNECTION_ROLE_NOT_AVAILABLE':
     case 'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED':
     case 'MCP_HOST_NOT_ALLOWED':
@@ -880,6 +887,7 @@ function isBlocked(code: string): boolean {
     'MCP_PLATFORM_USER_REQUIRED',
     'MCP_IDENTITY_ROUTE_NOT_FOUND',
     'MCP_IDENTITY_CONTEXT_MISMATCH',
+    'MCP_PLATFORM_IDENTITY_CONFLICT',
     'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
     'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',
     'MCP_HOST_NOT_ALLOWED',

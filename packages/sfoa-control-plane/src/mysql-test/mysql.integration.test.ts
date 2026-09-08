@@ -112,6 +112,7 @@ if (!setup) {
       '010_managed_platform_user_lookup_fallback',
       '011_managed_fallback_create_only',
       '012_p8_ui_snapshot',
+      '013_p8_05_wecom_identity_channel',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
@@ -132,6 +133,7 @@ if (!setup) {
         '010_managed_platform_user_lookup_fallback',
       '011_managed_fallback_create_only',
       '012_p8_ui_snapshot',
+      '013_p8_05_wecom_identity_channel',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -148,7 +150,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '012_p8_ui_snapshot');
+      assert.equal(migrations.at(-1)?.version, '013_p8_05_wecom_identity_channel');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);

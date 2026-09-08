@@ -211,6 +211,8 @@ export function createTestRemoteConfig(
     authMode: 'internal_bearer',
     clientToken: TEST_CLIENT_TOKEN,
     platformUserHeader: 'X-Platform-User-Id',
+    platformUserHeaderAliases: Object.freeze([]),
+    platformIdentityHeaders: Object.freeze(['X-Platform-User-Id']),
     maxBodyBytes: 1_048_576,
     requestTimeoutMs: 2_000,
     toolTimeoutMs: 1_000,

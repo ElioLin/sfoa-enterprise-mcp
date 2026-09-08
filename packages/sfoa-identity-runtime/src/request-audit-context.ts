@@ -13,7 +13,7 @@ import {
 } from './request-audit-collector.js';
 
 export type RequestAuditChannel = 'MCP_HTTP' | 'MCP_STDIO';
-export type RequestAuditIdentitySource = 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN';
+export type RequestAuditIdentitySource = 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER';
 
 export type RequestAuditContext = Readonly<{
   auditId: string;

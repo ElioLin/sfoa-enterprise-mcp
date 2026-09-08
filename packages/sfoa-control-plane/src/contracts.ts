@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const controlPlaneModeSchema = z.enum(['env', 'mysql']);
 export type ControlPlaneMode = z.infer<typeof controlPlaneModeSchema>;
 
-export const IDENTITY_SOURCES = ['INTERNAL_SERVICE_HEADER', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN'] as const;
+export const IDENTITY_SOURCES = ['INTERNAL_SERVICE_HEADER', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'WECOM_HEADER'] as const;
 export type IdentitySource = (typeof IDENTITY_SOURCES)[number];
 
 export const IDENTITY_CREDENTIAL_TYPES = ['USER_BOUND'] as const;

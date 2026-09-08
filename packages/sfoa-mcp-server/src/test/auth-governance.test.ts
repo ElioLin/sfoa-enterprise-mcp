@@ -142,3 +142,94 @@ test('P2 config uses safe defaults and refuses disabled auth away from loopback'
     await rm(projectRoot, { recursive: true, force: true });
   }
 });
+
+test('P8-05 MCP_PLATFORM_USER_HEADER_ALIASES parses CSV aliases and fails fast on duplicates and illegal names', async () => {
+  const projectRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p8-05-config-'));
+  try {
+    const keyPath = path.join(projectRoot, 'test.pem');
+    await writeFile(keyPath, 'test-only-key', 'utf8');
+    const baseEnvironment: NodeJS.ProcessEnv = {
+      SFOA_INSTANCE_URL: 'https://example.test',
+      SALESFORCE_USERNAME: 'user-a@example.test',
+      SECOND_TEST_USER: 'user-b@example.test',
+      CONNECTED_APP_CLIENT_ID: 'test-client',
+      JWT_PRIVATE_KEY_PATH: keyPath,
+      MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN,
+      SFOA_LIGHTNING_BASE_URL: '',
+    };
+
+    // Unset / empty / blank-only all mean "no aliases".
+    const noAlias = await loadRemoteRuntimeConfig(projectRoot, baseEnvironment);
+    assert.deepEqual(noAlias.platformUserHeader, 'X-Platform-User-Id');
+    assert.deepEqual(noAlias.platformUserHeaderAliases, []);
+    assert.deepEqual(noAlias.platformIdentityHeaders, ['X-Platform-User-Id']);
+    for (const blank of ['', '   ']) {
+      const blankConfig = await loadRemoteRuntimeConfig(projectRoot, {
+        ...baseEnvironment,
+        MCP_PLATFORM_USER_HEADER_ALIASES: blank,
+      });
+      assert.deepEqual(blankConfig.platformUserHeaderAliases, []);
+      assert.deepEqual(blankConfig.platformIdentityHeaders, ['X-Platform-User-Id']);
+    }
+
+    // A single WeCom alias widens the identity-header allowlist in order.
+    const wecom = await loadRemoteRuntimeConfig(projectRoot, {
+      ...baseEnvironment,
+      MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id',
+    });
+    assert.deepEqual(wecom.platformUserHeaderAliases, ['X-WeCom-User-Id']);
+    assert.deepEqual(wecom.platformIdentityHeaders, ['X-Platform-User-Id', 'X-WeCom-User-Id']);
+
+    // CSV aliases are trimmed, drop-empty, and preserve declaration order.
+    const multiple = await loadRemoteRuntimeConfig(projectRoot, {
+      ...baseEnvironment,
+      MCP_PLATFORM_USER_HEADER_ALIASES: ' X-WeCom-User-Id ,, X-Another-Platform-User ',
+    });
+    assert.deepEqual(multiple.platformUserHeaderAliases, ['X-WeCom-User-Id', 'X-Another-Platform-User']);
+    assert.deepEqual(multiple.platformIdentityHeaders, [
+      'X-Platform-User-Id',
+      'X-WeCom-User-Id',
+      'X-Another-Platform-User',
+    ]);
+
+    // An alias may not repeat an earlier alias (case-insensitive).
+    await assert.rejects(
+      loadRemoteRuntimeConfig(projectRoot, {
+        ...baseEnvironment,
+        MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id,x-wecom-user-id',
+      }),
+      (error: unknown) =>
+        error instanceof RemoteRuntimeError && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID',
+    );
+
+    // An alias may not repeat the primary header (case-insensitive).
+    await assert.rejects(
+      loadRemoteRuntimeConfig(projectRoot, {
+        ...baseEnvironment,
+        MCP_PLATFORM_USER_HEADER_ALIASES: 'x-platform-user-id',
+      }),
+      (error: unknown) =>
+        error instanceof RemoteRuntimeError && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID',
+    );
+
+    // Illegal HTTP header names (interior whitespace / control characters) fail
+    // fast. Interior characters are used because the environment is trimmed at
+    // the ends before alias parsing, which would silently accept a trailing one.
+    for (const illegal of [
+      'X WeCom User Id',
+      'X-WeCom' + String.fromCharCode(10) + 'User-Id',
+      'X-WeCom' + String.fromCharCode(0) + 'User-Id',
+    ]) {
+      await assert.rejects(
+        loadRemoteRuntimeConfig(projectRoot, {
+          ...baseEnvironment,
+          MCP_PLATFORM_USER_HEADER_ALIASES: illegal,
+        }),
+        (error: unknown) =>
+          error instanceof RemoteRuntimeError && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID',
+      );
+    }
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});

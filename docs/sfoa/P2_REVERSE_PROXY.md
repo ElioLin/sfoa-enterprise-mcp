@@ -19,6 +19,7 @@ The Node runtime remains stateless. The proxy must not create Salesforce credent
 | `Host` | Preserve the externally accepted host or set one fixed deployment host | Exact-match against `MCP_ALLOWED_HOSTS`; reject before JWT |
 | `Authorization` | Preserve end-to-end; never log it | Validated as `Bearer <MCP_CLIENT_TOKEN>` before accepting platform identity |
 | `X-Platform-User-Id` (or configured name) | Preserve only from the controlled authenticated MCP client/gateway | Authoritative routing input only after Bearer authentication; never accepted from body/query/Tool args |
+| `X-WeCom-User-Id` (when configured via `MCP_PLATFORM_USER_HEADER_ALIASES`) | Preserve end-to-end from the WeCom enterprise domain; never synthesize or hardcode a fixed user value | Identity context only, after Bearer authentication; routed as `WECOM_HEADER` through the same `platformUserId -> identity_route` resolution |
 | `X-Correlation-Id` | Preserve a valid client value or let Node generate one | Observability only; never authorization |
 | `X-Forwarded-For` | Remove any inbound value and set/append from the proxy's observed peer address | P2 does not use it for authorization |
 | `X-Forwarded-Proto` | Remove inbound value and set from the proxy's TLS state (`https`) | P2 does not use it for authorization |
@@ -57,5 +58,14 @@ location = /mcp {
     proxy_read_timeout 60s;
 }
 ```
+
+When a WeCom enterprise MCP client is proxied, pass its identity Header through from the client rather than inventing a value:
+
+```nginx
+# Only when WeCom is configured via MCP_PLATFORM_USER_HEADER_ALIASES:
+proxy_set_header X-WeCom-User-Id $http_x_wecom_user_id;
+```
+
+Never hardcode a fixed user id (`proxy_set_header X-WeCom-User-Id <fixed-value>` is forbidden): the Header must carry the real WeCom user for the current request.
 
 The shown platform Header forwarding is safe only for the controlled internal MCP-client model used by P2. If a future public/untrusted client can choose this header, a trusted gateway must derive it from authenticated session claims and overwrite the inbound value before P2 receives it.

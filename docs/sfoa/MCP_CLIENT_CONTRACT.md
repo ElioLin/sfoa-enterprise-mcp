@@ -21,6 +21,23 @@ X-Correlation-Id: client-generated-id
 
 The platform Header name is configurable through `MCP_PLATFORM_USER_HEADER`. `X-Correlation-Id` accepts 1–128 ASCII letters, digits, `_`, and `-`; an absent/invalid value is replaced with a server UUID.
 
+## Platform identity Header allowlist (P8-05)
+
+The primary platform Header (`X-Platform-User-Id` by default) may be extended with CSV alias names through `MCP_PLATFORM_USER_HEADER_ALIASES` (trimmed, empty entries dropped, compared case-insensitively, never duplicated against the primary Header or each other; invalid configuration fails fast at startup). Each alias names a partner identity channel that reuses the same `platformUserId -> sfoa_identity_route -> Salesforce Username` resolution.
+
+WeCom enterprise MCP plugins send the identity context Header automatically:
+
+```http
+Authorization: Bearer <client token>
+X-WeCom-User-Id: <enterprise WeCom user id>
+```
+
+`X-WeCom-User-Id` is **identity context, not a credential**: Bearer authentication still runs first and must succeed. It maps to the audited identity source `WECOM_HEADER` (`X-Platform-User-Id` maps to `INTERNAL_SERVICE_HEADER`).
+
+A request may carry at most one platform identity Header. Presenting two different platform identity Headers — or the same Header twice with different values — is denied fail-closed (`MCP_PLATFORM_IDENTITY_CONFLICT`, HTTP 403) because audit attribution would be ambiguous. Duplicate Header lines with one value each are collapsed by HTTP/Node; values must still match after collapse.
+
+USER_BOUND and Buntu tokens bind the platform user themselves: a matching `X-Platform-User-Id` / `X-WeCom-User-Id` is optional context that must agree, and a mismatching one is denied (`MCP_IDENTITY_CONTEXT_MISMATCH`). No Header value is ever logged, and a platform user is never inferred from a name, email, Salesforce Name, or prefix.
+
 ## Authority boundary
 
 The Bearer token authenticates the controlled MCP client. Only after that succeeds does the Host accept the configured platform-user Header and resolve it through P1 `IdentityResolver`:

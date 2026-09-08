@@ -477,6 +477,7 @@ function identitySourceLabel(source: IdentitySource | null): string {
     case 'INTERNAL_SERVICE_HEADER': return '内部服务凭据';
     case 'USER_BOUND_TOKEN': return '用户绑定 Token';
     case 'BUNTU_TOKEN': return '小犇 Token';
+    case 'WECOM_HEADER': return '企业微信';
     default: return '—';
   }
 }

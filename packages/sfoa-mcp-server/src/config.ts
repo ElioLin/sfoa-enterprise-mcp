@@ -50,7 +50,21 @@ export type RemoteRuntimeConfig = Readonly<{
   lightningBaseUrl?: string;
   authMode: RemoteAuthMode;
   clientToken?: string;
+  /**
+   * Primary HTTP header that carries the authenticated platform user id for
+   * header-based (internal service) identities. Its value maps to
+   * `INTERNAL_SERVICE_HEADER`. Never renamed for a partner channel such as WeCom:
+   * add an alias below instead, so existing internal clients keep working.
+   */
   platformUserHeader: string;
+  /** Extra HTTP headers accepted as platform identity headers (e.g. `X-WeCom-User-Id`). */
+  platformUserHeaderAliases: readonly string[];
+  /**
+   * Full ordered allowlist of platform identity header names = primary header
+   * first, then each alias. The runtime only reads identity from these headers
+   * and never from arbitrary `X-*-User-Id` headers.
+   */
+  platformIdentityHeaders: readonly string[];
   maxBodyBytes: number;
   requestTimeoutMs: number;
   toolTimeoutMs: number;
@@ -85,6 +99,7 @@ const rawRemoteConfigSchema = z
     MCP_AUTH_MODE: z.enum(['internal_bearer', 'disabled']).default('internal_bearer'),
     MCP_CLIENT_TOKEN: z.string().min(16).max(4096).optional(),
     MCP_PLATFORM_USER_HEADER: headerNameSchema.default('X-Platform-User-Id'),
+    MCP_PLATFORM_USER_HEADER_ALIASES: z.string().trim().max(2048).optional(),
     MCP_MAX_BODY_BYTES: z.coerce.number().int().min(1024).max(10_485_760).default(1_048_576),
     MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_REQUEST_TIMEOUT_MS),
     MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_TOOL_TIMEOUT_MS),
@@ -119,6 +134,7 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'MCP_AUTH_MODE',
   'MCP_CLIENT_TOKEN',
   'MCP_PLATFORM_USER_HEADER',
+  'MCP_PLATFORM_USER_HEADER_ALIASES',
   'MCP_MAX_BODY_BYTES',
   'MCP_REQUEST_TIMEOUT_MS',
   'MCP_TOOL_TIMEOUT_MS',
@@ -205,6 +221,11 @@ export async function loadRemoteRuntimeConfig(
   }
 
   const mcpPath = normalizeMcpPath(parsed.data.MCP_PATH);
+  const platformUserHeader = parsed.data.MCP_PLATFORM_USER_HEADER;
+  const platformUserHeaderAliases = parsePlatformUserHeaderAliases(
+    parsed.data.MCP_PLATFORM_USER_HEADER_ALIASES,
+    platformUserHeader,
+  );
   const publicUrl = parsed.data.MCP_PUBLIC_URL
     ? normalizePublicUrl(parsed.data.MCP_PUBLIC_URL)
     : undefined;
@@ -253,7 +274,9 @@ export async function loadRemoteRuntimeConfig(
     ...(lightningBaseUrl ? { lightningBaseUrl } : {}),
     authMode: parsed.data.MCP_AUTH_MODE,
     ...(parsed.data.MCP_CLIENT_TOKEN ? { clientToken: parsed.data.MCP_CLIENT_TOKEN } : {}),
-    platformUserHeader: parsed.data.MCP_PLATFORM_USER_HEADER,
+    platformUserHeader,
+    platformUserHeaderAliases,
+    platformIdentityHeaders: Object.freeze([platformUserHeader, ...platformUserHeaderAliases]),
     maxBodyBytes: parsed.data.MCP_MAX_BODY_BYTES,
     requestTimeoutMs: parsed.data.MCP_REQUEST_TIMEOUT_MS,
     toolTimeoutMs: parsed.data.MCP_TOOL_TIMEOUT_MS,
@@ -416,6 +439,46 @@ function parseOrigins(value: string | undefined): readonly string[] {
     }
   }
   return Object.freeze(origins);
+}
+
+/**
+ * Parses `MCP_PLATFORM_USER_HEADER_ALIASES`, a CSV of additional platform
+ * identity HTTP header names (e.g. `X-WeCom-User-Id`).
+ *
+ * Rules (all enforced fail-fast as `MCP_RUNTIME_CONFIGURATION_INVALID`):
+ * - the value may be empty / unset (no aliases);
+ * - entries are trimmed and empty entries are dropped;
+ * - every entry must be a legal HTTP header name (no control characters);
+ * - header names are compared case-insensitively, so an alias must neither
+ *   repeat the primary header nor repeat an earlier alias.
+ */
+export function parsePlatformUserHeaderAliases(
+  value: string | undefined,
+  primaryHeader: string,
+): readonly string[] {
+  if (value === undefined || value.trim().length === 0) return Object.freeze([]);
+  const primaryLower = primaryHeader.toLocaleLowerCase('en-US');
+  const seen = new Set<string>([primaryLower]);
+  const aliases: string[] = [];
+  for (const raw of value.split(',')) {
+    const candidate = raw.trim();
+    if (candidate.length === 0) continue;
+    const parsed = headerNameSchema.safeParse(candidate);
+    if (!parsed.success) {
+      throw configurationError(
+        `MCP_PLATFORM_USER_HEADER_ALIASES contains an invalid HTTP header name: ${candidate}.`,
+      );
+    }
+    const lower = candidate.toLocaleLowerCase('en-US');
+    if (seen.has(lower)) {
+      throw configurationError(
+        'MCP_PLATFORM_USER_HEADER_ALIASES must not repeat the primary platform user header or an earlier alias (comparison is case-insensitive).',
+      );
+    }
+    seen.add(lower);
+    aliases.push(parsed.data);
+  }
+  return Object.freeze(aliases);
 }
 
 function uniqueCsv(value: string): string[] {

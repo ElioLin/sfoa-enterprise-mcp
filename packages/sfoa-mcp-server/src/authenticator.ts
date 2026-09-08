@@ -57,7 +57,7 @@ export type AuthenticatedPrincipal = Readonly<{
 export interface IdentityProvider {
   authenticate(
     headers: RequestHeaders,
-    platformUserHeaderName: string,
+    platformIdentityHeaders: readonly string[],
     correlationId: string,
   ): Promise<AuthenticatedPrincipal>;
 }
@@ -444,7 +444,7 @@ export class UnifiedIdentityProvider implements IdentityProvider {
 
   public async authenticate(
     headers: RequestHeaders,
-    platformUserHeaderName: string,
+    platformIdentityHeaders: readonly string[],
     correlationId: string,
   ): Promise<AuthenticatedPrincipal> {
     const token = parseBearerToken(headers, correlationId);
@@ -453,14 +453,43 @@ export class UnifiedIdentityProvider implements IdentityProvider {
       throw new RemoteRuntimeError('MCP_CLIENT_AUTH_INVALID', 'The MCP client Bearer credential is invalid.', { correlationId });
     }
     const credential = await authenticator.authenticate(token, correlationId);
-    const headerValue = getSingleHeader(headers, platformUserHeaderName.toLocaleLowerCase('en-US'));
-    const platformUserId = credential.boundPlatformUserId
-      ? validateOptionalBoundHeader(headerValue, platformUserHeaderName, credential.boundPlatformUserId, correlationId)
-      : validateRequiredPlatformHeader(headerValue, platformUserHeaderName, correlationId);
+    const resolution = matchPlatformIdentityHeaders(headers, platformIdentityHeaders);
+    if (resolution.status === 'ambiguous' || resolution.status === 'conflict') {
+      // Fail closed: multiple platform identity sources make audit attribution
+      // ambiguous. Never "first wins", never "last wins", never source priority.
+      throw platformIdentityConflict(correlationId);
+    }
+    // A bound credential (USER_BOUND / BUNTU) is itself the identity authority.
+    // A matching platform identity header is optional context and must agree;
+    // identity attribution stays with the credential source.
+    if (credential.boundPlatformUserId !== undefined) {
+      const bound = credential.boundPlatformUserId;
+      if (resolution.status === 'match') {
+        const requested = parsePlatformUserId(resolution.rawValue, resolution.headerName, correlationId);
+        if (requested !== bound) {
+          throw identityContextMismatch(resolution.headerName, correlationId);
+        }
+      }
+      await credential.afterAuthenticated?.();
+      return Object.freeze({
+        clientId: credential.clientId,
+        identitySource: credential.identitySource,
+        platformUserId: bound,
+        ...(credential.credentialId ? { credentialId: credential.credentialId } : {}),
+        correlationId,
+      });
+    }
+    // Header-based identity (internal service / partner channel like WeCom):
+    // an identity header is mandatory and decides the audited identity source.
+    if (resolution.status !== 'match') {
+      throw missingPlatformIdentityError(platformIdentityHeaders, correlationId);
+    }
+    const platformUserId = parsePlatformUserId(resolution.rawValue, resolution.headerName, correlationId);
+    const primaryHeader = platformIdentityHeaders[0];
     await credential.afterAuthenticated?.();
     return Object.freeze({
       clientId: credential.clientId,
-      identitySource: credential.identitySource,
+      identitySource: identitySourceForPlatformHeader(resolution.headerName, primaryHeader),
       platformUserId,
       ...(credential.credentialId ? { credentialId: credential.credentialId } : {}),
       correlationId,
@@ -499,37 +528,112 @@ function parseBearerToken(headers: RequestHeaders, correlationId: string): strin
   return token;
 }
 
-function validateRequiredPlatformHeader(
-  value: string | undefined,
-  headerName: string,
-  correlationId: string,
-): string {
-  if (value === undefined || value.trim().length === 0) {
-    throw new IdentityRuntimeError(
-      'MCP_PLATFORM_USER_REQUIRED',
-      `${headerName} is required after MCP client authentication.`,
-      { correlationId },
-    );
+/**
+ * Result of scanning the request for configured platform identity headers.
+ *
+ * - `none`:     no configured identity header was supplied.
+ * - `match`:    exactly one configured identity header supplied a single value.
+ * - `conflict`: two different configured identity headers were both supplied.
+ * - `ambiguous`: one configured header appeared more than once (duplicate values).
+ *
+ * Both `conflict` and `ambiguous` are fail-closed denials: identity source
+ * attribution requires exactly one present header.
+ */
+export type PlatformIdentityHeaderResolution =
+  | Readonly<{ status: 'none' }>
+  | Readonly<{ status: 'match'; headerName: string; rawValue: string }>
+  | Readonly<{ status: 'conflict' }>
+  | Readonly<{ status: 'ambiguous' }>;
+
+/** Well-known external identity-header channels and their audited identity source. */
+const PLATFORM_IDENTITY_HEADER_SOURCE_BY_LOWER_NAME: Readonly<Record<string, IdentitySource>> = Object.freeze({
+  'x-wecom-user-id': 'WECOM_HEADER',
+});
+
+/**
+ * Maps the header that actually supplied the platform identity to its audited
+ * `identitySource`. The primary platform user header is the internal-service
+ * channel (`INTERNAL_SERVICE_HEADER`); known partner headers such as WeCom map
+ * to their own channel. Unrecognized alias names fall back to the internal
+ * channel, which is safe because they are still governed by the same
+ * credential authentication and identity-route rules.
+ */
+export function identitySourceForPlatformHeader(headerName: string, primaryHeaderName: string | undefined): IdentitySource {
+  const lower = headerName.toLocaleLowerCase('en-US');
+  if (primaryHeaderName !== undefined && lower === primaryHeaderName.toLocaleLowerCase('en-US')) {
+    return 'INTERNAL_SERVICE_HEADER';
   }
-  return parsePlatformUserId(value, headerName, correlationId);
+  return PLATFORM_IDENTITY_HEADER_SOURCE_BY_LOWER_NAME[lower] ?? 'INTERNAL_SERVICE_HEADER';
 }
 
-function validateOptionalBoundHeader(
-  value: string | undefined,
-  headerName: string,
-  boundPlatformUserId: string,
-  correlationId: string,
-): string {
-  if (value === undefined || value.trim().length === 0) return boundPlatformUserId;
-  const requestedPlatformUserId = parsePlatformUserId(value, headerName, correlationId);
-  if (requestedPlatformUserId !== boundPlatformUserId) {
-    throw new IdentityRuntimeError(
-      'MCP_IDENTITY_CONTEXT_MISMATCH',
-      `${headerName} does not match the platform identity bound to the supplied credential.`,
-      { correlationId },
-    );
+/**
+ * Unified platform-identity header resolver.
+ *
+ * Reads only the configured allowlist (`platformIdentityHeaders`), matches
+ * header names case-insensitively, and returns at most one single-valued
+ * match. A request may not present more than one platform identity header
+ * (regardless of whether the values are equal) because audit attribution
+ * would be ambiguous.
+ */
+export function matchPlatformIdentityHeaders(
+  headers: RequestHeaders,
+  platformIdentityHeaders: readonly string[],
+): PlatformIdentityHeaderResolution {
+  // Group raw request headers by lower-cased name. Node already lower-cases and
+  // collapses duplicate HTTP header lines into arrays; normalizing here also
+  // makes unit-level fixtures with mixed casing deterministic. Blank values are
+  // dropped because an empty identity header carries no identity assertion and
+  // is treated as absent (matching the previous single-header behavior).
+  const grouped = new Map<string, string[]>();
+  for (const [name, rawValue] of Object.entries(headers)) {
+    if (rawValue === undefined) continue;
+    const lower = name.toLocaleLowerCase('en-US');
+    const values = grouped.get(lower) ?? [];
+    for (const value of typeof rawValue === 'string' ? [rawValue] : rawValue) {
+      if (value.trim().length > 0) values.push(value);
+    }
+    if (values.length > 0) grouped.set(lower, values);
   }
-  return boundPlatformUserId;
+  let matched: Readonly<{ headerName: string; rawValue: string }> | undefined;
+  for (const headerName of platformIdentityHeaders) {
+    const values = grouped.get(headerName.toLocaleLowerCase('en-US'));
+    if (values === undefined || values.length === 0) continue;
+    if (values.length > 1) return Object.freeze({ status: 'ambiguous' });
+    const value = values[0];
+    if (value === undefined) continue;
+    if (matched !== undefined) return Object.freeze({ status: 'conflict' });
+    matched = Object.freeze({ headerName, rawValue: value });
+  }
+  return matched === undefined
+    ? Object.freeze({ status: 'none' })
+    : Object.freeze({ status: 'match', headerName: matched.headerName, rawValue: matched.rawValue });
+}
+
+function missingPlatformIdentityError(platformIdentityHeaders: readonly string[], correlationId: string): IdentityRuntimeError {
+  const expected = platformIdentityHeaders.length > 0
+    ? ` one of ${platformIdentityHeaders.join(', ')}`
+    : ' a platform identity header';
+  return new IdentityRuntimeError(
+    'MCP_PLATFORM_USER_REQUIRED',
+    `After MCP client authentication,${expected} is required to establish the platform user identity.`,
+    { correlationId },
+  );
+}
+
+function platformIdentityConflict(correlationId: string): IdentityRuntimeError {
+  return new IdentityRuntimeError(
+    'MCP_PLATFORM_IDENTITY_CONFLICT',
+    'Multiple platform identity headers were supplied. A request may carry at most one platform identity header so the identity source is unambiguous.',
+    { correlationId },
+  );
+}
+
+function identityContextMismatch(headerName: string, correlationId: string): IdentityRuntimeError {
+  return new IdentityRuntimeError(
+    'MCP_IDENTITY_CONTEXT_MISMATCH',
+    `${headerName} does not match the platform identity bound to the supplied credential.`,
+    { correlationId },
+  );
 }
 
 function parsePlatformUserId(value: string, headerName: string, correlationId: string): string {

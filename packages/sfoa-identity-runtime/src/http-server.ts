@@ -222,6 +222,7 @@ function httpStatus(error: IdentityRuntimeError): number {
       return 401;
     case 'MCP_IDENTITY_ROUTE_NOT_FOUND':
     case 'MCP_IDENTITY_CONTEXT_MISMATCH':
+    case 'MCP_PLATFORM_IDENTITY_CONFLICT':
     case 'MCP_CONNECTION_ROLE_NOT_AVAILABLE':
       return 403;
     case 'MCP_SALESFORCE_AUTH_FAILED':

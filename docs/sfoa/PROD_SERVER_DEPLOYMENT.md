@@ -239,6 +239,9 @@ MCP_AUTH_MODE=internal_bearer
 MCP_CLIENT_TOKEN=<内部服务Token，≥16字符>
 MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY=<32字节base64url>
 MCP_PLATFORM_USER_HEADER=X-Platform-User-Id
+# P8-05：启用企业微信 MCP Plugin 身份通道（可选）。X-WeCom-User-Id 仅作身份上下文，
+# 仍需先通过 Bearer 认证；不得重复主 Header，非法值会在启动时 fail fast。
+# MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id
 MCP_REQUEST_TIMEOUT_MS=180000
 MCP_TOOL_TIMEOUT_MS=120000
 # 经 Nginx 反代后 Host/Origin 变为服务器 IP，必须显式放行，否则 403

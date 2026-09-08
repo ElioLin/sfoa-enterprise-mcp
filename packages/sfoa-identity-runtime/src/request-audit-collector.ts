@@ -65,7 +65,7 @@ export type RequestAuditCallSnapshot = Readonly<{
   platformUserId: string | null;
   salesforceUsername: string | null;
   executionRole: 'USER' | 'DIAGNOSTIC' | null;
-  identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | null;
+  identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER' | null;
   identityCredentialId: string | null;
   toolName: string;
   operation: string | null;
