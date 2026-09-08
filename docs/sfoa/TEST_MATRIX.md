@@ -7,6 +7,21 @@ pre-existing clean-checkout Skill failure and outstanding real UI/Agent acceptan
 are recorded in [the implementation report](P8-04-IMPLEMENTATION-REPORT.md#n-tests).
 The historical phase results below are not a new P8-04 accuracy claim.
 
+2026-09-08 CREATE Master selection refinement (current working tree):
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Context Provider build/lint/tests | PASS | Direct repository regression runner: 73/73 tests, including Master + business types, Master-only fallback, localized labels, 15/18-character IDs, unavailable types, explicit Master rejection and existing Master UPDATE. |
+| Playbook 1.6.1 and generated clients | PASS | TypeScript build, 20/20 tests, five generated artifacts synchronized and checked. Canonical rules cover automatic non-Master selection and explicit `create_record.recordTypeId` propagation. Windows Yarn nested execution intermittently returned `Access is denied`; identical local Node build/sync/check entrypoints passed. |
+| HTTP context and guidance | PASS | P4 8/8; final focused `agent-guidance` + `p4-http-integration` 4/4, including different USER candidate sets, Master rejection, text/structured output, and the selected business type in the mocked Salesforce CREATE payload. The initial broader server run passed 124/125 and caught an old version assertion; the corrected guidance tests passed on rerun. |
+| DML protocol regressions | PASS | P3 23/23; no change to DML authorization or mutation execution. |
+| Governance, Audit and upstream | PASS | P5 5/5, P7 6/6, upstream compatibility with zero drift. |
+| Maintainer Skill | PASS | `yarn skill:sync`, `skill:check`, `skill:test` (12/12), `skill:delivery`. |
+| Live USER CREATE context, read-only | PASS | Current enabled USER route from P7 evidence: Lead 2 raw available types (including Master) → 1 business candidate, no selection, 82 fields / 3 UI API calls; Account 4 → 3 and Contact 3 → 2, selection required / 1 call each; Task Master-only → 1 retained candidate, no selection, 38 fields / 3 calls. Fresh USER JWT and live UI API; no Salesforce DML, settings/snapshot writes, or service restart. |
+
+The Master-only fallback follows Salesforce's [RecordTypeInfo definition](https://developer.salesforce.com/docs/platform/graphql/guide/query-objectinfo.html).
+These are context/protocol checks, not a new real Agent or Dynamic Forms accuracy acceptance.
+
 | Gate | Result | Evidence |
 | --- | --- | --- |
 | Git Runtime | PASS | `git version 2.50.0.windows.2`; executable resolved under `D:\Git` |

@@ -11,6 +11,8 @@
 
 ### Fixes
 
+- CREATE Record Type selection excludes Master when a non-Master type is available to the current USER, including explicit context selection. A single business type loads its full CREATE context without an unnecessary question; Master-only objects/users retain their fallback. Playbook 1.6.1, MCP Instructions and generated clients share the rule; UPDATE/READ and DML authorization remain unchanged.
+
 - P8-04 HOTFIX01: preserve exact legacy CREATE output in OFF/SHADOW/Page Layout/fallback; expose UI provenance only for enforced Dynamic Forms, isolate SHADOW draft and infrastructure errors, share one 3s extra-read budget, and retain internal Audit identity independently of Agent output. No new table, dependency, Tool or snapshot format.
 - P8-04 HOTFIX01 closure: run Dynamic draft semantic validation only after resolution proves a supported Dynamic Forms/MIXED page with no fallback, so ENFORCE + PAGE_LAYOUT and every Page Layout fallback ignore an Agent draft they would not use while enforced Dynamic Forms still returns structured `MCP_RECORD_ACTION_CONTEXT_INVALID`. Adds four Tool-boundary regression cases (A–D) to the exact-legacy fixture suite.
 

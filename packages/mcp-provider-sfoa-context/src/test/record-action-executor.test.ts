@@ -9,6 +9,7 @@ const DEFAULT_RECORD_TYPE = '012000000000001AAA';
 const AVAILABLE_RECORD_TYPE = '012000000000002AAA';
 const UNAVAILABLE_RECORD_TYPE = '012000000000003AAA';
 const RECORD_ID = '00Q000000000001AAA';
+const MASTER_RECORD_TYPE = '012000000000000AAA';
 
 test('CREATE resolves the single available Record Type and preserves required/editable/default/picklist facts', async () => {
   const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
@@ -134,17 +135,100 @@ test('CREATE with multiple available Record Types returns selection-required wit
   assert.equal(output.fields?.find((field) => field.apiName === 'Status__c')?.picklist, undefined);
 });
 
-test('CREATE auto-selects a Master-only Record Type and does not force selection', async () => {
-  const master = { recordTypeId: DEFAULT_RECORD_TYPE, name: 'Master', available: true, defaultRecordTypeMapping: true };
-  const fixture = createFixture({ recordTypeInfos: { [DEFAULT_RECORD_TYPE]: master } });
-  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+for (const master of [
+  { id: MASTER_RECORD_TYPE, facts: { master: true } },
+  { id: MASTER_RECORD_TYPE, facts: {} },
+  { id: MASTER_RECORD_TYPE.slice(0, 15), facts: {} },
+  { id: UNAVAILABLE_RECORD_TYPE, facts: { master: true } },
+]) {
+  test(`CREATE excludes Master by API flag or ID (${master.id}, ${JSON.stringify(master.facts)}) and loads the single business type`, async () => {
+    const fixture = createFixture({ recordTypeInfos: {
+      [master.id]: { ...recordType(master.id, '主记录类型', true, true), ...master.facts },
+      [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'FRN', true, false),
+    } });
+    const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+    assert.equal(output.recordTypeSelectionRequired, false);
+    assert.equal(output.recordType?.id, AVAILABLE_RECORD_TYPE);
+    assert.equal(output.recordType?.defaultForUser, false, 'Do not invent a Salesforce default mapping');
+    assert.deepEqual(output.availableRecordTypes, [{ id: AVAILABLE_RECORD_TYPE, name: 'FRN', available: true, defaultForUser: false }]);
+    assert.equal(output.coverage?.apiCallCount, 3);
+    assert.match(fixture.urls[1] ?? '', new RegExp(`recordTypeId=${AVAILABLE_RECORD_TYPE}`, 'u'));
+    assert.match(fixture.urls[2] ?? '', new RegExp(`/picklist-values/${AVAILABLE_RECORD_TYPE}`, 'u'));
+    assert.equal(output.fields?.find((field) => field.apiName === 'Name')?.layoutRequired, true);
+    assert.equal(output.fields?.find((field) => field.apiName === 'Status__c')?.defaultValue, 'Open');
+    assert.equal(output.fields?.find((field) => field.apiName === 'Status__c')?.picklist?.values.length, 2);
+  });
+}
 
-  assert.equal(output.success, true);
-  assert.equal(output.recordTypeSelectionRequired, false);
-  assert.equal(output.recordType?.id, DEFAULT_RECORD_TYPE);
-  assert.equal(output.recordType?.name, 'Master');
-  assert.deepEqual(output.availableRecordTypes, [{ id: DEFAULT_RECORD_TYPE, name: 'Master', available: true, defaultForUser: true }]);
-  assert.equal(output.coverage?.apiCallCount, 3);
+test('CREATE keeps Master for objects without custom Record Types or with only unavailable business types', async () => {
+  for (const includeHidden of [false, true]) {
+    for (const explicit of [false, true]) {
+      const fixture = createFixture({ recordTypeInfos: {
+        [MASTER_RECORD_TYPE]: { ...recordType(MASTER_RECORD_TYPE, 'Master', true, true), master: true },
+        ...(includeHidden ? { [UNAVAILABLE_RECORD_TYPE]: recordType(UNAVAILABLE_RECORD_TYPE, 'Hidden', false, false) } : {}),
+      } });
+      const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE',
+        ...(explicit ? { recordTypeId: MASTER_RECORD_TYPE.slice(0, 15) } : {}) });
+      assert.equal(output.success, true);
+      assert.equal(output.recordTypeSelectionRequired, false);
+      assert.equal(output.recordType?.id, MASTER_RECORD_TYPE);
+      assert.deepEqual(output.availableRecordTypes, [{ id: MASTER_RECORD_TYPE, name: 'Master', available: true, defaultForUser: true }]);
+      assert.equal(output.coverage?.apiCallCount, 3);
+      assert.match(fixture.urls[1] ?? '', new RegExp(`recordTypeId=${MASTER_RECORD_TYPE}`, 'u'));
+      assert.match(fixture.urls[2] ?? '', new RegExp(`/picklist-values/${MASTER_RECORD_TYPE}`, 'u'));
+    }
+  }
+});
+
+test('CREATE asks only about business types and rejects explicit Master before type-dependent reads', async () => {
+  const fixture = createFixture({ recordTypeInfos: {
+    [MASTER_RECORD_TYPE]: recordType(MASTER_RECORD_TYPE, 'Master', true, true),
+    [DEFAULT_RECORD_TYPE]: recordType(DEFAULT_RECORD_TYPE, 'FRN', true, false),
+    [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'Enterprise', true, false),
+  } });
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  assert.equal(output.recordTypeSelectionRequired, true);
+  assert.equal(output.recordType, undefined);
+  assert.deepEqual(output.availableRecordTypes?.map((entry) => entry.name), ['Enterprise', 'FRN']);
+  assert.equal(fixture.urls.length, 1);
+  for (const recordTypeId of [MASTER_RECORD_TYPE, MASTER_RECORD_TYPE.slice(0, 15)]) {
+    await assert.rejects(fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE', recordTypeId }),
+      (error: unknown) => error instanceof ContextRuntimeError && error.code === 'MCP_RECORD_TYPE_NOT_AVAILABLE');
+  }
+  assert.equal(fixture.urls.length, 3);
+  assert.ok(fixture.urls.every((url) => url.endsWith('/object-info/Lead')));
+  const selected = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE', recordTypeId: AVAILABLE_RECORD_TYPE });
+  assert.equal(selected.recordType?.id, AVAILABLE_RECORD_TYPE);
+  assert.equal(selected.recordTypeSelectionRequired, false);
+});
+
+test('CREATE never uses a display name to identify Master or revives an unavailable Master', async () => {
+  const namedMaster = createFixture({ recordTypeInfos: {
+    [MASTER_RECORD_TYPE]: recordType(MASTER_RECORD_TYPE, '主记录类型', true, true),
+    [AVAILABLE_RECORD_TYPE]: { ...recordType(AVAILABLE_RECORD_TYPE, 'Master', true, false), master: false },
+  } });
+  const output = await namedMaster.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  assert.equal(output.recordType?.id, AVAILABLE_RECORD_TYPE);
+  assert.equal(output.availableRecordTypes?.length, 1);
+
+  for (const recordTypeInfos of [{}, { [MASTER_RECORD_TYPE]: recordType(MASTER_RECORD_TYPE, 'Master', false, true) }]) {
+    const unavailable = createFixture({ recordTypeInfos });
+    await assert.rejects(unavailable.executor.execute({ objectApiName: 'Lead', action: 'CREATE' }),
+      (error: unknown) => error instanceof ContextRuntimeError && error.code === 'MCP_RECORD_TYPE_NOT_AVAILABLE');
+    assert.equal(unavailable.urls.length, 1);
+  }
+});
+
+test('UPDATE preserves the existing Master Record Type even when business types are available', async () => {
+  const fixture = createFixture({ updateRecordTypeId: MASTER_RECORD_TYPE, recordTypeInfos: {
+    [MASTER_RECORD_TYPE]: { ...recordType(MASTER_RECORD_TYPE, 'Master', true, true), master: true },
+    [AVAILABLE_RECORD_TYPE]: recordType(AVAILABLE_RECORD_TYPE, 'FRN', true, false),
+  } });
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'UPDATE', recordId: RECORD_ID });
+  assert.equal(output.recordType?.id, MASTER_RECORD_TYPE);
+  assert.equal(output.availableRecordTypes, undefined, 'UPDATE does not expose a CREATE picker');
+  assert.equal(output.coverage?.apiCallCount, 4);
+  assert.match(fixture.urls[2] ?? '', new RegExp(`recordTypeId=${MASTER_RECORD_TYPE}`, 'u'));
 });
 
 test('CREATE availableRecordTypes excludes unavailable Record Types so the Agent 0/1/N branch is never skewed', async () => {
@@ -296,7 +380,7 @@ function createFixture(options: FixtureOptions = {}): {
       }
       if (request.url.includes('/ui-api/object-info/Lead')) return objectInfo;
       if (request.url.includes('/ui-api/record-defaults/create/Lead')) {
-        const recordTypeId = request.url.includes(AVAILABLE_RECORD_TYPE) ? AVAILABLE_RECORD_TYPE : DEFAULT_RECORD_TYPE;
+        const recordTypeId = new URL(request.url, 'https://example.test').searchParams.get('recordTypeId');
         return {
           layout: layout(),
           record: {

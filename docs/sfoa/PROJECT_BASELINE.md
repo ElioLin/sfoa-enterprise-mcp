@@ -100,6 +100,12 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+2026-09-08 CREATE Record Type refinement: current USER candidates exclude Master
+when at least one non-Master type is available. A single candidate loads CREATE
+facts without a selection question; Master-only creation remains supported.
+Explicit CREATE context selection uses the same candidates. Playbook 1.6.1 and MCP
+Instructions describe this behavior; DML authorization and UPDATE/READ are unchanged.
+
 2026-09-06 Maintainer amendment **P8-04-AMEND-006** supersedes the historical
 A-01 development stop below: directly implement the production effective CREATE
 context on `feature/p8-04-effective-ui-context`, base

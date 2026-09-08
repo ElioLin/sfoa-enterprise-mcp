@@ -7,6 +7,18 @@ architecture is ADR-0019. Historical A-01 development stop instructions are supe
 
 ## Runtime and controls
 
+CREATE Record Type candidates come from the current USER ObjectInfo: first require
+`available=true`, then exclude Master if any available non-Master type remains.
+UI API `master=true` or the fixed Master ID identifies it, never the display name.
+Output candidates, automatic selection and explicit `recordTypeId` validation use
+the same list. One candidate loads the full context without selection; multiple
+candidates return `recordTypeSelectionRequired=true` before type-dependent reads.
+Master-only users/objects retain normal creation, even if ObjectInfo also lists
+unavailable business types. An empty available set still fails closed. This is
+CREATE guidance/context behavior, not a new DML authorization check; UPDATE and
+display context retain their existing Record Type rules. Canonical Playbook 1.6.1
+and generated client instructions follow this contract.
+
 `get_record_action_context` keeps the existing Page Layout algorithm. CREATE alone
 may evaluate Dynamic Forms. Inputs `draftFields` and `refinement` are optional;
 in ENFORCE, draft keys/types must match current USER ObjectInfo. OFF ignores DF

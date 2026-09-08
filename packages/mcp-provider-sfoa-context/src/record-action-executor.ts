@@ -11,6 +11,7 @@ import {
   createDefaultsSchema,
   layoutSchema,
   listAvailableRecordTypes,
+  listCreateRecordTypes,
   objectInfoSchema,
   picklistCollectionSchema,
   picklistFieldSchema,
@@ -77,15 +78,15 @@ export class RecordActionContextExecutor {
         throw unsupported('Salesforce UI API returned object context for a different object.');
       }
 
-      // The Tool contract's `availableRecordTypes` must contain only Record Types the
-      // current USER may actually use (`available === true`), because the Agent branches
-      // its 0 / 1 / N selection on this list. Unavailable (for example Profile-hidden or
-      // create-blocked) Record Types never influence that decision.
-      const availableRecordTypes = listAvailableRecordTypes(objectInfo);
+      // CREATE selection and Agent-visible candidates must use the same filtered list.
+      // UPDATE retains the record's own type, including existing Master records.
+      const availableRecordTypes = input.action === 'CREATE'
+        ? listCreateRecordTypes(objectInfo)
+        : listAvailableRecordTypes(objectInfo);
       const durationMs = Math.round(performance.now() - started);
       let output: RecordActionContextOutput;
       if (input.action === 'CREATE') {
-        const resolution = await this.resolveCreate(connection, apiVersion, input, objectInfo, metrics);
+        const resolution = await this.resolveCreate(connection, apiVersion, input, availableRecordTypes, metrics);
         output = resolution.kind === 'select'
           ? buildCreateSelectionOutput(input, objectInfo, availableRecordTypes, metrics, durationMs)
           : buildOutput(input, objectInfo, availableRecordTypes, {
@@ -136,15 +137,18 @@ export class RecordActionContextExecutor {
     connection: Connection,
     apiVersion: string,
     input: RecordActionContextInput,
-    objectInfo: ObjectInfo,
+    availableRecordTypes: readonly RecordTypeInfo[],
     metrics: RequestMetrics,
   ): Promise<CreateResolution> {
-    const availableRecordTypes = listAvailableRecordTypes(objectInfo);
-
-    // 1) An explicit, available Record Type always wins: the caller (Agent/user)
-    //    already made the selection, so load that Record Type's Create Context.
+    // 1) Explicit choices must also belong to the filtered CREATE candidates.
     if (input.recordTypeId) {
-      const recordType = resolveAvailableRecordType(objectInfo, input.recordTypeId);
+      const recordType = availableRecordTypes.find((entry) => sameSalesforceId(entry.recordTypeId, input.recordTypeId));
+      if (!recordType) {
+        throw new ContextRuntimeError(
+          'MCP_RECORD_TYPE_NOT_AVAILABLE',
+          'The requested Record Type is not a CREATE candidate for the current Salesforce USER. Master is excluded when a non-Master Record Type is available. Read CREATE context without recordTypeId to obtain the current candidates.',
+        );
+      }
       const facts = await this.resolveCreateFacts(connection, apiVersion, input, recordType, metrics);
       return { kind: 'ready', recordType, ...facts };
     }

@@ -8,6 +8,16 @@ Private Provider API extension for deterministic Salesforce facts:
 
 The Provider contains no identity selector, business reasoning, DML, arbitrary REST URL or client filesystem path. Tool visibility remains controlled by the remote Host's explicit configuration.
 
+CREATE uses current USER `available=true` Record Types and excludes Master if any
+available non-Master type exists. The returned candidates, automatic selection and
+explicit `recordTypeId` validation use this same list. One candidate loads its full
+CREATE facts without a question; several require selection before defaults/layout/
+picklist reads. Master is recognized by UI API `master=true` or its fixed ID
+`012000000000000AAA` (15/18 characters), never its localized name. When only Master
+is available, including objects without custom Record Types, it remains usable.
+Unavailable business types do not remove that fallback; no available types still
+fails closed. UPDATE and display context retain their existing Record Type behavior.
+
 P8-04 adds an optional `EffectiveRecordUiContextResolver` to ready CREATE context.
 It preserves the existing Page Layout executor and supports object-level OFF
 (default), SHADOW and ENFORCE. `draftFields` is optional and validated against

@@ -21,7 +21,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.6.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.6.1');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -77,7 +77,7 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.6\.0/u);
+      assert.match(output, /1\.6\.1/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
@@ -133,7 +133,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.6\.0; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.6\.1; DO NOT EDIT DIRECTLY/u,
     );
   });
 
@@ -195,6 +195,18 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(create, /`recordTypeSelectionRequired=false` with Create Defaults, Layout, Picklists, and required\/editable facts loaded/u);
     assert.match(create, /pass that same `recordTypeId` to `create_record`/u);
     assert.match(create, /never silently create under the default/u);
+  });
+
+  it('distributes CREATE Master exclusion and the Master-only fallback', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
+      assert.match(output, /`availableRecordTypes` excludes Master whenever a non-Master Record Type is available to the current USER/u);
+      assert.match(output, /Never add Master back or select it/u);
+      assert.match(output, /objects without custom Record Types\), keep and use it without asking/u);
+      assert.match(output, /`recordType.id` as `create_record.recordTypeId` even when automatically selected/u);
+    }
+    const instructions = renderServerInstructions();
+    assert.match(instructions, /Master is excluded when a non-Master type is available/u);
+    assert.match(instructions, /keep Master when it is the only available type/u);
   });
 });
 

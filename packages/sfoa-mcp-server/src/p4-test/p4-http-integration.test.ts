@@ -41,6 +41,7 @@ import {
 
 const DIAGNOSTIC_USERNAME = 'fixed-diagnostic@example.test';
 const DEFAULT_RECORD_TYPE = '012000000000001AAA';
+const MASTER_RECORD_TYPE = '012000000000000AAA';
 
 test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnostic Tools to the fixed DIAGNOSTIC identity', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p4-http-'));
@@ -124,6 +125,17 @@ test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnos
     assert.equal(fieldNames(contextA).includes('BOnly__c'), false);
     assert.ok(fieldNames(contextB).includes('BOnly__c'));
     assert.equal(fieldNames(contextB).includes('AOnly__c'), false);
+    // A has FRN + Master, B has only Master. Both load full context without a picker.
+    for (const [context, id, name] of [[contextA, DEFAULT_RECORD_TYPE, 'FRN'], [contextB, MASTER_RECORD_TYPE, 'Master']] as const) {
+      assert.equal(structured(context).recordTypeSelectionRequired, false);
+      assert.deepEqual(structured(context).availableRecordTypes, [{ id, name, available: true, defaultForUser: id === MASTER_RECORD_TYPE }]);
+      assert.ok(toolResultText(context).includes(String(id)));
+    }
+    assert.ok(!toolResultText(contextA).includes(MASTER_RECORD_TYPE));
+    const rejectedMaster = await clientA.callTool({ name: 'get_record_action_context',
+      arguments: { objectApiName: 'Lead', action: 'CREATE', recordTypeId: MASTER_RECORD_TYPE } });
+    assert.equal(rejectedMaster.isError, true);
+    assert.equal(structured(rejectedMaster).errorCode, 'MCP_RECORD_TYPE_NOT_AVAILABLE');
 
     const beforeDiagnosticQuery = connectionFactory.creations.length;
     const diagnosticQuery = await clientA.callTool({
@@ -173,9 +185,11 @@ test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnos
     assert.equal(source.retrieveInputs.at(-1)?.usernameOrAlias, DIAGNOSTIC_USERNAME);
     assert.ok(source.retrieveInputs.at(-1)?.manifest.startsWith(baseRoot));
 
+    const resolvedType = structured(contextA).recordType;
+    assert.ok(isRecord(resolvedType));
     const created = await clientA.callTool({
       name: 'create_record',
-      arguments: { objectApiName: 'Lead', fields: { LastName: 'P4 User Route' }, connectionRole: 'DIAGNOSTIC' },
+      arguments: { objectApiName: 'Lead', fields: { LastName: 'P4 User Route' }, recordTypeId: resolvedType.id, connectionRole: 'DIAGNOSTIC' },
     });
     const updated = await clientB.callTool({
       name: 'update_record',
@@ -190,6 +204,7 @@ test('P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnos
     assert.equal(updated.isError, undefined);
     assert.deepEqual(connectionFactory.dmlRoles, ['USER', 'USER']);
     assert.deepEqual(connectionFactory.dmlUsernames, [TEST_USERNAME_A, TEST_USERNAME_B]);
+    assert.deepEqual(connectionFactory.createdRecords, [{ LastName: 'P4 User Route', RecordTypeId: DEFAULT_RECORD_TYPE }]);
 
     await waitFor(() => workspaceFactory.getMetrics().active === 0, 5_000);
     assert.equal(workspaceFactory.getMetrics().created, workspaceFactory.getMetrics().cleaned);
@@ -220,6 +235,7 @@ class P4ConnectionFactory implements SalesforceConnectionFactory {
   public readonly creations: Creation[] = [];
   public readonly dmlRoles: SalesforceIdentityRoute['connectionRole'][] = [];
   public readonly dmlUsernames: string[] = [];
+  public readonly createdRecords: Record<string, unknown>[] = [];
 
   public async create(route: SalesforceIdentityRoute): Promise<Connection> {
     const userField = route.salesforceUsername === TEST_USERNAME_A ? 'AOnly__c' : 'BOnly__c';
@@ -240,7 +256,8 @@ class P4ConnectionFactory implements SalesforceConnectionFactory {
       },
       request: async (request: { url: string }) => uiApiResponse(request.url, userField),
       sobject: () => ({
-        create: async () => {
+        create: async (record: Record<string, unknown>) => {
+          this.createdRecords.push(record);
           this.dmlRoles.push(route.connectionRole);
           this.dmlUsernames.push(route.salesforceUsername);
           return { success: true, id: '00Q000000000009AAA', errors: [] };
@@ -362,6 +379,7 @@ async function connectClient(url: URL, platformUserId: string): Promise<Client> 
 }
 
 function uiApiResponse(url: string, userField: string): unknown {
+  const recordTypeId = userField === 'AOnly__c' ? DEFAULT_RECORD_TYPE : MASTER_RECORD_TYPE;
   const fields = {
     Required__c: uiField('Required__c', 'Required', { required: true }),
     Name: uiField('Name', 'Lead Name'),
@@ -373,15 +391,19 @@ function uiApiResponse(url: string, userField: string): unknown {
       apiName: 'Lead',
       label: 'Lead',
       labelPlural: 'Leads',
-      defaultRecordTypeId: DEFAULT_RECORD_TYPE,
+      defaultRecordTypeId: MASTER_RECORD_TYPE,
       fields,
       recordTypeInfos: {
-        [DEFAULT_RECORD_TYPE]: {
-          recordTypeId: DEFAULT_RECORD_TYPE,
+        [MASTER_RECORD_TYPE]: {
+          recordTypeId: MASTER_RECORD_TYPE,
           name: 'Master',
           available: true,
           defaultRecordTypeMapping: true,
+          master: true,
         },
+        ...(userField === 'AOnly__c' ? { [DEFAULT_RECORD_TYPE]: {
+          recordTypeId: DEFAULT_RECORD_TYPE, name: 'FRN', available: true, defaultRecordTypeMapping: false, master: false,
+        } } : {}),
       },
     };
   }
@@ -402,7 +424,7 @@ function uiApiResponse(url: string, userField: string): unknown {
       },
       record: {
         apiName: 'Lead',
-        recordTypeId: DEFAULT_RECORD_TYPE,
+        recordTypeId,
         fields: Object.fromEntries(Object.keys(fields).map((name) => [name, { value: null }])),
       },
     };

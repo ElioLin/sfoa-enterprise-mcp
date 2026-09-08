@@ -16,6 +16,7 @@ export const recordTypeInfoSchema = z
     name: z.string(),
     available: z.boolean(),
     defaultRecordTypeMapping: z.boolean(),
+    master: z.boolean().optional(),
   })
   .passthrough();
 
@@ -187,6 +188,14 @@ export function listRecordTypes(objectInfo: ObjectInfo): readonly RecordTypeInfo
 /** Record Types the current USER may actually use. */
 export function listAvailableRecordTypes(objectInfo: ObjectInfo): readonly RecordTypeInfo[] {
   return listRecordTypes(objectInfo).filter((entry) => entry.available);
+}
+
+/** CREATE prefers available business Record Types; Master remains the sole-type fallback. */
+export function listCreateRecordTypes(objectInfo: ObjectInfo): readonly RecordTypeInfo[] {
+  const available = listAvailableRecordTypes(objectInfo);
+  const nonMaster = available.filter((entry) =>
+    entry.master !== true && !sameSalesforceId(entry.recordTypeId, '012000000000000AAA'));
+  return nonMaster.length > 0 ? nonMaster : available;
 }
 
 export function toRecordTypeDescriptor(recordType: RecordTypeInfo): Readonly<{

@@ -71,6 +71,11 @@ Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
 
 ## Package-release drift
 
+The 2026-09-08 CREATE Master selection refinement adds one fix entry to the existing
+SFoA `CHANGELOG.md` preface. Runtime and guidance changes use SFoA-owned packages;
+no official Salesforce Tool, dependency or lockfile changes. Alternative: omit the
+required changelog entry; rejected. Merge risk LOW and limited to the preface.
+
 P8-04-AMEND-006 and implementation update only the existing SFoA CHANGELOG preface
 among upstream-owned files. Runtime, Admin and tests use SFoA composition seams;
 no official Salesforce Tool implementation, dependency or lockfile is changed.

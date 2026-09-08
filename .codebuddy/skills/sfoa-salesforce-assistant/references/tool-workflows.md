@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.6.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.6.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Tool Workflows
 
-Playbook-Version: 1.6.0
+Playbook-Version: 1.6.1
 
 ## READ — Read current Salesforce data
 
@@ -39,7 +39,8 @@ Playbook-Version: 1.6.0
 - Pass the latest uiContextResolutionId unchanged to create_record when supplied. It is audit provenance only. If absent, creation still follows the existing workflow; never invent an ID.
 - Use `create_record` only when it is enabled and the requested object is in the effective CREATE allowlist.
 - Collect only values the user supplied, then call `get_record_action_context` when available and inspect CREATE context: Record Type, API-required and layout-required fields, defaults, createability/editability, Picklists, and dependencies.
-- Choose the Record Type from action context instead of the default by habit: when `availableRecordTypes` has exactly one entry, use it without an extra prompt; when it has several and the user has not uniquely and reliably named one, ask the user which Record Type to use and pass the chosen value as `recordTypeId` — never silently create under the default. A user phrasing that matches exactly one available Record Type may be used directly; an ambiguous match must be asked about.
+- Choose the Record Type from CREATE action context instead of the default by habit: `availableRecordTypes` excludes Master whenever a non-Master Record Type is available to the current USER. Never add Master back or select it in that case. When Master is the only available type (including objects without custom Record Types), keep and use it without asking. When `availableRecordTypes` has exactly one entry, use it without an extra prompt; when it has several and the user has not uniquely and reliably named one, ask the user which Record Type to use and pass the chosen value as `recordTypeId` — never silently create under the default. A user phrasing that matches exactly one available Record Type may be used directly; an ambiguous match must be asked about.
+- For a non-Master type, pass the resolved `recordType.id` as `create_record.recordTypeId` even when automatically selected; never omit it and fall back to a different Salesforce default.
 - When the current identity has no available Record Type, stop and tell the user the record cannot be created; never create under an unavailable or guessed Record Type.
 - Run CREATE as a two-stage dialog when the first action context reports `recordTypeSelectionRequired=true`: the create facts are not yet loaded, so show only the `availableRecordTypes`, get (or confirm) one user choice, and do not begin Layout, Picklist, or Record-Type-dependent field questions before those facts exist; after the choice is made, call `get_record_action_context` again with the same `recordTypeId`, and only when the second context reports `recordTypeSelectionRequired=false` with Create Defaults, Layout, Picklists, and required/editable facts loaded do the full field collection; pass that same `recordTypeId` to `create_record` so the created record uses exactly the Record Type whose context you collected.
 - Classify current evidence into required, recommended, and other optional fields. Required status may come only from current Salesforce API/layout/action context, Record Type, or dependency evidence; never invent business-required fields.

@@ -644,7 +644,14 @@ Lookup/configuration failures and timeouts before mutation dispatch return norma
 
 `get_record_links` validates one to 50 Salesforce object/record descriptors and builds URLs only from `SFOA_LIGHTNING_BASE_URL`. The setting must be a credential-free HTTPS origin root with no path, query, or fragment. No host/base URL is accepted from the client, no Salesforce API is called, and `Connection.instanceUrl` is not a fallback. Missing configuration returns Tool-level `MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED`; invalid configured origins fail closed.
 
-`get_record_action_context` remains the pre-mutation source for Record Type, required/editable/default/Picklist/dependency evidence and managed-field facts. P8-04 extends ready CREATE with supported Dynamic Forms effective fields under explicit object policy; the Page Layout calculation remains unchanged. Playbook `1.6.0` retains strict/fallback distinctions, uses effective required/editable facts when present, and bounds draft refinement to three. UPDATE retains minimum mutation. DML does not reparse UI context and Salesforce remains the final authority. See ADR-0019 and the current CREATE architecture below.
+`get_record_action_context` remains the pre-mutation source for Record Type, required/editable/default/Picklist/dependency evidence and managed-field facts. P8-04 extends ready CREATE with supported Dynamic Forms effective fields under explicit object policy; the Page Layout calculation remains unchanged. Playbook `1.6.1` retains strict/fallback distinctions, uses effective required/editable facts when present, and bounds draft refinement to three. UPDATE retains minimum mutation. DML does not reparse UI context and Salesforce remains the final authority. See ADR-0019 and the current CREATE architecture below.
+
+CREATE context filters current USER available Record Types before returning or
+selecting candidates: Master is excluded when any available non-Master type exists.
+Only Master available preserves the normal fallback, including objects without
+custom Record Types. The same candidate list validates explicit CREATE context IDs.
+One candidate loads full facts; multiple candidates require a user selection first.
+This does not change UPDATE/display context or add a DML authorization policy.
 
 ## P8-04 effective CREATE context
 
