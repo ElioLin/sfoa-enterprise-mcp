@@ -4,6 +4,38 @@
 
 ---
 
+## 部署记录 · 域名 crmmcptest.runner-corp.com.cn http(:9000) 接入（2026-09-08，纯配置/nginx，无代码）
+
+| 项 | 值 |
+| --- | --- |
+| 变更内容 | 新增对外访问入口 **`http://crmmcptest.runner-corp.com.cn:9000`**（测试服务器**未加证书，仍为 http**，443 无监听）。域名 split-DNS：公网 → `202.109.254.220`（网关 DNAT → 本机 `:9000`），内网 → `192.168.156.203`（同机）。对 Node 而言仅是 Host/Origin 变化，端口/进程不变 |
+| 背景/前置 | 同日早些时候已放行外网映射 `202.109.254.220:9000`（`MCP_ALLOWED_HOSTS/ORIGINS` 追加 IP 无端口 + 带端口；外部 MCP 客户端经网关直连生效，见 nginx 日志 172.70.x / 36.248.x 来源）。`SFOA_ADMIN_ALLOWED_ORIGIN` 为**单值**只能二选一，经确认后台**统一切到域名**：内网同事用域名（内网 DNS 解析到同机）后台仍可用；旧 `http://192.168.156.203:9000` 直接登录会 403，属预期 |
+| 配置 | `config/.env.local`（改后 `restorecon`，重启两服务）：`SFOA_ADMIN_ALLOWED_ORIGIN` **替换**为 `http://crmmcptest.runner-corp.com.cn:9000`；`MCP_PUBLIC_URL` → `http://crmmcptest.runner-corp.com.cn:9000/mcp`；`MCP_ALLOWED_HOSTS` **追加** `crmmcptest.runner-corp.com.cn`、`crmmcptest.runner-corp.com.cn:9000`；`MCP_ALLOWED_ORIGINS` **追加** `http://crmmcptest.runner-corp.com.cn:9000`、`http://crmmcptest.runner-corp.com.cn` |
+| nginx | `mcp-service.conf`：`:80` 跳转改为**按原 host**（`return 301 $scheme://$host:9000$request_uri;`），两个 server 块 `server_name` 追加域名。`nginx -t` 通过后 reload |
+| 验证 | 域名 `:9000` `/admin/api/ready` 200 `{"status":"UP","databaseVersion":"8.4.5"}`、`/` 200、`/mcp` GET **405**（host 放行）；login Origin `http://…com.cn:9000` + 正确凭据 200、Origin 老内网 IP `:9000` 403（已切域名单源）；MCP 域名 Origin 405、`evil` Origin 403、外网 IP `202.109.254.220` 405 回归正常；`:80` 跳转 Location：Host=域名 → `http://…com.cn:9000/`、Host=内网 IP → `http://192.168.156.203:9000/` |
+| 备份 | 服务器 `/root/sfoa-domain-backup-<ts>/`（`mcp-service.conf` + 隐藏文件 `.env.local`） |
+| 回滚 | 停服 → 从备份还原两份文件 → `restorecon -v config/.env.local` → 重启两服务 + reload nginx |
+
+> 提醒：后续若加证书启用 https，TLS 大概率终结在公网网关侧（本机 Nginx 内仍为 http）。届时把 `SFOA_ADMIN_ALLOWED_ORIGIN` / `MCP_ALLOWED_ORIGINS` / `MCP_PUBLIC_URL` 相应切到 `https://crmmcptest…` 无端口（443 默认不带端口）即可，并注意 `SFOA_ADMIN_COOKIE_SECURE` 需随之设 `true`。
+
+---
+
+## 部署记录 · 对外端口迁移 80 → 9000（2026-09-08，仅测试服务器，无代码/无迁移）
+
+| 项 | 值 |
+| --- | --- |
+| 变更内容 | 本项目对外入口由 `http://192.168.156.203`（80）迁移到 **`http://192.168.156.203:9000`**；nginx **80 端口保留为 301 全量跳转**到 `:9000`，存量书签/旧访问者不中断。Node 内网端口不变（MCP `0.0.0.0:8080`、Admin API `127.0.0.1:8081`） |
+| 动因 | 让出测试服务器 80 端口，同时不影响本项目现有用户 |
+| nginx | `conf.d/mcp-service.conf`：主 server 块 `listen 80;` → `listen 9000;`；新增 `server { listen 80; server_name 192.168.156.203; return 301 http://192.168.156.203:9000$request_uri; }`。`nginx -t` 通过后 `systemctl reload nginx` |
+| firewalld/SELinux | `firewall-cmd --permanent --add-port=9000/tcp` + `--reload`（9000 放行；`http`=80 保留供跳转）。SELinux `http_port_t` **本已含 9000**，无需 semanage |
+| 配置 | `config/.env.local`（覆盖写后重跑 `restorecon`，label `etc_t`，重启两个服务）：`MCP_PUBLIC_URL` → `http://192.168.156.203:9000/mcp`；`MCP_ALLOWED_ORIGINS` **追加** `http://192.168.156.203:9000`；`MCP_ALLOWED_HOSTS` **追加** `192.168.156.203:9000`；`SFOA_ADMIN_ALLOWED_ORIGIN` **改为单值** `http://192.168.156.203:9000`（该变量只接受一个 origin，是「替换」而非「追加」，见 §5.2） |
+| 验证 | `:9000` `/` 200、`/admin/api/ready` 200 `{"status":"UP","databaseVersion":"8.4.5"}`、`/mcp` GET 405（已路由到 node）；`:80` 对 `/`、`/mcp`、`/admin/api/ready` 均 301 → `http://192.168.156.203:9000…`；`POST /admin/api/auth/login`：Origin `:9000`+正确凭据 200（session cookie 下发）、Origin `:80` 403 `MCP_ADMIN_ORIGIN_NOT_ALLOWED`（origin 门已切，该检查先于登录限流，不占额度） |
+| 备份 | 改前备份在服务器 `/root/sfoa-port9000-backup/`（`mcp-service.conf.orig-*`、`env.local.orig-*`） |
+| 提醒 | 旧 MCP 客户端端点 `http://192.168.156.203/mcp` 需改到 **`http://192.168.156.203:9000/mcp`**（Streamable HTTP POST 通常不跟随 301）；`MCP_PUBLIC_URL` 已同步为 `:9000`，Admin「系统状态 / 接入配置」会自动展示新地址 |
+| 回滚 | 停服务 → 从 `/root/sfoa-port9000-backup/` 还原两份文件 → `restorecon -v config/.env.local` → `systemctl restart sfoa-mcp-server sfoa-admin-api` + `systemctl reload nginx`；`firewall-cmd --permanent --remove-port=9000/tcp && firewall-cmd --reload` |
+
+---
+
 ## 部署记录 · P8-04 有效 UI 上下文 + 受管平台用户回退（2026-09-08）
 
 | 项 | 值 |
@@ -93,24 +125,30 @@
 | 共享 MySQL | `192.168.156.127:3306`，库 `sfoa_enterprise_mcp`，账号 `crm_user` |
 | Salesforce 实例 | `https://runnergroup--uat.sandbox.my.sfcrmproducts.cn` |
 | 诊断用户 | `crm_admin2@runner-corp.com.cn.uat` |
-| 对外访问 | Admin Web `http://192.168.156.203/`，Admin API `/admin/api/`，MCP `/mcp` |
+| 对外访问 | 主入口 **`http://crmmcptest.runner-corp.com.cn:9000/`**（2026-09-08 域名接入，http 无证书；内网 DNS 解析到同机）；原 `http://192.168.156.203:9000/` 仍可达，但 Admin 登录不再接受该 origin（后台已切域名单源）。Admin API `/admin/api/`、MCP `/mcp` 同源。80 端口仅作**按原 host** 301 跳转到 `:9000` |
 | 本机（开发） | Windows，项目位于 `D:\GitProject\sfoa-enterprise-mcp`，Git Bash 操作 |
 
 ### 1.2 部署形态（与生产一致的三进程结构）
 
 ```text
-浏览器 / MCP Client
-        │  HTTP 80
+浏览器 / MCP Client（主入口）
+        │  HTTP 9000
         ▼
-      Nginx（监听 192.168.156.203:80）
+      Nginx（监听 192.168.156.203:9000）
         ├── /           静态 Admin Web（packages/sfoa-admin-web/dist）
         ├── /admin/api/* ───▶ Admin API   127.0.0.1:8081
         └── /mcp         ───▶ MCP Runtime 127.0.0.1:8080
         ▼
   共享 MySQL 192.168.156.127:3306 / sfoa_enterprise_mcp
+
+  对外域名（2026-09-08 起，http 无证书）：http://crmmcptest.runner-corp.com.cn:9000
+  （公网 DNS → 202.109.254.220 网关 DNAT → 本机 :9000；内网 DNS → 192.168.156.203 同机）
+
+  旧 80 入口（兼容跳转）：Nginx 另监听 :80，`return 301 $scheme://$host:9000$request_uri;`
+  → 按原 host 落到 :9000（Host=域名 → 域名:9000；Host=内网 IP → 内网 IP:9000）。
 ```
 
-两个 Node 服务监听：**MCP `8080`、Admin API `8081`**；浏览器通过 Nginx 访问前端和 API。
+两个 Node 服务监听：**MCP `8080`、Admin API `8081`**；浏览器通过 Nginx（`:9000`）访问前端和 API。Admin Web 前端以相对路径 `/admin/api` 调用同源 API，Nginx 改端口**无需重建前端**。
 
 ### 1.3 服务器目录布局（实际）
 
@@ -280,7 +318,10 @@ JWT_PRIVATE_KEY_PATH=/data/sfoa-enterprise-mcp/secrets/private.pem
 # ── Admin API（Nginx 反代 /admin/api/）──
 SFOA_ADMIN_BIND_HOST=127.0.0.1
 SFOA_ADMIN_PORT=8081
-SFOA_ADMIN_ALLOWED_ORIGIN=http://192.168.156.203
+# ⚠️ 单值 origin（zod url，解析后必须等于 new URL(...).origin），只能「替换」不能追加。
+# 2026-09-08 起后台统一走域名（http 无证书）：内网同事用域名由内网 DNS 解析到同机。
+# 直接敲 http://192.168.156.203:9000 登录会 403（origin 不匹配，属预期）。
+SFOA_ADMIN_ALLOWED_ORIGIN=http://crmmcptest.runner-corp.com.cn:9000
 SFOA_ADMIN_USERNAME=admin
 SFOA_ADMIN_PASSWORD=<管理员密码，明文>
 SFOA_ADMIN_SESSION_SECRET=<48字节base64url随机串>
@@ -293,7 +334,7 @@ SFOA_ADMIN_LOGIN_WINDOW_MS=900000
 MCP_BIND_HOST=0.0.0.0
 MCP_PORT=8080
 MCP_PATH=/mcp
-MCP_PUBLIC_URL=http://192.168.156.203/mcp
+MCP_PUBLIC_URL=http://crmmcptest.runner-corp.com.cn:9000/mcp
 MCP_AUTH_MODE=internal_bearer
 MCP_CLIENT_TOKEN=<内部服务Token，≥16字符>
 MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY=<32字节base64url，与本地一致！>
@@ -303,9 +344,10 @@ MCP_PLATFORM_USER_HEADER=X-Platform-User-Id
 # MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id
 MCP_REQUEST_TIMEOUT_MS=180000
 MCP_TOOL_TIMEOUT_MS=120000
-# 经 Nginx 反代后 Host/Origin 变为服务器 IP，必须显式放行，否则 403
-MCP_ALLOWED_HOSTS=127.0.0.1:8080,localhost:8080,192.168.156.203
-MCP_ALLOWED_ORIGINS=http://127.0.0.1:8080,http://localhost:8080,http://192.168.156.203
+# 逗号列表可追加；经 Nginx 反代 Host 用 $host（不带端口），故外网 IP/域名都放「无端口」+「原形态」双保险。
+# 2026-09-08 起含：本机、内网 IP、外网映射 202.109.254.220(:9000)、域名 crmmcptest.runner-corp.com.cn(:9000)。
+MCP_ALLOWED_HOSTS=127.0.0.1:8080,localhost:8080,192.168.156.203,192.168.156.203:9000,202.109.254.220,202.109.254.220:9000,crmmcptest.runner-corp.com.cn,crmmcptest.runner-corp.com.cn:9000
+MCP_ALLOWED_ORIGINS=http://127.0.0.1:8080,http://localhost:8080,http://192.168.156.203,http://192.168.156.203:9000,http://202.109.254.220:9000,http://crmmcptest.runner-corp.com.cn:9000,http://crmmcptest.runner-corp.com.cn
 
 # ── 无头 Linux 钥匙串（本次根因修复；代码已自动引导，保留无副作用）──
 SF_USE_GENERIC_UNIX_KEYCHAIN=true
@@ -415,14 +457,23 @@ systemctl status sfoa-mcp-server sfoa-admin-api --no-pager
 
 - 安装：`sudo dnf install -y nginx && sudo systemctl enable --now nginx`。
 - 配置位置：**`/etc/nginx/conf.d/*.conf`**（默认 `nginx.conf` 会 include 该目录；本次的 server 块放于此）。
-- 对外只开放 **80 端口**（内网明文 HTTP）；8080/8081 仅服务进程监听，不直接暴露。
+- 对外开放 **9000（主入口）+ 80（仅 301 跳转）**（内网明文 HTTP）；8080/8081 仅服务进程监听，不直接暴露。
+- firewalld：`firewall-cmd --permanent --add-port=9000/tcp && firewall-cmd --reload`；`http`(=80) 服务保留供跳转。SELinux `http_port_t` 默认已含 9000，无需 semanage（用 `semanage port -l | grep http_port_t` 复核）。
 
-**本次实际使用的 server 块**（写入 `/etc/nginx/conf.d/sfoa.conf`，重载 `systemctl reload nginx`）：
+**本次实际使用的配置**（`/etc/nginx/conf.d/mcp-service.conf`，重载 `systemctl reload nginx`）——2026-09-08 起两个 server 块：`:80` 按原 host 301 到 `:9000`，`:9000` 为主入口（`server_name` 均含域名 `crmmcptest.runner-corp.com.cn`）：
 
 ```nginx
+# ── 旧 80 兼容跳转：保留给存量书签/旧访问者；按原 host 落到 :9000 ──
 server {
     listen 80;
-    server_name 192.168.156.203;
+    server_name 192.168.156.203 crmmcptest.runner-corp.com.cn;
+    return 301 $scheme://$host:9000$request_uri;
+}
+
+# ── 主入口 9000（2026-09-08 由 80 迁移；同日起域名 http(:9000) 接入）──
+server {
+    listen 9000;
+    server_name 192.168.156.203 crmmcptest.runner-corp.com.cn;
     client_max_body_size 20m;
 
     # React Admin Web（Vite 构建产物）
@@ -452,17 +503,19 @@ server {
         proxy_set_header Host $host;
         proxy_set_header Origin $http_origin;
         proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Platform-User-Id $http_x_platform_user_id;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # ── SPA history 路由回退 ──
     location / {
-        try_files $uri /index.html;
-        add_header Cache-Control "no-cache";
+        try_files $uri $uri/ /index.html;
     }
 }
 ```
+
+> 跳转仅对**浏览器/Admin 初始页面**透明（GET 跟随 301）；**MCP Streamable HTTP 客户端**（POST）通常不跟随 301，存量连接端点需由 `http://192.168.156.203/mcp` 改到 `http://192.168.156.203:9000/mcp`。
 
 > **SELinux 配套**（见 §9）：静态目录需打 `httpd_sys_content_t` 标签；反代到 8080/8081 需 `setsebool -P httpd_can_network_connect 1`，否则分别报 403 / 502。
 
@@ -560,15 +613,17 @@ journalctl -u sfoa-mcp-server --since '2026-08-26 14:00:00' --until '2026-08-26 
 ```bash
 curl -i http://127.0.0.1:8080/health            # MCP 运行时
 curl -i http://127.0.0.1:8081/admin/api/ready   # Admin API（含 DB/schema 就绪）
-curl -i http://192.168.156.203/admin/api/ready  # 经 Nginx 对外
-curl -I http://192.168.156.203/                 # 前端首页
+curl -i http://192.168.156.203:9000/admin/api/ready  # 经 Nginx :9000 对外
+curl -i http://crmmcptest.runner-corp.com.cn:9000/admin/api/ready  # 域名入口（http 无证书）
+curl -I http://192.168.156.203:9000/                 # 前端首页（:9000 主入口）
+curl -i http://192.168.156.203:80/                   # 应 301 → Location: http://192.168.156.203:9000/
 ```
 
 ---
 
 ## 11. 验证（浏览器）
 
-1. 打开 `http://192.168.156.203/login`，用 `SFOA_ADMIN_USERNAME` / `SFOA_ADMIN_PASSWORD` 登录。
+1. 打开 `http://crmmcptest.runner-corp.com.cn:9000/login`（对外主入口，2026-09-08 起后台 origin 为此域名单源；用 `SFOA_ADMIN_USERNAME` / `SFOA_ADMIN_PASSWORD` 登录）。内网机器用同一域名地址（内网 DNS 解析到同机）即可；直接敲 `http://192.168.156.203:9000` 会因 origin 不符在登录时 403。
 2. 「系统状态」确认运行模式为 `mysql`、`MCP_PUBLIC_URL` 正确。
 3. 「用户身份路由」新建路由 → 保存 → 自动生成 USER_BOUND 凭证并弹出「接入配置」。
 4. 「诊断」配置用户名后运行「验证 Diagnostic Connection」→ 应 **PASS**。
@@ -629,7 +684,7 @@ curl -s http://127.0.0.1:8080/health
 | 9 | `/admin/api/`、`/mcp` 反代 502 | SELinux 禁止 nginx 发起网络连接 | `setsebool -P httpd_can_network_connect 1` |
 | 10 | `systemctl status` 显示 `Unit ... could not be found` | `.service` 文件不在 `/etc/systemd/system/` | 重建到正确位置 + `systemctl daemon-reload` + `enable --now` |
 | 11 | systemd 服务 `Result: resources` 崩溃循环 | SELinux 拦 systemd 读 `EnvironmentFile`（`default_t`） | `.env.local` 打 `etc_t` 标签；**每次覆盖写后重 `restorecon`** |
-| 12 | 登录报 `MCP_ADMIN_ORIGIN_NOT_ALLOWED` | `SFOA_ADMIN_ALLOWED_ORIGIN` 还是本机开发值 | 改为 `http://192.168.156.203`，同时改 `MCP_ALLOWED_HOSTS/ORIGINS`，`restorecon` 后重启 |
+| 12 | 登录报 `MCP_ADMIN_ORIGIN_NOT_ALLOWED` | `SFOA_ADMIN_ALLOWED_ORIGIN` 不是当前对外入口 origin | 单值替换为**当前对外主入口 origin**：2026-09-08 迁 :9000 后为 `http://192.168.156.203:9000`，同日域名接入后为 `http://crmmcptest.runner-corp.com.cn:9000`（内网也走域名）；并给 `MCP_ALLOWED_HOSTS/ORIGINS` 追加对应入口，`restorecon` 后重启 |
 | 13 | 系统诊断验证 `MCP_ADMIN_VERIFICATION_FAILED` | ① dx-core `retrieve_metadata` 按用户名查本地 SFDX store，`~/.sfdx/<user>.json` 缺失抛 `NamedOrgNotFoundError`；② 无头 Linux 上 `@salesforce/core` 的 Crypto 走 DBus SecretService 失败 → `orgs.write()` 静默 no-op → auth 文件写不进 | 设 `SF_USE_GENERIC_UNIX_KEYCHAIN=true`（改走文件钥匙串）+ 种子化 `/root/.sfdx/<user>.json`；**已代码级固化（方案B）**：启动自动引导 + 自动种子化，重部署/清 `.sfdx` 不再复发 |
 | 14 | 验证失败页面只显示笼统 `MCP_ADMIN_VERIFICATION_FAILED`，看不到真实原因 | `safeVerificationError` 未识别 `ContextRuntimeError`，把 `MCP_METADATA_CONTEXT_FAILED` 等真实码吞掉 | **已代码级修复**：`safeVerificationError` 补 `instanceof ContextRuntimeError`，真实错误码（7 个）不再被吞 |
 | 15 | 粘贴 `cat > /tmp/xx.cjs <<'EOF'` 后回车不执行 / 语法错 | 粘贴时带了 `>` 提示符或前导空格，heredoc 被截断/换行错位 | 整块**顶格**粘贴（每行无缩进），结束符 `EOF` 单独一行顶格，再另起一行执行 `node /tmp/xx.cjs` |
@@ -655,7 +710,7 @@ curl -s http://127.0.0.1:8080/health
 | 实时日志 | `journalctl -u sfoa-mcp-server -f` / `journalctl -u sfoa-admin-api -f` |
 | 最近日志 | `journalctl -u sfoa-mcp-server -n 100 --no-pager` |
 | 健康检查 | `curl -i http://127.0.0.1:8080/health`、`curl -i http://127.0.0.1:8081/admin/api/ready` |
-| 对外验证 | `curl -I http://192.168.156.203/`、`curl -i http://192.168.156.203/admin/api/ready` |
+| 对外验证 | `curl -I http://192.168.156.203:9000/`、`curl -i http://192.168.156.203:9000/admin/api/ready`（`:80` 返回 301 属预期） |
 | 改配置后重打标签 | `restorecon -v /data/sfoa-enterprise-mcp/config/.env.local` |
 | 重建 admin-web 后重打标签 | `restorecon -Rv /data/sfoa-enterprise-mcp/app/packages/sfoa-admin-web/dist` |
 | 数据库查询 | `mysql -h 192.168.156.127 -P 3306 -u crm_user -p sfoa_enterprise_mcp -e "SELECT ..."` |
