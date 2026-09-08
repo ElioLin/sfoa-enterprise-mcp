@@ -21,6 +21,14 @@ export class MySqlUiSnapshotRepository {
     return row ? map(row) : undefined;
   }
   public async list(): Promise<readonly UiSnapshotSummary[]> {
+    // Order the narrow id set first: the summary rows carry the large computed
+    // JSON_EXTRACT columns of each snapshot, and sorting those wide rows can exhaust
+    // MySQL's sort buffer (ER_OUT_OF_SORTMEMORY) once a snapshot grows. Fetching by
+    // the ordered ids keeps the intended object_api_name ordering without sorting the
+    // wide columns.
+    const ordered = await this.database.selectFrom('sfoa_ui_snapshot')
+      .select('id').orderBy('object_api_name').limit(100).execute();
+    if (ordered.length === 0) return [];
     const rows = await this.database.selectFrom('sfoa_ui_snapshot')
       .select(['id', 'organization_id', 'object_api_name', 'content_hash', 'metadata_last_modified', 'refreshed_at', 'refresh_status', 'last_error', 'parser_version'])
       .select([
@@ -30,11 +38,15 @@ export class MySqlUiSnapshotRepository {
         sql<number>`JSON_LENGTH(snapshot_json, '$.profiles')`.as('profileCount'),
         sql<number>`JSON_LENGTH(snapshot_json, '$.recordTypes')`.as('recordTypeCount'),
       ])
-      .orderBy('object_api_name').limit(100).execute();
-    return rows.map((row) => {
+      .where('id', 'in', ordered.map((entry) => entry.id))
+      .execute();
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ordered.flatMap((entry) => {
+      const row = byId.get(entry.id);
+      if (!row) return [];
       const { snapshot: _snapshot, ...summary } = map({ ...row, snapshot_json: null, refresh_token: null, refresh_started_at: null });
-      return { ...summary, pages: strings(row.pageNames), formSources: strings(row.formSources), apps: strings(row.apps),
-        profileCount: row.profileCount ?? 0, recordTypeCount: row.recordTypeCount ?? 0 };
+      return [{ ...summary, pages: strings(row.pageNames), formSources: strings(row.formSources), apps: strings(row.apps),
+        profileCount: row.profileCount ?? 0, recordTypeCount: row.recordTypeCount ?? 0 }];
     });
   }
   /** Small database lease prevents duplicate refreshes across Admin processes. */

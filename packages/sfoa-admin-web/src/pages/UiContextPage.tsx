@@ -8,6 +8,11 @@ import { ErrorState, LoadingState, MutationError } from '../components/QueryStat
 import { formatDateTime } from '../localization.js';
 
 type Policy = { objectApiName: string; mode: 'OFF' | 'SHADOW' | 'ENFORCE'; defaultApp?: string | null };
+const UI_MODE_LABELS: Record<Policy['mode'], string> = Object.freeze({
+  OFF: '关闭（OFF）',
+  SHADOW: '影子（SHADOW）',
+  ENFORCE: '强制（ENFORCE）',
+});
 export default function UiContextPage() {
   const client = useQueryClient();
   const settings = useQuery({ queryKey: ['runtime-settings'], queryFn: adminApi.runtimeSettings });
@@ -34,18 +39,18 @@ export default function UiContextPage() {
   });
   return <PageFrame title="CREATE 页面上下文" description="按对象配置 Dynamic Forms 解析策略，查看并刷新当前页面配置。">
     <Space orientation="vertical" className="full-width" size="large">
-      <Alert type="info" showIcon title="未配置的对象默认 OFF。先 SHADOW，再选择测试对象 ENFORCE；可随时退回 OFF。" description="快照超过 24 小时会在审计中标记陈旧。刷新失败保留上次快照；无法解析时继续使用 Page Layout。" />
+      <Alert type="info" showIcon title="未配置的对象默认关闭（OFF）。先用影子（SHADOW）观察审计，再对测试对象启用强制（ENFORCE）；可随时退回关闭。" description="快照超过 24 小时会在审计中标记陈旧。刷新失败保留上次快照；无法解析时继续使用 Page Layout。" />
       <MutationError error={save.error ?? refresh.error ?? defaultApp.error} />
       {settings.isPending ? <LoadingState /> : settings.error ? <ErrorState error={settings.error} onRetry={() => void settings.refetch()} /> : <Card title="对象策略">
         <Form form={form} layout="inline" initialValues={{ mode: 'SHADOW' }} onFinish={(value) => save.mutate(value)}>
           <Form.Item name="objectApiName" label="对象 API 名" rules={[{ required: true, pattern: /^[A-Za-z][A-Za-z0-9_]{0,127}$/u }]}><Input /></Form.Item>
-          <Form.Item name="mode" label="模式"><Select style={{ width: 130 }} options={['OFF', 'SHADOW', 'ENFORCE'].map((value) => ({ value, label: value }))} /></Form.Item>
+          <Form.Item name="mode" label="模式"><Select style={{ width: 150 }} options={(['OFF', 'SHADOW', 'ENFORCE'] as const).map((value) => ({ value, label: UI_MODE_LABELS[value] }))} /></Form.Item>
           <Form.Item name="defaultApp" label="默认 App"><Input placeholder="可选 DeveloperName" /></Form.Item>
           <Form.Item><Button type="primary" htmlType="submit" loading={save.isPending}>保存对象策略</Button></Form.Item>
         </Form>
         {!parsed.success ? <Alert type="error" title="当前策略配置无效，请修正后保存。" /> : null}
         <Table rowKey="objectApiName" dataSource={policies} pagination={false} scroll={{ x: 600 }} columns={[
-          { title: '对象', dataIndex: 'objectApiName' }, { title: '模式', dataIndex: 'mode' }, { title: '默认 App', dataIndex: 'defaultApp' },
+          { title: '对象', dataIndex: 'objectApiName' }, { title: '模式', render: (_value, row) => UI_MODE_LABELS[row.mode] ?? row.mode }, { title: '默认 App', dataIndex: 'defaultApp' },
           { title: '操作', render: (_value, row) => <Space><Button onClick={() => form.setFieldsValue(row)}>编辑</Button>
             <Button loading={refreshing === row.objectApiName} disabled={refresh.isPending} onClick={() => refresh.mutate(row.objectApiName)}>刷新快照</Button></Space> },
         ]} />
