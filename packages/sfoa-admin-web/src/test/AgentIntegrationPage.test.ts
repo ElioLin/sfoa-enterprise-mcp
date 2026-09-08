@@ -8,8 +8,8 @@ const GENERATOR = readFileSync(resolve(process.cwd(), 'src', 'agent', 'instructi
 
 describe('P6 Agent Integration Admin contract', () => {
   it('presents all canonical distribution surfaces and the Playbook version', () => {
-    expect(AGENT_PLAYBOOK_VERSION).toBe('1.6.0');
-    for (const label of ['MCP 接入', 'Agent Playbook', '小犇 / Dify', 'WorkBuddy', 'MCP 原生指引']) {
+    expect(AGENT_PLAYBOOK_VERSION).toBe('1.6.1');
+    for (const label of ['MCP 接入', 'Agent Playbook', '小犇 / Dify', '企业微信 / WeCom', 'WorkBuddy', 'MCP 原生指引']) {
       expect(PAGE).toContain(label);
     }
     for (const surface of [
@@ -26,22 +26,51 @@ describe('P6 Agent Integration Admin contract', () => {
     expect(PAGE).toContain('查看完整规范');
     expect(PAGE).toContain('label="SYNCED"');
     expect(PAGE).toContain('label="GENERATED"');
+    // P8-05: the page description and distribution status now name the WeCom surface.
+    expect(PAGE).toContain('企业微信角色设定');
+    expect(PAGE).toContain('WeCom Role Setting');
   });
 
-  it('keeps the three identity setup paths distinct and removes P5 stale setup copy', () => {
+  it('keeps the four identity setup paths distinct and removes P5 stale setup copy', () => {
     expect(PAGE).toContain('CURRENT_USER_TOKEN');
     expect(PAGE).toContain('USER_BOUND_TOKEN');
     expect(PAGE).toContain('MCP_CLIENT_TOKEN + X-Platform-User-Id');
+    expect(PAGE).toContain('四种身份来源不可混用');
+    // WeCom is a fourth identity path via the WECOM_HEADER channel.
+    expect(PAGE).toContain('WECOM_HEADER');
+    expect(PAGE).toContain('X-WeCom-User-Id');
+    expect(PAGE).toContain('MCP_PLATFORM_USER_REQUIRED');
+    expect(PAGE).toContain('MCP_PLATFORM_IDENTITY_CONFLICT');
     expect(PAGE).not.toContain('Bearer <YOUR_MCP_CLIENT_TOKEN>');
     expect(PAGE).not.toContain("'配置 platformUserId。'");
     expect(PAGE).not.toContain("'配置 X-Platform-User-Id。'");
+    expect(PAGE).not.toContain('三种身份来源不可混用');
   });
 
   it('adapts Admin runtime facts into the canonical package instead of duplicating rules', () => {
     expect(GENERATOR).toContain('createAgentCapabilities');
     expect(GENERATOR).toContain('renderDifyInstruction');
+    // P8-05: WeCom role setting is delegated to @sfoa/agent-playbook, never re-authored.
+    expect(GENERATOR).toContain('renderWeComRoleSetting');
+    expect(GENERATOR).toContain('generateWeComRoleSetting');
     expect(GENERATOR).not.toContain('function createWorkflow');
     expect(GENERATOR).not.toContain('function updateWorkflow');
     expect(GENERATOR).not.toContain('MCP_DML_OUTCOME_UNKNOWN');
+  });
+
+  it('presents WeCom onboarding UX with copy affordances and the four-channel MCP overview', () => {
+    // WeCom is the second MCP connection example (four channels in one overview).
+    expect(PAGE).toContain('企业微信 / WeCom（WECOM_HEADER）');
+    expect(PAGE).toContain('企业微信 / WeCom MCP 连接示例');
+    // Onboarding cards and copy controls.
+    expect(PAGE).toContain('推荐角色设定');
+    expect(PAGE).toContain('复制角色设定');
+    expect(PAGE).toContain('企业微信 / WeCom 推荐步骤');
+    expect(PAGE).toContain('接入网关');
+    expect(PAGE).toContain('Identity Route');
+    expect(PAGE).toContain('验收清单');
+    // Enabled-state gating is derived from runtime identity-header config.
+    expect(PAGE).toContain('wecomChannelEnabled');
+    expect(PAGE).toContain('buildWeComConnectionExample');
   });
 });

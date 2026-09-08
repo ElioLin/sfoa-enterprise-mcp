@@ -1,2 +1,9 @@
 **/docs/* linguist-generated=true
 **/docs/* linguist-documentation
+
+# Generated @sfoa/agent-playbook artifacts are written with LF line endings and
+# compared byte-for-byte by `yarn agent:check`. Pin them to LF regardless of
+# core.autocrlf so a Windows checkout does not churn them or produce false drift.
+.codebuddy/skills/sfoa-salesforce-assistant/** text eol=lf
+docs/agent/DIFY_AGENT_INSTRUCTION.md text eol=lf
+docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md text eol=lf

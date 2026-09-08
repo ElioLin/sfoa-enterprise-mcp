@@ -30,6 +30,17 @@ Project documentation:
 
 The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` / `yarn agent:check` for P6 Agent Playbook distributions. Run `yarn skill:sync` / `yarn skill:check` / `yarn skill:delivery` / `yarn skill:smoke` for the P7-08 Codex, Claude Code, and WorkBuddy/CodeBuddy Skill copies and their Git-trackability clean-clone proof; `yarn ai:doctor` checks local diagnostic prerequisites without printing secrets. Run `yarn validate:p5` for the repeatable product regression Gate. Real credentials belong only in ignored local environment files or secret injection.
 
+### Supported agent integrations
+
+The Salesforce Agent Playbook is distributed to four governed identity channels. The Admin "智能体接入" page (MCP 接入 overview) renders a one-click connection example and recommended setup for each:
+
+- **小犇 / Dify** — the Dify agent passes the current user's Buntu token (`Authorization: Bearer <CURRENT_USER_TOKEN>`); identity resolves through `BUNTU_TOKEN` → Identity Route.
+- **企业微信 / WeCom** — a trusted gateway holds `Bearer <MCP_CLIENT_TOKEN>` and injects the current user's `X-WeCom-User-Id` on every request; the server treats it as the `WECOM_HEADER` identity channel and derives the recommended role setting from live capabilities.
+- **WorkBuddy** — a custom Streamable HTTP Connector uses a route-bound `Bearer <USER_BOUND_TOKEN>` plus the generated `sfoa-salesforce-assistant` Skill.
+- **Internal / Inspector** — the controlled internal-service channel uses `Bearer <MCP_CLIENT_TOKEN>` with the primary `X-Platform-User-Id` header (`INTERNAL_SERVICE_HEADER`).
+
+Only the Internal channel configures `X-Platform-User-Id`. Dify, WeCom, and WorkBuddy never send a Salesforce username, platform-user selector, or credential in Tool arguments; WECOM_HEADER is trusted identity-header provenance and still needs a trusted gateway/domain, a protected MCP credential, and a Host allowlist in production.
+
 ### Create a sensitive ChatGPT review package
 
 Run `yarn review:package` from the repository root. The command directly scans

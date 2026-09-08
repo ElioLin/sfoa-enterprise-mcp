@@ -1,7 +1,7 @@
 import { AGENT_PLAYBOOK_VERSION } from '@sfoa/agent-playbook';
 import type { AdminToolRecordDto, DiagnosticConfigRecord, DmlPolicyRecord, ManagedDmlFieldRuleRecord } from '@sfoa/control-plane';
 import { describe, expect, it } from 'vitest';
-import { deriveDifyInstructionFacts, generateDifyAgentInstruction } from '../agent/instruction-generator.js';
+import { deriveDifyInstructionFacts, generateDifyAgentInstruction, generateWeComRoleSetting } from '../agent/instruction-generator.js';
 
 const NOW = '2026-08-24T00:00:00.000Z';
 
@@ -108,6 +108,42 @@ describe('canonical capability-aware Dify Agent instruction generator', () => {
     expect(instruction).toContain('Bearer <CURRENT_USER_TOKEN>');
     expect(instruction).toContain('Do not configure `X-Platform-User-Id`');
     expect(instruction).toContain('platformUserId -> Identity Route -> Salesforce username');
+  });
+});
+
+describe('canonical WeCom recommended role setting generator', () => {
+  it('renders a Chinese-first, versioned WECOM_HEADER role setting that is secret-free', () => {
+    const role = generateWeComRoleSetting(fixture([tool('run_soql_query')]));
+    expect(role).toContain(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`);
+    expect(role).toContain('# 企业微信 SFoA Salesforce 助手 — 推荐角色设定');
+    expect(role).toContain('`WECOM_HEADER`');
+    expect(role).toContain('`X-WeCom-User-Id`');
+    expect(role).toContain('当前用户');
+    // WeCom never inherits Buntu / USER_BOUND token semantics or any secret shape.
+    for (const token of ['CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'Bearer <']) {
+      expect(role).not.toContain(token);
+    }
+    expect(role).toContain('不要求用户提供 Salesforce 账号');
+    expect(role).toContain('MCP_DML_OUTCOME_UNKNOWN');
+  });
+
+  it('reflects effective READ/CREATE/UPDATE facts without claiming more than is enabled', () => {
+    const bare = generateWeComRoleSetting(fixture([tool('run_soql_query')]));
+    expect(bare).toContain('读取：可用');
+    expect(bare).toContain('新建：不可用');
+    expect(bare).toContain('更新：不可用');
+    expect(bare).toContain('不得声称未启用的能力');
+
+    const role = generateWeComRoleSetting(fixture(
+      [tool('run_soql_query'), tool('create_record'), tool('update_record'), tool('get_record_action_context')],
+      [policy('Lead', true, false), policy('Contact', false, true)],
+    ));
+    expect(role).toContain('新建：可用 — 对象范围 `Lead`。');
+    expect(role).toContain('更新：可用 — 对象范围 `Contact`。');
+    expect(role).toContain('get_record_action_context');
+    expect(role).toContain('create_record.recordTypeId');
+    expect(role).toContain('仅剩 Master 时保留并使用');
+    expect(role).toContain('PLATFORM_IDENTITY_FALLBACK');
   });
 });
 

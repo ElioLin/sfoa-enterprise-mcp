@@ -9,6 +9,10 @@ export type McpConnectivityConfig = Readonly<{
   allowedOrigins: readonly string[];
   tokenConfigured: boolean;
   runtimeEndpoint: string;
+  /** Primary platform user identity header (trusted internal-service channel). */
+  platformUserHeader: string;
+  /** Additional recognized platform identity headers (e.g. X-WeCom-User-Id → WECOM_HEADER). */
+  platformUserHeaderAliases: readonly string[];
 }>;
 
 export type ExternalUrlValidation =
@@ -22,6 +26,7 @@ export function deriveMcpConnectivity(status: SystemStatusDto): McpConnectivityC
   const endpoint = safeUrl(status.mcpEndpoint);
   const port = asPort(settings.MCP_PORT) ?? endpoint?.portAsNumber ?? 8080;
   const path = asPath(settings.MCP_PATH) ?? endpoint?.pathname ?? '/mcp';
+  const platformUserHeader = asString(settings.MCP_PLATFORM_USER_HEADER) ?? 'X-Platform-User-Id';
   return Object.freeze({
     bindHost: asString(settings.MCP_BIND_HOST) ?? '127.0.0.1',
     port,
@@ -31,6 +36,8 @@ export function deriveMcpConnectivity(status: SystemStatusDto): McpConnectivityC
     allowedOrigins: asStringArray(settings.MCP_ALLOWED_ORIGINS),
     tokenConfigured: status.configured.mcpClientToken,
     runtimeEndpoint: status.mcpEndpoint,
+    platformUserHeader,
+    platformUserHeaderAliases: asStringArray(settings.MCP_PLATFORM_USER_HEADER_ALIASES),
   });
 }
 
@@ -83,6 +90,29 @@ export function buildInternalConnectionExample(externalUrl: string): string {
     'Authorization Header = Bearer <MCP_CLIENT_TOKEN>',
     'Identity Source = INTERNAL_SERVICE_HEADER',
     'X-Platform-User-Id = <PLATFORM_USER_ID>',
+    'Transport = Streamable HTTP',
+  ].join('\n');
+}
+
+/**
+ * Whether the current runtime recognizes `X-WeCom-User-Id` as a platform
+ * identity header (WECOM_HEADER channel) — either as the primary header (which
+ * the config layer forbids) or, as intended, through
+ * `MCP_PLATFORM_USER_HEADER_ALIASES`.
+ */
+export function wecomChannelEnabled(config: McpConnectivityConfig): boolean {
+  return [config.platformUserHeader, ...config.platformUserHeaderAliases].some(
+    (name) => name.toLocaleLowerCase('en-US') === 'x-wecom-user-id',
+  );
+}
+
+export function buildWeComConnectionExample(externalUrl: string): string {
+  return [
+    `MCP Server URL = ${externalUrl}`,
+    'Authorization Header = Bearer <MCP_CLIENT_TOKEN>',
+    'Identity Source = WECOM_HEADER',
+    'X-WeCom-User-Id = <CURRENT_WECOM_USER_ID>',
+    'X-Platform-User-Id = NOT_CONFIGURED',
     'Transport = Streamable HTTP',
   ].join('\n');
 }

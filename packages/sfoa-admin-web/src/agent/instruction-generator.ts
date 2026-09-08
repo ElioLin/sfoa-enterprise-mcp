@@ -3,6 +3,7 @@ import {
   AGENT_RECOGNIZED_TOOL_NAMES,
   createAgentCapabilities,
   renderDifyInstruction,
+  renderWeComRoleSetting,
   type AgentCapabilities,
   type AgentRecognizedToolName,
 } from '@sfoa/agent-playbook';
@@ -29,6 +30,16 @@ export type DifyInstructionFacts = Readonly<{
 
 export function generateDifyAgentInstruction(input: DifyInstructionInput): string {
   return renderDifyInstruction(deriveDifyInstructionFacts(input).capabilities);
+}
+
+/**
+ * Recommended WeCom (企业微信) role setting, rendered from the same runtime
+ * capability facts used by the Dify instruction (the input type is named after
+ * the first consumer, but carries host-agnostic runtime facts). Deterministic,
+ * secret-free, and capability-aware via @sfoa/agent-playbook.
+ */
+export function generateWeComRoleSetting(input: DifyInstructionInput): string {
+  return renderWeComRoleSetting(deriveDifyInstructionFacts(input).capabilities);
 }
 
 export function deriveDifyInstructionFacts(input: DifyInstructionInput): DifyInstructionFacts {

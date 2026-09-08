@@ -36,16 +36,19 @@ import {
   bindHostGuidance,
   buildDifyConnectionExample,
   buildInternalConnectionExample,
+  buildWeComConnectionExample,
   buildWorkBuddyConnectionExample,
   deriveMcpConnectivity,
   lanMcpUrl,
   loopbackMcpUrl,
   validateExternalMcpUrl,
+  wecomChannelEnabled,
   type McpConnectivityConfig,
 } from '../agent/connectivity.js';
 import {
   deriveDifyInstructionFacts,
   generateDifyAgentInstruction,
+  generateWeComRoleSetting,
   type AdminManagedDmlFieldFact,
 } from '../agent/instruction-generator.js';
 import { ErrorState, LoadingState } from '../components/QueryState.js';
@@ -61,6 +64,7 @@ export default function AgentIntegrationPage() {
   const [externalUrl, setExternalUrl] = useState(DEFAULT_EXTERNAL_URL);
   const [externalUrlTouched, setExternalUrlTouched] = useState(false);
   const [instruction, setInstruction] = useState('');
+  const [wecomRoleSetting, setWecomRoleSetting] = useState('');
   const status = useQuery({ queryKey: ['system-status'], queryFn: adminApi.systemStatus });
   const tools = useQuery({ queryKey: ['tools'], queryFn: adminApi.tools });
   const policies = useQuery({ queryKey: ['dml-policies', 'all'], queryFn: adminApi.allDmlPolicies });
@@ -96,7 +100,10 @@ export default function AgentIntegrationPage() {
   }, [externalUrlTouched, status.data]);
 
   useEffect(() => {
-    if (generatorInput) setInstruction(generateDifyAgentInstruction(generatorInput));
+    if (generatorInput) {
+      setInstruction(generateDifyAgentInstruction(generatorInput));
+      setWecomRoleSetting(generateWeComRoleSetting(generatorInput));
+    }
   }, [generatorInput]);
 
   const pending = status.isPending || tools.isPending || policies.isPending || (policies.data !== undefined && managedFields.isPending);
@@ -116,7 +123,7 @@ export default function AgentIntegrationPage() {
   return (
     <PageFrame
       title="智能体接入"
-      description={`Playbook ${AGENT_PLAYBOOK_VERSION} 统一分发 MCP 原生指引、小犇/Dify 指令与 WorkBuddy Skill；运行时能力来自当前 Tool、DML 策略和诊断状态。`}
+      description={`Playbook ${AGENT_PLAYBOOK_VERSION} 统一分发 MCP 原生指引、小犇/Dify 指令、企业微信角色设定与 WorkBuddy Skill；运行时能力来自当前 Tool、DML 策略和诊断状态。`}
       action={<Button icon={<ReloadOutlined />} loading={status.isFetching || tools.isFetching || policies.isFetching || managedFields.isFetching} onClick={() => void refresh()}>刷新当前状态</Button>}
     >
       {pending ? <LoadingState rows={8} /> : error ? <ErrorState error={error} onRetry={() => void refresh()} /> : status.data && facts && generatorInput ? (
@@ -157,6 +164,23 @@ export default function AgentIntegrationPage() {
                   onGenerate={() => {
                     setInstruction(generateDifyAgentInstruction(generatorInput));
                     void message.success('已根据当前 Tool、DML 策略与 Diagnostic verification 重新生成。');
+                  }}
+                  onCopy={copy}
+                />
+              ),
+            },
+            {
+              key: 'wecom',
+              label: '企业微信 / WeCom',
+              children: (
+                <WeComTab
+                  externalUrl={externalUrl}
+                  roleSetting={wecomRoleSetting}
+                  facts={facts}
+                  wecomEnabled={wecomChannelEnabled(deriveMcpConnectivity(status.data))}
+                  onRegenerate={() => {
+                    setWecomRoleSetting(generateWeComRoleSetting(generatorInput));
+                    void message.success('已根据当前 Tool、DML 策略与 Diagnostic verification 重新生成角色设定。');
                   }}
                   onCopy={copy}
                 />
@@ -205,11 +229,17 @@ function McpAccessTab({
 }>) {
   const validation = validateExternalMcpUrl(externalUrl);
   const exampleUrl = validation.valid ? validation.url : externalUrl.trim();
+  const wecomEnabled = wecomChannelEnabled(config);
   const examples = [
     {
       title: '小犇 / Dify（BUNTU_TOKEN）',
       value: buildDifyConnectionExample(exampleUrl),
       success: '已复制小犇 / Dify 连接示例。',
+    },
+    {
+      title: '企业微信 / WeCom（WECOM_HEADER）',
+      value: buildWeComConnectionExample(exampleUrl),
+      success: '已复制企业微信 / WeCom 连接示例。',
     },
     {
       title: 'WorkBuddy（USER_BOUND_TOKEN）',
@@ -222,6 +252,7 @@ function McpAccessTab({
       success: '已复制 Internal / Inspector 连接示例。',
     },
   ] as const;
+  const exampleColSpan = examples.length >= 4 ? 6 : 8;
   return (
     <Space orientation="vertical" size="large" className="full-width">
       <Card title="当前 Runtime 安全配置" className="surface-card">
@@ -264,8 +295,8 @@ function McpAccessTab({
       <Alert
         type="warning"
         showIcon
-        title="三种身份来源不可混用"
-        description="小犇/Dify 使用 Buntu 当前用户 Token；WorkBuddy 使用 Identity Route 绑定的 USER_BOUND Token；只有受控 Internal/Inspector 客户端使用 MCP_CLIENT_TOKEN + X-Platform-User-Id。客户端不得通过 Tool 参数选择 Salesforce Username。"
+        title="四种身份来源不可混用"
+        description="小犇/Dify 使用 Buntu 当前用户 Token；企业微信/WeCom 由受控网关在每个请求注入 X-WeCom-User-Id（WECOM_HEADER）并持有 MCP_CLIENT_TOKEN；WorkBuddy 使用 Identity Route 绑定的 USER_BOUND Token；只有受控 Internal/Inspector 客户端使用 MCP_CLIENT_TOKEN + X-Platform-User-Id。客户端不得通过 Tool 参数选择 Salesforce Username，也不得代网关伪造身份来源。"
       />
 
       <Card title="外部 MCP 地址" className="surface-card">
@@ -283,7 +314,7 @@ function McpAccessTab({
 
       <Row gutter={[16, 16]}>
         {examples.map((example) => (
-          <Col xs={24} xl={8} key={example.title}>
+          <Col xs={24} xl={exampleColSpan} key={example.title}>
             <ConnectionExample
               title={example.title}
               value={example.value}
@@ -293,6 +324,14 @@ function McpAccessTab({
           </Col>
         ))}
       </Row>
+      {!wecomEnabled ? (
+        <Alert
+          type="warning"
+          showIcon
+          title="WeCom 通道未启用"
+          description="当前 Runtime 尚未把 X-WeCom-User-Id 识别为身份来源：请在服务端配置 MCP_PLATFORM_USER_HEADER_ALIASES 加入该头，并确保网关在每个请求注入它。未启用前 WeCom 示例仅供参考，实际请求会被拒绝。"
+        />
+      ) : null}
     </Space>
   );
 }
@@ -312,7 +351,7 @@ function AgentPlaybookTab({
         type="success"
         showIcon
         title={`Canonical Agent Playbook ${AGENT_PLAYBOOK_VERSION}`}
-        description="规则由 @sfoa/agent-playbook 单一维护；MCP、Dify、WorkBuddy 与 checked-in 生成物使用同一版本。"
+        description="规则由 @sfoa/agent-playbook 单一维护；MCP、Dify、企业微信/WeCom、WorkBuddy 与 checked-in 生成物使用同一版本。"
       />
       <Row gutter={[16, 16]}>
         <RelationCard title="Canonical Source" description="纯 TypeScript 定义与 renderer；不读取网络、数据库、Connection 或 secret。" />
@@ -329,6 +368,7 @@ function AgentPlaybookTab({
           <StatusTag label={facts.availableTools.includes('get_record_links') ? 'ENABLED' : 'DISABLED'} /><span>Record links</span>
           <StatusTag label="SYNCED" tone="success" /><span>WorkBuddy Skill</span>
           <StatusTag label="GENERATED" tone="success" /><span>Dify Instruction</span>
+          <StatusTag label="GENERATED" tone="success" /><span>WeCom Role Setting</span>
           <StatusTag label="NOT_AVAILABLE" /><span>Dynamic Forms evidence</span>
         </Space>
       </Card>
@@ -404,6 +444,87 @@ function DifyTab({
         <Button icon={<CopyOutlined />} disabled={!instruction} onClick={() => void onCopy(instruction, '已复制小犇 / Dify Agent 指令。')}>复制指令</Button>
       </Space>
       <CodeBlock value={instruction} tall />
+    </Space>
+  );
+}
+
+function WeComTab({
+  externalUrl,
+  roleSetting,
+  facts,
+  wecomEnabled,
+  onRegenerate,
+  onCopy,
+}: Readonly<{
+  externalUrl: string;
+  roleSetting: string;
+  facts: ReturnType<typeof deriveDifyInstructionFacts>;
+  wecomEnabled: boolean;
+  onRegenerate(): void;
+  onCopy(value: string, successMessage: string): Promise<void>;
+}>) {
+  const validation = validateExternalMcpUrl(externalUrl);
+  const example = buildWeComConnectionExample(validation.valid ? validation.url : externalUrl.trim());
+  return (
+    <Space orientation="vertical" size="large" className="full-width">
+      <Alert
+        type="info"
+        showIcon
+        title="X-WeCom-User-Id 身份头通道 → WECOM_HEADER"
+        description="接入网关在每个请求注入当前企业微信用户的 X-WeCom-User-Id；服务端把它解析为当前用户 Identity Route 与请求级 Salesforce 连接。WECOM_HEADER 表达的是可信身份头来源，不是企业微信客户端的加密证明。"
+      />
+      <Row gutter={[16, 16]}>
+        <RelationCard title="接入网关" description="企业微信自建应用后端持有 MCP_CLIENT_TOKEN，在每个请求注入当前用户 X-WeCom-User-Id 并转发到受保护 MCP Endpoint。" />
+        <RelationCard title="Identity Route" description="WECOM_HEADER → 当前用户 → Identity Route → Salesforce 用户名；以当前用户身份按请求执行，绝不用固定管理员账号。" />
+        <RelationCard title="信任边界" description="生产环境仍需可信网关/域、Host 白名单与受保护的 MCP 凭据；不要把任意 X-WeCom-User-Id 暴露给不可信网络。" />
+      </Row>
+      {!wecomEnabled ? (
+        <Alert
+          type="warning"
+          showIcon
+          title="WeCom 通道尚未启用"
+          description="当前 Runtime 未把 X-WeCom-User-Id 纳入身份头别名；请在 MCP Runtime 配置 MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id 后刷新本页。"
+        />
+      ) : null}
+      <ConnectionExample title="企业微信 / WeCom MCP 连接示例" value={example} disabled={!validation.valid} onCopy={() => onCopy(example, '已复制企业微信 / WeCom 连接示例。')} />
+      <Recommendation title="企业微信 / WeCom 推荐步骤" items={[
+        '在企业微信创建自建应用，并让可信网关持有 MCP_CLIENT_TOKEN（Authorization: Bearer <MCP_CLIENT_TOKEN>）。',
+        '网关按会话把当前企业微信用户映射为 X-WeCom-User-Id 注入每个请求；客户端不接触 MCP 凭据。',
+        '确认 Runtime 身份头别名已包含 X-WeCom-User-Id（见上方启用提示），Endpoint 走 HTTPS。',
+        '加载 MCP Instructions、Resources、Prompt 与当前可用 Tools。',
+        '将下面由当前能力事实生成的「推荐角色设定」粘贴到企业微信智能体角色/人设。',
+        '先执行只读与身份冒烟，再对允许对象执行 DML 测试。',
+      ]} />
+      <Card title="推荐角色设定" className="surface-card" extra={
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={onRegenerate}>重新生成</Button>
+          <Button type="primary" icon={<CopyOutlined />} disabled={!roleSetting} onClick={() => void onCopy(roleSetting, '已复制企业微信推荐角色设定。')}>复制角色设定</Button>
+        </Space>
+      }>
+        <Typography.Paragraph type="secondary" className="credential-note">
+          由 @sfoa/agent-playbook 的 renderWeComRoleSetting 确定性渲染（Playbook {AGENT_PLAYBOOK_VERSION}）；不含任何 secret，只反映当前可用 Tool 与对象策略。
+        </Typography.Paragraph>
+        <CodeBlock value={roleSetting} tall />
+      </Card>
+      <Card title="验收清单" className="surface-card">
+        <ol className="guidance-list">
+          <li>企业微信会话内发起只读请求，返回的是“当前用户”可见数据，审计 identitySource = WECOM_HEADER。</li>
+          <li>网关去掉 X-WeCom-User-Id：请求被拒（MCP_PLATFORM_USER_REQUIRED）。</li>
+          <li>网关重复注入两个不同的 X-WeCom-User-Id：请求被拒（MCP_PLATFORM_IDENTITY_CONFLICT）。</li>
+          <li>把 X-WeCom-User-Id 换成另一用户（伪造）：请求被拒，且不创建 Salesforce 连接。</li>
+          <li>只对当前允许对象执行 CREATE/UPDATE 测试；未知结果（MCP_DML_OUTCOME_UNKNOWN）不自动重试。</li>
+        </ol>
+      </Card>
+      <Card title="最小冒烟测试" className="surface-card">
+        <Typography.Paragraph type="secondary">提示词只引用当前已启用的工具。</Typography.Paragraph>
+        <ol className="guidance-list">
+          {facts.availableTools.includes('run_soql_query') ? <li>请用 run_soql_query 读取我可见的最近几条记录（示例对象可换）。</li> : null}
+          {facts.availableTools.includes('get_record_action_context') ? <li>请读取当前可新建/更新的动作上下文，不要替我填身份字段。</li> : null}
+          {facts.availableTools.includes('create_record') ? <li>请按推荐流程在允许对象上新建一条测试记录（先确认 Record Type）。</li> : null}
+          {facts.availableTools.includes('update_record') ? <li>请只更新我明确要求修改的字段。</li> : null}
+          <li>不要要求我提供 Salesforce 账号或任何 Token。</li>
+        </ol>
+      </Card>
     </Space>
   );
 }

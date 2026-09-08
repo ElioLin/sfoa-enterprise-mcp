@@ -4,11 +4,13 @@ import {
   bindHostGuidance,
   buildDifyConnectionExample,
   buildInternalConnectionExample,
+  buildWeComConnectionExample,
   buildWorkBuddyConnectionExample,
   deriveMcpConnectivity,
   lanMcpUrl,
   loopbackMcpUrl,
   validateExternalMcpUrl,
+  wecomChannelEnabled,
 } from '../agent/connectivity.js';
 
 describe('MCP network guidance', () => {
@@ -29,19 +31,27 @@ describe('MCP network guidance', () => {
     expect(bindHostGuidance(config)).toContain('不会自动让互联网可访问');
   });
 
-  it('uses the supplied external URL in Dify and WorkBuddy examples', () => {
+  it('uses the supplied external URL in Dify, WeCom, WorkBuddy, and Internal examples', () => {
     const validation = validateExternalMcpUrl('https://mcp.company.com/mcp');
     expect(validation).toEqual({ valid: true, url: 'https://mcp.company.com/mcp' });
     if (!validation.valid) throw new Error(validation.message);
 
     const dify = buildDifyConnectionExample(validation.url);
+    const wecom = buildWeComConnectionExample(validation.url);
     const workBuddy = buildWorkBuddyConnectionExample(validation.url);
     const internal = buildInternalConnectionExample(validation.url);
     expect(dify).toContain('https://mcp.company.com/mcp');
+    expect(wecom).toContain('https://mcp.company.com/mcp');
     expect(workBuddy).toContain('https://mcp.company.com/mcp');
+    expect(internal).toContain('https://mcp.company.com/mcp');
     expect(dify).toContain('Bearer <CURRENT_USER_TOKEN>');
     expect(dify).toContain('Identity Source = BUNTU_TOKEN');
     expect(dify).toContain('X-Platform-User-Id = NOT_CONFIGURED');
+    expect(wecom).toContain('Bearer <MCP_CLIENT_TOKEN>');
+    expect(wecom).toContain('Identity Source = WECOM_HEADER');
+    expect(wecom).toContain('X-WeCom-User-Id = <CURRENT_WECOM_USER_ID>');
+    expect(wecom).toContain('X-Platform-User-Id = NOT_CONFIGURED');
+    expect(wecom).toContain('Transport = Streamable HTTP');
     expect(workBuddy).toContain('Bearer <USER_BOUND_TOKEN>');
     expect(workBuddy).toContain('Identity Source = USER_BOUND_TOKEN');
     expect(workBuddy).toContain('X-Platform-User-Id = NOT_CONFIGURED');
@@ -49,7 +59,27 @@ describe('MCP network guidance', () => {
     expect(internal).toContain('Bearer <MCP_CLIENT_TOKEN>');
     expect(internal).toContain('X-Platform-User-Id = <PLATFORM_USER_ID>');
     expect(internal).toContain('INTERNAL_SERVICE_HEADER');
-    expect(`${dify}\n${workBuddy}`).not.toContain('<PLATFORM_USER_ID>');
+    // WECOM_HEADER example must never leak another channel's identity semantics.
+    expect(`${dify}\n${wecom}\n${workBuddy}`).not.toContain('<PLATFORM_USER_ID>');
+    expect(wecom).not.toContain('CURRENT_USER_TOKEN');
+    expect(wecom).not.toContain('USER_BOUND_TOKEN');
+  });
+
+  it('detects WeCom channel enablement from the identity-header configuration', () => {
+    const disabled = deriveMcpConnectivity(status({
+      MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
+      MCP_PLATFORM_USER_HEADER_ALIASES: ['X-WorkBuddy-Id'],
+    }));
+    expect(disabled.platformUserHeader).toBe('X-Platform-User-Id');
+    expect(disabled.platformUserHeaderAliases).toEqual(['X-WorkBuddy-Id']);
+    expect(wecomChannelEnabled(disabled)).toBe(false);
+
+    // Enabled through the alias list (the intended partner-header route), case-insensitively.
+    const enabled = deriveMcpConnectivity(status({
+      MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
+      MCP_PLATFORM_USER_HEADER_ALIASES: ['x-wecom-user-id'],
+    }));
+    expect(wecomChannelEnabled(enabled)).toBe(true);
   });
 
   it('rejects credentials, query parameters, and non-HTTP schemes', () => {

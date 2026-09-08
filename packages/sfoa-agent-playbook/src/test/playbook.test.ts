@@ -7,6 +7,7 @@ import {
   renderDifyInstruction,
   renderFullPlaybook,
   renderServerInstructions,
+  renderWeComRoleSetting,
   renderWorkflow,
   renderWorkBuddySkill,
   renderWorkBuddySystemPrompt,
@@ -253,3 +254,83 @@ describe('strategy-aware managed fallback behavior contract', () => {
     }
   });
 });
+
+
+describe('WeCom recommended role setting renderer', () => {
+  const capabilities = createAgentCapabilities({
+    enabledTools: [
+      'run_soql_query', 'create_record', 'update_record', 'get_record_action_context',
+      'run_diagnostic_tooling_query', 'get_metadata_component_context',
+      'get_agent_playbook', 'get_record_links',
+    ],
+    createAllowedObjects: ['Lead', 'Account'],
+    updateAllowedObjects: ['Contact'],
+    diagnosticReady: true,
+    managedDmlFields: [{
+      objectApiName: 'Account', fieldApiName: 'Requested_By__c', operations: ['CREATE'], managedBy: 'MCP', strategy: 'PLATFORM_IDENTITY',
+    }],
+  });
+
+  it('renders a versioned, Chinese-first WeCom role setting that is deterministic and secret-free', () => {
+    const output = renderWeComRoleSetting(capabilities);
+    assert.match(output, /推荐角色设定/u);
+    assert.match(output, /企业微信 SFoA Salesforce 助手/u);
+    assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.6.1');
+    assert.equal(renderWeComRoleSetting(capabilities), output);
+
+    // Secret / host-token semantics from other channels must never appear.
+    for (const token of ['CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'validate-token', 'TEST_ONLY_SECRET', 'Bearer <']) {
+      assert.equal(output.includes(token), false, token);
+    }
+  });
+
+  it('anchors identity on the current WeCom user and the WECOM_HEADER provenance, not a fixed account', () => {
+    const output = renderWeComRoleSetting(capabilities);
+    assert.match(output, /`X-WeCom-User-Id`/u);
+    assert.match(output, /`WECOM_HEADER`/u);
+    assert.match(output, /当前用户/u);
+    assert.match(output, /不要求用户提供 Salesforce 账号/u);
+    assert.match(output, /不向任何工具传身份选择参数/u);
+    assert.match(output, /连接凭据只保存在服务端或网关/u);
+    assert.doesNotMatch(output, /CURRENT_USER_TOKEN/u);
+  });
+
+  it('reflects dynamic capability facts and never claims unavailable capabilities', () => {
+    const output = renderWeComRoleSetting(capabilities);
+    assert.match(output, /启用工具：`run_soql_query`, `create_record`, `update_record`, `get_record_action_context`, `run_diagnostic_tooling_query`, `get_metadata_component_context`, `get_agent_playbook`, `get_record_links`。/u);
+    assert.match(output, /新建：可用 — 对象范围 `Account`, `Lead`。/u);
+    assert.match(output, /更新：可用 — 对象范围 `Contact`。/u);
+    assert.match(output, /诊断链就绪：是。/u);
+    assert.ok(output.includes('`Account.Requested_By__c`'), 'managed DML field fact');
+    assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
+    assert.match(output, /do not automatically retry/u);
+
+    const bare = renderWeComRoleSetting(createAgentCapabilities({
+      enabledTools: ['run_soql_query'],
+      createAllowedObjects: [],
+      updateAllowedObjects: [],
+    }));
+    assert.match(bare, /新建：不可用/u);
+    assert.match(bare, /更新：不可用/u);
+    assert.match(bare, /读取：可用/u);
+
+    const template = renderWeComRoleSetting();
+    assert.match(template, /推荐角色设定模板/u);
+    assert.match(template, /不得据此声称任何工具或对象可用/u);
+    assert.doesNotMatch(template, /可用 — 对象范围/u);
+    assert.doesNotMatch(template, /Status: available/u);
+  });
+
+  it('distributes the CREATE Record Type dialog and managed-field fallback contract', () => {
+    const output = renderWeComRoleSetting(capabilities);
+    assert.match(output, /availableRecordTypes/u);
+    assert.match(output, /排除 Master，禁止再加回或默认选中/u);
+    assert.match(output, /`create_record\.recordTypeId`/u);
+    assert.match(output, /recordTypeSelectionRequired=true/u);
+    assert.match(output, /PLATFORM_IDENTITY_FALLBACK/u);
+    assert.match(output, /不主动查询当前用户 Lookup/u);
+    assert.match(output, /绝不把 UPDATE 变成 CREATE 表单/u);
+  });
+});
+

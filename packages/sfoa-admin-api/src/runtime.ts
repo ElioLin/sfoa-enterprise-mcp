@@ -104,6 +104,8 @@ export async function startConfiguredAdminApi(
         MCP_AUTH_MODE: remoteConfig.authMode,
         MCP_ALLOWED_HOSTS: remoteConfig.allowedHosts,
         MCP_ALLOWED_ORIGINS: remoteConfig.allowedOrigins,
+        MCP_PLATFORM_USER_HEADER: remoteConfig.platformUserHeader,
+        MCP_PLATFORM_USER_HEADER_ALIASES: remoteConfig.platformUserHeaderAliases,
         MCP_REQUEST_TIMEOUT_MS: remoteConfig.requestTimeoutMs,
         MCP_TOOL_TIMEOUT_MS: remoteConfig.toolTimeoutMs,
         SFOA_INSTANCE_URL_HOST: new URL(identityConfig.instanceUrl).hostname,
