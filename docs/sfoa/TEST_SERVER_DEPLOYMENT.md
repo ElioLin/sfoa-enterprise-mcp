@@ -4,6 +4,24 @@
 
 ---
 
+## 部署记录 · P8-04 有效 UI 上下文 + 受管平台用户回退（2026-09-08）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/p8-04-effective-ui-context` @ `b01816d`（含 `feature/managed-platform-user-lookup-fallback` = `3f39a0a/de77a48/f60a134` 的受管平台用户回退 010/011，及 P8-04 有效 UI 上下文 012；Agent Playbook 升至 **1.6.1**）以 fast-forward 合入 `main` 后部署 `main` @ `b01816d`，替换测试服务器上一版 `main` @ `000b1b8` |
+| 打包/上传 | 本机 `git archive` HEAD = `b01816d` → `sfoa-deploy-b01816da.tar.gz`（1.9MB，仅 tracked 源码，排除 node_modules/.git/dist/.env.local/*.pem/*.key/*.tsbuildinfo/.wireit）→ scp `/tmp/` → 覆盖解压到 `app/`；本机/服务器 md5 一致（`12f0a621…`） |
+| 依赖 | `yarn.lock` 未变化 → **未重装** node_modules（服务器保留） |
+| 数据库迁移 | 新增加性迁移 **010** `managed_platform_user_lookup_fallback`（`sfoa_dml_managed_field_rule.strategy` ENUM 增 `PLATFORM_USER_LOOKUP_FALLBACK`）、**011** `managed_fallback_create_only`（CHECK 收紧：fallback 仅 create + 必填 lookup）、**012** `p8_ui_snapshot`（新建 `sfoa_ui_snapshot` + `sfoa_audit_payload_evidence.payload_type` ENUM 增 `UI_CONTEXT`）；共享库台账 **001–012 APPLIED**（12 行） |
+| 配置 | 无新增必填变量（`.env.example` 无变化），`config/.env.local`、`secrets/private.pem` 均未改动 |
+| 构建 | 服务器按 §6 依赖顺序全量重建 10 个 workspace，全部 OK（控制平面依赖 identity-runtime 新 `UI_CONTEXT` 审计类型，须先自底向上重建再跑迁移） |
+| 服务 | 重启 `sfoa-mcp-server` / `sfoa-admin-api`；mcp-server `sfoa_runtime_started` 09:28:45 CST，admin-api 09:28:44 CST 起 active；nginx 未改动；SELinux `restorecon` admin-web `dist`（标签 `httpd_sys_content_t`） |
+| 备份 | 部署前 app → `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-b01816da-20260908-092632.tar.gz`（41MB，仅源码） |
+| 验证结果 | `/health` 200；`/admin/api/ready` 200 `{"status":"UP","databaseVersion":"8.4.5"}`；nginx 对外 `/` 与 `/admin/api/ready` 均 200；台账 **001–012 APPLIED**；`sfoa_ui_snapshot` 已建表；`sfoa_audit_payload_evidence.payload_type` ENUM 含 `UI_CONTEXT`；Agent Playbook **1.6.1**（admin-web bundle 与 `agent-playbook` dist 均内嵌） |
+| 合并 | 部署验证通过后 `feature/p8-04-effective-ui-context` @ `b01816d` 以 fast-forward 合入 `main` 并推送 `origin/main`，`main` = `origin/main` = `b01816d`，与测试服务器一致 |
+| 回滚 | 停服 → 解回备份包到 `app/` → 按 §6 重建 → 重启；DB 迁移纯加性不回滚（见 `skills/.../operations.md` 指引，不回写 `sfoa_schema_migration`） |
+
+---
+
 ## 部署记录 · P8 上下文契约 + Agent Playbook 分发闭合（2026-09-04）
 
 | 项 | 值 |
