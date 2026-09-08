@@ -112,19 +112,21 @@ describe('canonical capability-aware Dify Agent instruction generator', () => {
 });
 
 describe('canonical WeCom recommended role setting generator', () => {
-  it('renders a Chinese-first, versioned WECOM_HEADER role setting that is secret-free', () => {
+  it('renders a Chinese-first, versioned, business-semantics role setting that is secret-free', () => {
     const role = generateWeComRoleSetting(fixture([tool('run_soql_query')]));
     expect(role).toContain(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`);
     expect(role).toContain('# 企业微信 SFoA Salesforce 助手 — 推荐角色设定');
-    expect(role).toContain('`WECOM_HEADER`');
-    expect(role).toContain('`X-WeCom-User-Id`');
-    expect(role).toContain('当前用户');
-    // WeCom never inherits Buntu / USER_BOUND token semantics or any secret shape.
-    for (const token of ['CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'Bearer <']) {
+    expect(role).toContain('企业微信智能机器人');
+    expect(role).toContain('当前企业微信用户');
+    expect(role).toContain('Salesforce');
+    expect(role).toContain('最小授权');
+    expect(role).toContain('不要要求用户提供 Salesforce 用户名');
+    expect(role).toContain('MCP_DML_OUTCOME_UNKNOWN');
+    // The persona body carries no identity-implementation mechanics and never inherits
+    // Buntu / USER_BOUND / gateway / self-built-app host semantics or any secret shape.
+    for (const token of ['WECOM_HEADER', 'X-WeCom-User-Id', 'MCP_CLIENT_TOKEN', 'CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', '接入网关', '自建应用', 'Bearer <']) {
       expect(role).not.toContain(token);
     }
-    expect(role).toContain('不要求用户提供 Salesforce 账号');
-    expect(role).toContain('MCP_DML_OUTCOME_UNKNOWN');
   });
 
   it('reflects effective READ/CREATE/UPDATE facts without claiming more than is enabled', () => {

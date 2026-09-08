@@ -35,11 +35,11 @@ The SFoA services start together with `yarn p5:dev`; default local endpoints are
 The Salesforce Agent Playbook is distributed to four governed identity channels. The Admin "智能体接入" page (MCP 接入 overview) renders a one-click connection example and recommended setup for each:
 
 - **小犇 / Dify** — the Dify agent passes the current user's Buntu token (`Authorization: Bearer <CURRENT_USER_TOKEN>`); identity resolves through `BUNTU_TOKEN` → Identity Route.
-- **企业微信 / WeCom** — a trusted gateway holds `Bearer <MCP_CLIENT_TOKEN>` and injects the current user's `X-WeCom-User-Id` on every request; the server treats it as the `WECOM_HEADER` identity channel and derives the recommended role setting from live capabilities.
+- **企业微信 / WeCom** — the 企业微信智能机器人 (WeCom Smart Bot) uses its native MCP Plugin to reach the enterprise-domain HTTPS MCP URL. The WeCom platform auto-injects the current user's `X-WeCom-User-Id` on every request; the server treats it as the `WECOM_HEADER` identity channel and derives the recommended role setting from live capabilities. No self-built backend or trusted gateway is needed to synthesize the header — a protected MCP service credential (`Bearer <MCP_CLIENT_TOKEN>`) still guards the endpoint.
 - **WorkBuddy** — a custom Streamable HTTP Connector uses a route-bound `Bearer <USER_BOUND_TOKEN>` plus the generated `sfoa-salesforce-assistant` Skill.
 - **Internal / Inspector** — the controlled internal-service channel uses `Bearer <MCP_CLIENT_TOKEN>` with the primary `X-Platform-User-Id` header (`INTERNAL_SERVICE_HEADER`).
 
-Only the Internal channel configures `X-Platform-User-Id`. Dify, WeCom, and WorkBuddy never send a Salesforce username, platform-user selector, or credential in Tool arguments; WECOM_HEADER is trusted identity-header provenance and still needs a trusted gateway/domain, a protected MCP credential, and a Host allowlist in production.
+Only the Internal channel configures `X-Platform-User-Id`. Dify, WeCom, and WorkBuddy never send a Salesforce username, platform-user selector, or credential in Tool arguments. For WeCom, `X-WeCom-User-Id` is trusted identity-header provenance auto-injected by the WeCom platform at the enterprise ingress — not cryptographic proof of the client — so production still needs the HTTPS enterprise domain, a protected MCP service credential, and a Host allowlist; the header must never be hand-forged by a self-built client, and single-header forgery prevention is a future channel-bound design, not a runtime guarantee.
 
 ### Create a sensitive ChatGPT review package
 

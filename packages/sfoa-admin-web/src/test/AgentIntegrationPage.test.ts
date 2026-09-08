@@ -66,11 +66,36 @@ describe('P6 Agent Integration Admin contract', () => {
     expect(PAGE).toContain('推荐角色设定');
     expect(PAGE).toContain('复制角色设定');
     expect(PAGE).toContain('企业微信 / WeCom 推荐步骤');
-    expect(PAGE).toContain('接入网关');
+    expect(PAGE).toContain('企业微信智能机器人');
+    expect(PAGE).toContain('当前用户身份');
+    expect(PAGE).toContain('Salesforce 权限');
     expect(PAGE).toContain('Identity Route');
     expect(PAGE).toContain('验收清单');
     // Enabled-state gating is derived from runtime identity-header config.
     expect(PAGE).toContain('wecomChannelEnabled');
     expect(PAGE).toContain('buildWeComConnectionExample');
+  });
+
+  it('models WeCom as the native MCP smart bot and keeps the acceptance list to real runtime facts', () => {
+    // The default setup is 企业微信智能机器人 + 原生 MCP Plugin + 企业域名 with the
+    // platform auto-injecting the current user (never a self-built backend/gateway to map).
+    expect(PAGE).toContain('企业微信智能机器人 + 原生 MCP Plugin');
+    expect(PAGE).toContain('MCP 插件');
+    expect(PAGE).toContain('企业域名');
+    expect(PAGE).toContain('自动注入');
+    expect(PAGE).toContain('无需手工填写');
+    expect(PAGE).toContain('不需要自建应用后端');
+    // No "build a self-built app / trusted gateway" mandate and no per-session user mapping.
+    expect(PAGE).not.toContain('必须创建自建应用后端');
+    expect(PAGE).not.toContain('必须开发可信网关');
+    expect(PAGE).not.toContain('网关按会话映射用户');
+    // Acceptance claims only verifiable runtime facts — never that a single forged
+    // X-WeCom-User-Id header is auto-detected and rejected.
+    expect(PAGE).not.toContain('换成另一用户（伪造）：请求被拒');
+    expect(PAGE).toContain('identitySource = WECOM_HEADER');
+    expect(PAGE).toContain('MCP_PLATFORM_USER_REQUIRED');
+    expect(PAGE).toContain('MCP_PLATFORM_IDENTITY_CONFLICT');
+    expect(PAGE).toContain('MCP_IDENTITY_ROUTE_NOT_FOUND');
+    expect(PAGE).toContain('MCP_IDENTITY_ROUTE_DISABLED');
   });
 });

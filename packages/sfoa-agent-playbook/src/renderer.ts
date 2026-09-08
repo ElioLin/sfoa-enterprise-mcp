@@ -110,15 +110,18 @@ export function renderWorkBuddySystemPrompt(capabilities?: AgentCapabilities): s
 }
 
 /**
- * Recommended WeCom (企业微信) agent role setting (推荐角色设定). Chinese-first,
- * deterministic, capability-aware guidance for an enterprise-WeChat self-built
- * app assistant that reaches SFoA over the WeCom identity-header channel
- * (`X-WeCom-User-Id` → `WECOM_HEADER`).
+ * Recommended WeCom (企业微信) role setting (推荐角色设定) for the 企业微信智能机器人
+ * (WeCom Smart Bot) native MCP Plugin. Chinese-first, deterministic,
+ * capability-aware guidance written for the assistant persona: it speaks as a
+ * Salesforce business assistant running inside WeCom, always acting for the
+ * current WeCom user under that user's Salesforce permissions.
  *
- * Deliberately NOT a copy of `renderDifyInstruction` / the Buntu or USER_BOUND
- * host semantics: WeCom identity is header-provided per request, never a token
- * the AI should hold or echo, and this surface never embeds `CURRENT_USER_TOKEN`,
- * `USER_BOUND_TOKEN`, `BUNTU_TOKEN`, or any secret-shaped value. Dynamic object
+ * The persona body deliberately carries NO identity-implementation detail
+ * (`X-WeCom-User-Id`, `WECOM_HEADER`, bearer credentials, gateway or self-built
+ * app mechanics). The WeCom platform injects the current user's identity at the
+ * MCP ingress per request, server-side; the AI never holds, echoes, or asks for
+ * any token, and this surface never embeds `CURRENT_USER_TOKEN`, `USER_BOUND_TOKEN`,
+ * `BUNTU_TOKEN`, `MCP_CLIENT_TOKEN`, or any secret-shaped value. Dynamic object
  * and tool lists come only from `capabilities`; the template form claims nothing.
  */
 export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string {
@@ -129,10 +132,10 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '',
     '## 你是谁',
     '',
-    '- 你是接入企业微信自建应用的「SFoA Salesforce 智能助手」，面向当前企业微信用户提供受治理的 Salesforce 查询、记录新建/更新与诊断能力。',
-    '- 身份由平台按请求解析：接入网关持有 MCP 连接凭据，并在每个请求携带 `X-WeCom-User-Id`（`WECOM_HEADER` 通道）。服务端据此把当前用户解析到身份路由并创建请求级 Salesforce 连接。',
-    '- 因此你永远以“当前用户”的身份、按最小授权行动：不要求用户提供 Salesforce 账号/用户名/口令，不向任何工具传身份选择参数，不冒充或切换到其他用户。',
-    '- 连接凭据只保存在服务端或网关：本角色设定绝不写入、展示或索要任何 Token、口令或密钥。',
+    '- 你是运行在企业微信智能机器人中的「SFoA Salesforce 智能业务助手」，面向当前企业微信用户提供受治理的 Salesforce 查询、记录新建/更新与诊断能力。',
+    '- MCP 服务在受保护的企业微信接入中自动识别当前用户，并把你的每个请求按当前用户解析到其 Salesforce 授权；你始终代表当前企业微信用户工作。',
+    '- 你始终按当前用户在 Salesforce 中的权限与最小授权行动：不要要求用户提供 Salesforce 用户名、密码、Token 或平台用户编号，不要向任何工具传身份选择参数，不要尝试切换、指定或冒充其他 Salesforce 用户。',
+    '- 你不需要、也不应接触任何连接密钥：本角色设定绝不写入、展示或索要任何 Token、口令、密钥或平台用户编号。',
     '',
     '## 能力边界（当前连接）',
     '',

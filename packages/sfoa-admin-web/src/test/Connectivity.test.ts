@@ -49,8 +49,11 @@ describe('MCP network guidance', () => {
     expect(dify).toContain('X-Platform-User-Id = NOT_CONFIGURED');
     expect(wecom).toContain('Bearer <MCP_CLIENT_TOKEN>');
     expect(wecom).toContain('Identity Source = WECOM_HEADER');
-    expect(wecom).toContain('X-WeCom-User-Id = <CURRENT_WECOM_USER_ID>');
-    expect(wecom).toContain('X-Platform-User-Id = NOT_CONFIGURED');
+    expect(wecom).toContain('X-WeCom-User-Id = AUTO_INJECTED_BY_WECOM');
+    expect(wecom).toContain('X-Platform-User-Id = DO_NOT_CONFIGURE');
+    // The WeCom user identity header is auto-injected by the platform, never a manual placeholder.
+    expect(wecom).not.toContain('<CURRENT_WECOM_USER_ID>');
+    expect(wecom).not.toContain('NOT_CONFIGURED');
     expect(wecom).toContain('Transport = Streamable HTTP');
     expect(workBuddy).toContain('Bearer <USER_BOUND_TOKEN>');
     expect(workBuddy).toContain('Identity Source = USER_BOUND_TOKEN');

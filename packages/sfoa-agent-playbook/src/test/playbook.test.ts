@@ -285,15 +285,24 @@ describe('WeCom recommended role setting renderer', () => {
     }
   });
 
-  it('anchors identity on the current WeCom user and the WECOM_HEADER provenance, not a fixed account', () => {
+  it('keeps the persona in business semantics and free of identity-implementation or credential detail', () => {
     const output = renderWeComRoleSetting(capabilities);
-    assert.match(output, /`X-WeCom-User-Id`/u);
-    assert.match(output, /`WECOM_HEADER`/u);
-    assert.match(output, /当前用户/u);
-    assert.match(output, /不要求用户提供 Salesforce 账号/u);
-    assert.match(output, /不向任何工具传身份选择参数/u);
-    assert.match(output, /连接凭据只保存在服务端或网关/u);
-    assert.doesNotMatch(output, /CURRENT_USER_TOKEN/u);
+    // Anchors on the WeCom Smart Bot persona and the current WeCom user's Salesforce permissions.
+    assert.match(output, /企业微信智能机器人/u);
+    assert.match(output, /当前企业微信用户/u);
+    assert.match(output, /Salesforce/u);
+    assert.match(output, /MCP 服务/u);
+    assert.match(output, /最小授权/u);
+    assert.match(output, /不要要求用户提供 Salesforce 用户名/u);
+    assert.match(output, /不要向任何工具传身份选择参数/u);
+    assert.match(output, /不要尝试切换、指定或冒充其他 Salesforce 用户/u);
+    // No identity-implementation or host-token mechanics leak into the AI persona.
+    for (const token of [
+      'X-WeCom-User-Id', 'WECOM_HEADER', 'MCP_CLIENT_TOKEN', '接入网关', '自建应用',
+      'CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'Bearer <',
+    ]) {
+      assert.equal(output.includes(token), false, token);
+    }
   });
 
   it('reflects dynamic capability facts and never claims unavailable capabilities', () => {

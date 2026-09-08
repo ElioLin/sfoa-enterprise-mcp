@@ -12,7 +12,7 @@ must never be edited independently.
 
 Production modules define Playbook version `1.6.1`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
 
-Besides the checked-in Dify instruction and WorkBuddy Skill, `renderWeComRoleSetting(capabilities?)` deterministically renders the 企业微信/WeCom recommended role setting (推荐角色设定) for the `WECOM_HEADER` channel (`X-WeCom-User-Id`). It is Chinese-first, capability-aware, and secret-free, and it deliberately does not reuse Buntu/USER_BOUND host semantics: identity is the current gateway-provided WeCom user resolved server-side per request, never a token the agent should hold or echo.
+Besides the checked-in Dify instruction and WorkBuddy Skill, `renderWeComRoleSetting(capabilities?)` deterministically renders the 企业微信智能机器人 (WeCom Smart Bot) recommended role setting (推荐角色设定). It is Chinese-first, capability-aware, and secret-free, written in business semantics for the assistant persona: it always acts for the current WeCom user under that user's Salesforce permissions. It deliberately carries no identity-implementation detail — the WeCom platform auto-injects the current user's identity header (`WECOM_HEADER` / `X-WeCom-User-Id`) at the enterprise MCP ingress per request — and it never reuses Buntu/USER_BOUND host semantics nor embeds any token the agent should hold or echo.
 
 The Node-only `scripts/sync-generated.mjs` adapter owns checked-in Dify and WorkBuddy artifacts:
 

@@ -109,10 +109,10 @@ export function wecomChannelEnabled(config: McpConnectivityConfig): boolean {
 export function buildWeComConnectionExample(externalUrl: string): string {
   return [
     `MCP Server URL = ${externalUrl}`,
-    'Authorization Header = Bearer <MCP_CLIENT_TOKEN>',
+    'Authorization Header = Bearer <MCP_CLIENT_TOKEN>（MCP Endpoint 服务认证，不是用户身份）',
     'Identity Source = WECOM_HEADER',
-    'X-WeCom-User-Id = <CURRENT_WECOM_USER_ID>',
-    'X-Platform-User-Id = NOT_CONFIGURED',
+    'X-WeCom-User-Id = AUTO_INJECTED_BY_WECOM（企业微信自动注入，无需手工填写）',
+    'X-Platform-User-Id = DO_NOT_CONFIGURE',
     'Transport = Streamable HTTP',
   ].join('\n');
 }
