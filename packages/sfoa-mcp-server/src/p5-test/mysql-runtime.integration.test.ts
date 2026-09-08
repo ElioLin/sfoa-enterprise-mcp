@@ -365,6 +365,118 @@ if (!configured) {
       await rm(baseRoot, { recursive: true, force: true });
     }
   });
+
+  test('P8-05 real MySQL-backed runtime round-trips a WeCom identity header through the MySQL route as WECOM_HEADER', async () => {
+    const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p8-05-real-mysql-wecom-'));
+    const keyPath = path.join(baseRoot, 'test-only-key.pem');
+    await writeFile(keyPath, 'test-only-key-material', { encoding: 'utf8', mode: 0o600 });
+    await createDatabaseIfMissing(configured);
+    const store = new MySqlControlPlaneStore(createControlPlaneDatabase(configured));
+    const clients: Client[] = [];
+    let runtime: RemoteMcpServer | undefined;
+    try {
+      await migrateDatabase(store.database);
+      await cleanTestData(store);
+      const adminService = new ControlPlaneAdminService(
+        store,
+        () => ({ allowed: true }),
+        new IdentityCredentialCipher(Buffer.alloc(32, 19)),
+      );
+      await adminService.createIdentityRoute({
+        platformUserId: 'wecom-user-a',
+        userName: 'wecom-user-a',
+        salesforceUsername: TEST_USERNAME_A,
+        enabled: true,
+        remark: 'real mysql wecom channel A',
+      }, 'p8-05-mysql-wecom-gate');
+      await adminService.createIdentityRoute({
+        platformUserId: 'wecom-user-b',
+        userName: 'wecom-user-b',
+        salesforceUsername: TEST_USERNAME_B,
+        enabled: true,
+        remark: 'real mysql wecom channel B',
+      }, 'p8-05-mysql-wecom-gate');
+      await setTool(store, 'get_username', true);
+      await setTool(store, 'run_soql_query', true);
+
+      const connectionFactory = new RecordingConnectionFactory();
+      const fallback = new RecordingLogger();
+      const port = await reservePort();
+      runtime = await startConfiguredRemoteRuntime(projectRoot, {
+        ...process.env,
+        NODE_ENV: 'test',
+        SFOA_CONTROL_PLANE_MODE: 'mysql',
+        SFOA_DB_NAME: configured.database,
+        MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: 'false',
+        SFOA_INSTANCE_URL: 'https://example.test',
+        CONNECTED_APP_CLIENT_ID: 'p8-05-real-mysql-wecom-test',
+        JWT_PRIVATE_KEY_PATH: keyPath,
+        MCP_BIND_HOST: '127.0.0.1',
+        MCP_PORT: String(port),
+        MCP_PATH: '/mcp',
+        MCP_AUTH_MODE: 'internal_bearer',
+        MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN,
+        MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
+        MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id',
+        MCP_ALLOWED_HOSTS: '',
+        MCP_ALLOWED_ORIGINS: '',
+        MCP_PUBLIC_URL: '',
+        MCP_REQUEST_TIMEOUT_MS: '10000',
+        MCP_TOOL_TIMEOUT_MS: '5000',
+      }, {
+        connectionFactory,
+        workspaceFactory: new RequestWorkspaceFactory({ baseRoot }),
+        cwdGuard: new CwdExecutionGuard(),
+        logger: fallback,
+      });
+
+      // The WeCom channel maps a gateway-provided X-WeCom-User-Id to the MySQL
+      // identity route; the resolved Salesforce username is read back as proof.
+      const wecomA = await connectWeComClient(runtime, 'wecom-user-a');
+      clients.push(wecomA);
+      const [usernameA, usernameB] = await Promise.all([
+        wecomA.callTool({ name: 'get_username', arguments: {} }),
+        connectWeComClient(runtime, 'wecom-user-b').then(async (client) => {
+          clients.push(client);
+          return client.callTool({ name: 'get_username', arguments: {} });
+        }),
+      ]);
+      assert.match(toolResultText(usernameA), /user-a@example\.test/u);
+      assert.match(toolResultText(usernameB), /user-b@example\.test/u);
+      // A Salesforce-dependent read over the WeCom channel still creates exactly
+      // one fresh role-bound Connection.
+      const creationsBeforeSoql = connectionFactory.creations.length;
+      const soql = await wecomA.callTool({
+        name: 'run_soql_query',
+        arguments: { query: 'SELECT Id FROM Lead LIMIT 1', useToolingApi: false },
+      });
+      assert.match(toolResultText(soql), /wecom-user-a/u);
+      assert.equal(connectionFactory.creations.length, creationsBeforeSoql + 1);
+      await Promise.all(clients.splice(0).map((client) => client.close()));
+
+      // A WeCom user with no MySQL route fails closed before any Salesforce work.
+      const creationsBeforeUnknown = connectionFactory.creations.length;
+      const unknown = await rawWeComInitialize(runtime, 'wecom-unknown');
+      assert.equal(unknown.status, 403);
+      assert.equal(await responseErrorCode(unknown), 'MCP_IDENTITY_ROUTE_NOT_FOUND');
+      assert.equal(connectionFactory.creations.length, creationsBeforeUnknown);
+
+      // The durable MySQL audit records the WeCom provenance, not a token.
+      const audits = await waitForAudits(store, [{ toolName: 'get_username', result: 'PASS' }]);
+      const wecomAudit = audits.items.find((audit) =>
+        audit.identitySource === 'WECOM_HEADER' && audit.platformUserId === 'wecom-user-a');
+      assert.ok(wecomAudit, 'expected a durable WECOM_HEADER audit row');
+      assert.equal(wecomAudit.identityCredentialId, null);
+      assert.ok(audits.items.some((audit) =>
+        audit.identitySource === 'WECOM_HEADER' && audit.platformUserId === 'wecom-user-b'));
+      assert.equal(fallback.events.length, 0, 'durable MySQL audit should not use the fallback logger');
+    } finally {
+      await Promise.allSettled(clients.map((client) => client.close()));
+      await runtime?.close().catch(() => undefined);
+      await store.close().catch(() => undefined);
+      await rm(baseRoot, { recursive: true, force: true });
+    }
+  });
 }
 
 class RecordingLogger implements RuntimeLogger {
@@ -436,6 +548,33 @@ async function connectUserBoundClient(server: RemoteMcpServer, token: string, su
   const client = new Client({ name: `p6-id-real-mysql-${suffix}`, version: '1.0.0' });
   await client.connect(transport);
   return client;
+}
+
+async function connectWeComClient(server: RemoteMcpServer, wecomUserId: string): Promise<Client> {
+  const transport = new StreamableHTTPClientTransport(server.mcpUrl, {
+    requestInit: {
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+        'x-wecom-user-id': wecomUserId,
+      },
+    },
+  });
+  const client = new Client({ name: `p8-05-real-mysql-wecom-${wecomUserId}`, version: '1.0.0' });
+  await client.connect(transport);
+  return client;
+}
+
+function rawWeComInitialize(server: RemoteMcpServer, wecomUserId: string): Promise<Response> {
+  return fetch(server.mcpUrl, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+      'content-type': 'application/json',
+      'x-wecom-user-id': wecomUserId,
+    },
+    body: initializeBody(),
+  });
 }
 
 function rawInitialize(server: RemoteMcpServer, platformUserId: string): Promise<Response> {

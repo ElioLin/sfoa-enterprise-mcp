@@ -579,11 +579,17 @@ export function matchPlatformIdentityHeaders(
   headers: RequestHeaders,
   platformIdentityHeaders: readonly string[],
 ): PlatformIdentityHeaderResolution {
-  // Group raw request headers by lower-cased name. Node already lower-cases and
-  // collapses duplicate HTTP header lines into arrays; normalizing here also
-  // makes unit-level fixtures with mixed casing deterministic. Blank values are
-  // dropped because an empty identity header carries no identity assertion and
-  // is treated as absent (matching the previous single-header behavior).
+  // Group raw request headers by lower-cased name. Node lower-cases header
+  // names, and the `request.headers` view JOINs repeated raw header lines into a
+  // single comma-separated string, whereas `request.headersDistinct` preserves
+  // each raw line as a separate array entry. The sfoa-mcp-server HTTP adapter
+  // builds RequestHeaders from `headersDistinct` and collapses a single value
+  // back to a string, so an array here reliably means the same header was sent
+  // more than once (a true duplicate), not a comma-joined single value.
+  // Normalizing names here also makes unit-level fixtures with mixed casing
+  // deterministic. Blank values are dropped because an empty identity header
+  // carries no identity assertion and is treated as absent (matching the
+  // previous single-header behavior).
   const grouped = new Map<string, string[]>();
   for (const [name, rawValue] of Object.entries(headers)) {
     if (rawValue === undefined) continue;

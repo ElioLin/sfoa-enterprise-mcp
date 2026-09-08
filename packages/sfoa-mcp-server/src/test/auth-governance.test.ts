@@ -233,3 +233,57 @@ test('P8-05 MCP_PLATFORM_USER_HEADER_ALIASES parses CSV aliases and fails fast o
     await rm(projectRoot, { recursive: true, force: true });
   }
 });
+
+test('P8-05 MCP_PLATFORM_USER_HEADER refuses a reserved partner header (WeCom) as the internal primary', async () => {
+  const projectRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p8-05-primary-'));
+  try {
+    const keyPath = path.join(projectRoot, 'test.pem');
+    await writeFile(keyPath, 'test-only-key', 'utf8');
+    const baseEnvironment: NodeJS.ProcessEnv = {
+      SFOA_INSTANCE_URL: 'https://example.test',
+      SALESFORCE_USERNAME: 'user-a@example.test',
+      SECOND_TEST_USER: 'user-b@example.test',
+      CONNECTED_APP_CLIENT_ID: 'test-client',
+      JWT_PRIVATE_KEY_PATH: keyPath,
+      MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN,
+      SFOA_LIGHTNING_BASE_URL: '',
+    };
+
+    // A reserved partner header (WeCom) as the primary is rejected case-insensitively.
+    for (const primary of ['X-WeCom-User-Id', 'x-wecom-user-id', 'X-WECOM-USER-ID']) {
+      await assert.rejects(
+        loadRemoteRuntimeConfig(projectRoot, {
+          ...baseEnvironment,
+          MCP_PLATFORM_USER_HEADER: primary,
+        }),
+        (error: unknown) =>
+          error instanceof RemoteRuntimeError &&
+          error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID' &&
+          /WeCom/.test(error.message),
+      );
+    }
+
+    // The partner header is reachable only as an alias, never as the primary.
+    await assert.rejects(
+      loadRemoteRuntimeConfig(projectRoot, {
+        ...baseEnvironment,
+        MCP_PLATFORM_USER_HEADER: 'x-wecom-user-id',
+        MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id',
+      }),
+      (error: unknown) =>
+        error instanceof RemoteRuntimeError && error.code === 'MCP_RUNTIME_CONFIGURATION_INVALID',
+    );
+
+    // A non-reserved custom primary header remains valid and stays the internal channel.
+    const custom = await loadRemoteRuntimeConfig(projectRoot, {
+      ...baseEnvironment,
+      MCP_PLATFORM_USER_HEADER: 'X-Internal-User-Id',
+      MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id',
+    });
+    assert.deepEqual(custom.platformUserHeader, 'X-Internal-User-Id');
+    assert.deepEqual(custom.platformUserHeaderAliases, ['X-WeCom-User-Id']);
+    assert.deepEqual(custom.platformIdentityHeaders, ['X-Internal-User-Id', 'X-WeCom-User-Id']);
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});

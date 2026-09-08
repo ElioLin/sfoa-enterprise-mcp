@@ -222,6 +222,16 @@ export async function loadRemoteRuntimeConfig(
 
   const mcpPath = normalizeMcpPath(parsed.data.MCP_PATH);
   const platformUserHeader = parsed.data.MCP_PLATFORM_USER_HEADER;
+  if (RESERVED_PARTNER_IDENTITY_HEADER_NAMES.has(platformUserHeader.toLocaleLowerCase('en-US'))) {
+    // P8-05: the primary platform user header is the trusted internal-service
+    // channel. A reserved partner header (WeCom) as primary would misattribute
+    // WeCom identity headers as internal provenance; it is reachable only via
+    // MCP_PLATFORM_USER_HEADER_ALIASES.
+    throw configurationError(
+      `MCP_PLATFORM_USER_HEADER=${platformUserHeader} is a reserved partner identity header (WeCom). ` +
+        'Configure partner headers only through MCP_PLATFORM_USER_HEADER_ALIASES; the primary header is the internal-service channel.',
+    );
+  }
   const platformUserHeaderAliases = parsePlatformUserHeaderAliases(
     parsed.data.MCP_PLATFORM_USER_HEADER_ALIASES,
     platformUserHeader,
@@ -440,6 +450,19 @@ function parseOrigins(value: string | undefined): readonly string[] {
   }
   return Object.freeze(origins);
 }
+
+/**
+ * Well-known partner identity-header names. A partner header such as
+ * `X-WeCom-User-Id` names a distinct identity *channel* provenance
+ * (`WECOM_HEADER`), so it must never be configured as the primary platform user
+ * header, which is the trusted internal-service channel
+ * (`INTERNAL_SERVICE_HEADER`). Partner headers are reachable only as configured
+ * aliases. Keep in sync with `PLATFORM_IDENTITY_HEADER_SOURCE_BY_LOWER_NAME` in
+ * authenticator.ts.
+ */
+const RESERVED_PARTNER_IDENTITY_HEADER_NAMES: ReadonlySet<string> = new Set([
+  'x-wecom-user-id',
+]);
 
 /**
  * Parses `MCP_PLATFORM_USER_HEADER_ALIASES`, a CSV of additional platform

@@ -410,6 +410,155 @@ test('P8-05 HTTP: WeCom X-WeCom-User-Id channel authenticates, audits WECOM_HEAD
   }
 });
 
+test('P8-05 HTTP: repeated platform identity header lines fail closed with an IDENTITY audit (MCP_PLATFORM_IDENTITY_CONFLICT)', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-wecom-dup-http-'));
+  const connectionFactory = new RecordingConnectionFactory();
+  const logger = new RecordingLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, connectionFactory, logger);
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({
+      platformUserHeaderAliases: Object.freeze(['X-WeCom-User-Id']),
+      platformIdentityHeaders: Object.freeze(['X-Platform-User-Id', 'X-WeCom-User-Id']),
+    }),
+    identityRuntime,
+  });
+  const baseHeaders = {
+    accept: 'application/json, text/event-stream',
+    'content-type': 'application/json',
+    authorization: `Bearer ${TEST_CLIENT_TOKEN}`,
+  };
+  try {
+    // Raw node:http sends an array header value as repeated wire lines, which the
+    // pre-P8-05 adapter collapsed (request.headers joins them into
+    // `"a, b"`). The request.headersDistinct adapter must preserve them so the
+    // identity resolver sees a genuine duplicate and fails closed.
+    const duplicateCases: Readonly<Array<{
+      name: string;
+      headers: Record<string, string | readonly string[]>;
+    }>> = [
+      {
+        name: 'duplicate X-WeCom-User-Id with different values',
+        headers: { ...baseHeaders, 'x-wecom-user-id': [TEST_PLATFORM_USER_A, TEST_PLATFORM_USER_B] },
+      },
+      {
+        name: 'duplicate X-WeCom-User-Id with identical values',
+        headers: { ...baseHeaders, 'x-wecom-user-id': [TEST_PLATFORM_USER_A, TEST_PLATFORM_USER_A] },
+      },
+      {
+        name: 'duplicate X-Platform-User-Id with different values',
+        headers: { ...baseHeaders, 'x-platform-user-id': [TEST_PLATFORM_USER_A, TEST_PLATFORM_USER_B] },
+      },
+      {
+        name: 'duplicate X-Platform-User-Id with identical values',
+        headers: { ...baseHeaders, 'x-platform-user-id': [TEST_PLATFORM_USER_A, TEST_PLATFORM_USER_A] },
+      },
+      {
+        name: 'X-Platform-User-Id and X-WeCom-User-Id both present with identical values',
+        headers: {
+          ...baseHeaders,
+          'x-platform-user-id': TEST_PLATFORM_USER_A,
+          'x-wecom-user-id': TEST_PLATFORM_USER_A,
+        },
+      },
+    ];
+    for (const fixture of duplicateCases) {
+      const before = logger.events.length;
+      const response = await postRawHeaders(server.mcpUrl, fixture.headers);
+      assert.equal(response.status, 403, fixture.name);
+      assert.equal(responseErrorCodeFromBody(response.body), 'MCP_PLATFORM_IDENTITY_CONFLICT', fixture.name);
+      const terminal = logger.events.slice(before).find(
+        (event) => event.errorCode === 'MCP_PLATFORM_IDENTITY_CONFLICT',
+      );
+      assert(terminal, `${fixture.name}: expected a terminal MCP_PLATFORM_IDENTITY_CONFLICT audit event`);
+      assert.equal(terminal.auditEvent?.eventCategory, 'IDENTITY', fixture.name);
+      assert.equal(terminal.auditEvent?.terminalSource, 'IDENTITY', fixture.name);
+      assert.equal(
+        connectionFactory.creations.length,
+        0,
+        `${fixture.name}: duplicate identity headers must not create Salesforce Connections`,
+      );
+    }
+
+    // MCP_PLATFORM_USER_REQUIRED is likewise attributed to IDENTITY, not GOVERNANCE.
+    const missingIdentity = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: baseHeaders,
+      body: initializeBody(),
+    });
+    assert.equal(missingIdentity.status, 401);
+    assert.equal(await responseErrorCode(missingIdentity), 'MCP_PLATFORM_USER_REQUIRED');
+    const missingTerminal = logger.events.find((event) => event.errorCode === 'MCP_PLATFORM_USER_REQUIRED');
+    assert(missingTerminal, 'expected a terminal MCP_PLATFORM_USER_REQUIRED audit event');
+    assert.equal(missingTerminal.auditEvent?.eventCategory, 'IDENTITY');
+    assert.equal(missingTerminal.auditEvent?.terminalSource, 'IDENTITY');
+    assert.equal(connectionFactory.creations.length, 0);
+  } finally {
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
+test('P8-05 HTTP: a WeCom header cannot revive a disabled route bound to a valid USER_BOUND credential', async () => {
+  const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-wecom-disabled-http-'));
+  const connectionFactory = new RecordingConnectionFactory();
+  const logger = new RecordingLogger();
+  const identityRuntime = createTestIdentityRuntime(baseRoot, connectionFactory, logger);
+  const fixture = createMutableCredentialRepositories();
+  fixture.routes.set('1', identityRoute('1', TEST_PLATFORM_USER_A, true));
+  fixture.credentials.set('11', identityCredential('11', '1', USER_BOUND_TOKEN_A));
+  const identityProvider = new UnifiedIdentityProvider([
+    new UserBoundCredentialAuthenticator(fixture.credentialRepository, fixture.routeRepository, logger),
+    new InternalServiceCredentialAuthenticator(TEST_CLIENT_TOKEN),
+  ]);
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({
+      platformUserHeaderAliases: Object.freeze(['X-WeCom-User-Id']),
+      platformIdentityHeaders: Object.freeze(['X-Platform-User-Id', 'X-WeCom-User-Id']),
+    }),
+    identityRuntime,
+    identityProvider,
+  });
+  const boundWeComHeaders = (token: string, wecomUserId: string): Record<string, string> => ({
+    accept: 'application/json, text/event-stream',
+    'content-type': 'application/json',
+    authorization: `Bearer ${token}`,
+    'x-wecom-user-id': wecomUserId,
+  });
+  try {
+    // Enabled route + valid bound credential + matching WeCom context header.
+    assert.equal((await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: boundWeComHeaders(USER_BOUND_TOKEN_A, TEST_PLATFORM_USER_A),
+      body: initializeBody(),
+    })).status, 200);
+    assert.equal(connectionFactory.creations.length, 0, 'initialize must not create a Salesforce Connection');
+
+    // A WeCom header cannot select another user over a bound credential.
+    const forged = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: boundWeComHeaders(USER_BOUND_TOKEN_A, TEST_PLATFORM_USER_B),
+      body: initializeBody(),
+    });
+    assert.equal(forged.status, 403);
+    assert.equal(await responseErrorCode(forged), 'MCP_IDENTITY_CONTEXT_MISMATCH');
+    assert.equal(connectionFactory.creations.length, 0, 'a forged WeCom identity must not create a Salesforce Connection');
+
+    // Disabled route + valid bound credential + WeCom header stays fail-closed.
+    fixture.routes.set('1', identityRoute('1', TEST_PLATFORM_USER_A, false));
+    const disabled = await fetch(server.mcpUrl, {
+      method: 'POST',
+      headers: boundWeComHeaders(USER_BOUND_TOKEN_A, TEST_PLATFORM_USER_A),
+      body: initializeBody(),
+    });
+    assert.equal(disabled.status, 403);
+    assert.equal(await responseErrorCode(disabled), 'MCP_IDENTITY_ROUTE_DISABLED');
+    assert.equal(connectionFactory.creations.length, 0, 'a disabled-route denial must not create a Salesforce Connection');
+  } finally {
+    await server.close();
+    await rm(baseRoot, { recursive: true, force: true });
+  }
+});
+
 test('MCP_REQUEST_INVALID: non-POST method probes are not audited; malformed MCP requests are audited self-describing', async () => {
   const baseRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-transport-invalid-'));
   const logger = new RecordingLogger();
@@ -593,6 +742,42 @@ async function postWithHost(
     );
     request.once('error', reject);
     request.end(body);
+  });
+}
+
+/**
+ * POST /mcp over raw node:http so a header name can be repeated as separate wire
+ * lines. Passing an array value makes node write one header line per element
+ * (unlike fetch/Headers, which cannot express duplicates for a plain header
+ * name), which is exactly how the P8-05 duplicate-identity-header boundary is
+ * exercised end to end.
+ */
+async function postRawHeaders(
+  url: URL,
+  headers: Record<string, string | readonly string[]>,
+): Promise<Readonly<{ status: number; body: unknown }>> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      url,
+      {
+        method: 'POST',
+        headers: headers as Record<string, string | string[]>,
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.once('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          try {
+            resolve({ status: response.statusCode ?? 0, body: JSON.parse(text) as unknown });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+    request.once('error', reject);
+    request.end(initializeBody());
   });
 }
 

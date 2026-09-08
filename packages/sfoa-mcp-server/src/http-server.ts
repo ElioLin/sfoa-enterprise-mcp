@@ -24,6 +24,7 @@ import {
   RequestAuditContextController,
   runWithRequestAuditContext,
   type IdentityRuntime,
+  type RequestHeaderValue,
   type RequestHeaders,
   type RequestScope,
   type RuntimeLogEvent,
@@ -935,7 +936,25 @@ function parseCorrelationId(request: IncomingMessage): string {
 }
 
 function toRequestHeaders(request: IncomingMessage): RequestHeaders {
-  return Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name, value]));
+  // Build from `request.headersDistinct` (NOT `request.headers`): the `headers`
+  // view joins repeated raw header lines into a single comma-separated string
+  // (e.g. `X-WeCom-User-Id: user-a, user-b`), which would conceal a duplicate
+  // platform-identity header and let it through as one value. `headersDistinct`
+  // preserves each raw line as a distinct array entry, so the identity resolver
+  // below can fail closed on genuine duplicates.
+  //
+  // Collapse the distinct view back into the app-wide RequestHeaders model:
+  // 0 values -> absent, 1 value -> string, >1 values -> readonly string[].
+  // Callers that only accept a single value therefore keep their previous
+  // behavior for well-formed requests and silently ignore repeats; the platform
+  // identity resolver is the authoritative duplicate gate.
+  const output: Record<string, RequestHeaderValue> = {};
+  for (const [name, values] of Object.entries(request.headersDistinct)) {
+    if (values === undefined || values.length === 0) continue;
+    const lower = name.toLocaleLowerCase('en-US');
+    output[lower] = values.length === 1 ? values[0] : Object.freeze([...values]);
+  }
+  return output;
 }
 
 function requestContentType(request: IncomingMessage): string {
@@ -1206,8 +1225,31 @@ async function auditDisabledToolAttempt(
   })).catch(() => undefined);
 }
 
+// Stable error-code set for IDENTITY terminal attribution. These are the known
+// identity/authentication-boundary denials (missing/rejected client credential,
+// platform user required, platform-identity header conflict, no/disabled/mismatched
+// identity route, invalid/revoked identity credential, request-scope or
+// connection-role unavailability). Attribution is by explicit membership, NOT by
+// string-prefix guessing: `MCP_PLATFORM_IDENTITY_CONFLICT` and
+// `MCP_PLATFORM_USER_REQUIRED` were previously mislabelled GOVERNANCE by the
+// prefix fallthrough, while genuinely governance-level denials (host/origin/
+// tool policy) stay GOVERNANCE via the `isBlocked` fallback below.
+const IDENTITY_TERMINAL_ERROR_CODES: ReadonlySet<string> = new Set([
+  'MCP_CLIENT_AUTH_REQUIRED',
+  'MCP_CLIENT_AUTH_INVALID',
+  'MCP_PLATFORM_USER_REQUIRED',
+  'MCP_PLATFORM_IDENTITY_CONFLICT',
+  'MCP_IDENTITY_ROUTE_NOT_FOUND',
+  'MCP_IDENTITY_ROUTE_DISABLED',
+  'MCP_IDENTITY_CONTEXT_MISMATCH',
+  'MCP_IDENTITY_CREDENTIAL_INVALID',
+  'MCP_IDENTITY_CREDENTIAL_REVOKED',
+  'MCP_REQUEST_SCOPE_FAILED',
+  'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
+]);
+
 function requestErrorCategory(code: string): 'IDENTITY' | 'GOVERNANCE' | 'MCP' {
-  if (code.startsWith('MCP_IDENTITY_') || code.startsWith('MCP_CLIENT_') || code.startsWith('MCP_BUNTU_')) {
+  if (IDENTITY_TERMINAL_ERROR_CODES.has(code) || code.startsWith('MCP_BUNTU_')) {
     return 'IDENTITY';
   }
   return isBlocked(code) ? 'GOVERNANCE' : 'MCP';
