@@ -296,7 +296,7 @@ function McpAccessTab({
         type="warning"
         showIcon
         title="四种身份来源不可混用"
-        description="小犇/Dify 使用 Buntu 当前用户 Token；企业微信/WeCom 由企业微信智能机器人原生 MCP 插件接入，平台自动注入 X-WeCom-User-Id（WECOM_HEADER），MCP Endpoint 使用 MCP_CLIENT_TOKEN 服务认证；WorkBuddy 使用 Identity Route 绑定的 USER_BOUND Token；只有受控 Internal/Inspector 客户端使用 MCP_CLIENT_TOKEN + X-Platform-User-Id。客户端不得通过 Tool 参数选择 Salesforce Username，也不得伪造或代填身份来源。"
+        description="小犇/Dify 使用 Buntu 当前用户 Token；企业微信/WeCom 由企业微信智能机器人原生 MCP 插件接入，平台自动注入 X-WeCom-User-Id（WECOM_HEADER），MCP Endpoint 使用独立 MCP_WECOM_CLIENT_TOKEN 通道认证；WorkBuddy 使用 Identity Route 绑定的 USER_BOUND Token；只有受控 Internal/Inspector 客户端使用 MCP_CLIENT_TOKEN + X-Platform-User-Id。客户端不得通过 Tool 参数选择 Salesforce Username，也不得伪造或代填身份来源。"
       />
 
       <Card title="外部 MCP 地址" className="surface-card">
@@ -329,7 +329,7 @@ function McpAccessTab({
           type="warning"
           showIcon
           title="WeCom 通道未启用"
-          description="当前 Runtime 尚未把 X-WeCom-User-Id 识别为身份来源：请在服务端配置 MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id，使其能解析企业微信自动注入的身份头。未启用前 WeCom 示例仅供参考，实际请求会被拒绝。"
+          description="请在服务端启用 MCP_WECOM_CHANNEL_ENABLED=true 并配置独立的 MCP_WECOM_CLIENT_TOKEN。身份头别名保留 MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id。"
         />
       ) : null}
     </Space>
@@ -471,11 +471,11 @@ function WeComTab({
         type="info"
         showIcon
         title="企业微信智能机器人 + 原生 MCP Plugin"
-        description="在企业微信创建/配置「智能机器人」并启用原生 MCP Plugin，MCP URL 填为企业域名下的 HTTPS 地址。企业微信平台会为每个请求自动注入当前用户的 X-WeCom-User-Id；不需要自建应用后端，也不需要网关在转发时按会话映射用户。服务端把它解析为当前用户 Identity Route 与请求级 Salesforce 连接。"
+        description="在企业微信创建/配置「智能机器人」并启用原生 MCP Plugin，MCP URL 填为企业域名下的 HTTPS 地址。企业微信平台会在工具执行请求中自动注入当前用户的 X-WeCom-User-Id；不需要自建应用后端，也不需要网关在转发时按会话映射用户。服务端把它解析为当前用户 Identity Route 与请求级 Salesforce 连接。"
       />
       <Row gutter={[16, 16]}>
         <RelationCard title="企业微信智能机器人" description="企业微信官方智能体类型，原生支持 MCP 插件：接入企业域名下的 HTTPS MCP URL 即可，无需自建应用后端。" />
-        <RelationCard title="当前用户身份" description="企业微信在每个请求自动注入的 X-WeCom-User-Id（无需手工填写）→ Identity Route → Salesforce 用户名；服务端以“当前用户”身份按请求执行，绝不用固定管理员账号。" />
+        <RelationCard title="当前用户身份" description="企业微信在工具执行时自动注入的 X-WeCom-User-Id（无需手工填写）→ Identity Route → Salesforce 用户名；服务端以“当前用户”身份按请求执行，绝不用固定管理员账号。" />
         <RelationCard title="Salesforce 权限" description="读取与写回都受当前 Salesforce 用户记录级权限约束；助手始终代表当前企业微信用户，不冒充或切换到其他用户。" />
       </Row>
       {!wecomEnabled ? (
@@ -483,19 +483,29 @@ function WeComTab({
           type="warning"
           showIcon
           title="WeCom 通道尚未启用"
-          description="当前 Runtime 未把 X-WeCom-User-Id 纳入身份头别名；请在 MCP Runtime 配置 MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id 后刷新本页。"
+          description="请在服务端设置 MCP_WECOM_CHANNEL_ENABLED=true 并配置 MCP_WECOM_CLIENT_TOKEN，重启 Runtime 与 Admin API 后刷新本页。页面只显示配置就绪状态，不读取或展示凭据。"
         />
       ) : null}
       <Alert
         type="warning"
         showIcon
         title="信任模型边界"
-        description="WECOM_HEADER 表达的是「来自受信任企业微信接入入口的身份头来源」，不是企业微信客户端的加密证明：Runtime 信任该头并解析当前用户身份路由。运行时无法识别单个被伪造但格式合法的 X-WeCom-User-Id；生产环境应让企业微信 MCP 请求只经企业自有 HTTPS 域名与受控入口进入。防止单一身份头伪造需要通道绑定凭据、签名断言或受信网关覆盖等未来设计，不属于本次范围。"
+        description="MCP_WECOM_CLIENT_TOKEN 是整个企业微信 MCP 插件共享的 Channel Credential，不代表 Salesforce 用户或 platformUserId。只有该凭据能使用企业微信身份头；内部 MCP_CLIENT_TOKEN 不能冒充企业微信。凭据持有者仍必须受信任：用户身份由企业微信注入，凭据不是单个用户的签名。"
       />
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}><Card title="工具发现阶段" className="surface-card">
+          <Typography.Paragraph>保存插件时，只验证企业微信 Channel Credential，返回管理员当前启用的工具。</Typography.Paragraph>
+          <Typography.Text type="secondary">initialize / tools/list · 不需要当前用户 · 不访问 Salesforce</Typography.Text>
+        </Card></Col>
+        <Col xs={24} lg={12}><Card title="工具执行阶段" className="surface-card">
+          <Typography.Paragraph>用户提问时，验证 Channel Credential 与企业微信自动注入的用户身份，再按身份路由访问 Salesforce。</Typography.Paragraph>
+          <Typography.Text type="secondary">tools/call · X-WeCom-User-Id → Identity Route → Salesforce</Typography.Text>
+        </Card></Col>
+      </Row>
       <ConnectionExample title="企业微信 / WeCom MCP 连接示例" value={example} disabled={!validation.valid} onCopy={() => onCopy(example, '已复制企业微信 / WeCom 连接示例。')} />
       <Recommendation title="企业微信 / WeCom 推荐步骤" items={[
         '在企业微信创建/配置「智能机器人」，启用原生 MCP Plugin 并把 MCP URL 填为企业自有域名的 HTTPS 地址。',
-        '为受保护的 MCP Endpoint 配置服务端认证 Bearer（MCP_CLIENT_TOKEN）；X-WeCom-User-Id 由企业微信自动注入，无需手工填写，也不要在服务端冒充固定用户。',
+        '为受保护的 MCP Endpoint 配置企业微信专用 Bearer（MCP_WECOM_CLIENT_TOKEN）；X-WeCom-User-Id 由企业微信自动注入，无需手工填写，也不要在服务端冒充固定用户。',
         '确认服务端身份头别名包含 X-WeCom-User-Id（MCP_PLATFORM_USER_HEADER_ALIASES），并为当前企业微信用户配置 Identity Route。',
         '加载 MCP Instructions、Resources、Prompt 与当前可用 Tools。',
         '将下面由当前能力事实生成的「推荐角色设定」粘贴到企业微信智能机器人提示词/人设。',
@@ -515,7 +525,7 @@ function WeComTab({
       <Card title="验收清单" className="surface-card">
         <ol className="guidance-list">
           <li>企业微信会话内发起只读请求：返回“当前用户”可见数据，审计 identitySource = WECOM_HEADER、platformUserId = 当前企业微信用户。</li>
-          <li>Bearer 有效但缺少 X-WeCom-User-Id：请求被拒（MCP_PLATFORM_USER_REQUIRED）。</li>
+          <li>工具发现无需当前用户且不访问 Salesforce；工具执行缺少 X-WeCom-User-Id 时被拒（MCP_PLATFORM_USER_REQUIRED）。</li>
           <li>同一请求重复注入两个不同的 X-WeCom-User-Id：请求被拒（MCP_PLATFORM_IDENTITY_CONFLICT）。</li>
           <li>同一请求同时带 X-Platform-User-Id 与 X-WeCom-User-Id：请求被拒（MCP_PLATFORM_IDENTITY_CONFLICT），避免身份来源归属歧义。</li>
           <li>当前企业微信用户未配置或停用身份路由：请求被拒（MCP_IDENTITY_ROUTE_NOT_FOUND / MCP_IDENTITY_ROUTE_DISABLED），不创建 Salesforce 连接。</li>

@@ -8,6 +8,8 @@ export type McpConnectivityConfig = Readonly<{
   allowedHosts: readonly string[];
   allowedOrigins: readonly string[];
   tokenConfigured: boolean;
+  wecomEnabled?: boolean;
+  wecomCredentialConfigured?: boolean;
   runtimeEndpoint: string;
   /** Primary platform user identity header (trusted internal-service channel). */
   platformUserHeader: string;
@@ -35,6 +37,8 @@ export function deriveMcpConnectivity(status: SystemStatusDto): McpConnectivityC
     allowedHosts: asStringArray(settings.MCP_ALLOWED_HOSTS),
     allowedOrigins: asStringArray(settings.MCP_ALLOWED_ORIGINS),
     tokenConfigured: status.configured.mcpClientToken,
+    wecomEnabled: status.configured.wecomChannelEnabled === true,
+    wecomCredentialConfigured: status.configured.wecomChannelCredentialConfigured === true,
     runtimeEndpoint: status.mcpEndpoint,
     platformUserHeader,
     platformUserHeaderAliases: asStringArray(settings.MCP_PLATFORM_USER_HEADER_ALIASES),
@@ -94,22 +98,16 @@ export function buildInternalConnectionExample(externalUrl: string): string {
   ].join('\n');
 }
 
-/**
- * Whether the current runtime recognizes `X-WeCom-User-Id` as a platform
- * identity header (WECOM_HEADER channel) — either as the primary header (which
- * the config layer forbids) or, as intended, through
- * `MCP_PLATFORM_USER_HEADER_ALIASES`.
- */
+/** Runtime credential readiness, independent of legacy identity Header aliases. */
 export function wecomChannelEnabled(config: McpConnectivityConfig): boolean {
-  return [config.platformUserHeader, ...config.platformUserHeaderAliases].some(
-    (name) => name.toLocaleLowerCase('en-US') === 'x-wecom-user-id',
-  );
+  return config.wecomEnabled === true && config.wecomCredentialConfigured === true;
 }
 
 export function buildWeComConnectionExample(externalUrl: string): string {
   return [
     `MCP Server URL = ${externalUrl}`,
-    'Authorization Header = Bearer <MCP_CLIENT_TOKEN>（MCP Endpoint 服务认证，不是用户身份）',
+    'Credential = 企业微信 Channel Credential（插件共享，不绑定用户）',
+    'Authorization Header = Bearer <MCP_WECOM_CLIENT_TOKEN>',
     'Identity Source = WECOM_HEADER',
     'X-WeCom-User-Id = AUTO_INJECTED_BY_WECOM（企业微信自动注入，无需手工填写）',
     'X-Platform-User-Id = DO_NOT_CONFIGURE',

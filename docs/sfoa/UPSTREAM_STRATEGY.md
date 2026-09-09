@@ -178,3 +178,7 @@ P0 observed Upstream maintenance issues that are recorded but intentionally not 
 P4 final verification reproduced the same class of Windows Yarn Classic installation debt at a different nested link target: `packages/mcp-provider-api/node_modules/@typescript-eslint/eslint-plugin/node_modules/ignore` failed with `ENOENT lstat`. The aborted install changed no source, manifest, or lockfile but removed generated command shims. Exactly 513 missing ignored commands were mechanically regenerated from the installed packages' `package.json#bin` declarations. Original stdio, root build, root full tests, Inspector, and targeted Gates then passed. This is environment/Upstream maintenance debt, not an SFoA source waiver.
 
 These findings keep the repository-wide lint Gate red but do not justify a broad official-code cleanup inside the SFoA P0 compatibility change.
+
+P8-06 changes zero official Salesforce implementation files and no SDK/dependency
+pins. Discovery reuses public Providers, Tool configs and MCP SDK composition.
+The root README SFoA-preface update is covered by the existing README matrix row.

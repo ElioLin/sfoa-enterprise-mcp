@@ -371,7 +371,7 @@ class InventoryConfigService implements ConfigService {
   }
 }
 
-function createInventoryServices(): Services {
+export function createInventoryServices(): Services {
   const telemetry = new InventoryTelemetryService();
   const org = new InventoryOrgService();
   const config = new InventoryConfigService();

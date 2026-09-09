@@ -34,7 +34,8 @@ export interface ClientAuthenticator {
 
 export type CredentialAuthentication = Readonly<{
   clientId: string;
-  identitySource: IdentitySource;
+  credentialChannel?: 'INTERNAL' | 'WECOM';
+  identitySource?: IdentitySource;
   boundPlatformUserId?: string;
   credentialId?: string;
   afterAuthenticated?: () => Promise<void>;
@@ -55,6 +56,13 @@ export type AuthenticatedPrincipal = Readonly<{
 }>;
 
 export interface IdentityProvider {
+  authenticateCredential?(headers: RequestHeaders, correlationId: string): Promise<CredentialAuthentication>;
+  resolvePrincipal?(
+    credential: CredentialAuthentication,
+    headers: RequestHeaders,
+    platformIdentityHeaders: readonly string[],
+    correlationId: string,
+  ): Promise<AuthenticatedPrincipal>;
   authenticate(
     headers: RequestHeaders,
     platformIdentityHeaders: readonly string[],
@@ -129,8 +137,29 @@ export class InternalServiceCredentialAuthenticator implements CredentialAuthent
     const client = this.authenticator.authenticate(token === undefined ? {} : { authorization: `Bearer ${token}` });
     return Object.freeze({
       clientId: client.clientId,
+      credentialChannel: 'INTERNAL' as const,
       identitySource: 'INTERNAL_SERVICE_HEADER' as const,
     });
+  }
+}
+
+/** A channel credential carries no end-user identity. */
+export class WeComChannelCredentialAuthenticator implements CredentialAuthenticator {
+  private readonly authenticator: InternalBearerAuthenticator;
+
+  public constructor(token: string) {
+    this.authenticator = new InternalBearerAuthenticator(token);
+  }
+
+  public supports(token: string | undefined): boolean {
+    return token !== undefined && !token.startsWith(USER_BOUND_TOKEN_PREFIX) && this.authenticator.matches(token);
+  }
+
+  public async authenticate(token: string | undefined, correlationId: string): Promise<CredentialAuthentication> {
+    if (!this.supports(token)) {
+      throw new RemoteRuntimeError('MCP_CLIENT_AUTH_INVALID', 'The MCP channel credential is invalid.', { correlationId });
+    }
+    return Object.freeze({ clientId: 'wecom-channel', credentialChannel: 'WECOM' as const });
   }
 }
 
@@ -210,6 +239,7 @@ export type BuntuTokenCredentialAuthenticatorOptions = Readonly<{
   logger: RuntimeLogger;
   /** MCP_CLIENT_TOKEN used for deterministic exclusivity; compared with timing-safe digest. */
   clientToken: string;
+  wecomClientToken?: string;
   validateTokenUrl: string;
   rawTokenAuditEnabled?: boolean;
   /**
@@ -250,14 +280,15 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
 
   /**
    * Deterministic exclusivity: claims any defined token that is neither a
-   * USER_BOUND credential nor an exact match of MCP_CLIENT_TOKEN. The Buntu
+   * USER_BOUND credential nor an exact match of either configured channel token. The Buntu
    * provider is only wired when MCP_BUNTU_IDENTITY_ENABLED=true, so no other
    * provider overlaps with this predicate.
    */
   public supports(token: string | undefined): boolean {
     return token !== undefined
       && !token.startsWith(USER_BOUND_TOKEN_PREFIX)
-      && !timingSafeEqual(this.expectedClientDigest, digest(token));
+      && !timingSafeEqual(this.expectedClientDigest, digest(token))
+      && !(this.options.wecomClientToken !== undefined && timingSafeTokenEqual(this.options.wecomClientToken, token));
   }
 
   /**
@@ -433,7 +464,10 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
 }
 
 export class UnifiedIdentityProvider implements IdentityProvider {
-  public constructor(private readonly authenticators: readonly CredentialAuthenticator[]) {
+  public constructor(
+    private readonly authenticators: readonly CredentialAuthenticator[],
+    private readonly wecomChannelEnabled = false,
+  ) {
     if (authenticators.length === 0) {
       throw new RemoteRuntimeError(
         'MCP_RUNTIME_CONFIGURATION_INVALID',
@@ -447,22 +481,31 @@ export class UnifiedIdentityProvider implements IdentityProvider {
     platformIdentityHeaders: readonly string[],
     correlationId: string,
   ): Promise<AuthenticatedPrincipal> {
+    const credential = await this.authenticateCredential(headers, correlationId);
+    return this.resolvePrincipal(credential, headers, platformIdentityHeaders, correlationId);
+  }
+
+  public async authenticateCredential(headers: RequestHeaders, correlationId: string): Promise<CredentialAuthentication> {
     const token = parseBearerToken(headers, correlationId);
     const authenticator = this.authenticators.find((candidate) => candidate.supports(token));
     if (!authenticator) {
-      throw new RemoteRuntimeError('MCP_CLIENT_AUTH_INVALID', 'The MCP client Bearer credential is invalid.', { correlationId });
+      throw new RemoteRuntimeError(token === undefined ? 'MCP_CLIENT_AUTH_REQUIRED' : 'MCP_CLIENT_AUTH_INVALID', 'A valid MCP client Bearer credential is required.', { correlationId });
     }
-    const credential = await authenticator.authenticate(token, correlationId);
-    const resolution = matchPlatformIdentityHeaders(headers, platformIdentityHeaders);
-    if (resolution.status === 'ambiguous' || resolution.status === 'conflict') {
-      // Fail closed: multiple platform identity sources make audit attribution
-      // ambiguous. Never "first wins", never "last wins", never source priority.
-      throw platformIdentityConflict(correlationId);
-    }
+    return authenticator.authenticate(token, correlationId);
+  }
+
+  public async resolvePrincipal(
+    credential: CredentialAuthentication,
+    headers: RequestHeaders,
+    platformIdentityHeaders: readonly string[],
+    correlationId: string,
+  ): Promise<AuthenticatedPrincipal> {
+    const resolution = validateCredentialIdentityHeaders(credential, headers, platformIdentityHeaders, correlationId, this.wecomChannelEnabled);
     // A bound credential (USER_BOUND / BUNTU) is itself the identity authority.
     // A matching platform identity header is optional context and must agree;
     // identity attribution stays with the credential source.
     if (credential.boundPlatformUserId !== undefined) {
+      if (!credential.identitySource) throw new RemoteRuntimeError('MCP_CLIENT_AUTH_INVALID', 'Bound credential has no identity authority.', { correlationId });
       const bound = credential.boundPlatformUserId;
       if (resolution.status === 'match') {
         const requested = parsePlatformUserId(resolution.rawValue, resolution.headerName, correlationId);
@@ -489,7 +532,7 @@ export class UnifiedIdentityProvider implements IdentityProvider {
     await credential.afterAuthenticated?.();
     return Object.freeze({
       clientId: credential.clientId,
-      identitySource: identitySourceForPlatformHeader(resolution.headerName, primaryHeader),
+      identitySource: credential.credentialChannel === 'WECOM' ? 'WECOM_HEADER' : identitySourceForPlatformHeader(resolution.headerName, primaryHeader),
       platformUserId,
       ...(credential.credentialId ? { credentialId: credential.credentialId } : {}),
       correlationId,
@@ -516,6 +559,33 @@ class LegacyClientCredentialAuthenticator implements CredentialAuthenticator {
 
 function digest(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();
+}
+
+export function timingSafeTokenEqual(left: string, right: string): boolean {
+  return timingSafeEqual(digest(left), digest(right));
+}
+
+/** Validate assertions even on discovery, without resolving a principal or route. */
+export function validateCredentialIdentityHeaders(
+  credential: CredentialAuthentication,
+  headers: RequestHeaders,
+  platformIdentityHeaders: readonly string[],
+  correlationId: string,
+  wecomChannelEnabled: boolean,
+): PlatformIdentityHeaderResolution {
+  const channelBound = wecomChannelEnabled || credential.credentialChannel === 'WECOM';
+  const recognized = channelBound
+    ? [...new Set([...platformIdentityHeaders, 'X-Platform-User-Id', 'X-WeCom-User-Id'].map((name) => name.toLowerCase()))]
+    : platformIdentityHeaders;
+  const resolution = matchPlatformIdentityHeaders(headers, recognized);
+  if (resolution.status === 'ambiguous' || resolution.status === 'conflict') throw platformIdentityConflict(correlationId);
+  if (channelBound && credential.boundPlatformUserId === undefined && resolution.status === 'match') {
+    const expected = credential.credentialChannel === 'WECOM' ? 'x-wecom-user-id' : 'x-platform-user-id';
+    if (resolution.headerName.toLowerCase() !== expected) {
+      throw new RemoteRuntimeError('MCP_IDENTITY_CHANNEL_MISMATCH', 'The identity header does not belong to the authenticated channel.', { correlationId });
+    }
+  }
+  return resolution;
 }
 
 function parseBearerToken(headers: RequestHeaders, correlationId: string): string | undefined {

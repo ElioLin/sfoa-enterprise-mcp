@@ -1,5 +1,7 @@
 import {
   loadMySqlRequestPolicySnapshot,
+  loadMySqlDiscoveryPolicySnapshot,
+  type RuntimeDiscoveryPolicySnapshot,
   type ControlPlaneDatabaseClient,
   type RequestPolicySnapshot,
 } from '@sfoa/control-plane';
@@ -10,6 +12,18 @@ import { RemoteRuntimeError } from './errors.js';
 
 export interface RuntimePolicySnapshotSource {
   load(platformUserId: string): Promise<RequestPolicySnapshot>;
+}
+
+export interface RuntimeDiscoveryPolicySnapshotSource {
+  load(): Promise<RuntimeDiscoveryPolicySnapshot>;
+}
+
+export class MySqlRuntimeDiscoveryPolicySnapshotSource implements RuntimeDiscoveryPolicySnapshotSource {
+  public constructor(private readonly database: ControlPlaneDatabaseClient) {}
+
+  public async load(): Promise<RuntimeDiscoveryPolicySnapshot> {
+    return loadMySqlDiscoveryPolicySnapshot(this.database);
+  }
 }
 
 export class MySqlRuntimePolicySnapshotSource implements RuntimePolicySnapshotSource {
@@ -49,7 +63,7 @@ export function snapshotDiagnosticRoute(
     : undefined;
 }
 
-export function snapshotDmlAllowlist(snapshot: RequestPolicySnapshot): DmlAllowlistPolicy {
+export function snapshotDmlAllowlist(snapshot: RuntimeDiscoveryPolicySnapshot): DmlAllowlistPolicy {
   const entries = snapshot.dmlPolicies.map((policy) => ({
     objectApiName: policy.objectApiName,
     operations: [
@@ -60,7 +74,7 @@ export function snapshotDmlAllowlist(snapshot: RequestPolicySnapshot): DmlAllowl
   return parseDmlAllowlistJson(JSON.stringify(entries));
 }
 
-export function snapshotManagedDmlFieldRules(snapshot: RequestPolicySnapshot): readonly RuntimeManagedDmlFieldRule[] {
+export function snapshotManagedDmlFieldRules(snapshot: RuntimeDiscoveryPolicySnapshot): readonly RuntimeManagedDmlFieldRule[] {
   const objectsByPolicyId = new Map(snapshot.dmlPolicies.map((policy) => [policy.id, policy.objectApiName]));
   return Object.freeze(snapshot.managedDmlFieldRules.map((rule) => {
     const objectApiName = objectsByPolicyId.get(rule.dmlPolicyId);

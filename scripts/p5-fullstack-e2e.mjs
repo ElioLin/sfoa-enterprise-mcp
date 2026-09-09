@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHmac, randomBytes } from 'node:crypto';
+import { mkdtemp, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -38,8 +40,13 @@ const serviceOutput = new WeakMap();
 let adminProcess;
 let viteProcess;
 let adminSecurityEvidence = {};
+const fixtureDirectory = await mkdtemp(path.join(tmpdir(), 'sfoa-p5-fullstack-'));
+const fixtureKeyPath = path.join(fixtureDirectory, 'test-only.pem');
 
 try {
+  // Admin boot seeds all pagination usernames. Fail signing locally instead of
+  // attempting real Salesforce JWT authentication for these nonexistent users.
+  await writeFile(fixtureKeyPath, 'P5 fullstack test fixture; deliberately not a private key.');
   await migrateDatabase(store.database);
   await cleanTestDatabase(store);
   await seedPaginationRoutes(store, new IdentityCredentialCipher(identityCredentialEncryptionKeyBytes));
@@ -52,6 +59,9 @@ try {
     ...process.env,
     NODE_ENV: 'test',
     SFOA_CONTROL_PLANE_MODE: 'mysql',
+    SFOA_INSTANCE_URL: 'https://salesforce.example.invalid',
+    CONNECTED_APP_CLIENT_ID: 'p5-fullstack-test-only-client',
+    JWT_PRIVATE_KEY_PATH: fixtureKeyPath,
     SFOA_DB_NAME: testDatabaseName,
     SFOA_ADMIN_BIND_HOST: '127.0.0.1',
     SFOA_ADMIN_PORT: String(adminPort),
@@ -117,6 +127,8 @@ try {
 } finally {
   await Promise.all([stopService(viteProcess), stopService(adminProcess)]);
   await store.close();
+  await unlink(fixtureKeyPath);
+  await rmdir(fixtureDirectory);
 }
 
 async function cleanTestDatabase(controlPlaneStore) {
@@ -140,6 +152,7 @@ async function seedPaginationRoutes(controlPlaneStore, cipher) {
   for (let index = 1; index <= 25; index += 1) {
     const suffix = String(index).padStart(3, '0');
     await adminService.createIdentityRoute({
+      userName: `Pagination user ${suffix}`,
       platformUserId: `p6-page-${suffix}`,
       salesforceUsername: `p6-page-${suffix}@example.invalid`,
       enabled: true,

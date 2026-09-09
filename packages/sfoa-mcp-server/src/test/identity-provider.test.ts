@@ -13,6 +13,7 @@ import {
   InternalServiceCredentialAuthenticator,
   UnifiedIdentityProvider,
   UserBoundCredentialAuthenticator,
+  WeComChannelCredentialAuthenticator,
   type CredentialAuthenticator,
 } from '../authenticator.js';
 import type { BuntuTokenValidator, BuntuValidationResult } from '../buntu-validator.js';
@@ -335,7 +336,7 @@ test('WECOM_HEADER is not a credential: an invalid Bearer is denied even with a 
   const provider = fixture.provider();
   await assert.rejects(
     provider.authenticate({ 'x-wecom-user-id': 'platform-a' }, PLATFORM_IDENTITY_HEADERS, 'wecom-no-bearer'),
-    hasRemoteCode('MCP_CLIENT_AUTH_INVALID'),
+    hasRemoteCode('MCP_CLIENT_AUTH_REQUIRED'),
   );
   await assert.rejects(
     provider.authenticate({ authorization: 'Bearer invalid-token', 'x-wecom-user-id': 'platform-a' }, PLATFORM_IDENTITY_HEADERS, 'wecom-bad-bearer'),
@@ -616,3 +617,50 @@ function hasRemoteCode(code: RemoteRuntimeError['code']): (error: unknown) => bo
 function hasIdentityCode(code: IdentityRuntimeError['code']): (error: unknown) => boolean {
   return (error: unknown) => error instanceof IdentityRuntimeError && error.code === code;
 }
+
+const WECOM_TOKEN = 'p8-06-test-wecom-channel-credential-32-chars';
+
+test('P8-06 credential supports predicates are mutually exclusive, including Buntu fallback candidates', async () => {
+  const fixture = new MutableIdentityFixture();
+  const providers = [
+    new UserBoundCredentialAuthenticator(fixture.credentialRepository, fixture.routeRepository, new NoopRuntimeLogger()),
+    new InternalServiceCredentialAuthenticator(TEST_CLIENT_TOKEN),
+    new WeComChannelCredentialAuthenticator(WECOM_TOKEN),
+    new BuntuTokenCredentialAuthenticator({ validator: fixture.validator, routes: fixture.routeRepository,
+      logger: new NoopRuntimeLogger(), clientToken: TEST_CLIENT_TOKEN, wecomClientToken: WECOM_TOKEN,
+      validateTokenUrl: 'https://buntu.example.test/validate' }),
+  ];
+  for (const [token, target] of [[TOKEN_A, 0], [TEST_CLIENT_TOKEN, 1], [WECOM_TOKEN, 2], [BUNTU_TOKEN, 3], ['invalid-token', 3]] as const) {
+    assert.deepEqual(providers.map((provider) => provider.supports(token)), providers.map((_, index) => index === target));
+  }
+  const unified = new UnifiedIdentityProvider(providers, true);
+  assert.deepEqual(await unified.authenticateCredential({ authorization: 'Bearer ' + WECOM_TOKEN }, 'discovery'), {
+    clientId: 'wecom-channel', credentialChannel: 'WECOM',
+  });
+  assert.equal(fixture.validator.receivedTokens.length, 0);
+  // An old deployment using WeCom as the primary header cannot relabel the internal channel.
+  await assert.rejects(unified.authenticate({ authorization: 'Bearer ' + TEST_CLIENT_TOKEN,
+    'x-wecom-user-id': 'platform-a' }, ['X-WeCom-User-Id'], 'reverse-channel'), hasRemoteCode('MCP_IDENTITY_CHANNEL_MISMATCH'));
+  await assert.rejects(unified.authenticateCredential({ authorization: 'Bearer invalid-token' }, 'invalid'), hasRemoteCode('MCP_BUNTU_TOKEN_INVALID'));
+});
+
+test('P8-06 channel binding preserves USER_BOUND and Buntu authority with matching/conflicting optional headers', async () => {
+  const fixture = new MutableIdentityFixture();
+  fixture.putRoute(route('1', 'platform-a', true));
+  fixture.putCredential(credential('11', '1', TOKEN_A));
+  fixture.validator.result = { valid: true, userId: 'platform-a', durationMs: 1, validatedAt: NOW };
+  const providers = [new UserBoundCredentialAuthenticator(fixture.credentialRepository, fixture.routeRepository, new NoopRuntimeLogger()),
+    new BuntuTokenCredentialAuthenticator({ validator: fixture.validator, routes: fixture.routeRepository,
+      logger: new NoopRuntimeLogger(), clientToken: TEST_CLIENT_TOKEN, wecomClientToken: WECOM_TOKEN,
+      validateTokenUrl: 'https://buntu.example.test/validate' })];
+  const unified = new UnifiedIdentityProvider(providers, true);
+  for (const [token, source] of [[TOKEN_A, 'USER_BOUND_TOKEN'], [BUNTU_TOKEN, 'BUNTU_TOKEN']] as const) {
+    for (const header of [undefined, 'x-platform-user-id', 'x-wecom-user-id']) {
+      const headers = { authorization: 'Bearer ' + token, ...(header ? { [header]: 'platform-a' } : {}) };
+      const principal = await unified.authenticate(headers, PLATFORM_IDENTITY_HEADERS, 'regression');
+      assert.equal(principal.identitySource, source);
+      assert.equal(principal.platformUserId, 'platform-a');
+      if (header) await assert.rejects(unified.authenticate({ ...headers, [header]: 'platform-b' }, PLATFORM_IDENTITY_HEADERS, 'conflict'), hasIdentityCode('MCP_IDENTITY_CONTEXT_MISMATCH'));
+    }
+  }
+});

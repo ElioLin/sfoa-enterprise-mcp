@@ -1,5 +1,10 @@
 # SFoA Enterprise MCP
 
+P8-06 adds independent `MCP_WECOM_CLIENT_TOKEN` channel authentication. WeCom
+`initialize` / `tools/list` need no user Header and never access Salesforce;
+`tools/call` requires WeCom-injected `X-WeCom-User-Id` and the current user route.
+See [WeCom setup](docs/sfoa/P8_06_WECOM_CHANNEL_DISCOVERY.md).
+
 This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity, the Salesforce Agent Playbook, trusted managed fields, and explicit record links. P7 records ordered MCP/Salesforce evidence and provides the Admin Audit Workbench. P7-08 adds an advisory, cross-agent Maintainer Skill plus local secret-safe diagnostics. P7-09 makes Salesforce Connection acquisition lazy, request-scoped, and Promise-memoized so local/route-only MCP operations create no Salesforce Connection while Salesforce-dependent requests still receive one fresh isolated Connection. P8-05 adds a fourth WeCom enterprise MCP identity channel (`WECOM_HEADER`) that accepts an `X-WeCom-User-Id` alias Header (`MCP_PLATFORM_USER_HEADER_ALIASES`) as identity context after Bearer authentication and reuses the same identity-route resolution.
 
 Current Git fact: `P7-01` through `P7-06 = COMPLETE`; `P7-07 = IMPLEMENTED / AWAITING MAINTAINER FINAL REVIEW`; `P7-08 = COMPLETE`; `P7-09 = COMPLETE` on `feature/p7-end-to-end-audit`.
@@ -35,7 +40,7 @@ The SFoA services start together with `yarn p5:dev`; default local endpoints are
 The Salesforce Agent Playbook is distributed to four governed identity channels. The Admin "智能体接入" page (MCP 接入 overview) renders a one-click connection example and recommended setup for each:
 
 - **小犇 / Dify** — the Dify agent passes the current user's Buntu token (`Authorization: Bearer <CURRENT_USER_TOKEN>`); identity resolves through `BUNTU_TOKEN` → Identity Route.
-- **企业微信 / WeCom** — the 企业微信智能机器人 (WeCom Smart Bot) uses its native MCP Plugin to reach the enterprise-domain HTTPS MCP URL. The WeCom platform auto-injects the current user's `X-WeCom-User-Id` on every request; the server treats it as the `WECOM_HEADER` identity channel and derives the recommended role setting from live capabilities. No self-built backend or trusted gateway is needed to synthesize the header — a protected MCP service credential (`Bearer <MCP_CLIENT_TOKEN>`) still guards the endpoint.
+- **企业微信 / WeCom** — the 企业微信智能机器人 (WeCom Smart Bot) uses its native MCP Plugin with `Bearer <MCP_WECOM_CLIENT_TOKEN>` to reach the enterprise-domain HTTPS MCP URL. Discovery needs only this independent channel credential and does not access Salesforce. For tool execution, WeCom auto-injects the current user's `X-WeCom-User-Id`; the server resolves the `WECOM_HEADER` identity and user route. The role setting stays business guidance derived from live capabilities.
 - **WorkBuddy** — a custom Streamable HTTP Connector uses a route-bound `Bearer <USER_BOUND_TOKEN>` plus the generated `sfoa-salesforce-assistant` Skill.
 - **Internal / Inspector** — the controlled internal-service channel uses `Bearer <MCP_CLIENT_TOKEN>` with the primary `X-Platform-User-Id` header (`INTERNAL_SERVICE_HEADER`).
 

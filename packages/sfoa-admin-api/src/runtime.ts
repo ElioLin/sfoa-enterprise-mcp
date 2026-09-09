@@ -93,6 +93,8 @@ export async function startConfiguredAdminApi(
       connectedAppConfigured: identityConfig.clientId.length > 0,
       jwtPrivateKeyConfigured: identityConfig.privateKeyPath.length > 0,
       mcpClientTokenConfigured: Boolean(remoteConfig.clientToken),
+      wecomChannelEnabled: remoteConfig.wecomChannelEnabled === true,
+      wecomChannelCredentialConfigured: Boolean(remoteConfig.wecomClientToken),
       identityCredentialEncryptionKeyConfigured: true,
       mcpEndpoint: localRuntimeUrl(remoteConfig.bindHost, remoteConfig.port, remoteConfig.mcpPath).href,
       mcpPublicEndpoint,

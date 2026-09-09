@@ -1,0 +1,192 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { request } from 'node:http';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { type RuntimeDiscoveryPolicySnapshot, type IdentityRouteRecord } from '@sfoa/control-plane';
+import type { RuntimeLogEvent } from '@sfoa/identity-runtime';
+import { DiagnosticRequestScopeFactory } from '@sfoa/identity-runtime';
+import { startRemoteMcpServer } from '../http-server.js';
+import { classifyMcpRequest, createDiscoveryMcpServer } from '../discovery-server.js';
+import { initializeProviderRuntime } from '../provider-runtime.js';
+import { loadRemoteRuntimeConfig } from '../config.js';
+import { createTestIdentityRuntime, createTestRemoteConfig, initializeBody, mcpHeaders,
+  RecordingConnectionFactory, TEST_CLIENT_TOKEN, TEST_PLATFORM_USER_A, TEST_USERNAME_A } from './helpers.js';
+
+const TOKEN = 'p8-06-test-wecom-channel-credential-32-chars';
+const rpc = (method: string, params?: unknown) => ({ jsonrpc: '2.0', id: 2, method, ...(params ? { params } : {}) });
+const call = rpc('tools/call', { name: 'run_soql_query', arguments: { query: 'SELECT Id FROM Account', useToolingApi: false } });
+
+test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execution remains routed', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'p8-06-http-'));
+  const connections = new RecordingConnectionFactory();
+  const events: RuntimeLogEvent[] = [];
+  const baseRuntime = createTestIdentityRuntime(root, connections, { log: (event) => { events.push(event); } });
+  const runtime = { ...baseRuntime, diagnosticScopeFactory: new DiagnosticRequestScopeFactory({
+    diagnosticUsername: 'diagnostic@example.test', connectionFactory: connections,
+    workspaceFactory: baseRuntime.workspaceFactory, instanceUrl: 'https://example.test',
+  }) };
+  const create = t.mock.method(runtime.scopeFactory, 'create');
+  const createForRoute = t.mock.method(runtime.scopeFactory, 'createForRoute');
+  const createDiagnostic = t.mock.method(runtime.diagnosticScopeFactory, 'create');
+  let routeLoads = 0;
+  let discoveryLoads = 0;
+  let global: RuntimeDiscoveryPolicySnapshot = {
+    mode: 'mysql', loadedAt: new Date().toISOString(), enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook'],
+    dmlPolicies: [], managedDmlFieldRules: [], diagnostic: null, runtimeSettings: {},
+  };
+  const route: IdentityRouteRecord = { id: '1', platformUserId: TEST_PLATFORM_USER_A, userName: 'Test A',
+    salesforceUsername: TEST_USERNAME_A, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt };
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({ wecomChannelEnabled: true, wecomClientToken: TOKEN,
+      platformUserHeaderAliases: ['X-WeCom-User-Id'], platformIdentityHeaders: ['X-Platform-User-Id', 'X-WeCom-User-Id'] }),
+    identityRuntime: runtime,
+    policySnapshotSource: { load: async (user) => { routeLoads++; return { ...global,
+      identityRoute: user === TEST_PLATFORM_USER_A ? route : user === 'disabled' ? { ...route, enabled: false } : null }; } },
+    discoveryPolicySnapshotSource: { load: async () => { discoveryLoads++; return global; } },
+  });
+  const post = (body: unknown, token: string | undefined = TOKEN, headers: Record<string, string> = {}) => {
+    const httpHeaders = mcpHeaders(undefined, token);
+    if (!token) delete httpHeaders.authorization;
+    return fetch(server.mcpUrl, { method: 'POST', headers: { ...httpHeaders, ...headers }, body: JSON.stringify(body) });
+  };
+  try {
+    for (const body of [JSON.parse(initializeBody()) as unknown, { jsonrpc: '2.0', method: 'notifications/initialized' }, rpc('tools/list'), rpc('ping')]) {
+      const response = await post(body);
+      assert.ok(response.ok, await response.text());
+    }
+    assert.equal(routeLoads, 0);
+    assert.equal(create.mock.callCount(), 0);
+    assert.equal(createForRoute.mock.callCount(), 0);
+    assert.equal(createDiagnostic.mock.callCount(), 0);
+    assert.equal(connections.creations.length, 0, 'no JWT exchange or Connection creation');
+    assert.equal(connections.apiRequests.length + connections.queryCalls.length + connections.dmlCalls.length, 0);
+    assert.equal(discoveryLoads, 4);
+    assert.equal(events.filter((event) => event.auditEvent?.eventType === 'MCP_DISCOVERY').length, 4);
+    for (const event of events) {
+      assert.equal(event.clientId, 'wecom-channel');
+      assert.equal(event.platformUserId, undefined);
+      assert.equal(event.identitySource, undefined);
+      assert.equal(event.salesforceUsername, undefined);
+    }
+    const list = async () => {
+      const response = await post(rpc('tools/list'));
+      assert.equal(response.status, 200);
+      return await response.json() as { result: { tools: { name: string }[] } };
+    };
+    assert.deepEqual((await list()).result.tools.map((tool) => tool.name).sort(), [...global.enabledTools].sort());
+    global = { ...global, enabledTools: ['get_username'] };
+    assert.deepEqual((await list()).result.tools.map((tool) => tool.name), ['get_username']);
+    global = { ...global, enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook'] };
+    const discovered = await list();
+    const executionListResponse = await post(rpc('tools/list'), TEST_CLIENT_TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A });
+    const executionList = await executionListResponse.json() as typeof discovered;
+    assert.deepEqual(discovered.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), executionList.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), 'SDK schemas match execution');
+    const defaultGlobal = global;
+    global = { ...global, enabledTools: ['get_username', 'run_soql_query', 'retrieve_metadata', 'get_agent_playbook', 'get_record_links',
+      'get_record_action_context', 'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'create_record', 'update_record'],
+      dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: true, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt }],
+      diagnostic: { id: '1', salesforceUsername: 'diagnostic@example.test', enabled: true, verificationStatus: 'PASS', lastVerifiedAt: global.loadedAt,
+        lastErrorCode: null, lastErrorMessageSafe: null, testMetadataType: null, testMetadataFullName: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt } };
+    const fullDiscovery = await list();
+    const fullExecution = await (await post(rpc('tools/list'), TEST_CLIENT_TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A })).json() as typeof discovered;
+    assert.deepEqual(fullDiscovery.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), fullExecution.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), 'all official, context, DML and agent schema surfaces match');
+    global = { ...global, dmlPolicies: [] };
+    const invalidDml = await post(rpc('tools/list'));
+    assert.match(await invalidDml.text(), /MCP_DML_CONFIGURATION_INVALID/u, 'no enabled mutation catalog with a disabled DML policy');
+    global = { ...defaultGlobal, enabledTools: ['get_agent_playbook'] };
+    const disabledCapabilities = await (await post(JSON.parse(initializeBody()) as unknown)).json() as { result: { instructions: string } };
+    assert.equal(disabledCapabilities.result.instructions.includes('Lead'), false);
+    global = defaultGlobal;
+    const beforeDenials = routeLoads;
+    for (const [body, token, headers, code] of [
+      [rpc('tools/list'), 'invalid', {}, 'MCP_CLIENT_AUTH_INVALID'],
+      [rpc('tools/list'), '', {}, 'MCP_CLIENT_AUTH_REQUIRED'],
+      [call, TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [call, TOKEN, { 'X-MCP-Discovery': 'true' }, 'MCP_PLATFORM_USER_REQUIRED'],
+      [call, TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A }, 'MCP_IDENTITY_CHANNEL_MISMATCH'],
+      [call, TEST_CLIENT_TOKEN, { 'X-WeCom-User-Id': TEST_PLATFORM_USER_A }, 'MCP_IDENTITY_CHANNEL_MISMATCH'],
+      [rpc('initialize'), TEST_CLIENT_TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [rpc('resources/list'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [rpc('resources/read'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [rpc('prompts/get'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [rpc('unknown'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [[rpc('tools/list'), call], TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
+      [rpc('tools/list'), TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A }, 'MCP_IDENTITY_CHANNEL_MISMATCH'],
+    ] as const) {
+      const response = await post(body, token, headers);
+      assert.ok(response.status >= 400);
+      const result = await response.json() as { error: { data: { errorCode: string } } };
+      assert.equal(result.error.data.errorCode, code);
+      if (code === 'MCP_IDENTITY_CHANNEL_MISMATCH') assert.equal(response.status, 403);
+    }
+    assert.equal(routeLoads, beforeDenials);
+    assert.equal(connections.creations.length, 0);
+    const duplicate = await new Promise<string>((resolve, reject) => {
+      const req = request(server.mcpUrl, { method: 'POST', headers: { ...mcpHeaders(undefined, TOKEN), 'X-WeCom-User-Id': ['a', 'b'] } }, (res) => {
+        let body = ''; res.on('data', (chunk: Buffer) => { body += chunk.toString(); }); res.on('end', () => resolve(body));
+      });
+      req.on('error', reject); req.end(JSON.stringify(call));
+    });
+    assert.match(duplicate, /MCP_PLATFORM_IDENTITY_CONFLICT/u);
+    for (const [user, code] of [['unknown', 'MCP_IDENTITY_ROUTE_NOT_FOUND'], ['disabled', 'MCP_IDENTITY_ROUTE_DISABLED']]) {
+      const response = await post(call, TOKEN, { 'X-WeCom-User-Id': user! });
+      assert.equal(response.status, 403);
+      assert.match(await response.text(), new RegExp(code!));
+    }
+    assert.equal(connections.creations.length, 0);
+    for (const [token, header] of [[TOKEN, 'X-WeCom-User-Id'], [TEST_CLIENT_TOKEN, 'X-Platform-User-Id']]) {
+      const response = await post(call, token, { [header!]: TEST_PLATFORM_USER_A });
+      assert.equal(response.status, 200);
+      const result = await response.json() as { result: { isError?: boolean } };
+      assert.notEqual(result.result.isError, true);
+    }
+    assert.equal(connections.creations.length, 2);
+    assert.equal(connections.queryCalls.length, 2);
+    assert.ok(events.some((event) => event.clientId === 'wecom-channel' && event.identitySource === 'WECOM_HEADER'
+      && event.platformUserId === TEST_PLATFORM_USER_A && event.salesforceUsername === TEST_USERNAME_A));
+    assert.ok(events.some((event) => event.errorCode === 'MCP_IDENTITY_CHANNEL_MISMATCH' && event.result === 'BLOCKED' && event.auditEvent?.eventCategory === 'IDENTITY'));
+    assert.equal(JSON.stringify(events).includes(TOKEN), false);
+    // The pinned SDK accepts non-initialize batches. Every message must be discovery-safe.
+    const batch = await post([rpc('tools/list'), rpc('ping')]);
+    assert.equal(batch.status, 200);
+  } finally {
+    await server.close(); await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('P8-06 discovery composition denies direct SDK tools/call behind the HTTP classifier', async () => {
+  const server = await createDiscoveryMcpServer({ initializedProvider: await initializeProviderRuntime(['get_username']), diagnosticReady: false });
+  const client = new Client({ name: 'defense-test', version: '1' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport); await client.connect(clientTransport);
+    await assert.rejects(client.callTool({ name: 'get_username', arguments: {} }), /MCP_DISCOVERY_EXECUTION_FORBIDDEN/u);
+  } finally { await client.close(); await server.close(); }
+});
+
+test('P8-06 classification is an explicit body allowlist and fails closed for empty/mixed/unknown messages', () => {
+  for (const body of [[], null, {}, [rpc('tools/list'), call], rpc('resources/list'), rpc('server/discover'), rpc('anything')]) {
+    assert.equal(classifyMcpRequest(body), 'IDENTITY_REQUIRED');
+  }
+  assert.equal(classifyMcpRequest([rpc('tools/list'), rpc('ping')]), 'DISCOVERY');
+});
+
+test('P8-06 WeCom configuration fails fast without an independent strong channel credential', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'p8-06-config-'));
+  try {
+    const key = path.join(root, 'test.pem'); await writeFile(key, 'test-only-key');
+    const base = { SFOA_INSTANCE_URL: 'https://example.test', SALESFORCE_USERNAME: TEST_USERNAME_A,
+      SECOND_TEST_USER: 'b@example.test', CONNECTED_APP_CLIENT_ID: 'test', JWT_PRIVATE_KEY_PATH: key,
+      MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN, MCP_WECOM_CHANNEL_ENABLED: 'true' };
+    for (const token of ['', 'short', ' '.repeat(40), `sfoa_ub1_${'x'.repeat(43)}`, TEST_CLIENT_TOKEN, 'a'.repeat(32) + ' b']) {
+      await assert.rejects(loadRemoteRuntimeConfig(root, { ...base, MCP_WECOM_CLIENT_TOKEN: token }), /MCP_WECOM/u);
+    }
+    const config = await loadRemoteRuntimeConfig(root, { ...base, MCP_WECOM_CLIENT_TOKEN: TOKEN });
+    assert.equal(config.wecomChannelEnabled, true);
+    assert.equal(config.wecomClientToken, TOKEN);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

@@ -143,7 +143,7 @@ export function trustedLightningOrigin(lightningBaseUrl: string | undefined): st
   return parsed.origin;
 }
 
-function registerResources(server: McpServer, capabilities: AgentCapabilities): void {
+export function registerResources(server: McpServer, capabilities: AgentCapabilities): void {
   server.registerResource(
     'sfoa-agent-playbook-current',
     AGENT_PLAYBOOK_RESOURCE_URI,
@@ -170,7 +170,7 @@ function registerResources(server: McpServer, capabilities: AgentCapabilities): 
   );
 }
 
-function registerPrompt(server: McpServer, capabilities: AgentCapabilities): void {
+export function registerPrompt(server: McpServer, capabilities: AgentCapabilities): void {
   server.registerPrompt(
     AGENT_PROMPT_NAME,
     {
@@ -193,28 +193,7 @@ function registerPrompt(server: McpServer, capabilities: AgentCapabilities): voi
 function registerPlaybookTool(server: McpServer, options: RegisterAgentGuidanceOptions): void {
   server.registerTool(
     'get_agent_playbook',
-    {
-      title: 'Get SFoA Agent Playbook',
-      description: 'Return the current canonical SFoA Salesforce Agent workflow for clients without MCP Resource or Prompt support.',
-      inputSchema: {
-        workflow: agentWorkflowSchema.optional().describe('Defaults to ALL.'),
-      },
-      outputSchema: {
-        playbookVersion: z.literal(AGENT_PLAYBOOK_VERSION),
-        workflow: agentWorkflowSchema,
-        guidance: z.string(),
-        enabledTools: z.array(z.string()),
-        hasMore: z.literal(false),
-        nextCursor: z.null(),
-        truncated: z.literal(false),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
+    playbookToolConfig(),
     async ({ workflow }): Promise<CallToolResult> => withAgentAudit(options, 'get_agent_playbook', async () => {
       const started = performance.now();
       const selected: AgentWorkflow = workflow ?? 'ALL';
@@ -245,31 +224,7 @@ function registerPlaybookTool(server: McpServer, options: RegisterAgentGuidanceO
 function registerRecordLinksTool(server: McpServer, options: RegisterAgentGuidanceOptions): void {
   server.registerTool(
     'get_record_links',
-    {
-      title: 'Get trusted Salesforce record links',
-      description: 'Build Lightning record links from validated record descriptors and the configured trusted Lightning origin. Performs no Salesforce API call.',
-      inputSchema: {
-        records: z.array(recordDescriptorSchema).min(1).max(50).describe('One to 50 Salesforce record descriptors.'),
-      },
-      outputSchema: {
-        records: z.array(z.object({
-          objectApiName: z.string(),
-          recordId: z.string(),
-          displayName: z.string().optional(),
-          recordUrl: z.string().url(),
-        }).strict()).max(50),
-        count: z.number().int().min(0).max(50),
-        hasMore: z.literal(false),
-        nextCursor: z.null(),
-        truncated: z.literal(false),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
+    recordLinksToolConfig(),
     async ({ records }): Promise<CallToolResult> => withAgentAudit(options, 'get_record_links', async () => {
       const started = performance.now();
       try {
@@ -395,4 +350,57 @@ async function logTool(
 
 export function serverInstructions(capabilities: AgentCapabilities): string {
   return renderServerInstructions(capabilities);
+}
+
+export function playbookToolConfig() {
+  return {
+    title: 'Get SFoA Agent Playbook',
+    description: 'Return the current canonical SFoA Salesforce Agent workflow for clients without MCP Resource or Prompt support.',
+    inputSchema: {
+      workflow: agentWorkflowSchema.optional().describe('Defaults to ALL.'),
+    },
+    outputSchema: {
+      playbookVersion: z.literal(AGENT_PLAYBOOK_VERSION),
+      workflow: agentWorkflowSchema,
+      guidance: z.string(),
+      enabledTools: z.array(z.string()),
+      hasMore: z.literal(false),
+      nextCursor: z.null(),
+      truncated: z.literal(false),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  };
+}
+
+export function recordLinksToolConfig() {
+  return {
+    title: 'Get trusted Salesforce record links',
+    description: 'Build Lightning record links from validated record descriptors and the configured trusted Lightning origin. Performs no Salesforce API call.',
+    inputSchema: {
+      records: z.array(recordDescriptorSchema).min(1).max(50).describe('One to 50 Salesforce record descriptors.'),
+    },
+    outputSchema: {
+      records: z.array(z.object({
+        objectApiName: z.string(),
+        recordId: z.string(),
+        displayName: z.string().optional(),
+        recordUrl: z.string().url(),
+      }).strict()).max(50),
+      count: z.number().int().min(0).max(50),
+      hasMore: z.literal(false),
+      nextCursor: z.null(),
+      truncated: z.literal(false),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  };
 }

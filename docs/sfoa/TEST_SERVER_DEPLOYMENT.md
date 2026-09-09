@@ -726,3 +726,23 @@ curl -s http://127.0.0.1:8080/health
 - USER_BOUND 身份路由凭证生命周期：`docs/sfoa/P6_ID_01_USER_BOUND_CREDENTIAL.md`
 - Buntu（小犇/Dify）真实用户身份：`docs/sfoa/P6_ID_02_BUNTU_TOKEN_IDENTITY.md`
 - Dify / WorkBuddy 接入：`docs/agent/DIFY_SETUP.md`、`docs/agent/WORKBUDDY_SETUP.md`
+
+## P8-06 WeCom native MCP plugin
+
+Configure the Runtime and Admin API with the same protected environment:
+
+```env
+MCP_PLATFORM_USER_HEADER=X-Platform-User-Id
+MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id
+MCP_WECOM_CHANNEL_ENABLED=true
+MCP_WECOM_CLIENT_TOKEN=<CHANGE_ME>
+```
+
+Replace the placeholder with an independent secret of at least 32 random characters;
+never use MCP_CLIENT_TOKEN or a USER_BOUND token. Restart Runtime and Admin API.
+In the WeCom plugin set Authorization to `Bearer <MCP_WECOM_CLIENT_TOKEN>`.
+X-WeCom-User-Id is auto-injected by WeCom for Tool execution; do not configure a fixed
+user. Saving/discovering tools does not require a user and does not access Salesforce.
+Existing Internal clients retain MCP_CLIENT_TOKEN plus X-Platform-User-Id.
+Keep Authorization and X-WeCom-User-Id intact through the existing reverse proxy.
+See [P8-06 deployment/UAT](P8_06_WECOM_CHANNEL_DISCOVERY.md).

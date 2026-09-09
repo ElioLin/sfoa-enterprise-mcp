@@ -181,3 +181,23 @@ Admin configuration writes and their audit event are one MySQL transaction, so a
 ## Rollback
 
 Prefer forward-compatible application rollback after reviewing migration compatibility. Do not delete audit/configuration tables or manually rewrite `sfoa_schema_migration`. If a release cannot safely read the migrated schema, stop traffic, restore the reviewed pre-deployment backup into an isolated target, validate it, then perform an explicit controlled cutover.
+
+## P8-06 WeCom native MCP plugin
+
+Configure the Runtime and Admin API with the same protected environment:
+
+```env
+MCP_PLATFORM_USER_HEADER=X-Platform-User-Id
+MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id
+MCP_WECOM_CHANNEL_ENABLED=true
+MCP_WECOM_CLIENT_TOKEN=<CHANGE_ME>
+```
+
+Replace the placeholder with an independent secret of at least 32 random characters;
+never use MCP_CLIENT_TOKEN or a USER_BOUND token. Restart Runtime and Admin API.
+In the WeCom plugin set Authorization to `Bearer <MCP_WECOM_CLIENT_TOKEN>`.
+X-WeCom-User-Id is auto-injected by WeCom for Tool execution; do not configure a fixed
+user. Saving/discovering tools does not require a user and does not access Salesforce.
+Existing Internal clients retain MCP_CLIENT_TOKEN plus X-Platform-User-Id.
+Keep Authorization and X-WeCom-User-Id intact through the existing reverse proxy.
+See [P8-06 deployment/UAT](P8_06_WECOM_CHANNEL_DISCOVERY.md).

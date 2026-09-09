@@ -5,6 +5,10 @@ intelligent-robot MCP plugin. WeCom injects an `X-WeCom-User-Id` request Header 
 value is the current WeCom user id; the runtime resolves it to the existing
 `platformUserId -> sfoa_identity_route -> Salesforce Username` identity route.
 
+P8-06 supersedes the original shared-credential registration flow. See
+[P8-06 delivery and deployment](P8_06_WECOM_CHANNEL_DISCOVERY.md) and
+[ADR-0020](adr/ADR-0020-wecom-channel-discovery.md).
+
 ## Channel model
 
 | Channel | Credential | Identity source | Identity context | Audited `identitySource` |
@@ -12,14 +16,16 @@ value is the current WeCom user id; the runtime resolves it to the existing
 | Internal / legacy MCP client | `Bearer <MCP_CLIENT_TOKEN>` | Header | `X-Platform-User-Id` | `INTERNAL_SERVICE_HEADER` |
 | WorkBuddy | `Bearer <USER_BOUND_TOKEN>` | Bound token | none required | `USER_BOUND_TOKEN` |
 | Buntu / Dify | `Bearer <BUNTU_TOKEN>` | Buntu `validate-token` | none required | `BUNTU_TOKEN` |
-| WeCom enterprise MCP plugin | `Bearer <MCP_CLIENT_TOKEN>` | Header | `X-WeCom-User-Id` | `WECOM_HEADER` |
+| WeCom enterprise MCP plugin | `Bearer <MCP_WECOM_CLIENT_TOKEN>` | Header | `X-WeCom-User-Id` | `WECOM_HEADER` |
 
 Credential source and identity source are distinct concepts. A WeCom request uses the
-internal client token as its **credential** but its **identity** comes from
+independent WeCom channel token as its **credential** but its **identity** comes from
 `X-WeCom-User-Id`, so audit records `identitySource = WECOM_HEADER` — never a blanket
 `INTERNAL_SERVICE_HEADER`.
 
-## Request flow
+Identity-less initialize/tools/list/notifications/initialized/ping authenticate only the WeCom channel and never resolve a user or Salesforce route. X-WeCom-User-Id is auto-injected by WeCom for execution.
+
+## Request flow (execution)
 
 ```text
 X-WeCom-User-Id
@@ -40,6 +46,8 @@ Header names:
 ```dotenv
 MCP_PLATFORM_USER_HEADER=X-Platform-User-Id
 MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id
+MCP_WECOM_CHANNEL_ENABLED=true
+MCP_WECOM_CLIENT_TOKEN=<CHANGE_ME>
 ```
 
 Parse rules (`MCP_RUNTIME_CONFIGURATION_INVALID` fails fast on any violation):
@@ -51,7 +59,7 @@ Parse rules (`MCP_RUNTIME_CONFIGURATION_INVALID` fails fast on any violation):
   Header nor repeat an earlier alias.
 
 The runtime allowlist becomes `[X-Platform-User-Id, ...aliases]`, which is the only set
-of identity Headers ever read — arbitrary `X-*-User-Id` Headers are ignored.
+of configured identity Headers. With channel binding enabled the two standard channel Headers are always checked for mismatch; arbitrary `X-*-User-Id` Headers are ignored.
 
 ## Security semantics
 

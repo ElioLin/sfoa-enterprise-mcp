@@ -47,7 +47,8 @@ describe('MCP network guidance', () => {
     expect(dify).toContain('Bearer <CURRENT_USER_TOKEN>');
     expect(dify).toContain('Identity Source = BUNTU_TOKEN');
     expect(dify).toContain('X-Platform-User-Id = NOT_CONFIGURED');
-    expect(wecom).toContain('Bearer <MCP_CLIENT_TOKEN>');
+    expect(wecom).toContain('Bearer <MCP_WECOM_CLIENT_TOKEN>');
+    expect(wecom).not.toContain('<MCP_CLIENT_TOKEN>');
     expect(wecom).toContain('Identity Source = WECOM_HEADER');
     expect(wecom).toContain('X-WeCom-User-Id = AUTO_INJECTED_BY_WECOM');
     expect(wecom).toContain('X-Platform-User-Id = DO_NOT_CONFIGURE');
@@ -68,7 +69,7 @@ describe('MCP network guidance', () => {
     expect(wecom).not.toContain('USER_BOUND_TOKEN');
   });
 
-  it('detects WeCom channel enablement from the identity-header configuration', () => {
+  it('requires explicit WeCom enablement and credential readiness; aliases alone do not enable a channel', () => {
     const disabled = deriveMcpConnectivity(status({
       MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
       MCP_PLATFORM_USER_HEADER_ALIASES: ['X-WorkBuddy-Id'],
@@ -82,7 +83,9 @@ describe('MCP network guidance', () => {
       MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
       MCP_PLATFORM_USER_HEADER_ALIASES: ['x-wecom-user-id'],
     }));
-    expect(wecomChannelEnabled(enabled)).toBe(true);
+    expect(wecomChannelEnabled(enabled)).toBe(false);
+    expect(wecomChannelEnabled({ ...enabled, wecomEnabled: true, wecomCredentialConfigured: true })).toBe(true);
+    expect(wecomChannelEnabled({ ...enabled, wecomEnabled: true, wecomCredentialConfigured: false })).toBe(false);
   });
 
   it('rejects credentials, query parameters, and non-HTTP schemes', () => {

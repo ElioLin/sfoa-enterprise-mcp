@@ -24,12 +24,13 @@ import {
   InternalServiceCredentialAuthenticator,
   UnifiedIdentityProvider,
   UserBoundCredentialAuthenticator,
+  WeComChannelCredentialAuthenticator,
   type CredentialAuthenticator,
 } from './authenticator.js';
 import { HttpBuntuTokenValidator } from './buntu-validator.js';
 import { loadRemoteRuntimeConfig } from './config.js';
 import { startRemoteMcpServer, type RemoteMcpServer } from './http-server.js';
-import { MySqlRuntimePolicySnapshotSource } from './policy-snapshot.js';
+import { MySqlRuntimePolicySnapshotSource, MySqlRuntimeDiscoveryPolicySnapshotSource } from './policy-snapshot.js';
 import { loadMySqlSfdxSeedUsernames } from './runtime-sfdx-seed-usernames.js';
 
 const AUDIT_POOL_CLOSE_TIMEOUT_MS = 1_000;
@@ -71,8 +72,9 @@ export async function startConfiguredRemoteRuntime(
       config,
       identityRuntime,
       policySnapshotSource: new MySqlRuntimePolicySnapshotSource(database),
+      discoveryPolicySnapshotSource: new MySqlRuntimeDiscoveryPolicySnapshotSource(database),
       loadUiSnapshot: (organizationId, objectApiName) => new MySqlUiSnapshotRepository(database).get(organizationId, objectApiName),
-      identityProvider: new UnifiedIdentityProvider(buildCredentialAuthenticators(config, store, databaseLogger)),
+      identityProvider: new UnifiedIdentityProvider(buildCredentialAuthenticators(config, store, databaseLogger), config.wecomChannelEnabled),
     });
     let closed = false;
     return Object.freeze({
@@ -116,7 +118,8 @@ function createInternalCredentialAuthenticator(
  * Deterministic provider order for `UnifiedIdentityProvider`:
  * 1. USER_BOUND (exclusive by `sfoa_ub1_*` prefix),
  * 2. INTERNAL (exclusive by exact timing-safe MCP_CLIENT_TOKEN match),
- * 3. BUNTU (anything else, only when MCP_BUNTU_IDENTITY_ENABLED=true).
+ * 3. WECOM (exact independent channel token, when enabled),
+ * 4. BUNTU (eligible other tokens, explicitly excluding both channel tokens).
  *
  * The predicates are mutually exclusive, so ordering does not change the
  * routing outcome; Buntu is appended last for readability.
@@ -134,6 +137,7 @@ function buildCredentialAuthenticators(
     ),
     createInternalCredentialAuthenticator(config.authMode, config.clientToken),
   ];
+  if (config.wecomChannelEnabled) authenticators.push(new WeComChannelCredentialAuthenticator(config.wecomClientToken ?? ''));
   if (config.buntuIdentity.enabled) {
     const validateTokenUrl = config.buntuIdentity.validateTokenUrl;
     if (!validateTokenUrl) {
@@ -148,6 +152,7 @@ function buildCredentialAuthenticators(
         routes: store.repositories.identityRoutes,
         logger,
         clientToken: config.clientToken ?? '',
+        wecomClientToken: config.wecomClientToken,
         validateTokenUrl,
         rawTokenAuditEnabled: config.buntuIdentity.rawTokenAuditEnabled,
       }),

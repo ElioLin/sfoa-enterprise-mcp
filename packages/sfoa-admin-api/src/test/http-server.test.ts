@@ -190,6 +190,10 @@ test('Admin HTTP boundary enforces auth, Origin, CSRF, strict input, conflicts, 
   const systemText = await system.text();
   for (const marker of SECRET_MARKERS) assert.equal(systemText.includes(marker), false);
   assert.match(systemText, /CONNECTED_APP_CLIENT_ID_CONFIGURED/u);
+  const readiness = JSON.parse(systemText).configured;
+  assert.equal(readiness.wecomChannelEnabled, true);
+  assert.equal(readiness.wecomChannelCredentialConfigured, true);
+  assert.equal(systemText.includes('wecomClientToken'), false);
 
   const logout = await fetch(`${root}/auth/logout`, {
     method: 'POST',
@@ -548,7 +552,7 @@ function createOptions(password: string, repositories: ControlPlaneRepositoriesW
       adminVersion: '0.1.0-p6', mcpServerVersion: '0.1.0-p5', salesforceApiVersion: 'LATEST_PER_FRESH_CONNECTION',
       providerVersions: Object.freeze([{ name: '@salesforce/mcp-provider-dx-core', version: '0.10.0' }]),
       runtimeMode: 'mysql', salesforceInstanceHost: 'example.my.salesforce.com', connectedAppConfigured: true,
-      jwtPrivateKeyConfigured: true, mcpClientTokenConfigured: true, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
+      jwtPrivateKeyConfigured: true, mcpClientTokenConfigured: true, wecomChannelEnabled: true, wecomChannelCredentialConfigured: true, mcpEndpoint: 'http://127.0.0.1:8080/mcp',
       identityCredentialEncryptionKeyConfigured: true,
       mcpPublicEndpoint: Object.freeze({ url: 'http://127.0.0.1:8080/mcp', source: 'LOOPBACK_FALLBACK', warning: '仅限本机' }),
       readOnlyRuntimeSettings: Object.freeze({ CONNECTED_APP_CLIENT_ID_CONFIGURED: true }),

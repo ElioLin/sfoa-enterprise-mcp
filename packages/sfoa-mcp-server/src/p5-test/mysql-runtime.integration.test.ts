@@ -113,6 +113,9 @@ if (!configured) {
         MCP_PATH: '/mcp',
         MCP_AUTH_MODE: 'internal_bearer',
         MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN,
+        MCP_WECOM_CHANNEL_ENABLED: 'true',
+        MCP_WECOM_CLIENT_TOKEN: 'p8-06-mysql-wecom-fixture-channel-token',
+        MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id',
         MCP_PLATFORM_USER_HEADER: 'X-Platform-User-Id',
         MCP_ALLOWED_HOSTS: '',
         MCP_ALLOWED_ORIGINS: '',
@@ -126,6 +129,22 @@ if (!configured) {
         logger: fallback,
       });
 
+      const wecomHeaders = mcpHeaders(undefined, 'p8-06-mysql-wecom-fixture-channel-token');
+      for (const body of [initializeBody(), JSON.stringify({ jsonrpc: '2.0', id: 10, method: 'tools/list' })]) {
+        const discovery = await fetch(runtime.mcpUrl, { method: 'POST', headers: wecomHeaders, body });
+        assert.equal(discovery.status, 200);
+        await discovery.text();
+      }
+      assert.equal(connectionFactory.creations.length, 0);
+      const wecomCall = JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'get_username', arguments: {} } });
+      const noUser = await fetch(runtime.mcpUrl, { method: 'POST', headers: wecomHeaders, body: wecomCall });
+      assert.equal(await responseErrorCode(noUser), 'MCP_PLATFORM_USER_REQUIRED');
+      for (const [user, username] of [[TEST_PLATFORM_USER_A, TEST_USERNAME_A], [TEST_PLATFORM_USER_B, TEST_USERNAME_B]]) {
+        const invoked = await fetch(runtime.mcpUrl, { method: 'POST', headers: { ...wecomHeaders, 'X-WeCom-User-Id': user! }, body: wecomCall });
+        const reply = await invoked.json() as { result: unknown };
+        assert.ok(toolResultText(reply.result).includes(username!));
+      }
+      assert.equal(connectionFactory.creations.length, 0, 'route-only get_username stays Salesforce-free');
       const clientA = await connectClient(runtime, TEST_PLATFORM_USER_A);
       const clientB = await connectClient(runtime, TEST_PLATFORM_USER_B);
       clients.push(clientA, clientB);
@@ -175,7 +194,7 @@ if (!configured) {
       assert.equal(await responseErrorCode(missing), 'MCP_IDENTITY_ROUTE_NOT_FOUND');
       const disabled = await rawInitialize(runtime, 'p5-disabled-user');
       assert.equal(disabled.status, 403);
-      assert.equal(await responseErrorCode(disabled), 'MCP_IDENTITY_ROUTE_NOT_FOUND');
+      assert.equal(await responseErrorCode(disabled), 'MCP_IDENTITY_ROUTE_DISABLED');
 
       await store.repositories.identityRoutes.update(routeB.id, {
         platformUserId: routeB.platformUserId,

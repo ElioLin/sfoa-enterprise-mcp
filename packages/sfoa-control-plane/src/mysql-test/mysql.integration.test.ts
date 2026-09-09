@@ -20,6 +20,8 @@ import {
   IdentityCredentialCipher,
   loadControlPlaneConfig,
   loadMySqlRequestPolicySnapshot,
+  loadMySqlDiscoveryPolicySnapshot,
+  DatabaseRuntimeLogger,
   migrationChecksumSha256,
   migrateDatabase,
   MySqlAuditBatchSink,
@@ -51,6 +53,40 @@ if (!setup) {
   });
   await migrateDatabase(store.database);
   beforeEach(() => cleanTestData(store));
+
+  test('P8-06 discovery snapshot shares global governance and never queries identity routes', async () => {
+    let queries = 0;
+    const guarded = store.database.withPlugin({
+      transformQuery: ({ node }) => {
+        queries++;
+        assert.equal(JSON.stringify(node).includes('sfoa_identity_route'), false, 'no identity SQL even with diagnostic enabled');
+        return node;
+      },
+      transformResult: async ({ result }) => result,
+    });
+    await store.repositories.tools.createIfAbsent('get_username', true, null);
+    await store.repositories.diagnostic.upsert({ salesforceUsername: 'discovery-diagnostic@example.invalid',
+      enabled: true, testMetadataType: null, testMetadataFullName: null });
+    const discovery = await loadMySqlDiscoveryPolicySnapshot(guarded);
+    assert.ok(queries >= 4);
+    assert.equal(Object.hasOwn(discovery, 'identityRoute'), false);
+    assert.deepEqual(discovery.enabledTools, ['get_username']);
+    const execution = await loadMySqlRequestPolicySnapshot(store.database, 'unknown-user');
+    const { loadedAt: _loadedAt, identityRoute: _route, ...expected } = execution;
+    const { loadedAt: _discoveredAt, ...actual } = discovery;
+    assert.deepEqual(actual, expected);
+    assert.ok(Object.isFrozen(discovery));
+    const logger = new DatabaseRuntimeLogger(store.repositories.audits, { log: () => undefined });
+    await logger.log({ correlationId: 'p8-06-discovery', clientId: 'wecom-channel', operation: 'tools/list', result: 'PASS',
+      requestSummary: { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY' },
+      auditEvent: { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY', eventName: 'Discovery' } });
+    const audit = await store.repositories.audits.search({ correlationId: 'p8-06-discovery', limit: 10, offset: 0 });
+    assert.equal(audit.items[0]?.platformUserId, null);
+    assert.equal(audit.items[0]?.identitySource, null);
+    assert.equal(audit.items[0]?.salesforceUsername, null);
+    assert.equal(audit.items[0]?.clientId, 'wecom-channel');
+    assert.deepEqual(audit.items[0]?.requestSummary, { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY' });
+  });
 
   test('P8 current UI snapshot is org-scoped, refresh-leased, and retains old data after failure', async () => {
     const snapshots = new MySqlUiSnapshotRepository(store.database);
@@ -291,7 +327,7 @@ if (!setup) {
     assert.equal((await loadMySqlRequestPolicySnapshot(store.database, 'db-user-b')).identityRoute?.salesforceUsername, shared);
     assert.equal((await loadMySqlRequestPolicySnapshot(store.database, 'unknown-user')).identityRoute, null);
     await store.repositories.identityRoutes.disable(first.id, first.rowVersion);
-    assert.equal((await loadMySqlRequestPolicySnapshot(store.database, 'db-user-a')).identityRoute, null);
+    assert.equal((await loadMySqlRequestPolicySnapshot(store.database, 'db-user-a')).identityRoute?.enabled, false);
   });
 
   test('new requests observe dynamic Tool and CREATE/UPDATE policy without restart', async () => {

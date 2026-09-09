@@ -124,7 +124,7 @@ describe('canonical WeCom recommended role setting generator', () => {
     expect(role).toContain('MCP_DML_OUTCOME_UNKNOWN');
     // The persona body carries no identity-implementation mechanics and never inherits
     // Buntu / USER_BOUND / gateway / self-built-app host semantics or any secret shape.
-    for (const token of ['WECOM_HEADER', 'X-WeCom-User-Id', 'MCP_CLIENT_TOKEN', 'CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', '接入网关', '自建应用', 'Bearer <']) {
+    for (const token of ['WECOM_HEADER', 'X-WeCom-User-Id', 'MCP_CLIENT_TOKEN', 'MCP_WECOM_CLIENT_TOKEN', 'initialize', 'tools/list', 'CredentialAuthenticator', 'CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', '接入网关', '自建应用', 'Bearer <']) {
       expect(role).not.toContain(token);
     }
   });

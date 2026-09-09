@@ -760,3 +760,16 @@ Consequently `initialize`, `tools/list`, Resources, Prompts, `get_username`, `ge
 - Secrets remain outside Git; logs and Audit persistence must redact Authorization/Cookie data, tokens, USER_BOUND/Buntu credentials, JWTs, client/database secrets, encryption keys, and private-key material.
 - Tool annotations improve agent behavior but never replace authorization checks.
 - DELETE is absent from the initial mutation design.
+
+## P8-06 channel-authenticated discovery
+
+WeCom uses an independent MCP_WECOM_CLIENT_TOKEN, enabled explicitly with
+MCP_WECOM_CHANNEL_ENABLED. Credential authentication precedes method classification;
+only initialize, notifications/initialized, tools/list and ping can proceed without
+an end user. Classification uses the bounded parsed body, including all batch
+messages. Discovery shares global governance loaders/schema builders but has no
+principal, identity route, Salesforce Scope, Connection or API. Tool execution is
+denied inside the discovery SDK server as well. All tools/call retain full identity
+resolution and route/governance. WeCom and Internal Headers are channel-bound;
+USER_BOUND/Buntu identity authority is unchanged. See
+[ADR-0020](adr/ADR-0020-wecom-channel-discovery.md).

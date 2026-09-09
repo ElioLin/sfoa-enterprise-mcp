@@ -23,6 +23,7 @@ import {
 } from '@sfoa/control-plane';
 import { DEFAULT_RUNTIME_ENABLED_TOOLS } from './tool-governance.js';
 import { RemoteRuntimeError } from './errors.js';
+import { timingSafeTokenEqual } from './authenticator.js';
 
 export type RemoteAuthMode = 'internal_bearer' | 'disabled';
 
@@ -50,6 +51,8 @@ export type RemoteRuntimeConfig = Readonly<{
   lightningBaseUrl?: string;
   authMode: RemoteAuthMode;
   clientToken?: string;
+  wecomChannelEnabled?: boolean;
+  wecomClientToken?: string;
   /**
    * Primary HTTP header that carries the authenticated platform user id for
    * header-based (internal service) identities. Its value maps to
@@ -98,6 +101,8 @@ const rawRemoteConfigSchema = z
     SFOA_LIGHTNING_BASE_URL: optionalUrlSchema,
     MCP_AUTH_MODE: z.enum(['internal_bearer', 'disabled']).default('internal_bearer'),
     MCP_CLIENT_TOKEN: z.string().min(16).max(4096).optional(),
+    MCP_WECOM_CHANNEL_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    MCP_WECOM_CLIENT_TOKEN: z.string().min(32).max(4096).regex(/^\S+$/u).optional(),
     MCP_PLATFORM_USER_HEADER: headerNameSchema.default('X-Platform-User-Id'),
     MCP_PLATFORM_USER_HEADER_ALIASES: z.string().trim().max(2048).optional(),
     MCP_MAX_BODY_BYTES: z.coerce.number().int().min(1024).max(10_485_760).default(1_048_576),
@@ -133,6 +138,8 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'SFOA_LIGHTNING_BASE_URL',
   'MCP_AUTH_MODE',
   'MCP_CLIENT_TOKEN',
+  'MCP_WECOM_CHANNEL_ENABLED',
+  'MCP_WECOM_CLIENT_TOKEN',
   'MCP_PLATFORM_USER_HEADER',
   'MCP_PLATFORM_USER_HEADER_ALIASES',
   'MCP_MAX_BODY_BYTES',
@@ -209,6 +216,14 @@ export async function loadRemoteRuntimeConfig(
   );
 
   const buntuIdentity = parseBuntuIdentityConfig(parsed.data);
+  const wecomClientToken = parsed.data.MCP_WECOM_CLIENT_TOKEN;
+  if (wecomClientToken?.startsWith(USER_BOUND_TOKEN_PREFIX)
+    || (wecomClientToken && parsed.data.MCP_CLIENT_TOKEN && timingSafeTokenEqual(wecomClientToken, parsed.data.MCP_CLIENT_TOKEN))) {
+    throw configurationError('MCP_WECOM_CLIENT_TOKEN must be independent of Internal and USER_BOUND credentials.');
+  }
+  if (parsed.data.MCP_WECOM_CHANNEL_ENABLED && (!wecomClientToken || parsed.data.MCP_AUTH_MODE !== 'internal_bearer')) {
+    throw configurationError('MCP_WECOM_CHANNEL_ENABLED=true requires MCP_WECOM_CLIENT_TOKEN and MCP_AUTH_MODE=internal_bearer.');
+  }
   if (buntuIdentity.enabled && parsed.data.MCP_AUTH_MODE !== 'internal_bearer') {
     throw configurationError('MCP_BUNTU_IDENTITY_ENABLED=true requires MCP_AUTH_MODE=internal_bearer.');
   }
@@ -283,6 +298,8 @@ export async function loadRemoteRuntimeConfig(
     ...(publicUrl ? { publicUrl } : {}),
     ...(lightningBaseUrl ? { lightningBaseUrl } : {}),
     authMode: parsed.data.MCP_AUTH_MODE,
+    wecomChannelEnabled: parsed.data.MCP_WECOM_CHANNEL_ENABLED,
+    ...(wecomClientToken ? { wecomClientToken } : {}),
     ...(parsed.data.MCP_CLIENT_TOKEN ? { clientToken: parsed.data.MCP_CLIENT_TOKEN } : {}),
     platformUserHeader,
     platformUserHeaderAliases,

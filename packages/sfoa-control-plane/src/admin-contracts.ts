@@ -419,6 +419,8 @@ export type SystemStatusDto = Readonly<{
     connectedApp: boolean;
     jwtPrivateKey: boolean;
     mcpClientToken: boolean;
+    wecomChannelEnabled?: boolean;
+    wecomChannelCredentialConfigured?: boolean;
     identityCredentialEncryptionKey: boolean;
   }>;
   diagnostic: DiagnosticConfigRecord | null;

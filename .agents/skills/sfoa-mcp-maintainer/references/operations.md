@@ -35,3 +35,10 @@ Production uses two Node processes (MCP/Admin API), static Admin Web files, MySQ
 Use `SFOA_CONTROL_PLANE_MODE=mysql`; missing DB governance fails closed. Back up schema, migration ledger, configuration, credential ciphertext, and Audit together; preserve the matching identity encryption key separately. Do not mount Salesforce CLI auth cache. Production Salesforce uses direct JWT/OAuth through `@salesforce/core`.
 
 Audit health may be `DEGRADED` while Tool/Salesforce results remain correct. Restore persistence without replaying mutations. Prefer forward-compatible rollback; never rewrite `sfoa_schema_migration` manually.
+
+WeCom native MCP plugins require MCP_WECOM_CHANNEL_ENABLED=true and an independent
+MCP_WECOM_CLIENT_TOKEN (32+ random characters, no USER_BOUND prefix, not equal to
+MCP_CLIENT_TOKEN). Keep MCP_PLATFORM_USER_HEADER=X-Platform-User-Id and
+MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id. Restart Runtime/Admin API together.
+The plugin Authorization is Bearer <MCP_WECOM_CLIENT_TOKEN>; WeCom injects its
+user Header for execution. Discovery has no user/route/Salesforce access.

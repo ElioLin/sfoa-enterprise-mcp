@@ -13,9 +13,10 @@ test('real Admin browser workflow persists USER_BOUND lifecycle, governance, and
 
   await page.getByRole('link', { name: '用户身份路由' }).click();
   await page.getByRole('button', { name: '新建身份路由', exact: true }).click();
+  await page.getByLabel('用户名称', { exact: true }).fill('Fullstack test user');
   await page.getByLabel('平台用户 ID', { exact: true }).fill('p6-id-fullstack-user');
   await page.getByLabel('Salesforce Username', { exact: true }).fill('p6-id-fullstack@example.invalid');
-  await page.getByLabel('备注').fill('created through real browser and API');
+  await page.getByLabel('备注', { exact: true }).fill('created through real browser and API');
   await page.getByRole('button', { name: '保存路由' }).click();
 
   await expect(page.getByText('MCP 接入配置', { exact: true })).toBeVisible();
@@ -45,8 +46,14 @@ test('real Admin browser workflow persists USER_BOUND lifecycle, governance, and
   await page.keyboard.press('Enter');
   await expect(page.getByText('MCP 接入配置', { exact: true })).toBeHidden();
 
+  // Current UI verifies the newly created route after the credential drawer closes.
+  // The intentionally nonexistent Salesforce fixture returns a safe verification result.
+  await expect(page.getByText('路由验证结果', { exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.getByText('路由验证结果', { exact: true })).toBeHidden();
+
   const searchPanel = page.getByRole('search', { name: '搜索用户身份路由' });
-  const search = searchPanel.getByLabel('搜索平台用户或 Salesforce Username');
+  const search = searchPanel.getByRole('textbox');
   const searchButton = searchPanel.getByRole('button', { name: /搜索/u });
   const resetButton = searchPanel.getByRole('button', { name: /重\s*置/u });
   await search.fill('p6-id-fullstack-user');
@@ -59,7 +66,7 @@ test('real Admin browser workflow persists USER_BOUND lifecycle, governance, and
 
   const routeRow = page.getByRole('row').filter({ hasText: 'p6-id-fullstack-user' });
   await routeRow.getByRole('button', { name: /编辑/u }).click();
-  await page.getByLabel('备注').fill('updated through real browser and API');
+  await page.getByLabel('备注', { exact: true }).fill('updated through real browser and API');
   await page.getByRole('button', { name: '保存路由' }).click();
   await routeRow.getByRole('button', { name: /接入配置/u }).click();
   await expect(page.getByLabel('Token')).toHaveValue(originalToken);
@@ -101,12 +108,14 @@ test('real Admin browser workflow persists USER_BOUND lifecycle, governance, and
   await page.getByRole('button', { name: '保存策略' }).click();
   await expect(page.getByRole('cell', { name: '已允许' })).toHaveCount(2);
 
+  const auditResponse = page.waitForResponse((response) => response.url().includes('/admin/api/audits?') && response.ok());
   await page.getByRole('link', { name: '调用审计' }).click();
-  await expect(page.getByText('CREATE_IDENTITY_ROUTE').first()).toBeVisible();
-  await expect(page.getByText('DISABLE_IDENTITY_ROUTE')).toBeVisible();
-  await expect(page.getByText('DELETE_IDENTITY_ROUTE')).toBeVisible();
-  await expect(page.getByText('UPDATE_TOOL_CONTROL')).toBeVisible();
-  await expect(page.getByText('UPDATE_DML_POLICY')).toBeVisible();
+  // The current workbench labels cards by audit kind; operations remain in the API evidence.
+  const audits = await (await auditResponse).json() as { items: { operation: string }[] };
+  expect(audits.items.map((item) => item.operation)).toEqual(expect.arrayContaining([
+    'CREATE_IDENTITY_ROUTE', 'DISABLE_IDENTITY_ROUTE', 'DELETE_IDENTITY_ROUTE', 'UPDATE_TOOL_CONTROL', 'UPDATE_DML_POLICY',
+  ]));
+  await expect(page.getByText('管理操作', { exact: true }).first()).toBeVisible();
 
   await page.getByRole('link', { name: '系统状态' }).click();
   await expect(page.getByText('数据库与凭据就绪状态')).toBeVisible();

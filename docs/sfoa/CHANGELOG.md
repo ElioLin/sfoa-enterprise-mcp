@@ -616,3 +616,9 @@ Baseline advanced to `P4-BL-1.1`. `P4 = PARTIAL`: all independent implementation
 
 - Run fresh SFoA JWT, successful SOQL, controlled metadata-component retrieval, and optional second-user Gates when inputs are supplied.
 - Resolve or accept the existing Upstream code-analyzer lint baseline outside the P0 extension scope.
+
+## 2026-09-08 — P8-06
+
+Independent WeCom channel token, two-stage authentication, identity-less SDK discovery,
+shared global governance snapshots, strict channel binding, safe readiness UI and
+HTTP/MySQL/isolation regression coverage. See ADR-0020 and P8_06_WECOM_CHANNEL_DISCOVERY.md.

@@ -14,13 +14,14 @@ test('admin can manage the bounded control plane and logout', async ({ page }, t
 
   await page.getByRole('link', { name: '用户身份路由' }).click();
   await page.getByRole('button', { name: '新建身份路由' }).click();
+  await page.getByLabel('用户名称', { exact: true }).fill('Browser test user');
   await page.getByLabel('平台用户 ID').fill('platform-e2e');
   await page.getByLabel('Salesforce Username', { exact: true }).fill('user-e2e@example.com');
-  await page.getByLabel('备注').fill('created by browser test');
+  await page.getByLabel('备注', { exact: true }).fill('created by browser test');
   await page.getByRole('button', { name: '保存路由' }).click();
   await expect(page.getByText('platform-e2e')).toBeVisible();
   await page.getByRole('button', { name: '编辑' }).click();
-  await page.getByLabel('备注').fill('updated by browser test');
+  await page.getByLabel('备注', { exact: true }).fill('updated by browser test');
   await page.getByRole('button', { name: '保存路由' }).click();
   await expect.poll(() => api.routeRemark).toBe('updated by browser test');
 
@@ -55,7 +56,7 @@ test('admin can manage the bounded control plane and logout', async ({ page }, t
   await expect(page.getByText('该对象已存在同名托管字段规则。')).toBeVisible();
   await page.getByLabel('目标字段 API 名称').fill('Created_By_AI__c');
   await page.getByLabel('托管策略').click();
-  await page.getByText('AI 创建标记', { exact: true }).last().click();
+  await page.getByText('AI 创建标记（强制托管）', { exact: true }).last().click();
   await expect(page.getByText('创建（固定）')).toBeVisible();
   await expect(page.getByText('true（固定）')).toBeVisible();
   await expect(page.getByLabel('Lookup 对象 API 名称')).toHaveCount(0);
@@ -70,7 +71,7 @@ test('admin can manage the bounded control plane and logout', async ({ page }, t
   await expect(page.getByText('1/1 已清理；0 个活动')).toBeVisible();
 
   await page.getByRole('link', { name: '调用审计' }).click();
-  await page.getByRole('textbox', { name: 'Tool', exact: true }).fill('run_soql_query');
+  await page.getByRole('textbox', { name: '快速搜索（Tool）', exact: true }).fill('run_soql_query');
   await page.getByRole('button', { name: '搜索审计' }).click();
   await expect(page.getByText('correlation-e2e')).toBeVisible();
   await expect.poll(() => api.lastAuditToolFilter).toBe('run_soql_query');

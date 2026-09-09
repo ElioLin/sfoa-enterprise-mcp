@@ -1,5 +1,10 @@
 # SFoA P6 Remote MCP Runtime
 
+P8-06 adds independent `MCP_WECOM_CLIENT_TOKEN` channel authentication. WeCom
+`initialize` / `tools/list` need no user Header and never access Salesforce;
+`tools/call` requires WeCom-injected `X-WeCom-User-Id` and the current user route.
+See [WeCom setup](../../docs/sfoa/P8_06_WECOM_CHANNEL_DISCOVERY.md).
+
 `@sfoa/mcp-server` is the production-oriented P6 HTTP runtime. It composes the public Salesforce Provider API, `@sfoa/identity-runtime`, the SFoA generic DML Provider, the SFoA deterministic Context Provider, the canonical Agent Playbook, and the MySQL Control Plane; it does not modify an official Salesforce Tool.
 
 P7-02 creates one server-authoritative Request Audit Context for every definite `tools/call`. P7-03 binds one in-memory Collector to that same context, explicitly carries it across HTTP/SDK/EventEmitter boundaries, finalizes one immutable Snapshot at request completion, and performs only a non-blocking Queue offer on the request path. The background Writer owns batch MySQL persistence and bounded shutdown flush. P7-04/P7-05 add request-bound Salesforce wire and SOQL/DML facts. P7-06 reuses the single bounded body read for `MCP_REQUEST`, observes actual `ServerResponse.write/end` bytes without changing backpressure for `MCP_RESPONSE`, and records `finish` separately from early client `close`. Logical Tool result remains separate from transport fact, and no response waits for Audit persistence.

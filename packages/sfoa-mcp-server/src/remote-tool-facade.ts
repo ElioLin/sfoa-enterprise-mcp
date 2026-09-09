@@ -90,25 +90,7 @@ export class RemoteToolFacade {
   }
 
   public getConfig(): McpToolConfig<z.ZodRawShape, z.ZodRawShape> {
-    const official = validateRemoteToolContract(this.options.tool, this.options.policyRecord);
-    const inputSchema: z.ZodRawShape = {};
-    for (const name of this.options.policyRecord.remoteContract?.allowedAgentArguments ?? []) {
-      const schema = official.inputSchema?.[name];
-      if (!schema) {
-        throw new RemoteRuntimeError(
-          'MCP_UPSTREAM_TOOL_CONTRACT_DRIFT',
-          `Official Tool ${this.getName()} is missing audited Agent field ${name}.`,
-        );
-      }
-      inputSchema[name] = schema;
-    }
-
-    return {
-      ...official,
-      description: this.describeRemoteTool(REMOTE_DESCRIPTIONS[this.getName()] ?? official.description),
-      inputSchema,
-      annotations: REMOTE_ANNOTATIONS[this.getName()] ?? official.annotations,
-    };
+    return remoteToolConfig(this.options.tool, this.options.policyRecord);
   }
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
@@ -187,14 +169,6 @@ export class RemoteToolFacade {
     }
   }
 
-  private describeRemoteTool(base: string | undefined): string | undefined {
-    if (this.getName() !== 'run_soql_query') return base;
-    const pairs = orgObjectUsageToolPairs();
-    if (pairs.length === 0) return base;
-    const prefix = base !== undefined && base.length > 0 ? `${base} ` : '';
-    return `${prefix}Note: this org does not use the Salesforce standard objects ${pairs}; query the corresponding custom object for that business data.`;
-  }
-
   private hostOwnedInput(): ToolInput {
     const authoritative: ToolInput = {
       usernameOrAlias: this.options.route.salesforceUsername,
@@ -264,4 +238,34 @@ function safeOfficialRequestSummary(toolName: string, input: ToolInput): unknown
 
 function elapsed(started: number): number {
   return Math.round(performance.now() - started);
+}
+
+export function remoteToolConfig(tool: McpTool, policyRecord: OfficialToolPolicyRecord): McpToolConfig<z.ZodRawShape, z.ZodRawShape> {
+  const official = validateRemoteToolContract(tool, policyRecord);
+  const inputSchema: z.ZodRawShape = {};
+  for (const name of policyRecord.remoteContract?.allowedAgentArguments ?? []) {
+    const schema = official.inputSchema?.[name];
+    if (!schema) {
+      throw new RemoteRuntimeError(
+        'MCP_UPSTREAM_TOOL_CONTRACT_DRIFT',
+        `Official Tool ${tool.getName()} is missing audited Agent field ${name}.`,
+      );
+    }
+    inputSchema[name] = schema;
+  }
+
+  return {
+    ...official,
+    description: describeRemoteTool(tool.getName(), REMOTE_DESCRIPTIONS[tool.getName()] ?? official.description),
+    inputSchema,
+    annotations: REMOTE_ANNOTATIONS[tool.getName()] ?? official.annotations,
+  };
+}
+
+function describeRemoteTool(name: string, base: string | undefined): string | undefined {
+  if (name !== 'run_soql_query') return base;
+  const pairs = orgObjectUsageToolPairs();
+  if (pairs.length === 0) return base;
+  const prefix = base !== undefined && base.length > 0 ? `${base} ` : '';
+  return `${prefix}Note: this org does not use the Salesforce standard objects ${pairs}; query the corresponding custom object for that business data.`;
 }

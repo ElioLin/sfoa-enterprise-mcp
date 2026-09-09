@@ -299,6 +299,7 @@ describe('WeCom recommended role setting renderer', () => {
     // No identity-implementation or host-token mechanics leak into the AI persona.
     for (const token of [
       'X-WeCom-User-Id', 'WECOM_HEADER', 'MCP_CLIENT_TOKEN', '接入网关', '自建应用',
+      'MCP_WECOM_CLIENT_TOKEN', 'initialize', 'tools/list', 'CredentialAuthenticator',
       'CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'Bearer <',
     ]) {
       assert.equal(output.includes(token), false, token);

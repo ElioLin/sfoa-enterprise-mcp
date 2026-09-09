@@ -100,6 +100,12 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+P8-06 (2026-09-08) introduces independent WeCom channel credentials and SDK-based
+identity-less global governed discovery, with no user/route/Salesforce resource.
+Execution retains full user authority. See [delivery report](P8_06_WECOM_CHANNEL_DISCOVERY.md)
+and [ADR-0020](adr/ADR-0020-wecom-channel-discovery.md).
+
+
 2026-09-08 CREATE Record Type refinement: current USER candidates exclude Master
 when at least one non-Master type is available. A single candidate loads CREATE
 facts without a selection question; Master-only creation remains supported.

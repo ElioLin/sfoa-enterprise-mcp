@@ -331,10 +331,9 @@ export type Page<T> = Readonly<{
 
 export type TotalPage<T> = Page<T> & Readonly<{ total: number }>;
 
-export type RequestPolicySnapshot = Readonly<{
+export type RuntimeDiscoveryPolicySnapshot = Readonly<{
   mode: ControlPlaneMode;
   loadedAt: string;
-  identityRoute: IdentityRouteRecord | null;
   enabledTools: readonly string[];
   dmlPolicies: readonly DmlPolicyRecord[];
   managedDmlFieldRules: readonly ManagedDmlFieldRuleRecord[];
@@ -342,11 +341,15 @@ export type RequestPolicySnapshot = Readonly<{
   runtimeSettings: Readonly<Partial<Record<RuntimeSettingKey, unknown>>>;
 }>;
 
+export type RequestPolicySnapshot = RuntimeDiscoveryPolicySnapshot & Readonly<{
+  identityRoute: IdentityRouteRecord | null;
+}>;
+
 export function normalizeSalesforceUsername(value: string): string {
   return value.trim().toLocaleLowerCase('en-US');
 }
 
-export function freezeSnapshot(snapshot: RequestPolicySnapshot): RequestPolicySnapshot {
+export function freezeSnapshot<T extends RuntimeDiscoveryPolicySnapshot>(snapshot: T): T {
   return Object.freeze({
     ...snapshot,
     enabledTools: Object.freeze([...snapshot.enabledTools]),

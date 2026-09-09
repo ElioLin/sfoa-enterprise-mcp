@@ -77,6 +77,8 @@ export type AdminSystemRuntimeInfo = Readonly<{
   connectedAppConfigured: boolean;
   jwtPrivateKeyConfigured: boolean;
   mcpClientTokenConfigured: boolean;
+  wecomChannelEnabled?: boolean;
+  wecomChannelCredentialConfigured?: boolean;
   identityCredentialEncryptionKeyConfigured: boolean;
   mcpEndpoint: string;
   mcpPublicEndpoint: McpPublicEndpointDto;
@@ -767,6 +769,8 @@ async function buildSystemStatus(options: StartAdminApiServerOptions): Promise<S
       connectedApp: options.system.connectedAppConfigured,
       jwtPrivateKey: options.system.jwtPrivateKeyConfigured,
       mcpClientToken: options.system.mcpClientTokenConfigured,
+      wecomChannelEnabled: options.system.wecomChannelEnabled === true,
+      wecomChannelCredentialConfigured: options.system.wecomChannelCredentialConfigured === true,
       identityCredentialEncryptionKey: options.system.identityCredentialEncryptionKeyConfigured,
     }),
     diagnostic: diagnosticResult.status === 'fulfilled' ? diagnosticResult.value ?? null : null,

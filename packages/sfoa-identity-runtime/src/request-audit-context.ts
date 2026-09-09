@@ -111,6 +111,11 @@ export class RequestAuditContextController {
     return this.context;
   }
 
+  public withAuthenticatedClient(clientId: string): this {
+    this.context = Object.freeze({ ...this.context, clientId: boundedText(clientId, 128) });
+    return this;
+  }
+
   public withResolvedIdentity(input: Readonly<{
     clientId?: string;
     platformUserId: string;

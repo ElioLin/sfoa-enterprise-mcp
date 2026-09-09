@@ -63,22 +63,7 @@ export class ContextToolFacade {
   }
 
   public getConfig(): McpToolConfig<z.ZodRawShape, z.ZodRawShape> {
-    const config = this.options.tool.getConfig();
-    if (this.getName() !== 'get_record_action_context') return config;
-    return {
-      ...config,
-      description: `${config.description} The host also returns current-operation MCP-managed field facts; omit server-owned PLATFORM_IDENTITY and AI_CREATED_MARKER fields. PLATFORM_IDENTITY_FALLBACK permits explicit user values; follow the strategy-aware Playbook and current required/editable action facts.`,
-      outputSchema: {
-        ...config.outputSchema,
-        managedDmlFields: z.array(z.object({
-          objectApiName: z.string(),
-          fieldApiName: z.string(),
-          operations: z.array(z.enum(['CREATE', 'UPDATE'])),
-          managedBy: z.literal('MCP'),
-          strategy: z.enum(MANAGED_DML_FIELD_CAPABILITY_STRATEGIES),
-        }).strict()).optional(),
-      },
-    };
+    return contextToolConfig(this.options.tool);
   }
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
@@ -280,4 +265,23 @@ function resultErrorCode(result: CallToolResult): string | undefined {
 
 function elapsed(started: number): number {
   return Math.round(performance.now() - started);
+}
+
+export function contextToolConfig(tool: McpTool): McpToolConfig<z.ZodRawShape, z.ZodRawShape> {
+  const config = tool.getConfig();
+  if (tool.getName() !== 'get_record_action_context') return config;
+  return {
+    ...config,
+    description: `${config.description} The host also returns current-operation MCP-managed field facts; omit server-owned PLATFORM_IDENTITY and AI_CREATED_MARKER fields. PLATFORM_IDENTITY_FALLBACK permits explicit user values; follow the strategy-aware Playbook and current required/editable action facts.`,
+    outputSchema: {
+      ...config.outputSchema,
+      managedDmlFields: z.array(z.object({
+        objectApiName: z.string(),
+        fieldApiName: z.string(),
+        operations: z.array(z.enum(['CREATE', 'UPDATE'])),
+        managedBy: z.literal('MCP'),
+        strategy: z.enum(MANAGED_DML_FIELD_CAPABILITY_STRATEGIES),
+      }).strict()).optional(),
+    },
+  };
 }

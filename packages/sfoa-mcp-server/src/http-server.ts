@@ -36,6 +36,10 @@ import {
   DisabledLoopbackAuthenticator,
   InternalBearerAuthenticator,
   LegacyHeaderIdentityProvider,
+  UnifiedIdentityProvider,
+  InternalServiceCredentialAuthenticator,
+  WeComChannelCredentialAuthenticator,
+  validateCredentialIdentityHeaders,
   type AuthenticatedPrincipal,
   type ClientAuthenticator,
   type IdentityProvider,
@@ -60,7 +64,9 @@ import {
   snapshotManagedDmlFieldRules,
   snapshotUserRoute,
   type RuntimePolicySnapshotSource,
+  type RuntimeDiscoveryPolicySnapshotSource,
 } from './policy-snapshot.js';
+import { classifyMcpRequest, createDiscoveryMcpServer } from './discovery-server.js';
 import { readBoundedJsonBodySource } from './request-body.js';
 import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
@@ -104,6 +110,7 @@ export type StartRemoteMcpServerOptions = Readonly<{
   /** @deprecated Supply identityProvider for new integrations. */
   authenticator?: ClientAuthenticator;
   policySnapshotSource?: RuntimePolicySnapshotSource;
+  discoveryPolicySnapshotSource?: RuntimeDiscoveryPolicySnapshotSource;
   loadUiSnapshot?: EffectiveUiOptions['loadSnapshot'];
 }>;
 
@@ -147,6 +154,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       identityRuntime: options.identityRuntime,
       initializedProvider,
       policySnapshotSource: options.policySnapshotSource,
+      discoveryPolicySnapshotSource: options.discoveryPolicySnapshotSource,
       loadUiSnapshot: options.loadUiSnapshot,
       identityProvider,
       allowedHosts,
@@ -238,9 +246,10 @@ function resolveIdentitySources(options: StartRemoteMcpServerOptions): readonly 
   if (options.identityProvider) {
     const sources: string[] = ['USER_BOUND_TOKEN', 'INTERNAL_SERVICE_HEADER'];
     if (options.config.buntuIdentity.enabled) sources.push('BUNTU_TOKEN');
-    if (hasWecomIdentityHeaderAlias(options.config)) sources.push('WECOM_HEADER');
+    if (options.config.wecomChannelEnabled || hasWecomIdentityHeaderAlias(options.config)) sources.push('WECOM_HEADER');
     return Object.freeze(sources);
   }
+  if (options.config.wecomChannelEnabled) return Object.freeze(['INTERNAL_SERVICE_HEADER', 'WECOM_HEADER']);
   return Object.freeze(
     options.config.authMode === 'disabled' ? ['DEVELOPMENT_LOOPBACK'] : ['INTERNAL_SERVICE_HEADER'],
   );
@@ -258,6 +267,7 @@ type HandleRemoteRequestOptions = Readonly<{
   identityRuntime: IdentityRuntime;
   initializedProvider: InitializedProviderRuntime;
   policySnapshotSource?: RuntimePolicySnapshotSource;
+  discoveryPolicySnapshotSource?: RuntimeDiscoveryPolicySnapshotSource;
   loadUiSnapshot?: EffectiveUiOptions['loadSnapshot'];
   identityProvider: IdentityProvider;
   allowedHosts: readonly string[];
@@ -431,6 +441,8 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         durationMs: elapsed(started),
         result: isBlocked(normalized.code) ? 'BLOCKED' : 'ERROR',
         errorCode: normalized.code,
+        ...(normalized.code === 'MCP_IDENTITY_CHANNEL_MISMATCH'
+          ? { requestSummary: { eventCategory: 'IDENTITY', eventType: 'REQUEST_TERMINAL' } } : {}),
         ...(normalized.code === 'MCP_REQUEST_INVALID'
           ? {
               errorMessageSafe: normalized.message.slice(0, 512),
@@ -459,6 +471,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
           ...options.identityRuntime.redactionSecrets,
           ...requestSecrets,
           options.config.clientToken ?? '',
+          options.config.wecomClientToken ?? '',
           options.config.controlPlane.database?.password ?? '',
         ],
       );
@@ -519,7 +532,42 @@ async function executeMcpPost(
   const executeInAuditScope = async (): Promise<void> => {
     resources.assertAvailable(signal);
 
-  const principal = await options.identityProvider.authenticate(
+  const credential = await options.identityProvider.authenticateCredential?.(headers, observation.correlationId);
+  if (credential) {
+    observation.clientId = credential.clientId;
+    observation.auditContext?.withAuthenticatedClient(credential.clientId);
+  }
+  if (credential?.credentialChannel === 'WECOM' && options.config.wecomChannelEnabled && classifyMcpRequest(parsedBody) === 'DISCOVERY') {
+    validateCredentialIdentityHeaders(credential, headers, options.config.platformIdentityHeaders, observation.correlationId, true);
+    if ((options.policySnapshotSource || options.config.controlPlane.mode === 'mysql') && !options.discoveryPolicySnapshotSource) {
+      throw new RemoteRuntimeError('MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE', 'Global discovery governance source is required.');
+    }
+    const snapshot = await options.discoveryPolicySnapshotSource?.load();
+    resources.assertAvailable(signal);
+    if (snapshot) assertDiagnosticSnapshotValid(snapshot.enabledTools, snapshot.diagnostic !== null, observation.correlationId);
+    const provider = snapshot ? configureProviderRuntime(options.initializedProvider, snapshot.enabledTools, snapshotDmlAllowlist(snapshot)) : options.initializedProvider;
+    const parsedUi = dynamicFormsObjectPoliciesSchema.safeParse(snapshot?.runtimeSettings.dynamicFormsObjectPolicies ?? []);
+    const server = await createDiscoveryMcpServer({
+      initializedProvider: provider,
+      diagnosticReady: (snapshot ? snapshot.diagnostic?.verificationStatus === 'PASS' : options.identityRuntime.diagnosticScopeFactory !== undefined)
+        && provider.enabledTools.includes('run_diagnostic_tooling_query') && provider.enabledTools.includes('get_metadata_component_context'),
+      managedDmlFieldRules: snapshot ? snapshotManagedDmlFieldRules(snapshot) : [],
+      dynamicFormsConfigured: parsedUi.success && parsedUi.data.some((policy) => policy.mode === 'ENFORCE'),
+    });
+    await serveMcpBody(options, resources, signal, server, parsedBody);
+    await Promise.resolve().then(() => options.logger.log({
+      correlationId: observation.correlationId, clientId: credential.clientId,
+      operation: isRecord(parsedBody) && typeof parsedBody.method === 'string' ? parsedBody.method : 'BATCH',
+      result: options.response.statusCode < 400 ? 'PASS' : 'ERROR',
+      outcome: options.response.statusCode < 400 ? 'SUCCESS' : 'FAILED',
+      requestSummary: { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY' },
+      auditEvent: { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY', eventName: 'Channel authenticated MCP discovery' },
+    })).catch(() => undefined);
+    return;
+  }
+  const principal = credential && options.identityProvider.resolvePrincipal
+    ? await options.identityProvider.resolvePrincipal(credential, headers, options.config.platformIdentityHeaders, observation.correlationId)
+    : await options.identityProvider.authenticate(
     headers,
     options.config.platformIdentityHeaders,
     observation.correlationId,
@@ -547,6 +595,9 @@ async function executeMcpPost(
   let scope: RequestScope;
   if (options.policySnapshotSource) {
     const snapshot = await options.policySnapshotSource.load(identity.platformUserId);
+    if (snapshot.identityRoute?.enabled === false) {
+      throw new RemoteRuntimeError('MCP_IDENTITY_ROUTE_DISABLED', 'The identity route is disabled.', { correlationId: identity.correlationId });
+    }
     const parsedUiPolicy = dynamicFormsObjectPoliciesSchema.safeParse(snapshot.runtimeSettings.dynamicFormsObjectPolicies ?? []);
     uiPolicies = parsedUiPolicy.success ? Object.freeze(parsedUiPolicy.data.map((row) => Object.freeze(row))) : [];
     if (!parsedUiPolicy.success) uiConfigurationError = 'UI_POLICY_INVALID';
@@ -625,6 +676,7 @@ async function executeMcpPost(
       ...options.identityRuntime.redactionSecrets,
       ...requestSecrets,
       options.config.clientToken ?? '',
+      options.config.wecomClientToken ?? '',
       options.config.controlPlane.database?.password ?? '',
     ],
     mutationRequestState,
@@ -651,7 +703,23 @@ async function executeMcpPost(
     auditClientMetadata: readAuditClientMetadata(headers),
     requestAuditContext: observation.auditContext,
   });
-  await resources.attachMcpServer(created.server);
+  await serveMcpBody(options, resources, signal, created.server, parsedBody);
+  };
+  if (observation.auditContext) {
+    await runWithRequestAuditContext(observation.auditContext, executeInAuditScope);
+  } else {
+    await executeInAuditScope();
+  }
+}
+
+async function serveMcpBody(
+  options: HandleRemoteRequestOptions,
+  resources: RequestResources,
+  signal: AbortSignal,
+  server: McpServer,
+  parsedBody: unknown,
+): Promise<void> {
+  await resources.attachMcpServer(server);
   resources.assertAvailable(signal);
 
   const transport = new StreamableHTTPServerTransport({
@@ -661,17 +729,11 @@ async function executeMcpPost(
     enableDnsRebindingProtection: true,
   });
   await resources.attachTransport(transport);
-  await created.server.connect(transport);
+  await server.connect(transport);
   resources.assertAvailable(signal);
   const responseCompleted = waitForResponseCompletion(options.response);
   await transport.handleRequest(options.request, options.response, parsedBody);
-    await responseCompleted;
-  };
-  if (observation.auditContext) {
-    await runWithRequestAuditContext(observation.auditContext, executeInAuditScope);
-  } else {
-    await executeInAuditScope();
-  }
+  await responseCompleted;
 }
 
 export function getRequestedExecutionRole(
@@ -850,6 +912,7 @@ function errorStatus(original: unknown, normalized: NormalizedRequestError): num
       return 401;
     case 'MCP_IDENTITY_ROUTE_NOT_FOUND':
     case 'MCP_IDENTITY_CONTEXT_MISMATCH':
+    case 'MCP_IDENTITY_CHANNEL_MISMATCH':
     case 'MCP_IDENTITY_ROUTE_DISABLED':
     case 'MCP_PLATFORM_IDENTITY_CONFLICT':
     case 'MCP_CONNECTION_ROLE_NOT_AVAILABLE':
@@ -888,6 +951,7 @@ function isBlocked(code: string): boolean {
     'MCP_PLATFORM_USER_REQUIRED',
     'MCP_IDENTITY_ROUTE_NOT_FOUND',
     'MCP_IDENTITY_CONTEXT_MISMATCH',
+    'MCP_IDENTITY_CHANNEL_MISMATCH',
     'MCP_PLATFORM_IDENTITY_CONFLICT',
     'MCP_CONNECTION_ROLE_NOT_AVAILABLE',
     'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',
@@ -1132,6 +1196,12 @@ function logCleanupFailure(
 }
 
 function createIdentityProvider(config: RemoteRuntimeConfig, authenticator?: ClientAuthenticator): IdentityProvider {
+  if (config.wecomChannelEnabled && !authenticator) {
+    return new UnifiedIdentityProvider([
+      new InternalServiceCredentialAuthenticator(config.clientToken ?? ''),
+      new WeComChannelCredentialAuthenticator(config.wecomClientToken ?? ''),
+    ], true);
+  }
   return new LegacyHeaderIdentityProvider(authenticator ?? createAuthenticator(config));
 }
 
@@ -1242,6 +1312,7 @@ const IDENTITY_TERMINAL_ERROR_CODES: ReadonlySet<string> = new Set([
   'MCP_IDENTITY_ROUTE_NOT_FOUND',
   'MCP_IDENTITY_ROUTE_DISABLED',
   'MCP_IDENTITY_CONTEXT_MISMATCH',
+  'MCP_IDENTITY_CHANNEL_MISMATCH',
   'MCP_IDENTITY_CREDENTIAL_INVALID',
   'MCP_IDENTITY_CREDENTIAL_REVOKED',
   'MCP_REQUEST_SCOPE_FAILED',

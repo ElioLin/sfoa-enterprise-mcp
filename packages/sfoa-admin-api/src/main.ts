@@ -27,6 +27,7 @@ void main().catch((error: unknown) => {
     process.env.SFOA_ADMIN_PASSWORD,
     process.env.SFOA_DB_PASSWORD,
     process.env.MCP_CLIENT_TOKEN,
+    process.env.MCP_WECOM_CLIENT_TOKEN,
   ].filter((value): value is string => Boolean(value));
   process.stderr.write(`${JSON.stringify({
     timestamp: new Date().toISOString(),

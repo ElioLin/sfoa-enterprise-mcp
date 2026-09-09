@@ -17,6 +17,7 @@ import {
   type ManagedDmlFieldRuleRecord,
   type Page,
   type RequestPolicySnapshot,
+  type RuntimeDiscoveryPolicySnapshot,
   type RuntimeSettingKey,
   type RuntimeSettingRecord,
   type ToolControlRecord,
@@ -602,15 +603,11 @@ export async function loadMySqlRequestPolicySnapshot(
   try {
     return await database.transaction().setIsolationLevel('repeatable read').execute(async (transaction) => {
       const repositories = createMySqlRepositories(transaction);
-      const [identityRoute, enabledTools, dmlPolicies, diagnostic, runtimeSettings] = await Promise.all([
-        repositories.identityRoutes.findActiveByPlatformUserId(platformUserId),
-        repositories.tools.listEnabledNames(),
-        repositories.dmlPolicies.listEnabled(),
-        repositories.diagnostic.get(),
-        repositories.runtimeSettings.list(),
+      const [identityRoute, governance] = await Promise.all([
+        repositories.identityRoutes.getByPlatformUserId(platformUserId),
+        loadGlobalGovernance(repositories),
       ]);
-      const managedDmlFieldRules = await repositories.managedDmlFieldRules
-        .listEnabledByDmlPolicyIds(dmlPolicies.map((policy) => policy.id));
+      const { diagnostic } = governance;
       if (diagnostic?.enabled) {
         const userNames = await repositories.identityRoutes.listActiveSalesforceUsernames();
         const diagnosticName = normalizeSalesforceUsername(diagnostic.salesforceUsername);
@@ -622,20 +619,44 @@ export async function loadMySqlRequestPolicySnapshot(
         }
       }
       return freezeSnapshot({
-        mode: 'mysql',
-        loadedAt: new Date().toISOString(),
+        ...governance,
         identityRoute: identityRoute ?? null,
-        enabledTools,
-        dmlPolicies,
-        managedDmlFieldRules,
-        diagnostic: diagnostic?.enabled ? diagnostic : null,
-        runtimeSettings: Object.fromEntries(runtimeSettings.map((setting) => [setting.settingKey, setting.settingValue])),
       });
     });
   } catch (error) {
     if (error instanceof ControlPlaneError) throw error;
     throw toControlPlaneError(error);
   }
+}
+
+/** Global catalog only: deliberately never reads an identity route, including diagnostic route checks. */
+export async function loadMySqlDiscoveryPolicySnapshot(
+  database: Kysely<ControlPlaneDatabase>,
+): Promise<RuntimeDiscoveryPolicySnapshot> {
+  try {
+    return await database.transaction().setIsolationLevel('repeatable read').execute(
+      (transaction) => loadGlobalGovernance(createMySqlRepositories(transaction)),
+    );
+  } catch (error) {
+    if (error instanceof ControlPlaneError) throw error;
+    throw toControlPlaneError(error);
+  }
+}
+
+async function loadGlobalGovernance(repositories: ControlPlaneRepositories): Promise<RuntimeDiscoveryPolicySnapshot> {
+  const [enabledTools, dmlPolicies, diagnostic, runtimeSettings] = await Promise.all([
+    repositories.tools.listEnabledNames(),
+    repositories.dmlPolicies.listEnabled(),
+    repositories.diagnostic.get(),
+    repositories.runtimeSettings.list(),
+  ]);
+  const managedDmlFieldRules = await repositories.managedDmlFieldRules
+    .listEnabledByDmlPolicyIds(dmlPolicies.map((policy) => policy.id));
+  return freezeSnapshot({
+    mode: 'mysql', loadedAt: new Date().toISOString(), enabledTools, dmlPolicies, managedDmlFieldRules,
+    diagnostic: diagnostic?.enabled ? diagnostic : null,
+    runtimeSettings: Object.fromEntries(runtimeSettings.map((setting) => [setting.settingKey, setting.settingValue])),
+  });
 }
 
 function mapIdentityRoute(row: Selectable<IdentityRouteTable>): IdentityRouteRecord {

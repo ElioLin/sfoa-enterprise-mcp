@@ -32,3 +32,22 @@ At a definite `tools/call`, `RequestAuditContextController` creates a server UUI
 The collector finalizes one immutable Snapshot. The request path only offers it to a bounded queue. A background writer persists the master, Events, Salesforce API calls, and Payload Evidence in one transaction. Queue/DB/payload failure marks evidence partial/degraded but cannot alter the Tool result.
 
 P7 does not currently persist `traceId`, `sessionId`, `callId`, `parentCallId`, or `spanId`. Optional conversation/turn/external-run metadata exists only in request context today and is not represented as dedicated database columns in migration 008.
+
+## P8-06 WeCom discovery
+
+UnifiedIdentityProvider separates authenticateCredential and resolvePrincipal;
+authenticate remains the execution wrapper. MCP_WECOM_CLIENT_TOKEN is an independent
+channel credential, enabled by MCP_WECOM_CHANNEL_ENABLED. Only the enabled WeCom
+channel can discover initialize/notifications/initialized/tools/list/ping without
+a user. All batch messages must qualify. Discovery loads global governance in one
+repeatable-read snapshot without any identity-route query (including diagnostic
+route cross-checks), and uses inert inventory Services with shared schema builders
+in createDiscoveryMcpServer. No RequestScope/Connection/JWT/API; all Tool handlers
+reject execution. Internal and WeCom Headers are bound to their channels when
+WeCom is enabled. USER_BOUND/Buntu optional Header consistency is unchanged.
+Buntu explicitly excludes both channel secrets.
+
+Discovery audits are RUNTIME_EVENT rows with clientId=wecom-channel and null
+platformUserId/identitySource/salesforceUsername; requestSummary preserves
+eventCategory=MCP/eventType=MCP_DISCOVERY, and operation is the protocol method.
+Tool requests retain P7 evidence. Admin returns readiness booleans only.
