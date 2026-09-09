@@ -1,11 +1,14 @@
 .agents/skills/sfoa-mcp-maintainer/references/p8-04-effective-create.md
 .agents/skills/sfoa-mcp-maintainer/references/p8-07-runtime-batch.md
+.agents/skills/sfoa-mcp-maintainer/scripts/doctor.mjs
 .agents/skills/sfoa-mcp-maintainer/SKILL.md
 .claude/skills/sfoa-mcp-maintainer/references/p8-04-effective-create.md
 .claude/skills/sfoa-mcp-maintainer/references/p8-07-runtime-batch.md
+.claude/skills/sfoa-mcp-maintainer/scripts/doctor.mjs
 .claude/skills/sfoa-mcp-maintainer/SKILL.md
 .codebuddy/skills/sfoa-mcp-maintainer/references/p8-04-effective-create.md
 .codebuddy/skills/sfoa-mcp-maintainer/references/p8-07-runtime-batch.md
+.codebuddy/skills/sfoa-mcp-maintainer/scripts/doctor.mjs
 .codebuddy/skills/sfoa-mcp-maintainer/SKILL.md
 .codebuddy/skills/sfoa-salesforce-assistant/references/safety-boundaries.md
 .codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md
@@ -74,4 +77,5 @@ packages/sfoa-mcp-server/src/validation/p3-live-validation.ts
 scripts/p8-07-live-batch.mjs
 skills/sfoa-mcp-maintainer/references/p8-04-effective-create.md
 skills/sfoa-mcp-maintainer/references/p8-07-runtime-batch.md
+skills/sfoa-mcp-maintainer/scripts/doctor.mjs
 skills/sfoa-mcp-maintainer/SKILL.md

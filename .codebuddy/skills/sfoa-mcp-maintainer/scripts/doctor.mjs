@@ -83,6 +83,7 @@ async function checkOrgObjectUsage(projectRoot) {
     return Object.freeze({
       status: 'SKIPPED',
       reason: 'sfoa-agent-playbook is not built; run its build or test first',
+      problems: Object.freeze([]),
     });
   }
   try {

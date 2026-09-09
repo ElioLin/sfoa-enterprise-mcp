@@ -200,6 +200,12 @@ process alive; it was terminated and retained as FAIL. The isolated rerun passed
 all six tests, including 50/100/200 paired load with no failures or cross-Audit
 binding. This is correctness evidence, not a production latency guarantee.
 
+The first committed-HEAD Skill smoke exposed a pre-existing Doctor shape mismatch:
+when the Playbook is not built, SKIPPED omitted the `problems` array required by
+the toolkit contract. The canonical Doctor now returns an empty array for that
+case, with no change to runtime authorization; all platform copies are synced.
+The original smoke failure remains recorded alongside its committed retest.
+
 The code tests cover Create Defaults/override/USER missing facts/bounds/fallback,
 required-field survival, Picklist and mixed Record Types, 1/2/200/201 batch bounds,
 allowlist denial, Managed Fields, Salesforce validation/sharing/FLS errors,
