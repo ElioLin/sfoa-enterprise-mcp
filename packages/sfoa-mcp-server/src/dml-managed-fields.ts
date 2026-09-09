@@ -29,6 +29,7 @@ export type ManagedDmlInputResolution = Readonly<{
 }>;
 
 export class ManagedDmlFieldResolver {
+  private readonly lookupValues = new Map<string, Promise<string>>();
   public constructor(
     private readonly connectionProvider: SalesforceConnectionProvider,
     private readonly context: RequestContext,
@@ -39,6 +40,18 @@ export class ManagedDmlFieldResolver {
     operation: DmlOperation,
     input: Readonly<Record<string, unknown>>,
   ): Promise<ManagedDmlInputResolution> {
+    if (Array.isArray(input.records)) {
+      const records: Readonly<Record<string, unknown>>[] = [];
+      const applied: AppliedManagedDmlField[] = [];
+      for (const item of input.records) {
+        if (!isRecord(item)) throw new DmlRuntimeError('MCP_DML_INPUT_INVALID', 'Invalid batch item.');
+        const resolved = await this.resolve(operation, { ...item, objectApiName: input.objectApiName });
+        const { objectApiName: _object, ...record } = resolved.input;
+        records.push(record);
+        applied.push(...resolved.applied);
+      }
+      return { input: { ...input, records }, applied: applied.slice(0, 200) };
+    }
     if (typeof input.objectApiName !== 'string' || !isRecord(input.fields)) {
       return Object.freeze({ input, applied: Object.freeze([]) });
     }
@@ -91,6 +104,13 @@ export class ManagedDmlFieldResolver {
   }
 
   private async resolvePlatformUserLookup(rule: RuntimeManagedDmlFieldRule): Promise<string> {
+    const key = `${rule.lookupObjectApiName}.${rule.lookupMatchFieldApiName}`;
+    let value = this.lookupValues.get(key);
+    if (!value) { value = this.queryPlatformUserLookup(rule); this.lookupValues.set(key, value); }
+    return value;
+  }
+
+  private async queryPlatformUserLookup(rule: RuntimeManagedDmlFieldRule): Promise<string> {
     const platformUserId = platformUserIdSchema.safeParse(this.context.platformUserId);
     if (!platformUserId.success || !rule.lookupObjectApiName || !rule.lookupMatchFieldApiName) {
       throw invalidConfig('Platform-user lookup configuration is invalid.');

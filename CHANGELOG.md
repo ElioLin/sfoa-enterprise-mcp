@@ -1,3 +1,10 @@
+# SFoA P8-07 (2026-09-09)
+
+- Add governed synchronous batch CREATE/UPDATE, explicit CREATE initial provenance,
+  bounded USER facts, Picklist label resolution and generic relationship context.
+- Propagate canonical batch/compound intent rules and expose partial/unknown P7
+  counts. Verification and external UAT status: docs/sfoa/P8-07-IMPLEMENTATION-REPORT.md.
+
 ## SFoA unreleased — 2026-09-01
 
 ### Features

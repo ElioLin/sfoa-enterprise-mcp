@@ -28,6 +28,7 @@ Never print or paste `.env.local`. The diagnostic scripts load it locally and re
 - Startup, health, deployment, and maintenance: read [operations.md](references/operations.md).
 - Gate selection and verification: read [testing.md](references/testing.md).
 - Effective CREATE / Dynamic Forms / UI snapshots: read [p8-04-effective-create.md](references/p8-04-effective-create.md).
+- Batch DML / display labels / compound intent / CREATE initial facts: read [p8-07-runtime-batch.md](references/p8-07-runtime-batch.md).
 - Skill or durable project-fact changes: read [skill-maintenance.md](references/skill-maintenance.md).
 - The “Lead only; Account/Opportunity unavailable” validation case: read [acceptance-scenario.md](references/acceptance-scenario.md).
 

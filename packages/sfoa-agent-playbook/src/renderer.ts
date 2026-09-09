@@ -21,6 +21,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
     'For CREATE, use the returned availableRecordTypes: Master is excluded when a non-Master type is available; keep Master when it is the only available type. One candidate needs no question; several require a clear user choice before loading that type\'s fields. Pass the resolved non-Master recordType.id to create_record as recordTypeId even when automatically selected.',
     'PLATFORM_IDENTITY and AI_CREATED_MARKER are server-owned: do not ask for, recommend, derive, or override them; omit them from mutation payloads. PLATFORM_IDENTITY_FALLBACK permits explicit user values after LOOKUP resolution. On CREATE, match action-context required/editable facts: required and absent means ask once, explain the current-user default and wait; optional and absent means omit without asking. A default choice means omit; do not query the current-user Lookup. Fallback is CREATE-only: never default it on UPDATE; use normal UPDATE + LOOKUP only for an explicit requested change.',
     'Return trusted Salesforce record links through `get_record_links` when enabled; keep raw Salesforce Record IDs internal in normal business answers.',
+    'Normal business answers use current Salesforce display labels; raw API values remain the DML/filter/Audit evidence. Prefer enabled bounded batch Tools for multiple same-object records. One intent can span records and dependent phases: root success alone is not business intent completion. Reconcile every requested item before reporting complete; stop on UNKNOWN.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
     'Read `sfoa://agent-playbook/current` for the full contract and `sfoa://agent-capabilities/current` for request capabilities; the `sfoa_salesforce_assistant` Prompt can select a workflow.',
     ...(orgObjectPointer ? [orgObjectPointer] : []),
@@ -78,6 +79,7 @@ export function renderWorkBuddySkill(): string {
     '2. Before mutation or diagnosis, read [references/safety-boundaries.md](references/safety-boundaries.md).',
     '3. Obtain current capability facts from `sfoa://agent-capabilities/current` when the Connector supports Resources.',
     '4. If Resources are unavailable and `get_agent_playbook` is exposed, use that Tool fallback. Never call an absent Tool.',
+    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST'], undefined),
     '',
     '## WorkBuddy identity',
     '',
@@ -160,6 +162,8 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- 提供可信 Salesforce 记录链接时，使用已启用的 `get_record_links`；日常业务答复不暴露原始 Salesforce 记录 ID，仅当用户明确要求或做技术诊断时才给出。',
     '- 以业务助手方式作答，不要输出 SOQL/JSON 原始转储。',
     '',
+    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST'], capabilities),
+    '',
   ].join('\n');
 }
 
@@ -169,8 +173,8 @@ function weComCapabilityLines(capabilities: AgentCapabilities | undefined): stri
       '- 本文件是推荐角色设定模板：当前连接的实际能力以 MCP 运行时为准；在读取到实际能力前，不得据此声称任何工具或对象可用。',
     ];
   }
-  const createReady = capabilities.enabledTools.includes('create_record') && capabilities.createAllowedObjects.length > 0;
-  const updateReady = capabilities.enabledTools.includes('update_record') && capabilities.updateAllowedObjects.length > 0;
+  const createReady = (capabilities.enabledTools.includes('create_record') || capabilities.enabledTools.includes('create_records')) && capabilities.createAllowedObjects.length > 0;
+  const updateReady = (capabilities.enabledTools.includes('update_record') || capabilities.enabledTools.includes('update_records')) && capabilities.updateAllowedObjects.length > 0;
   const readReady = capabilities.enabledTools.includes('run_soql_query');
   const lines = [
     `- 启用工具：${codeList(capabilities.enabledTools)}。`,
@@ -203,7 +207,7 @@ export function renderSafetyReference(): string {
 export function renderWorkflowReference(): string {
   return renderSelectedReference(
     'SFoA Tool Workflows',
-    ['READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
+    ['READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
   );
 }
 
@@ -249,7 +253,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
     `- Enabled Tools: ${codeList(capabilities.enabledTools)}.`,
     `- CREATE allowed objects: ${codeList(capabilities.createAllowedObjects)}.`,
     `- UPDATE allowed objects: ${codeList(capabilities.updateAllowedObjects)}.`,
-    `- READ (SOQL) scope: \`run_soql_query\` is NOT bounded by the CREATE/UPDATE allowlists above. It may read any object the authenticated Salesforce user can read — including Account, Opportunity, Contact, and custom objects that are not CREATE/UPDATE-listed — and those lists govern only \`create_record\` and \`update_record\`, never reads. The only read-side guard is the ORG_OBJECT_USAGE substitution rule for declared not-in-use standard objects.`,
+    `- READ (SOQL) scope: \`run_soql_query\` is NOT bounded by the CREATE/UPDATE allowlists above. It may read any object the authenticated Salesforce user can read — including Account, Opportunity, Contact, and custom objects that are not CREATE/UPDATE-listed — and those lists govern only \`create_record\`, \`update_record\`, \`create_records\` and \`update_records\`, never reads. The only read-side guard is the ORG_OBJECT_USAGE substitution rule for declared not-in-use standard objects.`,
     `- Diagnostic ready: \`${capabilities.diagnosticReady}\`.`,
     `- Dynamic Forms evidence: \`${capabilities.dynamicFormEvidence}\`.`,
     `- MCP-managed DML fields: ${managedFieldList(capabilities)}.`,
@@ -265,13 +269,13 @@ function sectionStatusLines(
     return ['- Status: unavailable — no recognized business-data read Tool is enabled; do not claim live record access.'];
   }
   if (name === 'CREATE') {
-    const ready = capabilities.enabledTools.includes('create_record') && capabilities.createAllowedObjects.length > 0;
+    const ready = (capabilities.enabledTools.includes('create_record') || capabilities.enabledTools.includes('create_records')) && capabilities.createAllowedObjects.length > 0;
     return ready
       ? [`- Status: available for ${codeList(capabilities.createAllowedObjects)}.`]
       : ['- Status: unavailable — `create_record` or an effective CREATE object policy is absent; do not create.'];
   }
   if (name === 'UPDATE') {
-    const ready = capabilities.enabledTools.includes('update_record') && capabilities.updateAllowedObjects.length > 0;
+    const ready = (capabilities.enabledTools.includes('update_record') || capabilities.enabledTools.includes('update_records')) && capabilities.updateAllowedObjects.length > 0;
     return ready
       ? [`- Status: available for ${codeList(capabilities.updateAllowedObjects)}.`]
       : ['- Status: unavailable — `update_record` or an effective UPDATE object policy is absent; do not update.'];

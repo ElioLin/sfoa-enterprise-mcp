@@ -9,6 +9,14 @@ import { asFetchMock, jsonResponse, renderAdmin } from './helpers.js';
 const NOW = '2026-09-01T00:00:00.000Z';
 
 describe('P7-07 Audit Trace Workbench', () => {
+  it('shows batch partial success counts without implying every item failed', () => {
+    const base = traceFixture();
+    renderAdmin(<AuditTraceWorkbench trace={{ ...base, audit: { ...base.audit, toolName: 'create_records',
+      responseSummary: { batch: true, status: 'PARTIAL_SUCCESS', partial: true, totalCount: 200,
+        succeededCount: 199, failedCount: 1, unknownCount: 0 } } }} />);
+    expect(screen.getByText('批量操作：部分成功（PARTIAL_SUCCESS）')).toBeInTheDocument();
+    expect(screen.getByText(/总数 200 · 成功 199 · 失败 1 · 未知 0/u)).toBeInTheDocument();
+  });
   it('shows UI resolution and loads field decisions only on demand', async () => {
     const base = traceFixture(true);
     const fetchMock = asFetchMock(() => jsonResponse({ ...base.payloadMetadata[0], payloadType: 'UI_CONTEXT', safePayload: '{"fields":[{"apiName":"Name","visibilityState":"VISIBLE"}]}' }));

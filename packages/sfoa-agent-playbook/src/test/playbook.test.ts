@@ -22,9 +22,9 @@ describe('canonical SFoA Agent Playbook', () => {
     }
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.6.1');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.7.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
-      'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
+      'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
     ]);
   });
@@ -78,13 +78,13 @@ describe('canonical SFoA Agent Playbook', () => {
     ];
 
     for (const output of outputs) {
-      assert.match(output, /1\.6\.1/u);
+      assert.match(output, /1\.7\.0/u);
       assert.match(output, /MCP_DML_OUTCOME_UNKNOWN/u);
       assert.match(output, /do not automatically retry|never auto-retry|do not automatically retry/u);
     }
     assert.match(renderFullPlaybook(capabilities), /READ \(SOQL\) scope/u);
     assert.match(renderFullPlaybook(capabilities), /NOT bounded by the CREATE\/UPDATE allowlists/u);
-    assert.match(renderFullPlaybook(capabilities), /govern only `create_record` and `update_record`, never reads/u);
+    assert.match(renderFullPlaybook(capabilities), /govern only `create_record`, `update_record`, `create_records` and `update_records`, never reads/u);
     assert.match(renderWorkflow('READ', capabilities), /READ is never bounded by the CREATE\/UPDATE allowlists or DML policy/u);
     assert.match(renderWorkflow('READ', capabilities), /Account, Opportunity, Contact/u);
     assert.match(renderFullPlaybook(capabilities), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
@@ -134,7 +134,7 @@ describe('canonical SFoA Agent Playbook', () => {
     }
     assert.match(
       renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.6\.1; DO NOT EDIT DIRECTLY/u,
+      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.7\.0; DO NOT EDIT DIRECTLY/u,
     );
   });
 
@@ -276,7 +276,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.6.1');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.7.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.

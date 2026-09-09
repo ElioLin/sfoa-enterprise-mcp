@@ -429,6 +429,8 @@ if (!configured) {
         MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED: 'false',
         SFOA_INSTANCE_URL: 'https://example.test',
         CONNECTED_APP_CLIENT_ID: 'p8-05-real-mysql-wecom-test',
+        // Exercise the legacy alias route independently of local P8-06 channel settings.
+        MCP_WECOM_CHANNEL_ENABLED: 'false',
         JWT_PRIVATE_KEY_PATH: keyPath,
         MCP_BIND_HOST: '127.0.0.1',
         MCP_PORT: String(port),

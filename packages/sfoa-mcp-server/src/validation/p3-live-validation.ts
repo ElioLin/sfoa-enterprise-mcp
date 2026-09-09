@@ -221,7 +221,7 @@ export async function runP3LiveValidation(
       'A forbidden mutation/admin Tool was exposed.',
     );
     const remoteSchema = gate(
-      sameArray(Object.keys(createProperties).sort(), ['fields', 'objectApiName']) &&
+      sameArray(Object.keys(createProperties).sort(), ['fields', 'objectApiName', 'recordTypeId', 'uiContextResolutionId']) &&
         sameArray(Object.keys(updateProperties).sort(), ['fields', 'objectApiName', 'recordId']) &&
         !['platformUserId', 'username', 'usernameOrAlias', 'salesforceUsername', 'instanceUrl', 'accessToken', 'directory', 'operation']
           .some((name) => name in createProperties || name in updateProperties),

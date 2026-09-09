@@ -100,6 +100,15 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+P8-07 (2026-09-09) extends latest GitHub main `5c623ef13a88f9e20e2cf897f56b213ebcb2994e`
+with explicit CREATE fact provenance, bounded USER visibility dependencies,
+current Salesforce display labels, synchronous collection CREATE/UPDATE and
+canonical compound-intent guidance. No additional permission operation, Bulk API,
+cross-call transaction, DELETE or UNKNOWN retry is introduced. See
+[implementation evidence](P8-07-IMPLEMENTATION-REPORT.md) and
+[ADR-0021](adr/ADR-0021-runtime-batch-orchestration.md) for current verification
+and acceptance status; fixture tests do not close independent Lightning/Agent UAT.
+
 P8-06 (2026-09-08) introduces independent WeCom channel credentials and SDK-based
 identity-less global governed discovery, with no user/route/Salesforce resource.
 Execution retains full user authority. See [delivery report](P8_06_WECOM_CHANNEL_DISCOVERY.md)

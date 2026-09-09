@@ -1,0 +1,661 @@
+{
+  "phase": "P8-07",
+  "status": "READY_FOR_UAT_WITH_LIMITATIONS",
+  "dates": [
+    "2026-09-09",
+    "2026-09-10"
+  ],
+  "branch": "feature/p8-07-runtime-batch-orchestration",
+  "baselineCommit": "5c623ef13a88f9e20e2cf897f56b213ebcb2994e",
+  "note": "Paths are repository-relative. Logs remain ignored local evidence; no credentials or raw business payloads are published. PASS is scoped to the named gate, not overall live acceptance.",
+  "latestGates": [
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/sfoa-identity-runtime",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/sfoa-identity-runtime",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/sfoa-control-plane",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/sfoa-control-plane",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/mcp-provider-sfoa-context",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/mcp-provider-sfoa-context",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/mcp-provider-sfoa-dml",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/mcp-provider-sfoa-dml",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/sfoa-agent-playbook",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/sfoa-agent-playbook",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/sfoa-admin-api",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/sfoa-admin-api",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+      "cwd": "packages/sfoa-admin-web",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/vite/bin/vite.js build",
+      "cwd": "packages/sfoa-admin-web",
+      "status": "PASS"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "cwd": "packages/mcp-provider-sfoa-context",
+      "status": "PASS",
+      "finalRetest": true
+    },
+    {
+      "command": "yarn workspace @sfoa/mcp-provider-sfoa-context lint",
+      "cwd": ".",
+      "status": "PASS",
+      "log": ".temp/p8-07-context-lint-final.log"
+    },
+    {
+      "command": "yarn workspace @sfoa/mcp-provider-sfoa-dml test",
+      "cwd": ".",
+      "status": "PASS",
+      "log": ".temp/p8-07-dml-test-final.log",
+      "tests": 40,
+      "pass": 40,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test dist/test/*.test.js",
+      "cwd": "packages/mcp-provider-sfoa-context",
+      "status": "PASS",
+      "log": ".temp/p8-07-context-final.log",
+      "tests": 80,
+      "pass": 80,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test-concurrency=1 --test dist/test/*.test.js",
+      "cwd": "packages/sfoa-agent-playbook",
+      "status": "PASS",
+      "log": ".temp/p8-04-regression/sfoa-agent-playbook-test.log",
+      "tests": 28,
+      "pass": 28,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test-concurrency=1 --test dist/test/*.test.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "log": ".temp/p8-04-regression/sfoa-mcp-server-test.log",
+      "tests": 152,
+      "pass": 152,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test-concurrency=1 --test dist/p3-test/*.test.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "log": ".temp/p8-07-p3-final.log",
+      "tests": 25,
+      "pass": 25,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test-concurrency=1 --test dist/p4-test/*.test.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "log": ".temp/p8-04-regression/sfoa-mcp-server-p4-test.log",
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test-concurrency=1 --test --test-timeout=180000 dist/p7-test/*.test.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "log": ".temp/p8-07-p7-final.log",
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test-isolation=none --test dist/test/*.test.js",
+      "cwd": "packages/sfoa-control-plane",
+      "status": "PASS",
+      "tests": 38,
+      "pass": 38,
+      "fail": 0,
+      "skipped": 0,
+      "via": "yarn validate:p5"
+    },
+    {
+      "command": "node --test-isolation=none --test dist/mysql-test/*.test.js",
+      "cwd": "packages/sfoa-control-plane",
+      "status": "PASS",
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "via": "yarn validate:p5"
+    },
+    {
+      "command": "node --test-isolation=none --test dist/test/*.test.js",
+      "cwd": "packages/sfoa-identity-runtime",
+      "status": "PASS",
+      "tests": 75,
+      "pass": 75,
+      "fail": 0,
+      "skipped": 0,
+      "via": "yarn validate:p5"
+    },
+    {
+      "command": "node --test-isolation=none --test dist/p5-test/*.test.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "via": "yarn validate:p5"
+    },
+    {
+      "command": "node --test-isolation=none --test dist/test/*.test.js",
+      "cwd": "packages/sfoa-admin-api",
+      "status": "PASS",
+      "tests": 25,
+      "pass": 25,
+      "fail": 0,
+      "skipped": 0,
+      "via": "yarn validate:p5"
+    },
+    {
+      "command": "node node_modules/vitest/vitest.mjs run",
+      "cwd": "packages/sfoa-admin-web",
+      "status": "PASS",
+      "tests": 71,
+      "files": 12,
+      "via": "yarn validate:p5"
+    },
+    {
+      "command": "yarn workspace @sfoa/mcp-provider-sfoa-dml lint",
+      "cwd": ".",
+      "status": "PASS",
+      "log": ".temp/p8-07-dml-lint-final.log"
+    },
+    {
+      "command": "yarn workspace @sfoa/mcp-provider-sfoa-dml build",
+      "cwd": ".",
+      "status": "PASS",
+      "log": ".temp/p8-07-dml-build-final.log"
+    },
+    {
+      "command": "yarn agent:sync",
+      "cwd": ".",
+      "status": "PASS"
+    },
+    {
+      "command": "yarn agent:check",
+      "cwd": ".",
+      "status": "PASS"
+    },
+    {
+      "command": "yarn skill:sync",
+      "cwd": ".",
+      "status": "PASS"
+    },
+    {
+      "command": "yarn skill:check",
+      "cwd": ".",
+      "status": "PASS"
+    },
+    {
+      "command": "yarn skill:delivery",
+      "cwd": ".",
+      "status": "PASS"
+    },
+    {
+      "command": "yarn skill:test",
+      "cwd": ".",
+      "status": "PASS"
+    },
+    {
+      "command": "yarn validate:p5",
+      "cwd": ".",
+      "status": "PASS",
+      "log": ".temp/p8-07-validate-p5.log",
+      "mockBrowserTests": 3,
+      "fullstackBrowserTests": 1
+    },
+    {
+      "command": "node dist/validation/upstream-compatibility.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "log": ".temp/p8-07-upstream-final.log"
+    },
+    {
+      "command": "node dist/validation/p4-main.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "PASS",
+      "log": ".temp/p8-07-live-p4.log",
+      "liveSalesforce": true
+    },
+    {
+      "command": "node dist/validation/p3-main.js",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "FAIL",
+      "liveSalesforce": true,
+      "reason": "Default MySQL routing does not supply legacy SECOND_TEST_USER. Env-backed retry preserves native FIELD_CUSTOM_VALIDATION_EXCEPTION; no records created; successful UPDATE and native authorization-denial fixture unavailable."
+    },
+    {
+      "command": "node --input-type=module -e \"process.env.SFOA_CONTROL_PLANE_MODE='env'; process.env.MCP_AUTH_MODE='internal_bearer'; process.env.MCP_BUNTU_IDENTITY_ENABLED='false'; process.env.MCP_WECOM_CHANNEL_ENABLED='false'; await import('./dist/validation/p3-main.js');\"",
+      "cwd": "packages/sfoa-mcp-server",
+      "status": "FAIL",
+      "log": ".temp/p8-07-live-p3-env-final.log",
+      "nativeValidationRejectionPreserved": true,
+      "createdRecords": 0
+    },
+    {
+      "command": "node scripts/p8-07-live-batch.mjs",
+      "cwd": ".",
+      "status": "BLOCKED",
+      "reason": "MCP_DML_OBJECT_NOT_ALLOWED in existing env test allowlist. No policy override or mutation.",
+      "log": ".temp/p8-07-live-batch-final.log"
+    },
+    {
+      "command": "yarn skill:smoke",
+      "cwd": ".",
+      "status": "BLOCKED",
+      "reason": "Pending first implementation commit; only committed HEAD bytes can be tested."
+    },
+    {
+      "command": "Independent Lightning, Dify, WorkBuddy, WeCom business scenario UAT",
+      "cwd": null,
+      "status": "BLOCKED",
+      "reason": "No acceptance session; deterministic fixture tests are not live Agent evaluation."
+    }
+  ],
+  "aggregateAttempt": {
+    "command": "node scripts/p8-04-regression.mjs",
+    "status": "FAIL",
+    "gates": [
+      {
+        "name": "sfoa-identity-runtime-build",
+        "status": "PASS",
+        "durationMs": 21179,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "sfoa-identity-runtime-lint",
+        "status": "PASS",
+        "durationMs": 16587,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "sfoa-identity-runtime-test",
+        "status": "PASS",
+        "durationMs": 97850,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-control-plane-build",
+        "status": "PASS",
+        "durationMs": 27198,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "sfoa-control-plane-lint",
+        "status": "PASS",
+        "durationMs": 18044,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "sfoa-control-plane-test",
+        "status": "PASS",
+        "durationMs": 206201,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-control-plane-mysql",
+        "status": "PASS",
+        "durationMs": 130573,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/mysql-test/*.test.js"
+        ]
+      },
+      {
+        "name": "mcp-provider-sfoa-context-build",
+        "status": "PASS",
+        "durationMs": 22976,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "mcp-provider-sfoa-context-lint",
+        "status": "PASS",
+        "durationMs": 25256,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "mcp-provider-sfoa-context-test",
+        "status": "FAIL",
+        "durationMs": 17735,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "mcp-provider-sfoa-dml-build",
+        "status": "PASS",
+        "durationMs": 13745,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "mcp-provider-sfoa-dml-lint",
+        "status": "PASS",
+        "durationMs": 10549,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "mcp-provider-sfoa-dml-test",
+        "status": "PASS",
+        "durationMs": 12872,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-agent-playbook-build",
+        "status": "PASS",
+        "durationMs": 5952,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "sfoa-agent-playbook-lint",
+        "status": "PASS",
+        "durationMs": 5124,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "sfoa-agent-playbook-test",
+        "status": "PASS",
+        "durationMs": 9025,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-build",
+        "status": "PASS",
+        "durationMs": 33828,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-lint",
+        "status": "PASS",
+        "durationMs": 35135,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-test",
+        "status": "PASS",
+        "durationMs": 283583,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-p3-test",
+        "status": "FAIL",
+        "durationMs": 104673,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/p3-test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-p4-test",
+        "status": "PASS",
+        "durationMs": 83781,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/p4-test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-p5-test",
+        "status": "PASS",
+        "durationMs": 28085,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/p5-test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-p7-test",
+        "status": "FAIL",
+        "durationMs": 28367399,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/p7-test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-mcp-server-upstream",
+        "status": "PASS",
+        "durationMs": 13905,
+        "command": [
+          "D:\\software\\node.exe",
+          "dist/validation/upstream-compatibility.js"
+        ]
+      },
+      {
+        "name": "sfoa-admin-api-build",
+        "status": "PASS",
+        "durationMs": 10297,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "sfoa-admin-api-lint",
+        "status": "PASS",
+        "durationMs": 8242,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "sfoa-admin-api-test",
+        "status": "PASS",
+        "durationMs": 55240,
+        "command": [
+          "D:\\software\\node.exe",
+          "--test-concurrency=1",
+          "--test",
+          "dist/test/*.test.js"
+        ]
+      },
+      {
+        "name": "sfoa-admin-web-lint",
+        "status": "PASS",
+        "durationMs": 11383,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json",
+          "--noEmit"
+        ]
+      },
+      {
+        "name": "sfoa-admin-web-build",
+        "status": "PASS",
+        "durationMs": 4381,
+        "command": [
+          "D:\\software\\node.exe",
+          "node_modules/vite/bin/vite.js",
+          "build"
+        ]
+      }
+    ],
+    "reason": "Context contract assertions, MCP 201 schema-rejection expectation, and first P7 load HTTP 504 failed; named final suite retests passed. First P7 child retained handles after failure and was terminated."
+  }
+}

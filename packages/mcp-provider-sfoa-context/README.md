@@ -3,6 +3,11 @@
 Private Provider API extension for deterministic Salesforce facts:
 
 - `get_record_action_context` uses the request USER Connection and REST UI API.
+- `resolve_field_display_values` resolves current Record Type-aware Picklist and
+  MultiPicklist labels separately from raw SOQL/DML/Audit evidence (200 values,
+  25 metadata groups, 5 seconds; explicit unresolved raw fallback).
+- `get_record_relationship_context` returns at most 20 current USER child
+  relationships filtered by existing CREATE governance and Salesforce createability.
 - `run_diagnostic_tooling_query` delegates through a Host-supplied official Tooling-query adapter.
 - `get_metadata_component_context` delegates through a Host-supplied official metadata-retrieve adapter.
 
@@ -19,6 +24,10 @@ Unavailable business types do not remove that fallback; no available types still
 fails closed. UPDATE and display context retain their existing Record Type behavior.
 
 P8-04 adds an optional `EffectiveRecordUiContextResolver` to ready CREATE context.
+P8-07 adds explicit fact provenance and bounded dependency-driven `$User` reads:
+25 fields, 32 KiB, existing 3-second extra-read budget. Missing/FLS-denied/timed-out
+facts remain UNKNOWN. Server DML defaults do not prove Lightning initial values;
+unproven record-dependent container visibility remains UNKNOWN.
 It preserves the existing Page Layout executor and supports object-level OFF
 (default), SHADOW and ENFORCE. `draftFields` is optional and validated against
 current USER ObjectInfo; `refinement` is bounded 0–3. Supported DF fields add

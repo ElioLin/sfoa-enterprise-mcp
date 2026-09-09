@@ -13,12 +13,14 @@ import {
   type DmlAllowlistPolicy,
   type DmlOperation,
   type MutationExecutionObserver,
+  SFOA_DML_TOOL_OPERATIONS,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import {
   SfoaContextMcpProvider,
   isSfoaContextToolName,
   type SfoaContextToolName,
   type EffectiveUiOptions,
+  initialFact,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
   NoopRuntimeLogger,
@@ -100,6 +102,7 @@ export type CreateGovernedMcpServerOptions = Readonly<{
 export class MutationRequestState implements MutationExecutionObserver {
   // One instance is created per HTTP POST; no cross-request mutation state is retained.
   private startedOperation: DmlOperation | undefined;
+  private batch: { totalCount: number; allOrNone: boolean } | undefined;
 
   public constructor(private readonly onStarted?: (operation: DmlOperation) => void) {}
 
@@ -118,6 +121,18 @@ export class MutationRequestState implements MutationExecutionObserver {
 
   public onMutationCompleted(_operation: DmlOperation, recordId: string): void {
     currentSalesforceCallSemanticScope()?.enrichRecordId(recordId);
+  }
+
+  public async runWithSubmittedRecords<T>(records: readonly Readonly<Record<string, string | number | boolean | null>>[],
+    callback: () => Promise<T>, options?: { allOrNone: boolean }): Promise<T> {
+    this.batch = { totalCount: records.length, allOrNone: options?.allOrNone ?? false };
+    return await runWithSalesforceSubmittedDmlSemantic({ submittedRecords: records }, callback);
+  }
+
+  public unknownBatchSummary(): Record<string, unknown> | undefined {
+    return this.startedOperation && this.batch ? { ...this.batch, batch: true, status: 'OUTCOME_UNKNOWN',
+      succeededCount: 0, failedCount: 0, unknownCount: this.batch.totalCount, partial: false,
+      salesforceApiType: 'COMPOSITE_API' } : undefined;
   }
 
   public hasStarted(): boolean {
@@ -267,12 +282,26 @@ export async function createGovernedMcpServer(
         );
       }
       const contextProvider = new SfoaContextMcpProvider({
+        createAllowedObjects: options.initializedProvider.dmlAllowlist.getRules()
+          .filter((rule) => rule.operations.includes('CREATE')).map((rule) => rule.objectApiName),
         effectiveUi: {
           policies: options.effectiveUi?.policies ?? [],
           loadSnapshot: options.effectiveUi?.loadSnapshot ?? (async () => undefined),
           ...options.effectiveUi,
           managedFields: (options.managedDmlFieldRules ?? []).filter((rule) => rule.enabled && rule.applyOnCreate)
             .map((rule) => `${rule.objectApiName}.${rule.targetFieldApiName}`),
+          resolveRuntimeDefaults: async (objectApiName, dependencyFields) => {
+            const resolver = new ManagedDmlFieldResolver(options.scope.salesforce, options.scope.context,
+              (options.managedDmlFieldRules ?? []).filter((rule) => dependencyFields.includes(rule.targetFieldApiName)));
+            const resolution = await resolver.resolve('CREATE', { objectApiName, fields: {} });
+            const fields = resolution.input.fields as Record<string, unknown>;
+            // Server-managed DML values are real runtime defaults, but do not prove
+            // Lightning initial values. Only UI API defaults/explicit drafts can do that.
+            return Object.entries(fields).map(([name, value]) => ({
+              ...initialFact(`Record.${name}`, value, 'TRUSTED_RUNTIME_DEFAULT'), trustedForVisibility: false,
+              reason: 'DML_DEFAULT_NOT_PROVEN_LIGHTNING_INITIAL',
+            }));
+          },
           audit: (evidence) => recordUiContextAudit(options.requestAuditContext, evidence),
         },
         toolNames: contextToolNames as readonly SfoaContextToolName[],
@@ -386,13 +415,13 @@ function recordUiContextAudit(controller: RequestAuditContextController | undefi
   controller ??= currentRequestAuditContext();
   if (!controller) return;
   try {
-    const { fields, rules, ...summary } = evidence;
+    const { fields, rules, initialFacts, ...summary } = evidence;
     const collector = controller.collector();
     const sequence = collector.recordEvent({ eventCategory: 'TOOL', eventType: evidence.fallbackUsed ? 'UI_CONTEXT_RESOLUTION_FAILED' : 'UI_CONTEXT_RESOLVED',
       eventName: 'UI Context', status: 'SUCCESS', safeSummary: summary });
     if (sequence !== null && (fields || rules)) collector.recordPayloadEvidence({
       payloadType: 'UI_CONTEXT', contentType: 'application/json',
-      auditEventSequence: sequence, payload: JSON.stringify({ resolutionId: evidence.resolutionId, fields, rules }),
+      auditEventSequence: sequence, payload: JSON.stringify({ resolutionId: evidence.resolutionId, fields, rules, initialFacts }),
     });
   } catch { /* UI evidence cannot alter CREATE. */ }
 }
@@ -424,7 +453,7 @@ function runAuditedToolInvocation<T>(
     });
   if (isRecord(input)) {
     auditContext.withOperation({
-      operation: toolName === 'create_record' ? 'CREATE' : toolName === 'update_record' ? 'UPDATE' : undefined,
+      operation: isSfoaDmlToolName(toolName) ? SFOA_DML_TOOL_OPERATIONS[toolName] : undefined,
       objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : undefined,
       recordId: typeof input.recordId === 'string' ? input.recordId : undefined,
     });

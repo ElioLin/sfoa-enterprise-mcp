@@ -203,7 +203,8 @@ export type SalesforceDmlSemanticInput = Readonly<{
 }>;
 
 export type SalesforceSubmittedDmlSemanticInput = Readonly<{
-  submittedFields: Readonly<Record<string, unknown>>;
+  submittedFields?: Readonly<Record<string, unknown>>;
+  submittedRecords?: readonly Readonly<Record<string, unknown>>[];
 }>;
 
 export type SalesforceQueryResultStatistics = Readonly<{
@@ -259,7 +260,13 @@ export class SalesforceCallSemanticScope {
   }
 
   public withSubmittedFields(input: SalesforceSubmittedDmlSemanticInput): SalesforceCallSemanticScope {
-    const submitted = boundedAuditFields(input.submittedFields);
+    // Preserve the compatible scalar evidence column, explicitly index batch fields.
+    // Exact collection payloads remain in the existing bounded SF_REQUEST evidence.
+    const fields = input.submittedRecords
+      ? Object.fromEntries(input.submittedRecords.slice(0, 200).flatMap((record, index) =>
+        Object.entries(record).map(([name, value]) => [`records[${index}].${name}`, value])))
+      : input.submittedFields ?? {};
+    const submitted = boundedAuditFields(fields);
     return new SalesforceCallSemanticScope(this.controller, Object.freeze({
       ...this.evidence,
       submittedFields: submitted.value,

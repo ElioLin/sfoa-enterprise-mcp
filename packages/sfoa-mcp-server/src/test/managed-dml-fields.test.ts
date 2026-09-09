@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Connection } from '@salesforce/core';
-import { McpTool, ReleaseState, Toolset, type McpToolConfig } from '@salesforce/mcp-provider-api';
+import { McpTool, ReleaseState, Toolset, type McpToolConfig, type OrgService } from '@salesforce/mcp-provider-api';
 import type { ManagedDmlFieldRuleRecord } from '@sfoa/control-plane';
 import {
   currentSalesforceCallSemanticScope,
@@ -16,13 +16,83 @@ import {
   type RuntimeLogger,
   type SalesforceConnectionProvider,
 } from '@sfoa/identity-runtime';
-import { StaticDmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
+import { StaticDmlAllowlistPolicy, DmlExecutor, BatchRecordsMcpTool } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
 import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from '../dml-managed-fields.js';
 import { DmlToolFacade } from '../dml-tool-facade.js';
 
 const CONTACT_A = '003000000000001AAA';
 const CONTACT_B = '003000000000002AAA';
+
+for (const operation of ['CREATE', 'UPDATE'] as const) {
+  test(`batch ${operation} dispatch timeout reports every item UNKNOWN without retry even if audit throws`, async () => {
+    let dispatches = 0; let started = false;
+    let finish: ((value: unknown) => void) | undefined;
+    const mutation = async () => { dispatches++; return new Promise((resolve) => { finish = resolve; }); };
+    const connection = { getApiVersion: () => '67.0', sobject: () => ({ create: mutation, update: mutation }) } as unknown as Connection;
+    const service = { getAllowedOrgUsernames: async () => new Set(['current-user']), getConnection: async () => connection };
+    const policy = new StaticDmlAllowlistPolicy([{ objectApiName: 'Lead', operations: [operation] }]);
+    const executor = new DmlExecutor(service as unknown as OrgService, policy, { onMutationStarted: () => { started = true; } });
+    const context = createRequestContext({ platformUserId: 'timeout-user', correlationId: 'batch-timeout' }, process.cwd());
+    const facade = new DmlToolFacade({ tool: new BatchRecordsMcpTool(executor, operation), context, route: userRoute('timeout-user'),
+      toolTimeoutMs: 20, clientId: 'batch-test', logger: { log: () => { throw new Error('audit unavailable'); } },
+      mutationStarted: () => started, dmlAllowlist: policy });
+    const result = await facade.execute({ objectApiName: 'Lead', records: [CONTACT_A, CONTACT_B].map((recordId, index) => ({
+      clientReferenceId: `row-${index}`, ...(operation === 'UPDATE' ? { recordId } : {}), fields: { LastName: 'Changed' },
+    })) }, extra());
+    assert.equal(result.structuredContent?.status, 'OUTCOME_UNKNOWN');
+    assert.equal(result.structuredContent?.unknown, 2); assert.equal(result.structuredContent?.failed, 0);
+    finish?.([CONTACT_A, CONTACT_B].map((id) => ({ id, success: true, errors: [] })));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(dispatches, 1);
+  });
+}
+
+test('batch UPDATE applies strict managed ownership to every row and protects CREATE-only fields', async () => {
+  const context = createRequestContext({ platformUserId: 'update-user', correlationId: 'batch-update' }, process.cwd());
+  const resolver = new ManagedDmlFieldResolver(queryConnection(async () => ({ records: [{ Id: CONTACT_A }] })), context,
+    [runtimeRule({ applyOnUpdate: true }), runtimeRule({ targetFieldApiName: 'AI__c', strategy: 'AI_CREATED_MARKER',
+      applyOnUpdate: false, lookupObjectApiName: null, lookupMatchFieldApiName: null })]);
+  const result = await resolver.resolve('UPDATE', { objectApiName: 'Lead', records: [CONTACT_A, CONTACT_B].map((recordId) => ({
+    recordId, fields: { Requested_By__c: CONTACT_B, Description: 'changed' },
+  })) });
+  assert.deepEqual(result.input.records, [CONTACT_A, CONTACT_B].map((recordId) => ({ recordId,
+    fields: { Requested_By__c: CONTACT_A, Description: 'changed' } })));
+});
+
+test('batch facade protects each managed field, reuses request-local Lookup and records partial summary', async () => {
+  let lookups = 0; let mutations = 0; let started = false;
+  const submitted: unknown[] = [];
+  const connection = { getApiVersion: () => '67.0', query: async () => { lookups++; return { records: [{ Id: CONTACT_A }] }; },
+    sobject: () => ({ create: async (records: unknown[]) => { mutations++; submitted.push(...records);
+      return [{ id: '00Q000000000001AAA', success: true, errors: [] },
+        { success: false, errors: [{ errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION', message: 'Invalid row' }] }]; } }) } as unknown as Connection;
+  const service = { getAllowedOrgUsernames: async () => new Set(['current-user']), getConnection: async () => connection };
+  const policy = new StaticDmlAllowlistPolicy([{ objectApiName: 'Lead', operations: ['CREATE'] }]);
+  const executor = new DmlExecutor(service as unknown as OrgService, policy, { onMutationStarted: () => { started = true; } });
+  const context = createRequestContext({ platformUserId: 'batch-user', correlationId: 'batch-managed' }, process.cwd());
+  const logger = new RecordingLogger();
+  const facade = new DmlToolFacade({ tool: new BatchRecordsMcpTool(executor, 'CREATE'), context, route: userRoute('batch-user'),
+    toolTimeoutMs: 1000, clientId: 'batch-test', logger, mutationStarted: () => started, dmlAllowlist: policy,
+    managedFieldResolver: new ManagedDmlFieldResolver({ getConnection: async () => connection }, context, [
+      runtimeRule({ targetFieldApiName: 'Requested_By__c' }),
+      runtimeRule({ targetFieldApiName: 'Fallback__c', strategy: 'PLATFORM_USER_LOOKUP_FALLBACK' }),
+      runtimeRule({ targetFieldApiName: 'AI__c', strategy: 'AI_CREATED_MARKER', applyOnUpdate: false, lookupObjectApiName: null, lookupMatchFieldApiName: null }),
+    ]) });
+  const result = await facade.execute({ objectApiName: 'Lead', records: [
+    { clientReferenceId: 'a', fields: { LastName: 'A', Requested_By__c: CONTACT_B, AI__c: false, Fallback__c: CONTACT_B } },
+    { clientReferenceId: 'b', fields: { LastName: 'B', Requested_By__c: CONTACT_B } },
+  ] }, extra());
+  assert.equal(result.structuredContent?.status, 'PARTIAL_SUCCESS'); assert.equal(mutations, 1); assert.equal(lookups, 1);
+  assert.deepEqual(submitted, [
+    { LastName: 'A', Requested_By__c: CONTACT_A, AI__c: true, Fallback__c: CONTACT_B },
+    { LastName: 'B', Requested_By__c: CONTACT_A, AI__c: true, Fallback__c: CONTACT_A },
+  ]);
+  const summary = logger.events.at(-1)?.responseSummary as Record<string, unknown>;
+  assert.equal(summary.partial, true); assert.equal(summary.succeededCount, 1); assert.equal(summary.failedCount, 1);
+  await facade.execute({ objectApiName: 'Lead', records: [{ fields: { Id: CONTACT_A } }] }, extra());
+  assert.equal(mutations, 1, 'invalid batch must not dispatch');
+});
 
 test('P8 CREATE records optional UI provenance without extra Salesforce reads or changing submitted fields', async () => {
   for (const id of [undefined, '12345678-1234-4123-8123-123456789012']) {

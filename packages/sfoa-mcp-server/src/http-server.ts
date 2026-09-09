@@ -299,7 +299,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       ...(observation.salesforceUsername ? { salesforceUsername: observation.salesforceUsername } : {}),
       ...(observation.identitySource ? { identitySource: observation.identitySource } : {}),
       ...(observation.identityCredentialId ? { identityCredentialId: observation.identityCredentialId } : {}),
-      toolName: dmlToolName(operation),
+      toolName: observation.auditContext?.snapshot().toolName ?? dmlToolName(operation),
       operation,
       outcome: 'UNKNOWN',
       mutationStarted: true,
@@ -307,6 +307,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
       durationMs: elapsed(started),
       result: 'ERROR',
       errorCode: 'MCP_DML_OUTCOME_UNKNOWN',
+      ...(mutationRequestState.unknownBatchSummary() ? { responseSummary: mutationRequestState.unknownBatchSummary() } : {}),
       auditEvent: {
         eventCategory: 'MCP',
         eventType: 'TRANSPORT_TERMINAL',
@@ -429,7 +430,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         ...(observation.identityCredentialId ? { identityCredentialId: observation.identityCredentialId } : {}),
         ...(mutationOperation
           ? {
-              toolName: dmlToolName(mutationOperation),
+              toolName: observation.auditContext?.snapshot().toolName ?? dmlToolName(mutationOperation),
               operation: mutationOperation,
             }
           : {}),
@@ -438,6 +439,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
               outcome: 'UNKNOWN' as const,
               mutationStarted: true,
               terminationLayer: 'REQUEST' as const,
+              ...(mutationRequestState.unknownBatchSummary() ? { responseSummary: mutationRequestState.unknownBatchSummary() } : {}),
             }
           : {}),
         durationMs: elapsed(started),
@@ -476,6 +478,7 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
           options.config.wecomClientToken ?? '',
           options.config.controlPlane.database?.password ?? '',
         ],
+        outcomeUnknown ? mutationRequestState.unknownBatchSummary() : undefined,
       );
     } else if (!options.response.writableEnded) {
       options.response.end();
@@ -890,6 +893,7 @@ function writeNormalizedError(
   error: NormalizedRequestError,
   status: number,
   secrets: readonly string[],
+  batchSummary?: Record<string, unknown>,
 ): void {
   const message = error.identityError
     ? formatRuntimeError(error.identityError, secrets, error.correlationId)
@@ -909,6 +913,7 @@ function writeNormalizedError(
         errorCode: error.code,
         correlationId: error.correlationId,
         ...(error.code === 'MCP_DML_OUTCOME_UNKNOWN' ? { retryable: false } : {}),
+        ...(batchSummary ? { batch: batchSummary } : {}),
       },
     },
     id: null,

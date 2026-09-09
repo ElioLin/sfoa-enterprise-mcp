@@ -16,7 +16,7 @@ candidates return `recordTypeSelectionRequired=true` before type-dependent reads
 Master-only users/objects retain normal creation, even if ObjectInfo also lists
 unavailable business types. An empty available set still fails closed. This is
 CREATE guidance/context behavior, not a new DML authorization check; UPDATE and
-display context retain their existing Record Type rules. Canonical Playbook 1.6.1
+display context retain their existing Record Type rules. Canonical Playbook 1.7.0
 and generated client instructions follow this contract.
 
 `get_record_action_context` keeps the existing Page Layout algorithm. CREATE alone
@@ -102,8 +102,10 @@ not guaranteed, but abort checks prevent subsequent batches/late publication.
    name from Lightning Page or add a runtime Metadata lookup.
 5. In Admin Audit detail open 页面上下文 and then 字段依据. Only explicit payload
    access loads bounded `UI_CONTEXT` fields/rules. These contain decision results,
-   criterion kinds, required provenance and dependencies, never original draft
-   values or rule literals. Respect P7 truncation/retention/partial evidence.
+   criterion kinds, required provenance and dependencies. P8-07 adds bounded
+   visibility dependency values and rule evaluation evidence to the protected
+   payload; unrelated draft values remain omitted. Respect P7 truncation,
+   retention and partial evidence. See [P8-07](p8-07-runtime-batch.md).
 6. Compare the Context output and actual submitted DML evidence. The resolution ID
    never changes fields sent to Salesforce or authorizes a write. `create_record`
    makes no Metadata resolution call and preserves CRUD/FLS/validation behavior.

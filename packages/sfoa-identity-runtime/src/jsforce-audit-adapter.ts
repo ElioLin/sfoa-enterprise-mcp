@@ -242,6 +242,41 @@ function captureAttempt(
     } satisfies RequestAuditSalesforceApiCallSnapshot;
   });
   if (!captured || classification.apiCategory === 'OAUTH') return;
+  if (/\/composite\/sobjects$/u.test(classification.endpointPath)
+    && ['POST', 'PATCH'].includes(attempt.request.method)) {
+    try {
+      const requestBody = attempt.request.body;
+      const request = typeof requestBody === 'string' && requestBody.length <= 1048576
+        ? JSON.parse(requestBody) as unknown : undefined;
+      const records = isRecord(request) && Array.isArray(request.records) ? request.records : [];
+      const body = outcome.responseBody;
+      const results = body && body.length <= 1048576 ? JSON.parse(body) as unknown : undefined;
+      const valid = Array.isArray(results) && results.length === records.length && records.length > 0
+        && results.every((item) => isRecord(item) && typeof item.success === 'boolean')
+        && !(isRecord(request) && request.allOrNone === true
+          && results.some((item) => item.success === true) && results.some((item) => item.success === false));
+      const rejected = !valid && outcome.statusCode !== undefined && outcome.statusCode >= 400
+        && outcome.statusCode < 500 && Array.isArray(results) && results.length > 0
+        && results.every((item) => isRecord(item) && typeof item.errorCode === 'string');
+      const succeededCount = valid ? results.filter((item) => isRecord(item) && item.success === true).length : 0;
+      const failedCount = valid ? records.length - succeededCount : rejected ? records.length : 0;
+      const partial = succeededCount > 0 && failedCount > 0;
+      const failure = valid ? results.find((item) => isRecord(item) && item.success === false) : undefined;
+      const firstError = isRecord(failure) && Array.isArray(failure.errors) ? failure.errors[0]
+        : rejected ? results[0] : undefined;
+      observation.controller.collector().recordEvent({ eventCategory: 'SALESFORCE', eventType: 'BATCH_DML_OUTCOME',
+        eventName: 'Salesforce collection outcome', status: valid || rejected ? failedCount ? 'FAILED' : 'SUCCESS' : 'UNKNOWN',
+        safeSummary: { publicApiCallId: attempt.publicApiCallId, batch: true, operation: attempt.request.method === 'POST' ? 'CREATE' : 'UPDATE',
+          objectApiName: attempt.semanticEvidence.objectApiName, salesforceApiType: 'COMPOSITE_API',
+          totalCount: records.length, allOrNone: isRecord(request) && request.allOrNone === true,
+          succeededCount, failedCount, unknownCount: valid || rejected ? 0 : records.length, partial,
+          status: valid || rejected ? partial ? 'PARTIAL_SUCCESS' : failedCount ? 'FAILED' : 'SUCCESS' : 'OUTCOME_UNKNOWN',
+          latencyMs: Math.max(0, outcome.completedAtMs - attempt.startedAtMs),
+          firstFailure: isRecord(firstError) ? { errorCode: String(firstError.errorCode ?? '').slice(0, 128),
+            message: String(firstError.message ?? '').slice(0, 512) } : undefined,
+        } });
+    } catch { /* Bounded observational metadata never changes the wire result. */ }
+  }
   if (attempt.requestPayload) {
     observation.controller.collector().recordPayloadEvidence(attempt.requestPayload);
   }

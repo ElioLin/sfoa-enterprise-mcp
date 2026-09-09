@@ -12,6 +12,10 @@ export const AGENT_RECOGNIZED_TOOL_NAMES = [
   'run_soql_query',
   'create_record',
   'update_record',
+  'create_records',
+  'update_records',
+  'resolve_field_display_values',
+  'get_record_relationship_context',
   'get_record_action_context',
   'run_diagnostic_tooling_query',
   'get_metadata_component_context',
@@ -59,8 +63,8 @@ export function createAgentCapabilities(input: AgentCapabilityInput = {}): Agent
   const recognized = new Set<string>(AGENT_RECOGNIZED_TOOL_NAMES);
   const enabledTools = AGENT_RECOGNIZED_TOOL_NAMES.filter((name) =>
     input.enabledTools?.includes(name) === true && recognized.has(name));
-  const createToolEnabled = enabledTools.includes('create_record');
-  const updateToolEnabled = enabledTools.includes('update_record');
+  const createToolEnabled = enabledTools.includes('create_record') || enabledTools.includes('create_records');
+  const updateToolEnabled = enabledTools.includes('update_record') || enabledTools.includes('update_records');
   const diagnosticToolsEnabled = enabledTools.includes('run_diagnostic_tooling_query')
     && enabledTools.includes('get_metadata_component_context');
 

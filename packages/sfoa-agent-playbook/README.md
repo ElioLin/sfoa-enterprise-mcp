@@ -2,6 +2,11 @@
 
 Pure TypeScript canonical Salesforce Agent operating contract for SFoA P6-Agent-01.
 
+P8-07 version 1.7.0 adds canonical BATCH/COMPOUND rules and current Salesforce
+Picklist-label presentation. A complete intent may span multiple root/child
+records; prove target scope and parent IDs, reconcile every item, and never retry
+UNKNOWN. Dify, WorkBuddy, WeCom and MCP instructions derive this behavior here.
+
 Version 1.6.1 excludes Master from CREATE choices when a non-Master type is
 available to the current USER, while retaining Master-only creation without a
 question. Version 1.6.0 added P8-04 effective CREATE fields, prompt-derived draft values,
@@ -10,7 +15,7 @@ The existing Page Layout and managed Lookup fallback workflows remain available.
 Run `yarn agent:sync` and `yarn agent:check` at the root; generated client artifacts
 must never be edited independently.
 
-Production modules define Playbook version `1.6.1`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
+Production modules define Playbook version `1.7.0`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
 
 Besides the checked-in Dify instruction and WorkBuddy Skill, `renderWeComRoleSetting(capabilities?)` deterministically renders the 企业微信智能机器人 (WeCom Smart Bot) recommended role setting (推荐角色设定). It is Chinese-first, capability-aware, and secret-free, written in business semantics for the assistant persona: it always acts for the current WeCom user under that user's Salesforce permissions. It deliberately carries no identity-implementation detail — the WeCom platform auto-injects the current user's identity header (`WECOM_HEADER` / `X-WeCom-User-Id`) at the enterprise MCP ingress per request — and it never reuses Buntu/USER_BOUND host semantics nor embeds any token the agent should hold or echo.
 

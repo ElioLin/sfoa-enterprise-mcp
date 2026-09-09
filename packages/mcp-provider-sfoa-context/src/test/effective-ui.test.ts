@@ -104,7 +104,10 @@ test('performance evidence: OFF/PL/DF hit/miss do no runtime Metadata calls', as
 
 test('visibility preserves missing/null/false/zero/empty, comparisons, AND/OR and booleanFilter', () => {
   const facts: VisibilityFacts = { draftFields: {}, fieldTypes: { Flag: 'Boolean', Amount: 'Currency', Text: 'String' }, user: {}, formFactor: 'Large' };
-  assert.deepEqual(evaluateVisibility(rule('Record.Flag', 'EQUAL', 'false'), facts), { state: 'PENDING', dependsOn: ['Flag'], kinds: ['RECORD_FIELD'] });
+  const missing = evaluateVisibility(rule('Record.Flag', 'EQUAL', 'false'), facts);
+  assert.equal(missing.state, 'PENDING'); assert.deepEqual(missing.dependsOn, ['Flag']);
+  assert.deepEqual(missing.kinds, ['RECORD_FIELD']); assert.equal(missing.scope, 'FIELD');
+  assert.equal(missing.dependencies?.[0]?.resolutionStatus, 'UNKNOWN');
   const actual = { ...facts, draftFields: { Flag: false, Amount: 0, Text: '' } };
   for (const candidate of [rule('Record.Flag', 'EQUAL', 'false'), rule('Record.Amount', 'GE', '0'), rule('Record.Amount', 'LE', '0'), rule('Record.Text', 'EQUAL', '')]) {
     assert.equal(evaluateVisibility(candidate, actual).state, 'VISIBLE');
@@ -176,7 +179,8 @@ test('ENFORCE computes hidden/required/pending/unknown and FLS/managed intersect
   assert.equal(byName.Internal__c?.effectiveEditable, false);
   assert.equal(output.uiContext?.formSource, 'DYNAMIC_FORMS');
   assert.equal(fixture.counts().metadataCalls, 0);
-  assert.doesNotMatch(JSON.stringify(fixture.evidence), /Partner/u);
+  // P8-07 audits the actual visibility dependency value with provenance.
+  assert.match(JSON.stringify(fixture.evidence), /"value":"Partner","source":"USER_EXPLICIT"/u);
 });
 
 test('snapshot absence and parse failure fall back while valid Page Layout remains byte-equivalent in fields', async () => {

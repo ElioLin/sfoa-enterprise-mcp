@@ -26,6 +26,42 @@ const LEAD_DML_POLICY = parseDmlAllowlistJson(JSON.stringify([
   { objectApiName: 'Lead', operations: ['CREATE', 'UPDATE'] },
 ]));
 
+test('batch protocol discovery stays lazy, CREATE/UPDATE use one request USER, and 201/denied targets never dispatch', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'sfoa-p807-batch-'));
+  const recording = new RecordingConnectionFactory();
+  const calls: { user: string; method: string; count: number }[] = [];
+  const factory: SalesforceConnectionFactory = { create: async (route) => {
+    const base = await recording.create(route);
+    return { ...base, sobject: () => ({
+      create: async (records: unknown[]) => { calls.push({ user: route.salesforceUsername, method: 'CREATE', count: records.length });
+        return records.map((_record, index) => ({ id: `00Q${String(index).padStart(12, '0')}AAA`, success: true, errors: [] })); },
+      update: async (records: { Id: string }[]) => { calls.push({ user: route.salesforceUsername, method: 'UPDATE', count: records.length });
+        return records.map((record) => ({ id: record.Id, success: true, errors: [] })); },
+    }) } as unknown as Connection;
+  } };
+  const server = await startRemoteMcpServer({ config: createTestRemoteConfig({ enabledTools: ['create_records', 'update_records', 'get_agent_playbook'],
+    dmlAllowlist: LEAD_DML_POLICY }), identityRuntime: createTestIdentityRuntime(root, factory) });
+  const a = await connectClient(server, TEST_PLATFORM_USER_A); const b = await connectClient(server, TEST_PLATFORM_USER_B);
+  try {
+    const listed = await a.listTools(); assert.ok(listed.tools.some((tool) => tool.name === 'create_records'));
+    assert.equal(recording.creations.length, 0);
+    const capabilities = await a.callTool({ name: 'get_agent_playbook', arguments: { workflow: 'CREATE' } });
+    assert.equal(capabilities.isError, undefined); assert.equal(recording.creations.length, 0);
+    const result = await a.callTool({ name: 'create_records', arguments: { objectApiName: 'Lead',
+      records: [{ clientReferenceId: 'a', fields: { LastName: 'A' } }, { clientReferenceId: 'b', fields: { LastName: 'B' } }] } });
+    assert.equal((result.structuredContent as Record<string, unknown>).status, 'SUCCESS');
+    const updated = await b.callTool({ name: 'update_records', arguments: { objectApiName: 'Lead', records: [
+      { recordId: '00Q000000000000AAA', fields: { Company: 'C' } }, { recordId: '00Q000000000001AAA', fields: { Company: 'D' } }] } });
+    assert.equal((updated.structuredContent as Record<string, unknown>).succeeded, 2);
+    assert.deepEqual(calls, [{ user: TEST_USERNAME_A, method: 'CREATE', count: 2 }, { user: TEST_USERNAME_B, method: 'UPDATE', count: 2 }]);
+    const denied = await a.callTool({ name: 'create_records', arguments: { objectApiName: 'Account', records: [{ fields: { Name: 'Denied' } }] } });
+    assert.equal(denied.isError, true);
+    await assert.rejects(a.callTool({ name: 'create_records', arguments: { objectApiName: 'Lead',
+      records: Array.from({ length: 201 }, () => ({ fields: { LastName: 'No' } })) } }), /at most 200/u);
+    assert.equal(calls.length, 2);
+  } finally { await a.close(); await b.close(); await server.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test('P3 tools/list exposes only explicitly enabled CREATE/UPDATE and keeps all other mutations absent', async () => {
   const fixture = await startFixture();
   const client = await connectClient(fixture.server, TEST_PLATFORM_USER_A);

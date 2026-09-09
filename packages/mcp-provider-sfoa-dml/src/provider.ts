@@ -3,10 +3,13 @@ import type { DmlAllowlistPolicy, DmlOperation } from './allowlist.js';
 import { DmlExecutor, type MutationExecutionObserver } from './dml-executor.js';
 import { CreateRecordMcpTool } from './tools/create-record.js';
 import { UpdateRecordMcpTool } from './tools/update-record.js';
+import { BatchRecordsMcpTool } from './tools/batch-records.js';
 
 export const SFOA_DML_TOOL_OPERATIONS = Object.freeze({
   create_record: 'CREATE',
   update_record: 'UPDATE',
+  create_records: 'CREATE',
+  update_records: 'UPDATE',
 } as const satisfies Readonly<Record<string, DmlOperation>>);
 
 export type SfoaDmlToolName = keyof typeof SFOA_DML_TOOL_OPERATIONS;
@@ -39,6 +42,8 @@ export class SfoaDmlMcpProvider extends McpProvider {
     return Promise.resolve([
       new CreateRecordMcpTool(executor),
       new UpdateRecordMcpTool(executor),
+      new BatchRecordsMcpTool(executor, 'CREATE'),
+      new BatchRecordsMcpTool(executor, 'UPDATE'),
     ]);
   }
 }

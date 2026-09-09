@@ -71,6 +71,11 @@ Do not execute `git reset --hard` or overwrite local SFoA work to sync Upstream.
 
 ## Package-release drift
 
+P8-07 modifies no official Salesforce runtime source, dependency or lockfile. It
+reuses typed SDK collection overloads and SFoA Provider/composition seams. The
+required CHANGELOG preface addition is the only upstream-owned change; omitting
+it would leave the phase record stale. Merge risk LOW, confined to that preface.
+
 The 2026-09-08 CREATE Master selection refinement adds one fix entry to the existing
 SFoA `CHANGELOG.md` preface. Runtime and guidance changes use SFoA-owned packages;
 no official Salesforce Tool, dependency or lockfile changes. Alternative: omit the

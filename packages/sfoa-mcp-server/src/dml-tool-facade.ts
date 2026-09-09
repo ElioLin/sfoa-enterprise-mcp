@@ -13,6 +13,10 @@ import {
   isSfoaDmlToolName,
   type DmlAllowlistPolicy,
   type DmlOperation,
+  batchFailureOutput,
+  batchToolResult,
+  createRecordsInputSchema,
+  updateRecordsInputSchema,
 } from '@sfoa/mcp-provider-sfoa-dml';
 import type {
   RequestContext,
@@ -74,6 +78,17 @@ export class DmlToolFacade {
   }
 
   public async execute(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
+    const result = await this.executeCore(input, extra);
+    if (!this.getName().endsWith('_records') || result.structuredContent?.status) return result;
+    const parsed = (this.operation === 'CREATE' ? createRecordsInputSchema : updateRecordsInputSchema).safeParse(input);
+    const code = resultErrorCode(result) ?? 'MCP_DML_INPUT_INVALID';
+    const output = batchFailureOutput(parsed.success ? parsed.data : { records: [], allOrNone: input.allOrNone === true },
+      { code, message: typeof result.structuredContent?.message === 'string'
+        ? result.structuredContent.message : 'Batch preparation failed.', salesforceErrors: [] });
+    return batchToolResult(output);
+  }
+
+  private async executeCore(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
     const started = performance.now();
     if (this.operation === 'CREATE') {
       try {
@@ -83,6 +98,21 @@ export class DmlToolFacade {
             uiContextResolutionId: id, contextLinkStatus: id ? 'CLIENT_PROVIDED_UNVERIFIED' : 'NOT_PROVIDED',
             objectApiName: input.objectApiName, recordTypeId: input.recordTypeId ?? null,
           } });
+        if (Array.isArray(input.records)) {
+          const links = input.records.slice(0, 200).map((item: unknown, index: number) => {
+            const row = isRecord(item) ? item : {};
+            const resolutionId = typeof row.uiContextResolutionId === 'string'
+              && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(row.uiContextResolutionId)
+              ? row.uiContextResolutionId : null;
+            return { index, uiContextResolutionId: resolutionId,
+              recordTypeId: typeof row.recordTypeId === 'string' ? row.recordTypeId.slice(0, 18) : null,
+              contextLinkStatus: resolutionId ? 'CLIENT_PROVIDED_UNVERIFIED' : 'NOT_PROVIDED' };
+          });
+          currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL', eventType: 'UI_CONTEXT_LINK',
+            eventName: 'Batch CREATE context provenance', status: 'SUCCESS', safeSummary: {
+              batch: true, totalCount: input.records.length, links, truncated: input.records.length > 200,
+            } });
+        }
       } catch { /* Audit fail-open; this ID never authorizes a mutation. */ }
     }
     if (this.options.route.connectionRole !== 'USER') {
@@ -117,6 +147,8 @@ export class DmlToolFacade {
     let appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]);
     let deadlineReachedBeforeDispatch = false;
     try {
+      if (this.getName() === 'create_records') input = createRecordsInputSchema.parse(input);
+      if (this.getName() === 'update_records') input = updateRecordsInputSchema.parse(input);
       if (typeof input.objectApiName === 'string') {
         this.options.dmlAllowlist?.assertAllowed(input.objectApiName, this.operation);
       }
@@ -217,6 +249,7 @@ export class DmlToolFacade {
     const outcomeUnknown = errorCode === 'MCP_DML_OUTCOME_UNKNOWN';
     const requestSummary = safeDmlRequestSummary(input, this.operation, appliedManagedFields);
     const responseRecordId = resultRecordId(response);
+    try {
     await Promise.resolve(this.options.logger.log({
       correlationId: this.options.context.correlationId,
       clientId: this.options.clientId,
@@ -241,6 +274,17 @@ export class DmlToolFacade {
       requestSummary,
       responseSummary: {
         success: result === 'PASS',
+        ...(Array.isArray(input.records) ? {
+          batch: true, totalCount: input.records.length, allOrNone: input.allOrNone === true,
+          status: response?.structuredContent?.status ?? (outcomeUnknown ? 'OUTCOME_UNKNOWN' : 'FAILED'),
+          partial: response?.structuredContent?.status === 'PARTIAL_SUCCESS',
+          succeededCount: response?.structuredContent?.succeeded ?? 0,
+          failedCount: response?.structuredContent?.failed ?? (outcomeUnknown ? 0 : input.records.length),
+          unknownCount: response?.structuredContent?.unknown ?? (outcomeUnknown ? input.records.length : 0),
+          salesforceApiType: 'COMPOSITE_API',
+          firstFailure: Array.isArray(response?.structuredContent?.results)
+            ? response.structuredContent.results.find((item: unknown) => isRecord(item) && item.success === false) : undefined,
+        } : {}),
         ...(responseRecordId ? { recordId: responseRecordId } : {}),
         ...(errorCode ? { errorCode } : {}),
       },
@@ -251,6 +295,7 @@ export class DmlToolFacade {
         terminalSource: terminationLayer === 'TRANSPORT' ? 'TRANSPORT' : 'TOOL',
       },
     })).catch(() => undefined);
+    } catch { /* Synchronous Audit failure cannot turn a proven mutation into UNKNOWN. */ }
   }
 }
 
@@ -271,6 +316,7 @@ function safeDmlRequestSummary(
   const fields = isRecord(input.fields) ? Object.keys(input.fields).sort() : [];
   return Object.freeze({
     operation,
+    ...(Array.isArray(input.records) ? { batch: true, totalCount: input.records.length, allOrNone: input.allOrNone === true } : {}),
     ...(typeof input.objectApiName === 'string' ? { objectApiName: input.objectApiName } : {}),
     ...(operation === 'UPDATE' && typeof input.recordId === 'string' ? { recordId: input.recordId } : {}),
     fieldNames: Object.freeze(fields),

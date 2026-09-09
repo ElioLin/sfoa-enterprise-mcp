@@ -32,7 +32,7 @@ const executor = new DmlExecutor(
 );
 
 test('P3 provider Tool surface is exactly CREATE and UPDATE with complete mutation annotations', () => {
-  assert.deepEqual(SFOA_DML_TOOL_NAMES, ['create_record', 'update_record']);
+  assert.deepEqual(SFOA_DML_TOOL_NAMES, ['create_record', 'update_record', 'create_records', 'update_records']);
   assert.equal(SFOA_DML_TOOL_NAMES.some((name) => /delete|upsert|rest|deploy|admin/iu.test(name)), false);
 
   for (const tool of [new CreateRecordMcpTool(executor), new UpdateRecordMcpTool(executor)]) {

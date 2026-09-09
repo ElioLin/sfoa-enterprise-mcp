@@ -1,4 +1,5 @@
 import type { VisibilityRule, VisibilityState, FormFactor } from './effective-ui-contracts.js';
+import type { InitialFact } from './create-initial-state.js';
 
 export type VisibilityFacts = Readonly<{
   draftFields: Readonly<Record<string, unknown>>;
@@ -6,9 +7,14 @@ export type VisibilityFacts = Readonly<{
   user: Readonly<Record<string, unknown>>;
   permissions?: Readonly<Record<string, boolean>>;
   formFactor: FormFactor;
+  initialFacts?: readonly InitialFact[];
 }>;
 export type VisibilityDecision = Readonly<{
   state: VisibilityState; dependsOn: string[]; kinds: string[];
+  scope?: 'FIELD' | 'CONTAINER';
+  dependencies?: readonly InitialFact[];
+  criteria?: readonly { path: string; operator: string; expected?: string | number | boolean | null;
+    state: VisibilityState; reasons: string[] }[];
 }>;
 
 export function combineVisibility(states: readonly VisibilityState[], operator: 'AND' | 'OR'): VisibilityState {
@@ -21,7 +27,7 @@ export function combineVisibility(states: readonly VisibilityState[], operator: 
 
 /** Four-state evaluation; no eval(), coercive truthiness, record queries or LLM. */
 export function evaluateVisibility(rule: VisibilityRule, facts: VisibilityFacts, scope: 'FIELD' | 'CONTAINER' = 'FIELD'): VisibilityDecision {
-  if (rule.unsupported || rule.criteria.length === 0) return { state: 'UNKNOWN', dependsOn: [], kinds: ['UNSUPPORTED'] };
+  if (rule.unsupported || rule.criteria.length === 0) return { state: 'UNKNOWN', scope, dependsOn: [], kinds: ['UNSUPPORTED'] };
   const decisions = rule.criteria.map((criterion): VisibilityDecision => {
     if (!['EQUAL', 'EQ', 'NE', 'NOT_EQUAL', 'GT', 'GE', 'LT', 'LE', 'CONTAINS', 'IS_NULL', 'IS_NOT_NULL', 'NOT_NULL'].includes(criterion.operator.toUpperCase())) {
       return { state: 'UNKNOWN', dependsOn: [], kinds: ['UNSUPPORTED_OPERATOR'] };
@@ -38,14 +44,19 @@ export function evaluateVisibility(rule: VisibilityRule, facts: VisibilityFacts,
       // Section/tab visibility is evaluated on page load, not on unsaved field edits.
       // Until a CREATE initial-container contract is proved, do not reuse field draft semantics.
       if (scope === 'CONTAINER') return { state: 'UNKNOWN', dependsOn: [field], kinds: ['CONTAINER_RECORD_UNSUPPORTED'] };
-      if (!Object.hasOwn(facts.draftFields, field)) return { state: 'PENDING', dependsOn: [field], kinds: [kind] };
+      if (!Object.hasOwn(facts.draftFields, field)) return {
+        state: facts.initialFacts?.some((fact) => fact.path === `Record.${field}`) ? 'UNKNOWN' : 'PENDING',
+        dependsOn: [field], kinds: [kind],
+      };
       value = facts.draftFields[field];
       type = facts.fieldTypes[field];
-    } else if (/^(?:\$?User)\.(?:Id|ProfileId|Profile\.Id|Profile\.Name|UserType|LanguageLocaleKey)$/u.test(path)) {
+    } else if (/^(?:\$?User)\.(?:[A-Za-z][A-Za-z0-9_]*|Profile\.Id|Profile\.Name)$/u.test(path)) {
       kind = 'USER';
       const key = path.replace(/^\$?User\./u, '');
-      if (!Object.hasOwn(facts.user, key)) return { state: 'UNKNOWN', dependsOn: [], kinds: [kind] };
+      if (!Object.hasOwn(facts.user, key)) return { state: 'UNKNOWN', dependsOn: [`$User.${key}`], kinds: ['USER_FACT_UNKNOWN'] };
       value = facts.user[key];
+      if (typeof value === 'boolean') type = 'Boolean';
+      if (typeof value === 'number') type = 'Double';
     } else if (/^(?:\$?Permission)\.[A-Za-z][A-Za-z0-9_]*$/u.test(path)) {
       kind = 'PERMISSION';
       const key = path.replace(/^\$?Permission\./u, '');
@@ -64,6 +75,16 @@ export function evaluateVisibility(rule: VisibilityRule, facts: VisibilityFacts,
   } catch { state = 'UNKNOWN'; }
   return {
     state,
+    scope,
+    criteria: rule.criteria.map((criterion, index) => ({ path: criterion.leftValue,
+      operator: criterion.operator, expected: criterion.rightValue, state: decisions[index]!.state,
+      reasons: decisions[index]!.state === 'UNKNOWN' ? decisions[index]!.kinds : [] })),
+    dependencies: rule.criteria.map((criterion) => {
+      const path = criterion.leftValue.replace(/^\{!|\}$/gu, '').replace(/^\$Record\./u, 'Record.').replace(/^User\./u, '$User.');
+      return facts.initialFacts?.find((fact) => fact.path === path)
+        ?? { path, source: 'UNRESOLVED' as const,
+          trustedForVisibility: false, resolutionStatus: 'UNKNOWN' as const, reason: 'DEPENDENCY_UNRESOLVED' };
+    }),
     dependsOn: [...new Set(decisions.flatMap((decision) => decision.dependsOn))],
     kinds: [...new Set(decisions.flatMap((decision) => decision.kinds))],
   };

@@ -9,6 +9,7 @@ import type { RecordActionContextInput, RecordActionContextOutput } from './sche
 import { boundDefaultValue, boundPicklist, MAX_OUTPUT_BYTES, type ResolvedActionFacts } from './record-action-executor.js';
 import { sameSalesforceId, type ObjectInfo } from './ui-api.js';
 import { ContextRuntimeError } from './errors.js';
+import { createInitialState, resolveUserFacts, userDependencies, boundedRead } from './create-initial-state.js';
 
 const appsSchema = z.object({ apps: z.array(z.object({ appId: z.string(), developerName: z.string() })).max(100) });
 export class EffectiveRecordUiContextResolver {
@@ -97,14 +98,33 @@ export class EffectiveRecordUiContextResolver {
         failureLayer = 'USER_INPUT_ERROR';
         const validatedDraft = validateDraft(input.draftFields ?? {}, objectInfo);
         failureLayer = 'VISIBILITY_EVALUATION_ERROR';
-        const draftFields = { ...Object.fromEntries(Object.entries(facts.defaults).filter(([_name, entry]) => entry.value !== undefined
-          && (entry.value === null || ['string', 'number', 'boolean'].includes(typeof entry.value))).map(([name, entry]) => [name, entry.value])),
-          ...validatedDraft };
+        const resolvedUser = await resolveUserFacts(connection, user.userId, userDependencies(page), {
+          Id: user.userId, ProfileId: user.profileId, 'Profile.Id': user.profileId,
+          'Profile.Name': snapshot.profiles.find((profile) => sameSalesforceId(profile.id, user.profileId))?.name,
+          UserType: user.userType, LanguageLocaleKey: user.userLanguage,
+        }, readDeadline);
+        evidence.additionalUserApiCallCount = Number(evidence.additionalUserApiCallCount) + resolvedUser.apiCalls;
+        evidence.currentUserFactResolution = { requested: userDependencies(page).length,
+          apiCalls: resolvedUser.apiCalls, reason: resolvedUser.reason ?? null };
+        const dependencies = [...new Set(page.fields.flatMap((field) => field.rules.flatMap(({ rule }) =>
+          rule.criteria.flatMap((criterion) => {
+            const match = /^\$?Record\.([A-Za-z][A-Za-z0-9_]*)$/u.exec(criterion.leftValue.replace(/^\{!|\}$/gu, ''));
+            return match?.[1] ? [match[1]] : [];
+          }))))];
+        const runtimeDefaults = this.options.resolveRuntimeDefaults && dependencies.length
+          ? await boundedRead(() => this.options.resolveRuntimeDefaults!(objectInfo.apiName, dependencies), readDeadline) : [];
+        const initial = createInitialState(facts.defaults, validatedDraft, resolvedUser.facts, runtimeDefaults);
+        // Audit dependency values, not unrelated user-entered business data.
+        const dependencyPaths = new Set(dependencies.map((name) => `Record.${name}`));
+        evidence.initialFacts = initial.facts.map((fact) => {
+          if (dependencyPaths.has(fact.path) || fact.path.startsWith('$User.')) return fact;
+          const { value: _value, ...provenance } = fact;
+          return provenance;
+        });
         const computed = effectiveFields(page, objectInfo, facts, {
-          draftFields, fieldTypes: Object.fromEntries(Object.values(objectInfo.fields).map((field) => [field.apiName, field.dataType])),
-          user: { Id: user.userId, ProfileId: user.profileId, 'Profile.Id': user.profileId,
-            'Profile.Name': snapshot.profiles.find((profile) => sameSalesforceId(profile.id, user.profileId))?.name,
-            UserType: user.userType, LanguageLocaleKey: user.userLanguage }, formFactor: ui.formFactor,
+          draftFields: initial.record, initialFacts: initial.facts,
+          fieldTypes: Object.fromEntries(Object.values(objectInfo.fields).map((field) => [field.apiName, field.dataType])),
+          user: initial.user, formFactor: ui.formFactor,
         }, this.options.managedFields ?? []);
         ui.coverage = computed.partial ? 'PARTIAL' : 'COMPLETE';
         Object.assign(evidence, computed.evidence);
@@ -139,17 +159,6 @@ export class EffectiveRecordUiContextResolver {
     audit();
     return result;
   }
-}
-
-async function boundedRead<T>(operation: () => PromiseLike<T>, deadline: number): Promise<T> {
-  const remainingMs = deadline - performance.now();
-  if (remainingMs <= 0) throw new Error('UI_CONTEXT_READ_TIMEOUT');
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([operation(), new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('UI_CONTEXT_READ_TIMEOUT')), remainingMs);
-    })]);
-  } finally { clearTimeout(timer); }
 }
 
 export function validateDraft(draft: Readonly<Record<string, unknown>>, objectInfo: ObjectInfo): Record<string, unknown> {
@@ -231,6 +240,7 @@ function effectiveFields(page: UiPage, info: ObjectInfo, facts: ResolvedActionFa
         apiName: entry.instance.apiName, instanceId: entry.instance.instanceId, ruleResult: entry.state,
         kinds: [...new Set(entry.decisions.flatMap((decision) => decision.kinds))],
         dependsOn: [...new Set(entry.decisions.flatMap((decision) => decision.dependsOn))],
+        evaluations: entry.decisions,
       })),
     },
   };

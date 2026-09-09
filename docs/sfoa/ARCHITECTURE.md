@@ -6,6 +6,12 @@ Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
 ## System boundary
 
+P8-07 adds plural DML execution at the existing Provider seam and USER-only
+presentation/relationship context. See [ADR-0021](adr/ADR-0021-runtime-batch-orchestration.md).
+Single and batch use identical CREATE/UPDATE authority; the host applies managed
+fields before one SDK collection request. P7 keeps one wire row and explicit item
+counts. Canonical Playbook owns cross-record phase planning and intent completion.
+
 SFoA Enterprise MCP selects the real Salesforce identity for an authenticated platform user and exposes deterministic Salesforce operations through MCP. Salesforce remains the authorization and business-rule authority. LLM clients perform analysis and summarization from Tool results.
 
 ```mermaid

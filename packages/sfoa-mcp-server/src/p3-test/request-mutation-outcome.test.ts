@@ -59,11 +59,13 @@ class DelayedMutationConnectionFactory implements SalesforceConnectionFactory {
       query: async () => ({ records: [], totalSize: 0, done: true }),
       tooling: { query: async () => ({ records: [], totalSize: 0, done: true }) },
       sobject: () => ({
-        create: async () => {
+        create: async (input: unknown) => {
           this.createInvocations += 1;
           await delay(this.mutationDelayMs);
           this.createCompletions += 1;
-          return { success: true, id: '00Q000000000001AAA', errors: [] };
+          return Array.isArray(input) ? input.map((_row, index) => ({ success: true,
+            id: `00Q${String(index).padStart(12, '0')}AAA`, errors: [] }))
+            : { success: true, id: '00Q000000000001AAA', errors: [] };
         },
         update: async (record: Readonly<Record<string, unknown>>) => {
           this.updateInvocations += 1;
@@ -143,6 +145,24 @@ test('CREATE outer request timeout after dispatch returns UNKNOWN and completes 
   } finally {
     await fixture.close();
   }
+});
+
+test('batch CREATE outer timeout retains total/unknown counts in HTTP error and terminal Audit', async () => {
+  const factory = new DelayedMutationConnectionFactory(800, 1100);
+  const fixture = await startFixture(factory, 1500, 1000);
+  try {
+    const response = await postTool(fixture.server, 'create_records', { objectApiName: 'Lead', allOrNone: true,
+      records: [0, 1].map((index) => ({ clientReferenceId: `row-${index}`, fields: { LastName: 'Late' } })) });
+    const body = await readJson(response); assertRequestOutcomeUnknown(response, body);
+    const summary = readErrorData(body)?.batch as Record<string, unknown>;
+    assert.equal(summary.status, 'OUTCOME_UNKNOWN'); assert.equal(summary.totalCount, 2);
+    assert.equal(summary.unknownCount, 2); assert.equal(summary.failedCount, 0); assert.equal(summary.allOrNone, true);
+    await waitFor(() => factory.createCompletions === 1, 1000);
+    assert.equal(factory.createInvocations, 1);
+    const terminal = fixture.logger.events.find((event) => event.terminationLayer === 'REQUEST');
+    assert.equal(terminal?.toolName, 'create_records');
+    assert.equal((terminal?.responseSummary as Record<string, unknown>).unknownCount, 2);
+  } finally { await fixture.close(); }
 });
 
 test('UPDATE outer request timeout after dispatch returns UNKNOWN and completes late exactly once', async () => {
@@ -276,7 +296,7 @@ async function startFixture(
   try {
     const server = await startRemoteMcpServer({
       config: createTestRemoteConfig({
-        enabledTools: Object.freeze(['create_record', 'update_record']),
+        enabledTools: Object.freeze(['create_record', 'update_record', 'create_records']),
         dmlAllowlist: LEAD_DML_POLICY,
         requestTimeoutMs,
         toolTimeoutMs,

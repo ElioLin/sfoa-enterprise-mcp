@@ -32,7 +32,7 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('P4 Provider exposes exactly four GA Tools with stable output schemas and complete read-only annotations', async () => {
+test('Context Provider exposes six GA Tools with stable output schemas and complete read-only annotations', async () => {
   const provider = new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
@@ -73,6 +73,8 @@ test('P4 Provider exposes exactly four GA Tools with stable output schemas and c
     run_diagnostic_tooling_query: 'DIAGNOSTIC',
     get_metadata_component_context: 'DIAGNOSTIC',
     get_record_display_context: 'USER',
+    resolve_field_display_values: 'USER',
+    get_record_relationship_context: 'USER',
   });
 });
 

@@ -19,6 +19,63 @@ import {
 
 installJsforceAuditAdapter();
 
+for (const mode of ['REJECTED', 'TRANSPORT', 'ROLLED_BACK'] as const) {
+  test(`batch ${mode} preserves one wire event and correct failed/unknown counts`, async (t) => {
+    let requests = 0;
+    const server = createServer(async (request, response) => {
+      requests++; for await (const _chunk of request) { /* Consume the request. */ }
+      if (mode === 'TRANSPORT') { request.socket.destroy(); return; }
+      response.writeHead(mode === 'REJECTED' ? 400 : 200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(mode === 'REJECTED'
+        ? [{ errorCode: 'INVALID_FIELD', message: 'Unknown field' }]
+        : [0, 1].map(() => ({ success: false, errors: [{ errorCode: 'ALL_OR_NONE_OPERATION_ROLLED_BACK', message: 'Rolled back' }] }))));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => closeServer(server));
+    const address = server.address(); assert.ok(address && typeof address === 'object');
+    const connection = new Connection({ instanceUrl: `http://127.0.0.1:${address.port}`, accessToken: 'test-only', version: '67.0', httpProxy: '' });
+    const controller = auditController('batch@example.invalid', 'create_records');
+    await runWithRequestAuditContext(controller, async () => {
+      const dispatch = connection.sobject('Root__c').create([{ Name: 'A' }, { Name: 'B' }], { allOrNone: true, allowRecursive: false });
+      if (mode === 'ROLLED_BACK') await dispatch;
+      else await assert.rejects(dispatch);
+    });
+    const snapshot = controller.finalizeAudit()!;
+    assert.equal(requests, 1); assert.equal(snapshot.salesforceApiCalls.length, 1);
+    const summary = snapshot.auditEvents.find((event) => event.eventType === 'BATCH_DML_OUTCOME')?.safeSummary as Record<string, unknown>;
+    assert.equal(summary.status, mode === 'TRANSPORT' ? 'OUTCOME_UNKNOWN' : 'FAILED');
+    assert.equal(summary.failedCount, mode === 'TRANSPORT' ? 0 : 2);
+    assert.equal(summary.unknownCount, mode === 'TRANSPORT' ? 2 : 0);
+  });
+}
+
+test('batch collection is one API call with indexed submitted fields, partial counts and bounded payload evidence', async (t) => {
+  const server = createServer(async (request, response) => {
+    for await (const _chunk of request) { /* Consume without additional instrumentation. */ }
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify([{ id: 'a00000000000001AAA', success: true, errors: [] },
+      { success: false, errors: [{ errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION', message: 'Row rejected' }] }]));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => closeServer(server));
+  const address = server.address(); assert.ok(address && typeof address === 'object');
+  const connection = new Connection({ instanceUrl: `http://127.0.0.1:${address.port}`, accessToken: 'test-only', version: '67.0', httpProxy: '' });
+  const controller = auditController('batch@example.invalid', 'create_records');
+  const records = [{ Name: 'First', Managed__c: true }, { Name: 'Second', Managed__c: true }];
+  await runWithRequestAuditContext(controller, () => runWithSalesforceDmlSemantic({ operation: 'CREATE',
+    objectApiName: 'Root__c', requestedFields: {}, managedFields: {} }, () => runWithSalesforceApiPurpose('DML_CREATE',
+    () => runWithSalesforceSubmittedDmlSemantic({ submittedRecords: records }, () => connection.sobject('Root__c').create(records, { allOrNone: false, allowRecursive: false })))));
+  const snapshot = controller.finalizeAudit()!;
+  assert.equal(snapshot.salesforceApiCalls.length, 1);
+  assert.equal(snapshot.salesforceApiCalls[0]?.apiCategory, 'COMPOSITE_API');
+  assert.equal(snapshot.salesforceApiCalls[0]?.submittedFields?.['records[1].Managed__c'], true);
+  const event = snapshot.auditEvents.find((entry) => entry.eventType === 'BATCH_DML_OUTCOME');
+  assert.ok(event);
+  const summary = event.safeSummary as Record<string, unknown>;
+  assert.equal(summary.status, 'PARTIAL_SUCCESS'); assert.equal(summary.succeededCount, 1); assert.equal(summary.failedCount, 1);
+  assert.equal(summary.totalCount, 2); assert.equal(summary.unknownCount, 0);
+});
+
 test('JSforce contract drift gate pins the single transport interception contract', () => {
   assert.equal(isJsforceAuditAdapterInstalled(), true);
   assert.equal(typeof Transport.prototype.httpRequest, 'function');

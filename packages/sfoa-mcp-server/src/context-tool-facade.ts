@@ -180,6 +180,8 @@ function contextPurpose(toolName: string): SalesforceApiPurpose {
     case 'run_diagnostic_tooling_query': return 'DIAGNOSTIC_TOOLING';
     case 'get_metadata_component_context': return 'METADATA_RETRIEVE';
     case 'get_record_display_context': return 'OBJECT_SCHEMA';
+    case 'resolve_field_display_values': return 'OBJECT_SCHEMA';
+    case 'get_record_relationship_context': return 'OBJECT_SCHEMA';
     default: return 'UNKNOWN';
   }
 }

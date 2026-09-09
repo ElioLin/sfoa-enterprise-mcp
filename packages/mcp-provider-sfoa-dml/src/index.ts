@@ -6,3 +6,4 @@ export * from './schemas.js';
 export * from './tool-results.js';
 export * from './tools/create-record.js';
 export * from './tools/update-record.js';
+export * from './tools/batch-records.js';

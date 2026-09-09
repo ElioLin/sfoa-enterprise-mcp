@@ -112,6 +112,48 @@ export type UpdateRecordInput = z.infer<typeof updateRecordInputSchema>;
 export type DmlOutput = z.infer<typeof dmlOutputSchema>;
 export type SafeSalesforceError = z.infer<typeof safeSalesforceErrorSchema>;
 
+const clientReferenceIdSchema = z.string().trim().min(1).max(128).optional()
+  .describe('Optional unique correlation key within this batch; never sent to a Salesforce field.');
+const createItemSchema = createRecordInputSchema.innerType().omit({ objectApiName: true })
+  .extend({ clientReferenceId: clientReferenceIdSchema }).superRefine((item, context) => {
+    // Reuse the single-record Record Type check without passing the correlation key.
+    const { clientReferenceId: _reference, ...single } = item;
+    const result = createRecordInputSchema.safeParse({ objectApiName: 'Object__c', ...single });
+    if (!result.success) for (const issue of result.error.issues) context.addIssue(issue);
+  });
+const updateItemSchema = updateRecordInputSchema.omit({ objectApiName: true })
+  .extend({ clientReferenceId: clientReferenceIdSchema });
+function uniqueReferences(items: readonly { clientReferenceId?: string }[], context: z.RefinementCtx): void {
+  const seen = new Set<string>();
+  items.forEach((item, index) => {
+    if (!item.clientReferenceId) return;
+    if (seen.has(item.clientReferenceId)) context.addIssue({ code: z.ZodIssueCode.custom,
+      path: [index, 'clientReferenceId'], message: 'clientReferenceId must be unique within the batch' });
+    seen.add(item.clientReferenceId);
+  });
+}
+const batchBase = { objectApiName: objectApiNameSchema,
+  allOrNone: z.boolean().default(false).describe('Atomicity applies only to this Salesforce request, never across Tool calls.') };
+export const createRecordsInputSchema = z.object({ ...batchBase,
+  records: z.array(createItemSchema).min(1).max(200).superRefine(uniqueReferences) }).strict();
+export const updateRecordsInputSchema = z.object({ ...batchBase,
+  records: z.array(updateItemSchema).min(1).max(200).superRefine(uniqueReferences) }).strict();
+export const batchDmlOutputSchema = z.object({
+  success: z.boolean(), status: z.enum(['SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'OUTCOME_UNKNOWN']),
+  total: z.number().int().min(0).max(200), succeeded: z.number().int().min(0).max(200),
+  failed: z.number().int().min(0).max(200), unknown: z.number().int().min(0).max(200),
+  allOrNone: z.boolean(), errorCode: z.string().max(128).optional(), message: z.string().max(2000).optional(),
+  results: z.array(z.object({ index: z.number().int().min(0).max(199),
+    clientReferenceId: clientReferenceIdSchema, success: z.boolean(),
+    status: z.enum(['SUCCESS', 'FAILED', 'OUTCOME_UNKNOWN']), recordId: recordIdSchema.optional(),
+    errorCode: z.string().max(128).optional(), message: z.string().max(2000).optional(),
+    salesforceErrors: z.array(safeSalesforceErrorSchema).max(25).optional(),
+  }).strict()).max(200),
+}).strict();
+export type CreateRecordsInput = z.infer<typeof createRecordsInputSchema>;
+export type UpdateRecordsInput = z.infer<typeof updateRecordsInputSchema>;
+export type BatchDmlOutput = z.infer<typeof batchDmlOutputSchema>;
+
 function sameSalesforceIdPrefix(left: string, right: string): boolean {
   // 18-char IDs differ only in the trailing 3-char checksum; the 15-char prefix is the authority.
   return salesforceIdPattern.test(left) && salesforceIdPattern.test(right)

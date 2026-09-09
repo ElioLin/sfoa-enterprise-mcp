@@ -87,7 +87,8 @@ test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execu
     assert.deepEqual(discovered.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), executionList.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), 'SDK schemas match execution');
     const defaultGlobal = global;
     global = { ...global, enabledTools: ['get_username', 'run_soql_query', 'retrieve_metadata', 'get_agent_playbook', 'get_record_links',
-      'get_record_action_context', 'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'create_record', 'update_record'],
+      'get_record_action_context', 'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'create_record', 'update_record',
+      'create_records', 'update_records', 'resolve_field_display_values', 'get_record_relationship_context'],
       dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: true, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt }],
       diagnostic: { id: '1', salesforceUsername: 'diagnostic@example.test', enabled: true, verificationStatus: 'PASS', lastVerifiedAt: global.loadedAt,
         lastErrorCode: null, lastErrorMessageSafe: null, testMetadataType: null, testMetadataFullName: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt } };

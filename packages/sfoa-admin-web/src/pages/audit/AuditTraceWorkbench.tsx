@@ -35,6 +35,7 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
   const dmlCalls = trace.salesforceApiCalls.filter((api) => Boolean(api.dmlOperation));
   const maxDuration = Math.max(1, ...trace.salesforceApiCalls.map((api) => api.durationMs ?? 0));
   const outcomeUnknown = audit.outcome === 'UNKNOWN';
+  const batch = isRecord(audit.responseSummary) && audit.responseSummary.batch === true ? audit.responseSummary : null;
   const jumpToFailure = (): void => {
     const sequence = trace.firstFailure?.sequence;
     if (sequence === null || sequence === undefined) return;
@@ -69,6 +70,9 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
             description="无法确认 Salesforce 最终提交状态；这不代表 Salesforce 操作失败。请先通过独立读取核实，避免直接重试。"
           />
         ) : null}
+        {batch ? <Alert type={batch.partial === true || Number(batch.unknownCount) > 0 ? 'warning' : Number(batch.failedCount) > 0 ? 'error' : 'success'}
+          showIcon title={batch.partial === true ? '批量操作：部分成功（PARTIAL_SUCCESS）' : `批量操作：${String(batch.status)}`}
+          description={`总数 ${String(batch.totalCount)} · 成功 ${String(batch.succeededCount)} · 失败 ${String(batch.failedCount)} · 未知 ${String(batch.unknownCount)}。allOrNone 仅覆盖本次 Salesforce 请求。`} /> : null}
         {audit.auditIntegrityStatus !== 'COMPLETE' || trace.summary.detailsTruncated ? (
           <Alert
             type="warning"

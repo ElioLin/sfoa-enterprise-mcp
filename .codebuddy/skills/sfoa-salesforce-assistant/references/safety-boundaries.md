@@ -1,13 +1,13 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.6.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.7.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Safety Boundaries
 
-Playbook-Version: 1.6.1
+Playbook-Version: 1.7.0
 
 ## ERROR_HANDLING — Handle Salesforce and uncertain outcomes
 
 - Explain safe Salesforce rejection details from CRUD, FLS, sharing, Validation Rule, Trigger, Flow, required-field, Lookup filter, Picklist, or Record Type enforcement. Never change identity or bypass a rule.
-- For `MCP_DML_OUTCOME_UNKNOWN`, stop and do not automatically retry `create_record` or `update_record`.
+- For `MCP_DML_OUTCOME_UNKNOWN` or batch OUTCOME_UNKNOWN, stop and do not automatically retry create_record, update_record, create_records or update_records. UPDATE can use bounded reads of known IDs; CREATE requires a user-provided uniquely queryable business key. Without unique proof, state that some or all records may have been created and do not duplicate CREATE.
 - Use an independent USER read to verify commit state when reliable evidence is possible. Do not mutate again if commit is proven; retry only if non-commit is proven and the original intent remains valid.
 - If commit state cannot be proven, tell the user the outcome is unknown and make no further mutation. A Correlation ID is not an idempotency key.
 

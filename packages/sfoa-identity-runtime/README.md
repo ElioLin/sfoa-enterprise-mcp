@@ -1,5 +1,10 @@
 # SFoA Request-Scoped Identity Runtime
 
+P8-07 observes SDK collection mutations as one wire API row. Indexed batch
+submitted fields retain the existing scalar evidence contract; bounded original
+payloads and BATCH_DML_OUTCOME counts distinguish partial and unknown outcomes.
+No connection/authentication behavior or Audit persistence authority changes.
+
 This private SFoA-owned workspace preserves P1 USER routing and adds the P4 server-owned DIAGNOSTIC route over the public Salesforce Provider API:
 
 ```text

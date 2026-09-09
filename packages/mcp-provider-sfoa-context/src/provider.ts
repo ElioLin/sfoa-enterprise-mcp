@@ -8,12 +8,16 @@ import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
 import { RecordActionContextMcpTool } from './tools/record-action-context.js';
 import { RecordDisplayContextMcpTool } from './tools/record-display-context.js';
+import { PresentationRelationshipExecutor } from './presentation-relationship.js';
+import { PresentationRelationshipMcpTool } from './tools/presentation-relationship.js';
 
 export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   get_record_action_context: 'USER',
   run_diagnostic_tooling_query: 'DIAGNOSTIC',
   get_metadata_component_context: 'DIAGNOSTIC',
   get_record_display_context: 'USER',
+  resolve_field_display_values: 'USER',
+  get_record_relationship_context: 'USER',
 } as const);
 
 export type SfoaContextToolName = keyof typeof SFOA_CONTEXT_TOOL_ROLES;
@@ -27,6 +31,7 @@ export function isSfoaContextToolName(value: string): value is SfoaContextToolNa
 }
 
 export type SfoaContextProviderOptions = Readonly<{
+  createAllowedObjects?: readonly string[];
   effectiveUi?: EffectiveUiOptions;
   toolNames?: readonly SfoaContextToolName[];
   diagnosticQueryExecutor?: DiagnosticToolingQueryExecutor;
@@ -45,6 +50,7 @@ export class SfoaContextMcpProvider extends McpProvider {
   public provideTools(services: Services): Promise<McpTool[]> {
     const requested = this.options.toolNames ?? SFOA_CONTEXT_TOOL_NAMES;
     const tools: McpTool[] = [];
+    const presentation = new PresentationRelationshipExecutor(services.getOrgService(), this.options.createAllowedObjects);
     if (requested.includes('get_record_action_context')) {
       tools.push(new RecordActionContextMcpTool(new RecordActionContextExecutor(services.getOrgService(),
         this.options.effectiveUi ? new EffectiveRecordUiContextResolver(this.options.effectiveUi) : undefined)));
@@ -64,6 +70,8 @@ export class SfoaContextMcpProvider extends McpProvider {
     if (requested.includes('get_record_display_context')) {
       tools.push(new RecordDisplayContextMcpTool(new RecordDisplayContextExecutor(services.getOrgService())));
     }
+    if (requested.includes('resolve_field_display_values')) tools.push(new PresentationRelationshipMcpTool(presentation, 'DISPLAY'));
+    if (requested.includes('get_record_relationship_context')) tools.push(new PresentationRelationshipMcpTool(presentation, 'RELATIONSHIP'));
     return Promise.resolve(tools);
   }
 }
