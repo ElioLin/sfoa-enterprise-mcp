@@ -11,9 +11,12 @@ Fetched GitHub origin/main on 2026-09-09 and created
 `5c623ef13a88f9e20e2cf897f56b213ebcb2994e`.
 The pre-existing untracked OpenClaw deployment guide is excluded from this work.
 
-Git branch: `feature/p8-07-runtime-batch-orchestration`. The implementation commit
-and committed-HEAD smoke evidence are recorded in `P8-07-VERIFICATION.json` after
-commit. The complete [changed-file manifest](P8-07-CHANGED-FILES.txt) includes code,
+Git branch: `feature/p8-07-runtime-batch-orchestration`. Implementation commit:
+`8a27b3bb020fd63c11ca39a2006e05d7ff63e435`. Doctor delivery fix and successful
+committed-HEAD smoke: `f3173af3bfbda33e99a810a00e794b2aae7445f2`.
+The final evidence-only commit changes this report/verification record; runtime,
+Skill source and generated artifact bytes are those verified above.
+The complete [81-file manifest](P8-07-CHANGED-FILES.txt) includes code,
 tests, canonical documentation and generated artifacts; no environment file,
 credential, dependency or lockfile is part of this change.
 
@@ -179,7 +182,7 @@ separate `typecheck` script. Builds and lint both enforce their strict tsconfig.
 | `yarn workspace @sfoa/mcp-provider-sfoa-dml build` | PASS |
 | `yarn agent:sync` / `yarn agent:check` | PASS, five generated Agent files |
 | `yarn skill:sync` / `yarn skill:check` / `yarn skill:delivery` / `yarn skill:test` | PASS; 12 tests |
-| `yarn skill:smoke` | Pending committed-HEAD execution below |
+| `yarn skill:smoke` | PASS on `f3173af3bfbda33e99a810a00e794b2aae7445f2`; five required gates and expected missing-env Doctor behavior verified from 1,012 committed files |
 | `yarn validate:p5` | PASS, including MySQL, three mocked browser E2E tests and one real fullstack browser test |
 | `node dist/validation/upstream-compatibility.js` (server workspace) | PASS, no upstream Tool drift |
 | `node dist/validation/p4-main.js` (server workspace) | PASS, live Salesforce |
@@ -224,6 +227,8 @@ Live evidence currently distinguishes:
 
 - P4 USER A/B action context and isolation, independent Diagnostic tooling and
   Metadata, and workspace cleanup: PASS.
+- Additional live USER fact probe: `$User.Department` resolves through one bounded
+  current USER UI API call; only resolution metadata, not its value, is published.
 - P3 live mutation: Salesforce FIELD_CUSTOM_VALIDATION_EXCEPTION rejects the
   existing CREATE fixture, so successful UPDATE/forged-ID mutation gates cannot
   complete. Native authz-denial fixture is unavailable. No records were created.
