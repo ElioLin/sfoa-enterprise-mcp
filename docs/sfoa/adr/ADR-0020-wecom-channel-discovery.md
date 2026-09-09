@@ -25,10 +25,25 @@ acceptance. No credential falls through after its selected provider rejects it.
 
 Only the authenticated enabled WeCom channel receives the discovery exception.
 The parsed bounded JSON-RPC body must contain exclusively initialize,
-notifications/initialized, tools/list or ping. Empty/malformed/unknown/mixed
-batches require identity. The pinned SDK accepts ordinary batches; initialize
-batch restrictions remain SDK-owned. Client headers cannot select discovery.
-Resources and Prompts remain identity-required at the HTTP boundary.
+notifications/initialized, tools/list, resources/list, resources/templates/list,
+resources/read, prompts/list, prompts/get or ping — the exact closure of what the
+Discovery server advertises (Policy A). Empty/malformed/unknown/mixed batches
+require identity. `resources/read` serves only the two registered static
+`sfoa://agent-*` URIs and `prompts/get` only `sfoa_salesforce_assistant`; any other
+URI/Prompt returns JSON-RPC -32602. completions/logging/roots/resources-subscribe
+and tools/call are never allowlisted. Resources/Prompts are registered on the
+low-level protocol server so initialize advertises exactly `{tools, resources,
+prompts}` with no auto-wired `completions`. Rendering is a pure function of the
+global AgentCapabilities snapshot with no user/route/scope/Salesforce data. The
+pinned SDK accepts ordinary batches; initialize batch restrictions remain SDK-owned.
+Client headers cannot select discovery. Identity-less discovery is exclusive to the
+WeCom Channel credential — MCP_CLIENT_TOKEN still requires identity.
+
+HOTFIX01 amends the earlier line "Resources and Prompts remain identity-required at
+the HTTP boundary": with the Channel credential they are served identity-less because
+they are a global static governance surface (Policy A), while tool execution stays
+identity/route governed. Enabling the channel fail-fasts at startup unless
+MCP_PLATFORM_USER_HEADER_ALIASES case-insensitively contains X-WeCom-User-Id.
 
 Execution with WeCom requires X-WeCom-User-Id. With WeCom enabled, Internal accepts
 only X-Platform-User-Id, even if an old deployment configured WeCom as its primary Header.
@@ -55,7 +70,11 @@ all Tool calls as a second defense. Official Salesforce implementations are unch
 Invalid global governance fails closed, including an enabled DML Tool with no policy.
 
 Discovery emits a fail-open MCP runtime audit with real clientId, absent user/source
-and Salesforce username. Existing legacy audit DTOs preserve eventCategory=MCP and
+and Salesforce username. The verdict is derived from the actual JSON-RPC response via
+a bounded observer: HTTP 200 with a JSON-RPC error is recorded ERROR/FAILED with a
+stable errorCode category (e.g. JSON_RPC_INVALID_PARAMS), never PASS; notification-only
+POSTs (no response body) count as PASS per SDK semantics. The body is never logged.
+Existing legacy audit DTOs preserve eventCategory=MCP and
 eventType=MCP_DISCOVERY in requestSummary; operation records the protocol method.
 Tool calls retain full P7 identity/route/event evidence. A channel-only audit-context
 enrichment allows failed Tool requests to retain clientId without inventing a user.

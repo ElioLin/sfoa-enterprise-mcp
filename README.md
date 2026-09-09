@@ -1,9 +1,10 @@
 # SFoA Enterprise MCP
 
 P8-06 adds independent `MCP_WECOM_CLIENT_TOKEN` channel authentication. WeCom
-`initialize` / `tools/list` need no user Header and never access Salesforce;
-`tools/call` requires WeCom-injected `X-WeCom-User-Id` and the current user route.
-See [WeCom setup](docs/sfoa/P8_06_WECOM_CHANNEL_DISCOVERY.md).
+Discovery (`initialize`, `tools/list`, the global Agent playbook/capability
+`resources/list|read`, `prompts/list|get`, `ping`) needs no user Header and never
+accesses Salesforce; `tools/call` requires WeCom-injected `X-WeCom-User-Id` and the
+current user route. See [WeCom setup](docs/sfoa/P8_06_WECOM_CHANNEL_DISCOVERY.md).
 
 This repository extends the official Salesforce DX MCP codebase with an SFoA-owned enterprise runtime. P5 adds a MySQL Control Plane, authenticated Admin API, React Admin Console, dynamic Tool/DML governance, request-scoped Salesforce identity routing, and durable audit. P6 adds unified Buntu/USER_BOUND/Internal identity, the Salesforce Agent Playbook, trusted managed fields, and explicit record links. P7 records ordered MCP/Salesforce evidence and provides the Admin Audit Workbench. P7-08 adds an advisory, cross-agent Maintainer Skill plus local secret-safe diagnostics. P7-09 makes Salesforce Connection acquisition lazy, request-scoped, and Promise-memoized so local/route-only MCP operations create no Salesforce Connection while Salesforce-dependent requests still receive one fresh isolated Connection. P8-05 adds a fourth WeCom enterprise MCP identity channel (`WECOM_HEADER`) that accepts an `X-WeCom-User-Id` alias Header (`MCP_PLATFORM_USER_HEADER_ALIASES`) as identity context after Bearer authentication and reuses the same identity-route resolution.
 

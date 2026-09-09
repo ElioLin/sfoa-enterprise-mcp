@@ -251,6 +251,17 @@ export async function loadRemoteRuntimeConfig(
     parsed.data.MCP_PLATFORM_USER_HEADER_ALIASES,
     platformUserHeader,
   );
+  if (parsed.data.MCP_WECOM_CHANNEL_ENABLED && !platformUserHeaderAliases.some(
+    (alias) => alias.toLocaleLowerCase('en-US') === WECOM_USER_ID_HEADER_NAME,
+  )) {
+    // P8-06 HOTFIX01: the WeCom Channel credential executes against the
+    // X-WeCom-User-Id platform identity header. Enabling the channel without
+    // binding that alias would silently leave execution identity unmatchable,
+    // so fail fast at configuration time.
+    throw configurationError(
+      'MCP_WECOM_CHANNEL_ENABLED=true requires MCP_PLATFORM_USER_HEADER_ALIASES to include X-WeCom-User-Id.',
+    );
+  }
   const publicUrl = parsed.data.MCP_PUBLIC_URL
     ? normalizePublicUrl(parsed.data.MCP_PUBLIC_URL)
     : undefined;
@@ -477,8 +488,11 @@ function parseOrigins(value: string | undefined): readonly string[] {
  * aliases. Keep in sync with `PLATFORM_IDENTITY_HEADER_SOURCE_BY_LOWER_NAME` in
  * authenticator.ts.
  */
+// Always lower-case: HTTP header names are case-insensitive.
+export const WECOM_USER_ID_HEADER_NAME = 'x-wecom-user-id';
+
 const RESERVED_PARTNER_IDENTITY_HEADER_NAMES: ReadonlySet<string> = new Set([
-  'x-wecom-user-id',
+  WECOM_USER_ID_HEADER_NAME,
 ]);
 
 /**

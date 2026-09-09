@@ -72,6 +72,8 @@ import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
 import {
   observeBoundedMcpResponse,
+  observeBoundedMcpResponseBody,
+  summarizeDiscoveryResponse,
   type BoundedMcpResponseRecorder,
 } from './mcp-response-recorder.js';
 
@@ -554,13 +556,26 @@ async function executeMcpPost(
       managedDmlFieldRules: snapshot ? snapshotManagedDmlFieldRules(snapshot) : [],
       dynamicFormsConfigured: parsedUi.success && parsedUi.data.some((policy) => policy.mode === 'ENFORCE'),
     });
+    // Observe the actual JSON-RPC response body so an HTTP 200 JSON-RPC error is
+    // never recorded as a discovery PASS/SUCCESS (the Advertise-but-Deny false
+    // success). Only a coarse verdict is logged — never the body — and no
+    // platform user is fabricated for the identity-less Channel credential.
+    const discoveryResponse = observeBoundedMcpResponseBody(options.response);
     await serveMcpBody(options, resources, signal, server, parsedBody);
+    const discoveryVerdict = summarizeDiscoveryResponse(discoveryResponse.snapshot());
     await Promise.resolve().then(() => options.logger.log({
       correlationId: observation.correlationId, clientId: credential.clientId,
       operation: isRecord(parsedBody) && typeof parsedBody.method === 'string' ? parsedBody.method : 'BATCH',
-      result: options.response.statusCode < 400 ? 'PASS' : 'ERROR',
-      outcome: options.response.statusCode < 400 ? 'SUCCESS' : 'FAILED',
+      result: discoveryVerdict.result,
+      outcome: discoveryVerdict.outcome,
+      ...(discoveryVerdict.errorCode ? { errorCode: discoveryVerdict.errorCode } : {}),
       requestSummary: { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY' },
+      responseSummary: {
+        eventCategory: 'MCP',
+        eventType: 'MCP_DISCOVERY',
+        jsonRpcMessages: discoveryVerdict.messageCount,
+        jsonRpcErrors: discoveryVerdict.errorCount,
+      },
       auditEvent: { eventCategory: 'MCP', eventType: 'MCP_DISCOVERY', eventName: 'Channel authenticated MCP discovery' },
     })).catch(() => undefined);
     return;

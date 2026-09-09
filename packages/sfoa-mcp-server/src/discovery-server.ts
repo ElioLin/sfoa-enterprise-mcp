@@ -1,12 +1,32 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { CallToolRequestSchema, ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
-import { isAgentInfrastructureToolName } from '@sfoa/agent-playbook';
+import {
+  CallToolRequestSchema,
+  ErrorCode,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ListResourcesRequestSchema,
+  McpError,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+  AGENT_PLAYBOOK_VERSION,
+  isAgentInfrastructureToolName,
+  isAgentWorkflow,
+  renderWorkflow,
+  type AgentCapabilities,
+  type AgentWorkflow,
+} from '@sfoa/agent-playbook';
 import { ReleaseState } from '@salesforce/mcp-provider-api';
 import { SfoaDmlMcpProvider, isSfoaDmlToolName } from '@sfoa/mcp-provider-sfoa-dml';
 import { SfoaContextMcpProvider, isSfoaContextToolName } from '@sfoa/mcp-provider-sfoa-context';
 import {
-  createRuntimeAgentCapabilities, serverInstructions, registerResources, registerPrompt,
-  playbookToolConfig, recordLinksToolConfig,
+  createRuntimeAgentCapabilities,
+  serverInstructions,
+  AGENT_GUIDANCE_PROMPT,
+  AGENT_GUIDANCE_RESOURCES,
+  playbookToolConfig,
+  recordLinksToolConfig,
 } from './agent-guidance.js';
 import { contextToolConfig } from './context-tool-facade.js';
 import { remoteToolConfig } from './remote-tool-facade.js';
@@ -15,8 +35,26 @@ import { RemoteRuntimeError } from './errors.js';
 import type { InitializedProviderRuntime } from './provider-runtime.js';
 import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 
+/**
+ * Identity-less WeCom Discovery RPC allowlist. Every method here is served by a
+ * channel-authenticated Discovery server whose Resources/Prompts are global
+ * governance surfaces with no per-user identity, route, RequestScope, or
+ * Salesforce access. This set is the exact closure of the capabilities the
+ * Discovery server advertises: it MUST stay in lock-step with
+ * `createDiscoveryMcpServer` (see the Advertise-but-Deny rule) and MUST NOT be
+ * broadened with execution methods (`tools/call`), parameter completion, or
+ * unknown protocol methods.
+ */
 const DISCOVERY_METHODS: ReadonlySet<string> = new Set([
-  'initialize', 'notifications/initialized', 'tools/list', 'ping',
+  'initialize',
+  'notifications/initialized',
+  'tools/list',
+  'resources/list',
+  'resources/templates/list',
+  'resources/read',
+  'prompts/list',
+  'prompts/get',
+  'ping',
 ]);
 
 export function classifyMcpRequest(body: unknown): 'DISCOVERY' | 'IDENTITY_REQUIRED' {
@@ -34,6 +72,60 @@ export type DiscoveryServerOptions = Readonly<{
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
   dynamicFormsConfigured?: boolean;
 }>;
+
+/**
+ * Registers the identity-less Resources/Prompts directly on the low-level
+ * protocol server so that no SDK `completions` handler/capability is introduced.
+ * The served surface mirrors `AGENT_GUIDANCE_RESOURCES` / `AGENT_GUIDANCE_PROMPT`
+ * and stays a pure render of the global `AgentCapabilities` snapshot. URIs and
+ * prompt names outside the registered set fail closed with InvalidParams.
+ */
+function registerDiscoveryGuidance(server: McpServer, capabilities: AgentCapabilities): void {
+  const protocol = server.server;
+  protocol.registerCapabilities({
+    resources: { listChanged: false },
+    prompts: { listChanged: false },
+  });
+  protocol.setRequestHandler(ListResourcesRequestSchema, () => ({
+    resources: AGENT_GUIDANCE_RESOURCES.map((definition) => ({
+      uri: definition.uri,
+      name: definition.name,
+      ...definition.metadata,
+    })),
+  }));
+  protocol.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({ resourceTemplates: [] }));
+  protocol.setRequestHandler(ReadResourceRequestSchema, (request) => {
+    const definition = AGENT_GUIDANCE_RESOURCES.find((entry) => entry.uri === request.params.uri);
+    if (!definition) {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown Resource URI: ${request.params.uri}`);
+    }
+    return { contents: [{ uri: definition.uri, mimeType: definition.metadata.mimeType, text: definition.render(capabilities) }] };
+  });
+  protocol.setRequestHandler(ListPromptsRequestSchema, () => ({
+    prompts: [{
+      name: AGENT_GUIDANCE_PROMPT.name,
+      title: AGENT_GUIDANCE_PROMPT.title,
+      description: AGENT_GUIDANCE_PROMPT.description,
+      arguments: [{ name: 'workflow', description: 'Defaults to ALL.', required: false }],
+    }],
+  }));
+  protocol.setRequestHandler(GetPromptRequestSchema, (request) => {
+    if (request.params.name !== AGENT_GUIDANCE_PROMPT.name) {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown Prompt: ${request.params.name}`);
+    }
+    const workflow = resolveDiscoveryWorkflow(request.params.arguments?.workflow);
+    return {
+      description: `SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION} — ${workflow}`,
+      messages: [{ role: 'user', content: { type: 'text', text: renderWorkflow(workflow, capabilities) } }],
+    };
+  });
+}
+
+function resolveDiscoveryWorkflow(raw: unknown): AgentWorkflow {
+  if (raw === undefined || raw === null || raw === '') return 'ALL';
+  if (typeof raw === 'string' && isAgentWorkflow(raw)) return raw;
+  throw new McpError(ErrorCode.InvalidParams, 'workflow must be one of the canonical SFoA Agent workflows.');
+}
 
 /** Only schema construction services: no principal, route, workspace or Connection provider. */
 export async function createDiscoveryMcpServer(options: DiscoveryServerOptions): Promise<McpServer> {
@@ -59,9 +151,12 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
     ].filter((tool) => tool.getReleaseState() === ReleaseState.GA);
     const byName = new Map(tools.map((tool) => [tool.getName(), tool]));
     if (byName.size !== tools.length) throw new RemoteRuntimeError('MCP_PROVIDER_INITIALIZATION_FAILED', 'Duplicate discovery Tool.');
-    // Keep initialize capabilities aligned; the HTTP allowlist still requires identity for Resource/Prompt requests.
-    registerResources(server, capabilities);
-    registerPrompt(server, capabilities);
+    // Register the Resources/Prompts at the low level so initialize advertises
+    // exactly `tools` + `resources` + `prompts` — in lock-step with the
+    // DISCOVERY_METHODS allowlist — and NOT the `completions` capability the SDK
+    // would auto-wire if a Resource or Prompt were registered via the high-level
+    // McpServer helpers.
+    registerDiscoveryGuidance(server, capabilities);
     for (const name of runtime.enabledTools) {
       if (isAgentInfrastructureToolName(name)) {
         if (name === 'get_agent_playbook') server.registerTool(name, playbookToolConfig(), forbidden);

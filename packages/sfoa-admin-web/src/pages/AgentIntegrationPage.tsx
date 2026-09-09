@@ -494,8 +494,8 @@ function WeComTab({
       />
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}><Card title="工具发现阶段" className="surface-card">
-          <Typography.Paragraph>保存插件时，只验证企业微信 Channel Credential，返回管理员当前启用的工具。</Typography.Paragraph>
-          <Typography.Text type="secondary">initialize / tools/list · 不需要当前用户 · 不访问 Salesforce</Typography.Text>
+          <Typography.Paragraph>保存插件时，只验证企业微信 Channel Credential，返回管理员当前启用的工具，以及全局 Playbook/能力 Resources 与 sfoa_salesforce_assistant Prompt（能力发现，无需用户身份）。</Typography.Paragraph>
+          <Typography.Text type="secondary">initialize / tools/list / resources / prompts · 不需要当前用户 · 不访问 Salesforce</Typography.Text>
         </Card></Col>
         <Col xs={24} lg={12}><Card title="工具执行阶段" className="surface-card">
           <Typography.Paragraph>用户提问时，验证 Channel Credential 与企业微信自动注入的用户身份，再按身份路由访问 Salesforce。</Typography.Paragraph>

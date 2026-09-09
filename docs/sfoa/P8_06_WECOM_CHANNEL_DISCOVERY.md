@@ -3,12 +3,44 @@
 实施日期：2026-09-08 至 2026-09-09。设计决策见 [ADR-0020](adr/ADR-0020-wecom-channel-discovery.md)。
 
 **P8-06 COMPLETE — 代码及所需自动化分项验收完成。实际企业微信 A/B UAT 待执行。**
+**P8-06 HOTFIX01 (MCP Discovery Capability Contract Closure) — 代码与自动化验收完成。**
+
+## P8-06 HOTFIX01 收口摘要
+
+HOTFIX01 关闭 Advertise-but-Deny：Discovery 认证仅依赖 `authenticateCredential()` +
+`MCP_WECOM_CLIENT_TOKEN`（无最终用户身份），但 discovery server 通过高层的
+`registerResources` / `registerPrompt` 通告了 Resources/Prompts，而 HTTP allowlist 只放行
+`initialize, notifications/initialized, tools/list, ping`。identity-less 客户端发
+`resources/list / resources/read / prompts/list / prompts/get` 会被判 `MCP_PLATFORM_USER_REQUIRED`。
+修复（Policy A）：
+
+1. **Capability Contract 对齐**：`createDiscoveryMcpServer` 现在以低层
+   `server.server` 注册 Resources/Prompts（`listChanged:false`），initialize 通告的能力与
+   HTTP 允许的 Discovery RPC **完全一致**：`tools` + `resources` + `prompts`，且不会像高层注册
+   那样自动带出 `completions`。allowlist 扩展为 `initialize, notifications/initialized,
+   tools/list, resources/list, resources/templates/list, resources/read, prompts/list,
+   prompts/get, ping`。`resources/read` 只服务两个已注册静态 URI，`prompts/get` 只服务
+   `sfoa_salesforce_assistant`（workflow 限定为规范集合）；其它 URI/Prompt 返回 JSON-RPC
+   `-32602`，没有任意文件/URL/Salesforce 读取面。Resource/Prompt 渲染是 `AgentCapabilities`
+   快照的纯函数（无 platformUserId / Route / RequestScope / Salesforce / per-user / secret）。
+2. **Discovery Audit 不再假成功**：WeCom discovery 分支用 bounded response observer 捕获实际
+   JSON-RPC 响应体，提取成功/错误与 code 类别；HTTP 200 + JSON-RPC error 记为
+   `result=ERROR / outcome=FAILED` + `errorCode=JSON_RPC_INVALID_PARAMS`（-32602 等），不再
+   以 `<400` 误判 PASS。Notifications（无响应体）按 SDK 语义记为 PASS，不算失败。响应体只做粗粒度
+   汇总，绝不记录到 Audit；Audit 只含 clientId=wecom-channel，platformUserId/identitySource/
+   salesforceUsername 保持 null/absent。
+3. **配置 fail-fast**：`MCP_WECOM_CHANNEL_ENABLED=true` 时，除非
+   `MCP_PLATFORM_USER_HEADER_ALIASES` 大小写不敏感地包含 `X-WeCom-User-Id`，否则启动抛
+   `MCP_RUNTIME_CONFIGURATION_INVALID`。关闭时保留 P8-05 兼容（不要求 alias）。
+4. **自动化**：新增 capability contract / zero-side-effect HTTP、audit JSON-RPC error、
+   classification、config fail-fast 测试（见「验证结果」）。tools/call 仍被
+   `MCP_DISCOVERY_EXECUTION_FORBIDDEN` 二层拒绝；混合 batch 仍 fail closed。
 
 ## Git 与 Review
 
-- BASE_COMMIT / origin/main：`7519b66eed8377a819650d96411926959e2cd8af`。
-- 分支：`feature/p8-06-wecom-channel-credential`，由 fetch 后的最新 origin/main 创建。
-- 最终提交 SHA：以本报告所在 feature 分支的 `git rev-parse HEAD` 与交付消息为准。
+- P8-06 origin/main：`7519b66eed8377a819650d96411926959e2cd8af`。
+- P8-06 分支主体提交：`4c5246a0703ac78ebda65bb71deadd4c2ece739b`（HOTFIX01 BASE_COMMIT）。
+- HOTFIX01 分支：`feature/p8-06-wecom-channel-credential`；以 `git rev-parse HEAD` 为 HOTFIX01 交付 SHA（本地，push 待网络放行）。
 - 未直接在 main 开发，未 reset、force push 或修改真实环境凭据。
 - Review 覆盖 authenticator、HTTP、runtime、config、provider-runtime、policy-snapshot，以及 Control Plane、Identity Runtime、Admin API/Web、Agent Playbook；检索任务指定的认证、协议方法、身份头与 snapshot 入口。
 
@@ -52,13 +84,23 @@ USER_BOUND/Buntu 的可选身份头仍必须与其权威身份一致，不改 Wo
 | initialize | 当前 SDK 1.18.2 握手、协议版本与 capabilities |
 | notifications/initialized | 完成当前握手通知 |
 | tools/list | 全局治理工具目录 |
+| resources/list | 全局治理静态资源目录 |
+| resources/templates/list | 无模板；恒定安全返回空集 |
+| resources/read | 仅 `sfoa://agent-playbook/current` / `sfoa://agent-capabilities/current` |
+| prompts/list | 全局治理 Prompt 目录 |
+| prompts/get | 仅 `sfoa_salesforce_assistant` + 规范 workflow 参数 |
 | ping | 纯协议健康探测 |
 
-分类仅依据已 bounded/parsed 的 JSON-RPC body，客户端 `X-MCP-Discovery` 不起作用。
-resources/list、resources/read、prompts/get、未知方法、空/畸形 batch 均要求身份。
-当前 SDK 实测接受普通 batch；所有消息都在 allowlist 才可进入 Discovery。
-混合 tools/list + tools/call 无身份时拒绝；initialize batch 的协议限制由 SDK 处理。
-Internal 的 initialize 无身份仍返回 PLATFORM_USER_REQUIRED。
+allowlist 是 `initialize` 通告能力的**精确闭包**（Advertise-but-Deny 规则）：两者永远同步于
+`DISCOVERY_METHODS`。分类仅依据已 bounded/parsed 的 JSON-RPC body，客户端 `X-MCP-Discovery`
+不起作用。`resources/read` / `prompts/get` 只对注册的静态 URI/Prompt 开放，任意其它 URI/Prompt
+返回 JSON-RPC `-32602`（HTTP 200），没有文件/URL/Salesforce 读取面。`completions/*`、
+`logging/*`、`roots/*`、`resources/subscribe`、`tools/call` 与未知方法一律**不在** allowlist；
+Discovery server 以低层注册 Resource/Prompt，因此 `initialize` 不会通告 `completions`，杜绝
+Advertise-but-Deny。空/畸形 batch 要求身份。当前 SDK 实测接受普通 batch；所有消息都在 allowlist
+才可进入 Discovery。混合 tools/list + tools/call 无身份时拒绝；initialize batch 的协议限制由 SDK
+处理。Internal 的 initialize 无身份仍返回 PLATFORM_USER_REQUIRED（identity-less Discovery
+仅限 WeCom Channel Credential，MCP_CLIENT_TOKEN 不放行）。
 
 `RuntimeDiscoveryPolicySnapshot` 与 RequestPolicySnapshot 共享全局 loader，分别位于
 REPEATABLE READ transaction 内。enabled tools、enabled DML policies、managed fields、
@@ -70,11 +112,17 @@ Discovery 不执行 Diagnostic 与用户 Route 的冲突查询；执行快照继
 Discovery composition 使用现有 inventory Services、官方/自有 Provider、共享工具 schema
 与 Agent capability/instructions builders，由 MCP SDK 处理协议。管理员禁用的工具不会返回；
 重新启用后下一请求可见。启用 DML Tool 却没有有效 DML Policy 时仍 fail closed。
-资源/Prompt capabilities 与执行 Server 保持一致，但 HTTP 不放宽其访问身份要求。
-注册的每个 handler 和额外 SDK tools/call guard 都拒绝执行，返回
+资源/Prompt capabilities 与执行 Server 保持一致，并通过 HTTP allowlist（Policy A）对
+Channel 认证的 WeCom Discovery 放行这些**全局静态治理表面**的 base RPC；渲染是
+`AgentCapabilities` 快照的纯函数，不含 platformUserId / Identity Route / RequestScope /
+Salesforce / per-user 数据与 secret。注册的每个 Resource/Prompt handler 只服务已注册
+URI/Prompt；注册的每个执行 handler 与额外 SDK tools/call guard 都拒绝执行，返回
 `MCP_DISCOVERY_EXECUTION_FORBIDDEN`，即使分类器未来误放也没有 Salesforce 访问路径。
 
-真实 Node HTTP 测试对 initialize / notifications/initialized / tools/list / ping 断言：
+真实 Node HTTP 测试对 initialize / notifications/initialized / tools/list / ping 断言零副作用；
+HOTFIX01 的能力契约测试把同一断言扩展到 resources/list、resources/templates/list、
+resources/read（两个已注册 URI）、prompts/list、prompts/get（规范 workflow）与 ping，
+并核对 initialize 通告 = `{tools, resources, prompts}`（无 `completions`）：
 
 | Side effect | 调用次数 |
 | --- | ---: |
@@ -113,6 +161,13 @@ Discovery 安全审计示例（展示字段语义，不含凭据）：
 Runtime event 同时带 MCP/MCP_DISCOVERY 与 outcome=SUCCESS。现有 legacy Audit DTO
 没有顶层 category/type 列，因此 durable runtime audit 在 requestSummary 保留这两个字段；
 没有为 Discovery 伪造 MCP_TOOL_CALL。MySQL 实测 user/source/username 持久化为 null。
+
+Discovery audit 以 bounded response observer 读取实际 JSON-RPC 响应体，**HTTP 200 不再等于
+PASS**：allowlisted method 因非法参数/未知 URI/Prompt 产生的 JSON-RPC error（-32602 等，HTTP
+200）记为 `result=ERROR / outcome=FAILED / errorCode=JSON_RPC_INVALID_PARAMS`，responseSummary
+含 jsonRpcMessages/jsonRpcErrors；纯 notification（无响应体）按 SDK 语义记为 PASS。响应体只做
+粗粒度汇总，绝不写入 Audit；所有 Discovery event 仅带 clientId=wecom-channel，无伪造
+platformUserId/identitySource/salesforceUsername（不引入 SYSTEM/ANONYMOUS/DISCOVERY_USER）。
 
 执行审计保留 P8-05/P7 语义，例如 `clientId=wecom-channel`、
 `identitySource=WECOM_HEADER`、`platformUserId=user-a`、

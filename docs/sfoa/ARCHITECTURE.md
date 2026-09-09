@@ -764,12 +764,21 @@ Consequently `initialize`, `tools/list`, Resources, Prompts, `get_username`, `ge
 ## P8-06 channel-authenticated discovery
 
 WeCom uses an independent MCP_WECOM_CLIENT_TOKEN, enabled explicitly with
-MCP_WECOM_CHANNEL_ENABLED. Credential authentication precedes method classification;
-only initialize, notifications/initialized, tools/list and ping can proceed without
-an end user. Classification uses the bounded parsed body, including all batch
-messages. Discovery shares global governance loaders/schema builders but has no
-principal, identity route, Salesforce Scope, Connection or API. Tool execution is
-denied inside the discovery SDK server as well. All tools/call retain full identity
-resolution and route/governance. WeCom and Internal Headers are channel-bound;
+MCP_WECOM_CHANNEL_ENABLED (which fail-fasts unless MCP_PLATFORM_USER_HEADER_ALIASES
+case-insensitively binds X-WeCom-User-Id). Credential authentication precedes method
+classification; only initialize, notifications/initialized, tools/list,
+resources/list, resources/templates/list, resources/read, prompts/list, prompts/get
+and ping can proceed without an end user — the exact closure of the Discovery
+server's advertised capabilities (no Advertise-but-Deny, no auto-advertised
+completions). Resources/Prompts on the Discovery server are a global static
+governance surface rendered from the AgentCapabilities snapshot; read/get reject any
+unregistered URI/Prompt, so there is no file/URL/Salesforce read surface.
+Classification uses the bounded parsed body, including all batch messages.
+Discovery shares global governance loaders/schema builders but has no principal,
+identity route, Salesforce Scope, Connection or API. Discovery audit verdicts derive
+from the actual JSON-RPC response (a bounded observer): HTTP 200 with a JSON-RPC
+error is recorded ERROR/FAILED, never PASS. Tool execution is denied inside the
+discovery SDK server as well. All tools/call retain full identity resolution and
+route/governance. WeCom and Internal Headers are channel-bound;
 USER_BOUND/Buntu identity authority is unchanged. See
 [ADR-0020](adr/ADR-0020-wecom-channel-discovery.md).

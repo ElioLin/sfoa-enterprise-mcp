@@ -28,6 +28,60 @@ export const AGENT_PLAYBOOK_RESOURCE_URI = 'sfoa://agent-playbook/current';
 export const AGENT_CAPABILITIES_RESOURCE_URI = 'sfoa://agent-capabilities/current';
 export const AGENT_PROMPT_NAME = 'sfoa_salesforce_assistant';
 
+/**
+ * Static Resource surface served on both the governed execution server and the
+ * WeCom channel-authenticated Discovery server. Rendering is a pure function of
+ * the global `AgentCapabilities` snapshot, so the same definition powers the
+ * high-level `registerResources` and the identity-less Discovery registration.
+ * A Resource is kept here only while it stays free of platformUserId, Identity
+ * Route, RequestScope, Salesforce, per-user data, and secrets.
+ */
+export type AgentGuidanceResourceDefinition = Readonly<{
+  name: string;
+  uri: string;
+  metadata: Readonly<{ title: string; description: string; mimeType: string }>;
+  render: (capabilities: AgentCapabilities) => string;
+}>;
+
+export const AGENT_GUIDANCE_RESOURCES: readonly AgentGuidanceResourceDefinition[] = Object.freeze([
+  Object.freeze({
+    name: 'sfoa-agent-playbook-current',
+    uri: AGENT_PLAYBOOK_RESOURCE_URI,
+    metadata: Object.freeze({
+      title: 'Current SFoA Salesforce Agent Playbook',
+      description: `Canonical version ${AGENT_PLAYBOOK_VERSION} Salesforce Agent operating contract with request capabilities.`,
+      mimeType: 'text/markdown',
+    }),
+    render: renderFullPlaybook,
+  }),
+  Object.freeze({
+    name: 'sfoa-agent-capabilities-current',
+    uri: AGENT_CAPABILITIES_RESOURCE_URI,
+    metadata: Object.freeze({
+      title: 'Current SFoA Agent capabilities',
+      description: 'Safe request-scoped Tool, DML allowlist, Diagnostic, and context evidence facts.',
+      mimeType: 'application/json',
+    }),
+    render: (capabilities: AgentCapabilities) => JSON.stringify(capabilities, null, 2),
+  }),
+]);
+
+/**
+ * Static Prompt surface shared by the governed execution server and the
+ * identity-less Discovery server. Same ownership constraints as
+ * `AGENT_GUIDANCE_RESOURCES`: rendering is a pure function of `capabilities`
+ * and the selected canonical workflow only.
+ */
+export const AGENT_GUIDANCE_PROMPT: Readonly<{
+  name: string;
+  title: string;
+  description: string;
+}> = Object.freeze({
+  name: AGENT_PROMPT_NAME,
+  title: 'SFoA Salesforce Assistant',
+  description: `Apply canonical SFoA Agent Playbook ${AGENT_PLAYBOOK_VERSION} to one Salesforce workflow.`,
+});
+
 const agentWorkflowSchema = z.enum(AGENT_WORKFLOWS).describe('Canonical SFoA workflow to render.');
 const recordDescriptorSchema = z.object({
   objectApiName: z.string().trim().min(1).max(128).regex(
@@ -144,38 +198,20 @@ export function trustedLightningOrigin(lightningBaseUrl: string | undefined): st
 }
 
 export function registerResources(server: McpServer, capabilities: AgentCapabilities): void {
-  server.registerResource(
-    'sfoa-agent-playbook-current',
-    AGENT_PLAYBOOK_RESOURCE_URI,
-    {
-      title: 'Current SFoA Salesforce Agent Playbook',
-      description: `Canonical version ${AGENT_PLAYBOOK_VERSION} Salesforce Agent operating contract with request capabilities.`,
-      mimeType: 'text/markdown',
-    },
-    (uri) => ({
-      contents: [{ uri: uri.href, mimeType: 'text/markdown', text: renderFullPlaybook(capabilities) }],
-    }),
-  );
-  server.registerResource(
-    'sfoa-agent-capabilities-current',
-    AGENT_CAPABILITIES_RESOURCE_URI,
-    {
-      title: 'Current SFoA Agent capabilities',
-      description: 'Safe request-scoped Tool, DML allowlist, Diagnostic, and context evidence facts.',
-      mimeType: 'application/json',
-    },
-    (uri) => ({
-      contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(capabilities, null, 2) }],
-    }),
-  );
+  for (const definition of AGENT_GUIDANCE_RESOURCES) {
+    const { uri, metadata } = definition;
+    server.registerResource(definition.name, uri, metadata, () => ({
+      contents: [{ uri, mimeType: metadata.mimeType, text: definition.render(capabilities) }],
+    }));
+  }
 }
 
 export function registerPrompt(server: McpServer, capabilities: AgentCapabilities): void {
   server.registerPrompt(
-    AGENT_PROMPT_NAME,
+    AGENT_GUIDANCE_PROMPT.name,
     {
-      title: 'SFoA Salesforce Assistant',
-      description: `Apply canonical SFoA Agent Playbook ${AGENT_PLAYBOOK_VERSION} to one Salesforce workflow.`,
+      title: AGENT_GUIDANCE_PROMPT.title,
+      description: AGENT_GUIDANCE_PROMPT.description,
       argsSchema: {
         workflow: agentWorkflowSchema.optional().describe('Defaults to ALL.'),
       },

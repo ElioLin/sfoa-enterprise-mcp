@@ -110,9 +110,6 @@ test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execu
       [call, TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A }, 'MCP_IDENTITY_CHANNEL_MISMATCH'],
       [call, TEST_CLIENT_TOKEN, { 'X-WeCom-User-Id': TEST_PLATFORM_USER_A }, 'MCP_IDENTITY_CHANNEL_MISMATCH'],
       [rpc('initialize'), TEST_CLIENT_TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
-      [rpc('resources/list'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
-      [rpc('resources/read'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
-      [rpc('prompts/get'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
       [rpc('unknown'), TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
       [[rpc('tools/list'), call], TOKEN, {}, 'MCP_PLATFORM_USER_REQUIRED'],
       [rpc('tools/list'), TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A }, 'MCP_IDENTITY_CHANNEL_MISMATCH'],
@@ -158,6 +155,175 @@ test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execu
   }
 });
 
+type WecomCapabilityHarness = {
+  server: Awaited<ReturnType<typeof startRemoteMcpServer>>;
+  connections: RecordingConnectionFactory;
+  events: RuntimeLogEvent[];
+  root: string;
+  createScopeCalls: () => number;
+  routeLoads: () => number;
+  discoveryLoads: () => number;
+  post: (body: unknown) => Promise<{ status: number; payload: unknown }>;
+  close: () => Promise<void>;
+};
+
+async function startWecomCapabilityHarness(): Promise<WecomCapabilityHarness> {
+  const root = await mkdtemp(path.join(tmpdir(), 'p8-06-contract-'));
+  const connections = new RecordingConnectionFactory();
+  const events: RuntimeLogEvent[] = [];
+  const baseRuntime = createTestIdentityRuntime(root, connections, { log: (event) => { events.push(event); } });
+  const runtime = { ...baseRuntime, diagnosticScopeFactory: new DiagnosticRequestScopeFactory({
+    diagnosticUsername: 'diagnostic@example.test', connectionFactory: connections,
+    workspaceFactory: baseRuntime.workspaceFactory, instanceUrl: 'https://example.test',
+  }) };
+  let scopeCalls = 0;
+  const originalCreate = runtime.scopeFactory.create.bind(runtime.scopeFactory);
+  runtime.scopeFactory.create = ((...args: Parameters<typeof originalCreate>) => { scopeCalls += 1; return originalCreate(...args); }) as typeof originalCreate;
+  const snapshot: RuntimeDiscoveryPolicySnapshot = {
+    mode: 'mysql', loadedAt: new Date().toISOString(),
+    enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook'],
+    dmlPolicies: [], managedDmlFieldRules: [], diagnostic: null, runtimeSettings: {},
+  };
+  let discoveryLoads = 0;
+  let routeLoads = 0;
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({ wecomChannelEnabled: true, wecomClientToken: TOKEN,
+      platformUserHeaderAliases: ['X-WeCom-User-Id'], platformIdentityHeaders: ['X-Platform-User-Id', 'X-WeCom-User-Id'] }),
+    identityRuntime: runtime,
+    policySnapshotSource: { load: async () => ({ ...snapshot, identityRoute: null }) },
+    discoveryPolicySnapshotSource: { load: async () => { discoveryLoads += 1; return snapshot; } },
+  });
+  const post = async (body: unknown): Promise<{ status: number; payload: unknown }> => {
+    const response = await fetch(server.mcpUrl, { method: 'POST', headers: mcpHeaders(undefined, TOKEN), body: JSON.stringify(body) });
+    return { status: response.status, payload: await response.json() as unknown };
+  };
+  return {
+    server, connections, events, root, post,
+    createScopeCalls: () => scopeCalls,
+    routeLoads: () => routeLoads,
+    discoveryLoads: () => discoveryLoads,
+    close: async () => { await server.close(); await rm(root, { recursive: true, force: true }); },
+  };
+}
+
+test('P8-06 capability contract: every advertised capability base RPC succeeds identity-less and matches initialize', async () => {
+  const harness = await startWecomCapabilityHarness();
+  try {
+    const request = harness.post;
+    // Identity-less WeCom channel credential: NO X-WeCom-User-Id header at all.
+    const initializeResponse = await request(JSON.parse(initializeBody()) as unknown);
+    assert.equal(initializeResponse.status, 200);
+    const capabilities = (initializeResponse.payload as { result: { capabilities: Record<string, { listChanged?: boolean }> } }).result.capabilities;
+    // Advertised capabilities MUST equal the allowed Discovery RPC surface:
+    // tools + resources + prompts, and explicitly NO `completions`.
+    assert.ok(capabilities.tools, 'tools capability advertised');
+    assert.ok(capabilities.resources, 'resources capability advertised');
+    assert.ok(capabilities.prompts, 'prompts capability advertised');
+    assert.equal('completions' in capabilities, false, 'no completions capability may be advertised');
+    assert.equal(capabilities.resources!.listChanged, false);
+    assert.equal(capabilities.prompts!.listChanged, false);
+
+    const listResources = await request(rpc('resources/list'));
+    assert.equal(listResources.status, 200);
+    const advertised = (listResources.payload as { result: { resources: { uri: string; name: string; mimeType?: string }[] } }).result.resources;
+    assert.equal(advertised.length, 2);
+    assert.ok(advertised.some((resource) => resource.uri === 'sfoa://agent-playbook/current'));
+    assert.ok(advertised.some((resource) => resource.uri === 'sfoa://agent-capabilities/current'));
+
+    const templates = await request(rpc('resources/templates/list'));
+    assert.equal(templates.status, 200);
+    assert.deepEqual((templates.payload as { result: { resourceTemplates: unknown[] } }).result.resourceTemplates, []);
+
+    for (const resource of advertised) {
+      const read = await request(rpc('resources/read', { uri: resource.uri }));
+      assert.equal(read.status, 200, `resources/read ${resource.uri}`);
+      const contents = (read.payload as { result: { contents: { text?: string; uri?: string }[] } }).result.contents;
+      assert.equal(contents.length, 1);
+      assert.equal(contents[0]!.uri, resource.uri);
+      assert.ok((contents[0]!.text?.length ?? 0) > 0, `resource ${resource.uri} has renderable content`);
+    }
+
+    const listPrompts = await request(rpc('prompts/list'));
+    assert.equal(listPrompts.status, 200);
+    const prompts = (listPrompts.payload as { result: { prompts: { name: string }[] } }).result.prompts;
+    assert.deepEqual(prompts.map((prompt) => prompt.name), ['sfoa_salesforce_assistant']);
+
+    const getPrompt = await request(rpc('prompts/get', { name: 'sfoa_salesforce_assistant', arguments: { workflow: 'CORE' } }));
+    assert.equal(getPrompt.status, 200);
+    assert.equal((getPrompt.payload as { result: { messages: unknown[] } }).result.messages.length >= 1, true);
+
+    const tools = await request(rpc('tools/list'));
+    assert.equal(tools.status, 200);
+    const names = (tools.payload as { result: { tools: { name: string }[] } }).result.tools.map((tool) => tool.name).sort();
+    assert.deepEqual(names, [...new Set(names)].sort());
+
+    const ping = await request(rpc('ping'));
+    assert.equal(ping.status, 200);
+
+    // Every one of these MUST have zero Identity Route lookup / Request Scope /
+    // Salesforce Connection / JWT exchange / Salesforce API side effects.
+    assert.equal(harness.createScopeCalls(), 0);
+    assert.equal(harness.connections.creations.length, 0);
+    assert.equal(harness.connections.queryCalls.length + harness.connections.dmlCalls.length + harness.connections.apiRequests.length, 0);
+
+    const discoveryEvents = harness.events.filter((event) => event.auditEvent?.eventType === 'MCP_DISCOVERY');
+    assert.ok(discoveryEvents.length >= 9, `expected capability contract discovery events, got ${discoveryEvents.length}`);
+    for (const event of discoveryEvents) {
+      // Discovery audit MUST NOT fabricate an end-user: only the channel client id.
+      assert.equal(event.clientId, 'wecom-channel');
+      assert.equal(event.platformUserId, undefined);
+      assert.equal(event.identitySource, undefined);
+      assert.equal(event.salesforceUsername, undefined);
+    }
+    for (const event of discoveryEvents.filter((e) => e.result === 'PASS')) {
+      assert.equal(event.outcome, 'SUCCESS');
+    }
+    assert.equal(JSON.stringify(harness.events).includes(TOKEN), false, 'discovery audit must not leak the channel credential');
+  } finally {
+    await harness.close();
+  }
+});
+
+test('P8-06 audit: HTTP 200 JSON-RPC discovery errors are recorded as ERROR/FAILED, never PASS', async () => {
+  const harness = await startWecomCapabilityHarness();
+  try {
+    const request = harness.post;
+    // allowlisted method + invalid argument → SDK JSON-RPC -32602 over HTTP 200.
+    const badWorkflow = await request(rpc('prompts/get', { name: 'sfoa_salesforce_assistant', arguments: { workflow: 'BOGUS' } }));
+    assert.equal(badWorkflow.status, 200);
+    assert.equal((badWorkflow.payload as { error: { code: number } }).error.code, -32602);
+    const unknownResource = await request(rpc('resources/read', { uri: 'sfoa://nope' }));
+    assert.equal(unknownResource.status, 200);
+    assert.equal((unknownResource.payload as { error: { code: number } }).error.code, -32602);
+    const unknownPrompt = await request(rpc('prompts/get', { name: 'nope' }));
+    assert.equal(unknownPrompt.status, 200);
+    assert.equal((unknownPrompt.payload as { error: { code: number } }).error.code, -32602);
+
+    // A successful discovery method on the same credential.
+    const okResources = await request(rpc('resources/list'));
+    assert.equal(okResources.status, 200);
+
+    const errorEvents = harness.events.filter((event) => event.auditEvent?.eventType === 'MCP_DISCOVERY' && event.result === 'ERROR');
+    assert.equal(errorEvents.length, 3, 'three JSON-RPC discovery errors must each produce an ERROR audit event');
+    for (const event of errorEvents) {
+      assert.equal(event.clientId, 'wecom-channel');
+      assert.equal(event.platformUserId, undefined);
+      assert.equal(event.identitySource, undefined);
+      assert.equal(event.outcome, 'FAILED');
+      assert.equal(event.errorCode, 'JSON_RPC_INVALID_PARAMS');
+      assert.equal((event.responseSummary as { jsonRpcErrors?: number }).jsonRpcErrors, 1);
+    }
+    const passEvents = harness.events.filter((event) => event.auditEvent?.eventType === 'MCP_DISCOVERY' && event.result === 'PASS');
+    assert.ok(passEvents.length >= 1, 'the successful resources/list must still record PASS');
+    for (const event of passEvents) assert.equal(event.outcome, 'SUCCESS');
+    assert.equal(JSON.stringify(harness.events).includes(TOKEN), false);
+    assert.equal(harness.createScopeCalls(), 0);
+    assert.equal(harness.connections.creations.length, 0);
+  } finally {
+    await harness.close();
+  }
+});
+
 test('P8-06 discovery composition denies direct SDK tools/call behind the HTTP classifier', async () => {
   const server = await createDiscoveryMcpServer({ initializedProvider: await initializeProviderRuntime(['get_username']), diagnosticReady: false });
   const client = new Client({ name: 'defense-test', version: '1' });
@@ -169,24 +335,46 @@ test('P8-06 discovery composition denies direct SDK tools/call behind the HTTP c
 });
 
 test('P8-06 classification is an explicit body allowlist and fails closed for empty/mixed/unknown messages', () => {
-  for (const body of [[], null, {}, [rpc('tools/list'), call], rpc('resources/list'), rpc('server/discover'), rpc('anything')]) {
+  for (const body of [[], null, {}, [rpc('tools/list'), call], rpc('server/discover'), rpc('anything'), rpc('completion/complete'),
+    rpc('logging/setLevel'), rpc('roots/list'), rpc('resources/subscribe'), rpc('notifications/cancelled')]) {
     assert.equal(classifyMcpRequest(body), 'IDENTITY_REQUIRED');
+  }
+  for (const body of [
+    rpc('initialize'), { jsonrpc: '2.0', method: 'notifications/initialized' }, rpc('tools/list'),
+    rpc('resources/list'), rpc('resources/templates/list'), rpc('resources/read'), rpc('prompts/list'),
+    rpc('prompts/get'), rpc('ping'),
+  ]) {
+    assert.equal(classifyMcpRequest(body), 'DISCOVERY');
   }
   assert.equal(classifyMcpRequest([rpc('tools/list'), rpc('ping')]), 'DISCOVERY');
 });
 
-test('P8-06 WeCom configuration fails fast without an independent strong channel credential', async () => {
+test('P8-06 WeCom configuration fails fast: strong independent channel credential AND bound X-WeCom-User-Id alias', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'p8-06-config-'));
   try {
     const key = path.join(root, 'test.pem'); await writeFile(key, 'test-only-key');
     const base = { SFOA_INSTANCE_URL: 'https://example.test', SALESFORCE_USERNAME: TEST_USERNAME_A,
       SECOND_TEST_USER: 'b@example.test', CONNECTED_APP_CLIENT_ID: 'test', JWT_PRIVATE_KEY_PATH: key,
-      MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN, MCP_WECOM_CHANNEL_ENABLED: 'true' };
+      MCP_CLIENT_TOKEN: TEST_CLIENT_TOKEN, MCP_WECOM_CHANNEL_ENABLED: 'true',
+      MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-User-Id' };
     for (const token of ['', 'short', ' '.repeat(40), `sfoa_ub1_${'x'.repeat(43)}`, TEST_CLIENT_TOKEN, 'a'.repeat(32) + ' b']) {
       await assert.rejects(loadRemoteRuntimeConfig(root, { ...base, MCP_WECOM_CLIENT_TOKEN: token }), /MCP_WECOM/u);
     }
+    // enabled + bound alias (mixed case) PASS.
     const config = await loadRemoteRuntimeConfig(root, { ...base, MCP_WECOM_CLIENT_TOKEN: TOKEN });
     assert.equal(config.wecomChannelEnabled, true);
     assert.equal(config.wecomClientToken, TOKEN);
+    // enabled + lower-case alias PASS: HTTP header names are case-insensitive.
+    const lowerAlias = await loadRemoteRuntimeConfig(root, {
+      ...base, MCP_WECOM_CLIENT_TOKEN: TOKEN, MCP_PLATFORM_USER_HEADER_ALIASES: 'x-wecom-user-id' });
+    assert.deepEqual(lowerAlias.platformUserHeaderAliases, ['x-wecom-user-id']);
+    // enabled + unrelated alias FAILS FAST.
+    await assert.rejects(loadRemoteRuntimeConfig(root, {
+      ...base, MCP_WECOM_CLIENT_TOKEN: TOKEN, MCP_PLATFORM_USER_HEADER_ALIASES: 'X-WeCom-Corp-Id' }),
+    /MCP_PLATFORM_USER_HEADER_ALIASES.*X-WeCom-User-Id/u);
+    // channel disabled does not require the alias (P8-05 compatibility).
+    const disabled = await loadRemoteRuntimeConfig(root, {
+      ...base, MCP_WECOM_CHANNEL_ENABLED: 'false', MCP_PLATFORM_USER_HEADER_ALIASES: '', MCP_WECOM_CLIENT_TOKEN: TOKEN });
+    assert.equal(disabled.wecomChannelEnabled, false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
