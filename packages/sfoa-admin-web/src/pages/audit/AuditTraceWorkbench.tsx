@@ -20,7 +20,8 @@ import type {
   SalesforceApiCallRecord,
 } from '@sfoa/control-plane';
 import { StatusTag } from '../../components/StatusTag.js';
-import { formatDateTime } from '../../localization.js';
+import { auditBusinessOutcome, batchResponseSummary, resolveAuditDisplayOutcome, toolInvocationOutcome } from '../../auditOutcome.js';
+import { formatDateTime, statusLabel } from '../../localization.js';
 import { PayloadEvidenceViewer, formatBytes, payloadTypeLabel } from './PayloadEvidenceViewer.js';
 import { copyTextToClipboard } from '../../clipboard.js';
 
@@ -34,8 +35,18 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
   const soqlCalls = trace.salesforceApiCalls.filter((api) => Boolean(api.queryType));
   const dmlCalls = trace.salesforceApiCalls.filter((api) => Boolean(api.dmlOperation));
   const maxDuration = Math.max(1, ...trace.salesforceApiCalls.map((api) => api.durationMs ?? 0));
-  const outcomeUnknown = audit.outcome === 'UNKNOWN';
-  const batch = isRecord(audit.responseSummary) && audit.responseSummary.batch === true ? audit.responseSummary : null;
+  const businessOutcome = auditBusinessOutcome(audit);
+  // A batch that cannot prove its Salesforce commit state must keep the "do not retry" warning
+  // even if the terminal column and the business outcome ever disagree.
+  const outcomeUnknown = audit.outcome === 'UNKNOWN' || businessOutcome === 'OUTCOME_UNKNOWN';
+  const toolOutcome = toolInvocationOutcome(audit);
+  const displayOutcome = resolveAuditDisplayOutcome(audit);
+  // Only a batch row carries two legitimate layers: a Tool invocation that completed and a
+  // Salesforce mutation that did not fully commit. The business outcome stays the primary
+  // status, and the Tool terminal state is shown as secondary text so the header can never read
+  // "SUCCESS" above a partial commit. Non-batch rows keep their single status tag.
+  const showToolOutcome = businessOutcome !== undefined && displayOutcome !== toolOutcome;
+  const batch = batchResponseSummary(audit);
   const jumpToFailure = (): void => {
     const sequence = trace.firstFailure?.sequence;
     if (sequence === null || sequence === undefined) return;
@@ -51,7 +62,15 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
           <div>
             <Space size="small" wrap>
               <Typography.Title level={3} className="audit-tool-title">{audit.toolName ?? 'MCP Tool'}</Typography.Title>
-              <StatusTag label={audit.outcome ?? audit.result} />
+              {businessOutcome === undefined ? <StatusTag label={displayOutcome} /> : (
+                <Space size={4} wrap>
+                  <Typography.Text type="secondary">业务结果：</Typography.Text>
+                  <StatusTag label={displayOutcome} />
+                  {showToolOutcome ? (
+                    <Typography.Text type="secondary">工具执行：{statusLabel(toolOutcome)}</Typography.Text>
+                  ) : null}
+                </Space>
+              )}
             </Space>
             <Typography.Paragraph type="secondary" className="audit-overview-subtitle">
               {audit.operation ?? '工具调用'}{audit.objectApiName ? ` · ${audit.objectApiName}` : ''}{audit.recordId ? ` · ${audit.recordId}` : ''}
@@ -115,6 +134,16 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
               </Space>
             }
             action={trace.firstFailure.sequence !== null ? <Button size="small" onClick={jumpToFailure}>跳转到失败节点</Button> : undefined}
+          />
+        ) : businessOutcome !== undefined && businessOutcome !== 'SUCCESS' ? (
+          // Every execution node succeeded — the collection POST returned 200 — yet Salesforce
+          // rejected individual records, so `firstFailure` is empty. Reporting "未发现执行错误"
+          // here would contradict the 业务结果 status above and read as a complete success.
+          <Alert
+            type="warning"
+            showIcon
+            title={`批量业务结果：${businessOutcome}`}
+            description={`没有执行节点失败，但 Salesforce 并未完整提交本批次：总数 ${String(batch?.totalCount ?? '—')} · 成功 ${String(batch?.succeededCount ?? '—')} · 失败 ${String(batch?.failedCount ?? '—')} · 未知 ${String(batch?.unknownCount ?? '—')}。已提交的记录不会回滚；请只针对失败项重新准备批次，禁止整批重试。`}
           />
         ) : (
           <div className="audit-success-strip"><CheckCircleOutlined /> 未发现执行错误</div>

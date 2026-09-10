@@ -27,6 +27,11 @@ batch, and never an automatic retry after OUTCOME_UNKNOWN.
 (`MCP_DML_BATCH_DUPLICATE_RECORD_ID`). Comparison uses the 15-character canonical
 identity because 15- and 18-character IDs of one record differ only by checksum;
 one collection request cannot express two different updates to the same record.
+The MCP Server host preflight runs this check right after input parsing and before
+any Salesforce Connection acquisition, managed-field lookup or allowlist read, so a
+duplicate batch costs no Salesforce round trip; `DmlExecutor.batch()` keeps the same
+check as defense-in-depth for callers that bypass the host. Both layers share one
+identity rule, code and message.
 
 P7 keeps one wire API row per collection. Batch submitted fields use explicit
 `records[index].Field` keys in the compatible bounded scalar evidence column;
@@ -41,6 +46,19 @@ summaries for batches report `batch`, `objectApiName`, `totalCount`, `allOrNone`
 and the bounded union of requested field names, never `fieldCount=0` from reading
 the singular `fields` shape. Audit is observational and fail-open; no synthetic
 per-item API rows are created.
+
+Diagnosing a batch DML audit row: `responseSummary.businessOutcome` is the
+authority for the business mutation result, and `audit.result` / `audit.outcome` is
+only the MCP Tool invocation terminal state. A `PARTIAL_SUCCESS` batch therefore
+appears as `result=PASS` / `outcome=SUCCESS` with no failed event and no failed
+Salesforce API row, because the collection POST itself returned 200 and only
+individual items were rejected. Never summarize such a row as 全部成功 (the
+successful items were committed, the rejected ones were not) and never as a
+whole-Tool failure either. Both the Admin Workbench and `scripts/audit-trace.mjs`
+report the batch business outcome as a distinct `BATCH_BUSINESS_OUTCOME` /
+业务结果 status, and neither infers batch success from the terminal columns alone.
+`OUTCOME_UNKNOWN` keeps priority: an unprovable commit state is never displayed as
+SUCCESS and must never be retried automatically.
 
 `resolve_field_display_values` is a bounded USER read Tool. It resolves Picklist
 and MultiPicklist API values from current UI API field/Record Type metadata,

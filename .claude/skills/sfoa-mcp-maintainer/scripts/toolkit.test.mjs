@@ -143,8 +143,57 @@ test('audit trace reconstruction preserves evidence order and unavailable fields
   assert.equal(report.reconstructedChain.find((item) => item.name === 'SALESFORCE_API')?.available, true);
 });
 
-test('checked-in platform copies are byte-identical to canonical', async () => {
-  const result = await checkSkill({ projectRoot, canonicalDir });
+test('a partially committed batch is never diagnosed as an all-success from the terminal columns', () => {
+  const report = reconstructTrace({
+    audit: {
+      id: '2', public_audit_id: '11111111-1111-4111-8111-111111111112', audit_kind: 'MCP_TOOL_CALL',
+      occurred_at: new Date('2026-09-01T00:00:00Z'), started_at: new Date('2026-09-01T00:00:00Z'),
+      completed_at: new Date('2026-09-01T00:00:01Z'), correlation_id: 'corr-batch', channel: 'MCP',
+      platform_user_id: 'platform-user-a', salesforce_username: 'user@example.com', execution_role: 'USER',
+      identity_source: 'USER_BOUND_TOKEN', tool_name: 'update_records', operation: 'UPDATE', object_api_name: 'Lead',
+      record_id: null, result: 'PASS', outcome: 'SUCCESS', error_code: null, error_message_safe: null,
+      audit_integrity_status: 'COMPLETE', duration_ms: 1000,
+      request_summary_json: '{"batch":true,"totalCount":10,"allOrNone":false}',
+      response_summary_json: JSON.stringify({ batch: true, businessOutcome: 'PARTIAL_SUCCESS', status: 'PARTIAL_SUCCESS',
+        partial: true, totalCount: 10, succeededCount: 9, failedCount: 1, unknownCount: 0 }),
+    },
+    // The collection POST itself returned 200: only individual items were rejected, so no event
+    // and no Salesforce API row reports a failure.
+    events: [],
+    apiCalls: [{ id: '21', public_api_call_id: '22222222-2222-4222-8222-222222222221', sequence: 2,
+      transport_kind: 'JSFORCE', visibility: 'EXACT_HTTP', api_category: 'COMPOSITE_API', http_method: 'POST',
+      purpose: 'DML_UPDATE', started_at: new Date('2026-09-01T00:00:00Z'), completed_at: new Date('2026-09-01T00:00:01Z'),
+      result: 'SUCCESS', dml_operation: 'UPDATE', object_api_name: 'Lead' }],
+    payloads: [],
+    currentState: { route: null, tool: null, dmlPolicy: null },
+  });
+  assert.equal(report.firstFailure?.source, 'BATCH_BUSINESS_OUTCOME');
+  assert.equal(report.firstFailure?.status, 'PARTIAL_SUCCESS');
+  assert.equal(report.firstFailure?.succeededCount, 9);
+  assert.equal(report.firstFailure?.failedCount, 1);
+  assert.equal(report.reconstructedChain.find((item) => item.name === 'RESULT')?.evidence.businessOutcome, 'PARTIAL_SUCCESS');
+});
+
+test('a fully committed batch keeps reporting no failure', () => {
+  const report = reconstructTrace({
+    audit: {
+      id: '3', public_audit_id: '11111111-1111-4111-8111-111111111113', audit_kind: 'MCP_TOOL_CALL',
+      occurred_at: new Date('2026-09-01T00:00:00Z'), started_at: new Date('2026-09-01T00:00:00Z'),
+      completed_at: new Date('2026-09-01T00:00:01Z'), correlation_id: 'corr-batch-ok', channel: 'MCP',
+      platform_user_id: 'platform-user-a', salesforce_username: 'user@example.com', execution_role: 'USER',
+      identity_source: 'USER_BOUND_TOKEN', tool_name: 'update_records', operation: 'UPDATE', object_api_name: 'Lead',
+      record_id: null, result: 'PASS', outcome: 'SUCCESS', error_code: null, error_message_safe: null,
+      audit_integrity_status: 'COMPLETE', duration_ms: 1000, request_summary_json: null,
+      response_summary_json: JSON.stringify({ batch: true, businessOutcome: 'SUCCESS', status: 'SUCCESS',
+        partial: false, totalCount: 2, succeededCount: 2, failedCount: 0, unknownCount: 0 }),
+    },
+    events: [], apiCalls: [], payloads: [],
+    currentState: { route: null, tool: null, dmlPolicy: null },
+  });
+  assert.equal(report.firstFailure, null);
+});
+
+test('checked-in platform copies are byte-identical to canonical', async () => {  const result = await checkSkill({ projectRoot, canonicalDir });
   assert.equal(result.ok, true, [...result.validation.errors, ...result.drift].join('; '));
 });
 

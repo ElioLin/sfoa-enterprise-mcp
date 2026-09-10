@@ -7,6 +7,10 @@ import type {
 import type { McpTool, McpToolConfig } from '@salesforce/mcp-provider-api';
 import {
   SFOA_DML_TOOL_OPERATIONS,
+  DmlRuntimeError,
+  BATCH_DUPLICATE_RECORD_ID_CODE,
+  duplicateBatchRecordIds,
+  duplicateBatchRecordIdMessage,
   dmlErrorToolResult,
   dmlExecutionErrorToolResult,
   dmlOutcomeUnknownError,
@@ -149,6 +153,12 @@ export class DmlToolFacade {
     try {
       if (this.getName() === 'create_records') input = createRecordsInputSchema.parse(input);
       if (this.getName() === 'update_records') input = updateRecordsInputSchema.parse(input);
+      // HF02-02: a duplicate-ID batch is unanswerable by Salesforce — collection commit order
+      // alone would decide the final value — so reject it here, before any Salesforce Connection
+      // acquisition or managed-field lookup. This mirrors the ordering DmlExecutor.batch() uses,
+      // which keeps the same check as defense-in-depth for callers that reach the executor
+      // without passing through this host preflight.
+      assertNoDuplicateBatchRecordIds(this.operation, input);
       if (typeof input.objectApiName === 'string') {
         this.options.dmlAllowlist?.assertAllowed(input.objectApiName, this.operation);
       }
@@ -232,6 +242,14 @@ export class DmlToolFacade {
       }
       if (error instanceof RemoteRuntimeError && isManagedDmlError(error.code) && !this.options.mutationStarted()) {
         const result = hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
+        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, managedFieldEvidence);
+        return result;
+      }
+      if (error instanceof DmlRuntimeError && error.code === BATCH_DUPLICATE_RECORD_ID_CODE) {
+        // HF02-02 preflight rejection: proven before Connection acquisition, managed lookup and
+        // dispatch, so the terminal source is the host TOOL layer and not TRANSPORT. The batch
+        // wrapper in execute() turns this into the unified FAILED batch error contract.
+        const result = dmlExecutionErrorToolResult(error, this.operation);
         await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, managedFieldEvidence);
         return result;
       }
@@ -445,6 +463,22 @@ function isManagedDmlError(code: string): boolean {
     || code === 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS'
     || code === 'MCP_DML_MANAGED_LOOKUP_FAILED'
     || code === 'MCP_DML_MANAGED_FIELD_CONFIG_INVALID';
+}
+
+/**
+ * HF02-02 host preflight for `update_records`.
+ *
+ * A batch that names the same Salesforce record twice cannot be resolved by Salesforce: only
+ * the collection commit order would decide the final value. The request is rejected with the
+ * same code, message and 15-character identity rule as `DmlExecutor.batch()`, so validation
+ * happens before the Salesforce Connection is acquired and before any managed-field lookup —
+ * a duplicate batch costs no Salesforce round trip at all.
+ */
+function assertNoDuplicateBatchRecordIds(operation: DmlOperation, input: ToolInput): void {
+  if (operation !== 'UPDATE' || !Array.isArray(input.records)) return;
+  const duplicates = duplicateBatchRecordIds(input.records as readonly { recordId?: unknown }[]);
+  if (duplicates.length === 0) return;
+  throw new DmlRuntimeError(BATCH_DUPLICATE_RECORD_ID_CODE, duplicateBatchRecordIdMessage(duplicates), []);
 }
 
 function resultRecordId(result: CallToolResult | undefined): string | undefined {

@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { AuditKind, AuditRecord } from '@sfoa/control-plane';
 import { adminApi, type AuditFilters } from '../api/client.js';
+import { resolveAuditDisplayOutcome } from '../auditOutcome.js';
 import { EmptyState, ErrorState, LoadingState } from '../components/QueryState.js';
 import { PageFrame } from '../components/PageFrame.js';
 import { StatusTag } from '../components/StatusTag.js';
@@ -207,7 +208,7 @@ export default function AuditPage() {
 function AuditListCard({ record, selected, onSelect }: Readonly<{ record: AuditRecord; selected: boolean; onSelect(): void }>) {
   return (
     <button type="button" className={`audit-list-card${selected ? ' is-selected' : ''}`} onClick={onSelect}>
-      <div className="audit-list-card-top"><strong>{record.toolName ?? kindLabel(record.auditKind)}</strong><StatusTag label={record.outcome ?? record.result} /></div>
+      <div className="audit-list-card-top"><strong>{record.toolName ?? kindLabel(record.auditKind)}</strong><StatusTag label={resolveAuditDisplayOutcome(record)} /></div>
       <div className="audit-list-card-meta"><span>{formatDateTime(record.occurredAt)}</span><span>{record.durationMs === null ? '—' : `${record.durationMs} ms`}</span></div>
       <div className="audit-list-card-user"><span>{record.platformUserId ?? record.actorAdmin ?? '—'}</span><span>→</span><span title={record.salesforceUsername ?? ''}>{record.salesforceUsername ?? '—'}</span></div>
       <div className="audit-list-card-context"><span>{identitySourceLabel(record.identitySource)}</span><code title={record.correlationId}>{record.correlationId}</code></div>

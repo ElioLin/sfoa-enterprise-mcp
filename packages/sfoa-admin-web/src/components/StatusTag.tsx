@@ -21,7 +21,7 @@ export function StatusTag({ label, tone = statusTone(label) }: Readonly<{ label:
 export function statusTone(value: string | null | undefined): StatusTone {
   const normalized = value?.toLocaleUpperCase('en-US') ?? '';
   if (['PASS', 'UP', 'SUCCESS', 'AVAILABLE', 'ENABLED', 'GA', 'READY', 'CONFIGURED', 'ALLOWED', 'YES'].includes(normalized)) return 'success';
-  if (['PARTIAL', 'NOT_TESTED', 'NOT_VERIFIED', 'NOT_CONFIGURED', 'UNKNOWN', 'REVIEW_REQUIRED', 'DEGRADED', 'NON_GA'].includes(normalized)) return 'warning';
+  if (['PARTIAL', 'PARTIAL_SUCCESS', 'NOT_TESTED', 'NOT_VERIFIED', 'NOT_CONFIGURED', 'UNKNOWN', 'REVIEW_REQUIRED', 'DEGRADED', 'NON_GA'].includes(normalized)) return 'warning';
   if (['FAIL', 'FAILED', 'ERROR', 'DOWN', 'BLOCKED', 'UNSUPPORTED', 'DENIED'].includes(normalized)) return 'error';
   if (['IN DEVELOPMENT', 'IN_DEVELOPMENT', 'PROCESSING'].includes(normalized)) return 'processing';
   return 'neutral';

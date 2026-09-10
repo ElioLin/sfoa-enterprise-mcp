@@ -28,6 +28,7 @@ const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   ERROR: '错误',
   SUCCESS: '成功',
   PARTIAL: '部分通过',
+  PARTIAL_SUCCESS: '部分成功',
   CONFIGURED: '已配置',
   REVIEW_REQUIRED: '需要审查',
   UPSTREAM_REVIEW_REQUIRED: '上游需要审查',

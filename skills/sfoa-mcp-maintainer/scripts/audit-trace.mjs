@@ -112,7 +112,13 @@ export function reconstructTrace({ audit, events, apiCalls, payloads, currentSta
       node('SALESFORCE_API', normalizedApi.length > 0, { calls: normalizedApi }),
       node('RESULT', true, {
         result: normalizedAudit.result, outcome: normalizedAudit.outcome, errorCode: normalizedAudit.errorCode,
-        errorMessageSafe: normalizedAudit.errorMessageSafe, responseSummary: normalizedAudit.responseSummary,
+        errorMessageSafe: normalizedAudit.errorMessageSafe,
+        // For batch DML these two layers answer different questions: `result`/`outcome` is only
+        // the MCP Tool invocation terminal state, while `businessOutcome` is what Salesforce
+        // actually committed. Diagnose a batch from `businessOutcome`, never from `outcome` alone.
+        businessOutcome: batchBusinessOutcome(normalizedAudit.responseSummary),
+        businessOutcomeSemantics: 'Batch DML business mutation result. audit.result/outcome describe the Tool invocation only, so PARTIAL_SUCCESS appears there as PASS/SUCCESS.',
+        responseSummary: normalizedAudit.responseSummary,
       }),
     ]),
     timeline: Object.freeze(timeline),
@@ -268,10 +274,36 @@ function determineFirstFailure(audit, events, apiCalls) {
   }
   candidates.sort((left, right) => left.sequence - right.sequence || left.rank - right.rank);
   if (candidates[0]) return Object.freeze(candidates[0]);
+  const businessOutcome = batchBusinessOutcome(audit.responseSummary);
+  if (businessOutcome !== null && businessOutcome !== 'SUCCESS') {
+    const summary = audit.responseSummary;
+    return Object.freeze({
+      sequence: null, source: 'BATCH_BUSINESS_OUTCOME', status: businessOutcome,
+      errorCode: audit.errorCode, title: audit.toolName ?? audit.operation ?? 'Batch DML',
+      partial: summary.partial === true,
+      totalCount: summary.totalCount ?? null, succeededCount: summary.succeededCount ?? null,
+      failedCount: summary.failedCount ?? null, unknownCount: summary.unknownCount ?? null,
+    });
+  }
   if (audit.result !== 'PASS' || (audit.outcome && audit.outcome !== 'SUCCESS')) {
     return Object.freeze({ sequence: null, source: 'AUDIT_CALL', status: audit.outcome ?? audit.result, errorCode: audit.errorCode, title: audit.toolName ?? audit.operation ?? 'Audit terminal' });
   }
   return null;
+}
+
+/**
+ * Batch DML records its business mutation result in `responseSummary.businessOutcome`, which
+ * answers a different question from `audit.result`/`audit.outcome` (the MCP Tool invocation
+ * terminal state). A PARTIAL_SUCCESS batch is `result=PASS`/`outcome=SUCCESS` with no failed
+ * Salesforce API row — the collection POST itself returned 200 and only individual items were
+ * rejected — so the terminal columns alone would report "no failure" for a batch that committed
+ * only some of its records. Never summarize such a batch as an all-success, and never as a
+ * whole-Tool failure either.
+ */
+function batchBusinessOutcome(summary) {
+  if (typeof summary !== 'object' || summary === null || Array.isArray(summary) || summary.batch !== true) return null;
+  const status = summary.businessOutcome ?? summary.status;
+  return ['SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'OUTCOME_UNKNOWN'].includes(status) ? status : null;
 }
 
 function node(name, available, evidence) {

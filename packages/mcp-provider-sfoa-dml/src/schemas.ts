@@ -158,6 +158,17 @@ export function duplicateBatchRecordIds(records: readonly { recordId?: unknown }
   return Object.freeze(duplicates);
 }
 
+/**
+ * Canonical rejection message for one duplicate-ID `update_records` batch.
+ *
+ * Shared by the MCP Server host preflight and the `DmlExecutor.batch()` defense-in-depth
+ * check, so both layers reject the same request with the same code and the same wording
+ * instead of drifting apart.
+ */
+export function duplicateBatchRecordIdMessage(duplicates: readonly string[]): string {
+  return `update_records received the same Salesforce record more than once. Duplicate record ID${duplicates.length === 1 ? '' : 's'}: ${duplicates.slice(0, 5).join(', ')}. Send at most one item per record so Salesforce collection order cannot decide the committed value.`;
+}
+
 const batchBase = { objectApiName: objectApiNameSchema,
   allOrNone: z.boolean().default(false).describe('Atomicity applies only to this Salesforce request, never across Tool calls.') };
 export const createRecordsInputSchema = z.object({ ...batchBase,
