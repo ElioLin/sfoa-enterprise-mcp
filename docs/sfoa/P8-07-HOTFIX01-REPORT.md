@@ -18,11 +18,18 @@ visibility remains a documented KNOWN LIMITATION.
 | Report commit (evidence-only) | the commit that introduces this file — `git log -1 --format=%H -- docs/sfoa/P8-07-HOTFIX01-REPORT.md` |
 | Changed files | 40 in `4d4bacb`, plus this report and `P8-07-UAT-CHECKLIST.md` in the report commit |
 
-`git fetch --all --prune` failed with `Recv failure: Connection was reset` for both `upstream`
-and `origin` — the same network restriction recorded in the P8-07 report. Work therefore
-continued on the local HEAD `7643755`, which matches the stated latest P8-07 commit. **The
-remote refs were not read; if `origin/feature/p8-07-runtime-batch-orchestration` has advanced,
-this branch is based on the older local commit.**
+`git fetch --all --prune` initially failed with `Recv failure: Connection was reset` for both
+`upstream` and `origin` — the same transient network restriction recorded in the P8-07 report.
+Work continued on the local HEAD `7643755`, matching the stated latest P8-07 commit. The fetch
+later succeeded and confirmed the base:
+
+- `origin/main` is `7643755cf191d98f950b1ef69cdb47db488a472b` — byte-identical to the source HEAD,
+  so this branch is **not** based on a stale commit.
+- `origin/feature/p8-07-runtime-batch-orchestration` no longer exists (P8-07 was merged to
+  `origin/main`); the local source branch still tracks `origin/main` at the same commit.
+- The hotfix branch is **2 commits ahead and 0 behind `origin/main`**, so it fast-forwards.
+
+Pushed as `origin/hotfix/p8-07-agent-runtime-safety`.
 
 ### Changed files (`4d4bacb`)
 
@@ -167,7 +174,8 @@ CONTAINER visibility remains UNKNOWN by design. `P8-07_COMPLETE` is explicitly n
 
 ## Remaining risks
 
-1. The remote refs could not be fetched, so this branch may be based on a stale local P8-07 HEAD.
+1. The branch fast-forwards onto `origin/main` and is pushed, but no pull request has been
+   opened and nothing has been merged or deployed. Merging is a separate, authorized step.
 2. No live collection mutation has been proven end to end; the one-wire-request contract is
    covered by SDK/HTTP-level tests, not by a real Salesforce org in this environment.
 3. Record-dependent CONTAINER visibility (`$Record.Field` on SECTION/TAB/CONTAINER) stays
