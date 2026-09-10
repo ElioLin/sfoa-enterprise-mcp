@@ -23,6 +23,7 @@ Live Salesforce and Agent acceptance are **BLOCKED** in this environment, so the
 | Hotfix branch | `hotfix/p8-07-final-uat-closure` (created from the source HEAD, not from `main`) |
 | Implementation commit | `34c7a03335e4906b1815f926c58de93561e28a6b` |
 | Report commit (evidence-only) | the commit that introduces this file — `git log -1 --format=%H -- docs/sfoa/P8-07-HOTFIX02-REPORT.md` |
+| Pushed as | `origin/hotfix/p8-07-final-uat-closure` |
 
 The remote HEAD was verified directly against the remote, not assumed:
 
@@ -285,8 +286,10 @@ explicitly not claimed.
    states that an already committed record is not reverted.
 5. The DB terminal-outcome enum was deliberately not migrated; partial success is carried in the
    compatible `responseSummary` shape and resolved at display time.
-6. Nothing has been merged or deployed by this hotfix. `hotfix/p8-07-final-uat-closure` is a
-   local branch on top of the authoritative HOTFIX01 tip.
+6. Nothing has been merged or deployed by this hotfix. `hotfix/p8-07-final-uat-closure` was
+   created from the authoritative HOTFIX01 tip `933d6ff` and pushed as
+   `origin/hotfix/p8-07-final-uat-closure`; no pull request has been opened, and merging is a
+   separate, authorized step.
 
 ## UAT state
 
