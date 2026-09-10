@@ -4,6 +4,7 @@ import type { DmlAllowlistPolicy } from './allowlist.js';
 import { DmlRuntimeError, extractSafeSalesforceErrors, toSalesforceDmlError } from './errors.js';
 import type { CreateRecordInput, SalesforceFieldValue, UpdateRecordInput } from './schemas.js';
 import { createRecordsInputSchema, updateRecordsInputSchema, recordIdSchema,
+  BATCH_DUPLICATE_RECORD_ID_CODE, duplicateBatchRecordIds,
   type CreateRecordsInput, type UpdateRecordsInput, type BatchDmlOutput } from './schemas.js';
 
 export type MutationExecutionObserver = Readonly<{
@@ -99,6 +100,17 @@ export class DmlExecutor {
   }
 
   private async batch(operation: 'CREATE' | 'UPDATE', input: CreateRecordsInput | UpdateRecordsInput): Promise<BatchDmlOutput> {
+    // One Salesforce collection request cannot express two different updates to the same
+    // record: the commit order alone would decide the final value. Reject it before any
+    // allowlist read, Connection lookup or dispatch.
+    if (operation === 'UPDATE') {
+      const duplicates = duplicateBatchRecordIds(input.records as readonly { recordId?: unknown }[]);
+      if (duplicates.length > 0) {
+        throw new DmlRuntimeError(BATCH_DUPLICATE_RECORD_ID_CODE,
+          `update_records received the same Salesforce record more than once. Duplicate record ID${duplicates.length === 1 ? '' : 's'}: ${duplicates.slice(0, 5).join(', ')}. Send at most one item per record so Salesforce collection order cannot decide the committed value.`,
+          []);
+      }
+    }
     // Every row uses the same authority as a single mutation; no BATCH permission.
     for (const _item of input.records) this.allowlist.assertAllowed(input.objectApiName, operation);
     const connection = await this.getRequestConnection();

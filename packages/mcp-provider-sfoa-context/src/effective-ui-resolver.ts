@@ -9,7 +9,7 @@ import type { RecordActionContextInput, RecordActionContextOutput } from './sche
 import { boundDefaultValue, boundPicklist, MAX_OUTPUT_BYTES, type ResolvedActionFacts } from './record-action-executor.js';
 import { sameSalesforceId, type ObjectInfo } from './ui-api.js';
 import { ContextRuntimeError } from './errors.js';
-import { createInitialState, resolveUserFacts, userDependencies, boundedRead } from './create-initial-state.js';
+import { createInitialState, resolveUserFacts, userDependencies, boundedRead, type InitialFact } from './create-initial-state.js';
 
 const appsSchema = z.object({ apps: z.array(z.object({ appId: z.string(), developerName: z.string() })).max(100) });
 export class EffectiveRecordUiContextResolver {
@@ -111,8 +111,7 @@ export class EffectiveRecordUiContextResolver {
             const match = /^\$?Record\.([A-Za-z][A-Za-z0-9_]*)$/u.exec(criterion.leftValue.replace(/^\{!|\}$/gu, ''));
             return match?.[1] ? [match[1]] : [];
           }))))];
-        const runtimeDefaults = this.options.resolveRuntimeDefaults && dependencies.length
-          ? await boundedRead(() => this.options.resolveRuntimeDefaults!(objectInfo.apiName, dependencies), readDeadline) : [];
+        const runtimeDefaults = await this.resolveRuntimeDefaultFacts(objectInfo.apiName, dependencies, readDeadline, evidence);
         const initial = createInitialState(facts.defaults, validatedDraft, resolvedUser.facts, runtimeDefaults);
         // Audit dependency values, not unrelated user-entered business data.
         const dependencyPaths = new Set(dependencies.map((name) => `Record.${name}`));
@@ -158,6 +157,36 @@ export class EffectiveRecordUiContextResolver {
     Object.assign(evidence, ui, { dynamicResolutionStatus: ui.resolutionStatus, fallbackTo: ui.fallbackUsed ? 'PAGE_LAYOUT' : null });
     audit();
     return result;
+  }
+
+  /**
+   * An optional trusted runtime-default provider only ever contributes visibility inputs.
+   *
+   * A timeout, NOT_FOUND or API error there must not collapse the whole Dynamic Forms
+   * resolution into a PAGE_LAYOUT fallback: the Create Defaults, current USER facts and
+   * FlexiPage metadata needed by the other dependencies are still provable. The affected
+   * dependencies become explicit UNKNOWN facts so no unsupported value is ever claimed, and
+   * only a genuine metadata/snapshot failure keeps its existing fallback contract.
+   */
+  private async resolveRuntimeDefaultFacts(
+    objectApiName: string,
+    dependencies: readonly string[],
+    deadline: number,
+    evidence: Record<string, unknown>,
+  ): Promise<readonly InitialFact[]> {
+    if (!this.options.resolveRuntimeDefaults || dependencies.length === 0) return [];
+    try {
+      const facts = await boundedRead(
+        () => this.options.resolveRuntimeDefaults!(objectApiName, dependencies), deadline);
+      evidence.runtimeDefaultResolution = { requested: dependencies.length, resolved: facts.length, reason: null };
+      return facts;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const reason = /^[A-Z0-9_]{1,128}$/u.test(message) ? message : 'RUNTIME_DEFAULT_RESOLUTION_FAILED';
+      evidence.runtimeDefaultResolution = { requested: dependencies.length, resolved: 0, reason };
+      return dependencies.map((name): InitialFact => ({ path: `Record.${name}`, source: 'TRUSTED_RUNTIME_DEFAULT',
+        trustedForVisibility: false, resolutionStatus: 'UNKNOWN', reason }));
+    }
   }
 }
 

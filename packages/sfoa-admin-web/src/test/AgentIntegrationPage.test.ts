@@ -8,7 +8,7 @@ const GENERATOR = readFileSync(resolve(process.cwd(), 'src', 'agent', 'instructi
 
 describe('P6 Agent Integration Admin contract', () => {
   it('presents all canonical distribution surfaces and the Playbook version', () => {
-    expect(AGENT_PLAYBOOK_VERSION).toBe('1.7.0');
+    expect(AGENT_PLAYBOOK_VERSION).toBe('1.8.0');
     for (const label of ['MCP 接入', 'Agent Playbook', '小犇 / Dify', '企业微信 / WeCom', 'WorkBuddy', 'MCP 原生指引']) {
       expect(PAGE).toContain(label);
     }

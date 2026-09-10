@@ -16,7 +16,7 @@ candidates return `recordTypeSelectionRequired=true` before type-dependent reads
 Master-only users/objects retain normal creation, even if ObjectInfo also lists
 unavailable business types. An empty available set still fails closed. This is
 CREATE guidance/context behavior, not a new DML authorization check; UPDATE and
-display context retain their existing Record Type rules. Canonical Playbook 1.7.0
+display context retain their existing Record Type rules. Canonical Playbook 1.8.0
 and generated client instructions follow this contract.
 
 `get_record_action_context` keeps the existing Page Layout algorithm. CREATE alone

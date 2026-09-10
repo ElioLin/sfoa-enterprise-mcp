@@ -6,6 +6,7 @@ import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { DmlPolicyRecord, IdentityRouteRecord, ManagedDmlFieldRuleRecord, RequestPolicySnapshot } from '@sfoa/control-plane';
+import { AGENT_PLAYBOOK_VERSION } from '@sfoa/agent-playbook';
 import {
   AGENT_CAPABILITIES_RESOURCE_URI,
   AGENT_PLAYBOOK_RESOURCE_URI,
@@ -46,7 +47,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
   const client = await connectClient(server, TEST_PLATFORM_USER_A);
   try {
     assert.equal(connectionFactory.creations.length, 0, 'initialize must not create Salesforce Connections');
-    assert.match(client.getInstructions() ?? '', /SFoA Salesforce Agent Playbook 1\.7\.0/u);
+    assert.match(client.getInstructions() ?? '', new RegExp(`SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION.replace(/\./gu, '\\.')}`, 'u'));
     assert.match(client.getInstructions() ?? '', /MCP_DML_OUTCOME_UNKNOWN/u);
     assert.match(client.getInstructions() ?? '', /Identity is MCP-owned/u);
     assert.match(client.getInstructions() ?? '', /get_record_action_context/u);
@@ -58,7 +59,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       AGENT_PLAYBOOK_RESOURCE_URI,
     ]);
     const playbook = await client.readResource({ uri: AGENT_PLAYBOOK_RESOURCE_URI });
-    assert.match(resourceText(playbook), /Playbook-Version: 1\.7\.0/u);
+    assert.match(resourceText(playbook), new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION.replace(/\./gu, '\\.')}`, 'u'));
     assert.match(resourceText(playbook), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
     assert.match(resourceText(playbook), /READ \(SOQL\) scope/u);
     assert.match(resourceText(playbook), /NOT bounded by the CREATE\/UPDATE allowlists/u);
@@ -69,7 +70,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       await client.readResource({ uri: AGENT_CAPABILITIES_RESOURCE_URI }),
     )) as unknown;
     assert.deepEqual(capabilities, {
-      playbookVersion: '1.7.0',
+      playbookVersion: AGENT_PLAYBOOK_VERSION,
       enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook', 'get_record_links'],
       createAllowedObjects: [],
       updateAllowedObjects: [],
@@ -120,7 +121,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
 
     const fallback = await client.callTool({ name: 'get_agent_playbook', arguments: { workflow: 'CREATE' } });
     assert.equal(fallback.isError, undefined);
-    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.7.0');
+    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.8.0');
     assert.equal(asRecord(fallback.structuredContent).workflow, 'CREATE');
     assert.match(String(asRecord(fallback.structuredContent).guidance), /## CREATE —/u);
     assert.match(String(asRecord(fallback.structuredContent).guidance), /MCP_DML_OUTCOME_UNKNOWN/u);

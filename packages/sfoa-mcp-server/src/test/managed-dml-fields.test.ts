@@ -88,8 +88,34 @@ test('batch facade protects each managed field, reuses request-local Lookup and 
     { LastName: 'A', Requested_By__c: CONTACT_A, AI__c: true, Fallback__c: CONTACT_B },
     { LastName: 'B', Requested_By__c: CONTACT_A, AI__c: true, Fallback__c: CONTACT_A },
   ]);
-  const summary = logger.events.at(-1)?.responseSummary as Record<string, unknown>;
-  assert.equal(summary.partial, true); assert.equal(summary.succeededCount, 1); assert.equal(summary.failedCount, 1);
+  const event = logger.events.at(-1);
+  const summary = event?.responseSummary as Record<string, unknown>;
+  // HF02: the Tool invocation completed, so this is not a Tool error, while the business
+  // outcome stays explicitly partial instead of being flattened into a complete SUCCESS/FAILED.
+  assert.equal(result.isError, false);
+  assert.equal(event?.result, 'PASS');
+  assert.equal(summary.partial, true);
+  assert.equal(summary.businessOutcome, 'PARTIAL_SUCCESS');
+  assert.equal(summary.status, 'PARTIAL_SUCCESS');
+  assert.equal(summary.success, false);
+  assert.equal(summary.batch, true);
+  assert.equal(summary.succeededCount, 1); assert.equal(summary.failedCount, 1);
+  assert.equal(summary.unknownCount, 0); assert.equal(summary.salesforceApiType, 'COMPOSITE_API');
+  assert.equal((summary.firstFailure as { salesforceErrors?: { errorCode?: string }[] })
+    .salesforceErrors?.[0]?.errorCode, 'FIELD_CUSTOM_VALIDATION_EXCEPTION');
+  // HF07: one collection call still reports bounded, diagnosable request evidence.
+  const request = event?.requestSummary as Record<string, unknown>;
+  assert.equal(request.batch, true); assert.equal(request.totalCount, 2); assert.equal(request.allOrNone, false);
+  assert.equal(request.fieldCountSemantics, 'BOUNDED_UNION_ACROSS_RECORDS');
+  assert.deepEqual(request.fieldNames, ['AI__c', 'Fallback__c', 'LastName', 'Requested_By__c']);
+  assert.equal(request.fieldCount, 4);
+  assert.equal(request.managedFieldsTruncated, false);
+  assert.ok(Number(request.managedFieldsAppliedCount) >= 3);
+  const applied = request.managedFieldsApplied as readonly { recordIndex?: number; clientReferenceId?: string }[];
+  assert.ok(applied.some((field) => field.recordIndex === 0 && field.clientReferenceId === 'a'));
+  assert.ok(applied.some((field) => field.recordIndex === 1 && field.clientReferenceId === 'b'));
+  // Request evidence stays bounded: the submitted wire payload is the authoritative record.
+  assert.equal(JSON.stringify(request).includes('LastName":"A'), false);
   await facade.execute({ objectApiName: 'Lead', records: [{ fields: { Id: CONTACT_A } }] }, extra());
   assert.equal(mutations, 1, 'invalid batch must not dispatch');
 });

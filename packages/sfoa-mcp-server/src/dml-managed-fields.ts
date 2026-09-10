@@ -21,12 +21,21 @@ export type AppliedManagedDmlField = Readonly<{
   fieldApiName: string;
   strategy: ManagedDmlFieldRuleRecord['strategy'];
   agentValueOverridden: boolean;
+  /** Batch only: the request row this application belongs to, so a bounded list stays diagnosable. */
+  recordIndex?: number;
+  /** Batch only: the caller's correlation key for that row, when one was supplied. */
+  clientReferenceId?: string;
 }>;
 
 export type ManagedDmlInputResolution = Readonly<{
   input: Readonly<Record<string, unknown>>;
   applied: readonly AppliedManagedDmlField[];
+  /** Total applications before the audit bound; `applied.length` is the retained prefix. */
+  appliedCount?: number;
+  appliedTruncated?: boolean;
 }>;
+
+const MAX_APPLIED_MANAGED_FIELDS = 200;
 
 export class ManagedDmlFieldResolver {
   private readonly lookupValues = new Map<string, Promise<string>>();
@@ -43,14 +52,23 @@ export class ManagedDmlFieldResolver {
     if (Array.isArray(input.records)) {
       const records: Readonly<Record<string, unknown>>[] = [];
       const applied: AppliedManagedDmlField[] = [];
-      for (const item of input.records) {
+      let appliedCount = 0;
+      for (const [index, item] of input.records.entries()) {
         if (!isRecord(item)) throw new DmlRuntimeError('MCP_DML_INPUT_INVALID', 'Invalid batch item.');
         const resolved = await this.resolve(operation, { ...item, objectApiName: input.objectApiName });
         const { objectApiName: _object, ...record } = resolved.input;
         records.push(record);
-        applied.push(...resolved.applied);
+        const reference = typeof item.clientReferenceId === 'string' ? item.clientReferenceId : undefined;
+        for (const field of resolved.applied) {
+          appliedCount += 1;
+          // Bound the audit list without losing which request row each retained entry came from.
+          if (applied.length < MAX_APPLIED_MANAGED_FIELDS) applied.push(Object.freeze({
+            ...field, recordIndex: index, ...(reference === undefined ? {} : { clientReferenceId: reference }),
+          }));
+        }
       }
-      return { input: { ...input, records }, applied: applied.slice(0, 200) };
+      return { input: { ...input, records }, applied: Object.freeze(applied),
+        appliedCount, appliedTruncated: appliedCount > applied.length };
     }
     if (typeof input.objectApiName !== 'string' || !isRecord(input.fields)) {
       return Object.freeze({ input, applied: Object.freeze([]) });

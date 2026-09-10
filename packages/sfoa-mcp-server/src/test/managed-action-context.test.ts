@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
@@ -77,8 +78,23 @@ function rule(
   });
 }
 
-const emptySchema = z.object({});
-class ActionContextTool extends McpTool<typeof emptySchema.shape> {
+/**
+ * HF03. Server-managed DML values are authoritative for mutation payloads but do not prove the
+ * initial values Lightning's New Page would use, so they are never trusted for visibility.
+ * Resolving them while merely observing a Dynamic Forms page added request-USER Salesforce
+ * lookups (for example PLATFORM_USER_LOOKUP) whose failure forced a whole-resolution
+ * PAGE_LAYOUT fallback. The extension point stays available to a caller with a proven
+ * equivalent provider; the server must not wire one. The behavioral half of this contract —
+ * no extra reads, and a failing provider isolating to UNKNOWN instead of falling back — is
+ * asserted in the context provider's effective-ui tests.
+ */
+test('the server never wires a runtime-default provider into Dynamic Forms resolution', () => {
+  const source = readFileSync(new URL('../../src/provider-runtime.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /resolveRuntimeDefaults\s*:/u);
+  assert.match(source, /Deliberately no `resolveRuntimeDefaults` wiring/u);
+});
+
+const emptySchema = z.object({});class ActionContextTool extends McpTool<typeof emptySchema.shape> {
   public getReleaseState(): ReleaseState { return ReleaseState.GA; }
   public getToolsets(): Toolset[] { return [Toolset.DATA]; }
   public getName(): string { return 'get_record_action_context'; }

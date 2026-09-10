@@ -144,7 +144,7 @@ export class DmlToolFacade {
       return remoteRuntimeErrorToolResult(error, [], this.options.context.correlationId);
     }
     let executionInput = input;
-    let appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]);
+    let managedFieldEvidence: ManagedFieldEvidence = NO_MANAGED_FIELD_EVIDENCE;
     let deadlineReachedBeforeDispatch = false;
     try {
       if (this.getName() === 'create_records') input = createRecordsInputSchema.parse(input);
@@ -160,7 +160,11 @@ export class DmlToolFacade {
           if (this.options.managedFieldResolver) {
             const resolution = await this.options.managedFieldResolver.resolve(this.operation, input);
             executionInput = resolution.input as ToolInput;
-            appliedManagedFields = resolution.applied;
+            managedFieldEvidence = Object.freeze({
+              applied: resolution.applied,
+              appliedCount: resolution.appliedCount ?? resolution.applied.length,
+              truncated: resolution.appliedTruncated === true,
+            });
           }
           // Promise.race cannot cancel a Salesforce lookup. Never allow a lookup that
           // settles after the host deadline to continue into a late mutation dispatch.
@@ -174,8 +178,8 @@ export class DmlToolFacade {
           const objectApiName = typeof executionInput.objectApiName === 'string'
             ? executionInput.objectApiName
             : undefined;
-          const requestedFields = isRecord(input.fields) ? input.fields : {};
-          const managedFields = resolvedManagedFieldValues(executionInput, appliedManagedFields);
+          const requestedFields = requestedFieldValues(input);
+          const managedFields = resolvedManagedFieldValues(executionInput, managedFieldEvidence.applied);
           return runWithSalesforceApiPurpose(
             this.operation === 'CREATE' ? 'DML_CREATE' : 'DML_UPDATE',
             () => objectApiName
@@ -204,7 +208,7 @@ export class DmlToolFacade {
         errorCode === 'MCP_DML_OUTCOME_UNKNOWN' ? 'TRANSPORT' : undefined,
         executionInput,
         result,
-        appliedManagedFields,
+        managedFieldEvidence,
       );
       return result;
     } catch (error) {
@@ -214,7 +218,7 @@ export class DmlToolFacade {
           this.options.redactionSecrets,
           this.options.context.correlationId,
         );
-        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, appliedManagedFields);
+        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, managedFieldEvidence);
         return result;
       }
       if (error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT') {
@@ -223,16 +227,16 @@ export class DmlToolFacade {
         const result = mutationStarted
           ? dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error))
           : hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
-        await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', executionInput, result, appliedManagedFields);
+        await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', executionInput, result, managedFieldEvidence);
         return result;
       }
       if (error instanceof RemoteRuntimeError && isManagedDmlError(error.code) && !this.options.mutationStarted()) {
         const result = hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
-        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, appliedManagedFields);
+        await this.log('ERROR', elapsed(started), error.code, 'TOOL', executionInput, result, managedFieldEvidence);
         return result;
       }
       const result = dmlExecutionErrorToolResult(error, this.operation);
-      await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT', executionInput, result, appliedManagedFields);
+      await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TRANSPORT', executionInput, result, managedFieldEvidence);
       return result;
     }
   }
@@ -244,10 +248,16 @@ export class DmlToolFacade {
     terminationLayer?: 'TOOL' | 'TRANSPORT',
     input: ToolInput = {},
     response?: CallToolResult,
-    appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]),
+    managedFieldEvidence: ManagedFieldEvidence = NO_MANAGED_FIELD_EVIDENCE,
   ): Promise<void> {
-    const outcomeUnknown = errorCode === 'MCP_DML_OUTCOME_UNKNOWN';
-    const requestSummary = safeDmlRequestSummary(input, this.operation, appliedManagedFields);
+    const structured = isRecord(response?.structuredContent) ? response.structuredContent : undefined;
+    // `result` is the MCP Tool execution status; `businessOutcome` is what Salesforce actually
+    // did. A PARTIAL_SUCCESS batch is a successful Tool execution with an incomplete business
+    // result, so it must never be logged as either a complete SUCCESS or a complete FAILED.
+    const businessOutcome = batchBusinessOutcome(structured?.status);
+    const outcomeUnknown = errorCode === 'MCP_DML_OUTCOME_UNKNOWN' || businessOutcome === 'OUTCOME_UNKNOWN';
+    const requestSummary = safeDmlRequestSummary(input, this.operation, managedFieldEvidence);
+    const records = Array.isArray(input.records) ? input.records : undefined;
     const responseRecordId = resultRecordId(response);
     try {
     await Promise.resolve(this.options.logger.log({
@@ -273,17 +283,20 @@ export class DmlToolFacade {
       ...(errorCode ? { errorCode } : {}),
       requestSummary,
       responseSummary: {
-        success: result === 'PASS',
-        ...(Array.isArray(input.records) ? {
-          batch: true, totalCount: input.records.length, allOrNone: input.allOrNone === true,
-          status: response?.structuredContent?.status ?? (outcomeUnknown ? 'OUTCOME_UNKNOWN' : 'FAILED'),
-          partial: response?.structuredContent?.status === 'PARTIAL_SUCCESS',
-          succeededCount: response?.structuredContent?.succeeded ?? 0,
-          failedCount: response?.structuredContent?.failed ?? (outcomeUnknown ? 0 : input.records.length),
-          unknownCount: response?.structuredContent?.unknown ?? (outcomeUnknown ? input.records.length : 0),
+        success: businessOutcome ? businessOutcome === 'SUCCESS' : result === 'PASS',
+        ...(records ? {
+          batch: true, totalCount: records.length, allOrNone: input.allOrNone === true,
+          status: businessOutcome ?? (outcomeUnknown ? 'OUTCOME_UNKNOWN' : 'FAILED'),
+          businessOutcome: businessOutcome ?? (outcomeUnknown ? 'OUTCOME_UNKNOWN' : 'FAILED'),
+          partial: businessOutcome === 'PARTIAL_SUCCESS',
+          succeededCount: structured?.succeeded ?? 0,
+          failedCount: structured?.failed ?? (outcomeUnknown ? 0 : records.length),
+          unknownCount: structured?.unknown ?? (outcomeUnknown ? records.length : 0),
           salesforceApiType: 'COMPOSITE_API',
-          firstFailure: Array.isArray(response?.structuredContent?.results)
-            ? response.structuredContent.results.find((item: unknown) => isRecord(item) && item.success === false) : undefined,
+          managedFieldsAppliedCount: managedFieldEvidence.appliedCount,
+          managedFieldsTruncated: managedFieldEvidence.truncated,
+          firstFailure: Array.isArray(structured?.results)
+            ? structured.results.find((item: unknown) => isRecord(item) && item.success === false) : undefined,
         } : {}),
         ...(responseRecordId ? { recordId: responseRecordId } : {}),
         ...(errorCode ? { errorCode } : {}),
@@ -299,30 +312,97 @@ export class DmlToolFacade {
   }
 }
 
+type ManagedFieldEvidence = Readonly<{
+  applied: readonly AppliedManagedDmlField[];
+  appliedCount: number;
+  truncated: boolean;
+}>;
+
+const NO_MANAGED_FIELD_EVIDENCE: ManagedFieldEvidence = Object.freeze({
+  applied: Object.freeze([]), appliedCount: 0, truncated: false,
+});
+
+/**
+ * The four batch business outcomes. These are business results inside a successful Tool
+ * execution — not MCP Tool error states — and are recorded separately from the Tool
+ * invocation status so a partial commit is never audited as a complete success or a
+ * complete failure.
+ */
+const BATCH_BUSINESS_OUTCOMES = ['SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'OUTCOME_UNKNOWN'] as const;
+type BatchBusinessOutcome = (typeof BATCH_BUSINESS_OUTCOMES)[number];
+
+function batchBusinessOutcome(status: unknown): BatchBusinessOutcome | undefined {
+  return typeof status === 'string' && (BATCH_BUSINESS_OUTCOMES as readonly string[]).includes(status)
+    ? status as BatchBusinessOutcome : undefined;
+}
+
 type SafeDmlRequestSummary = Readonly<{
   operation: DmlOperation;
   objectApiName?: string;
   recordId?: string;
   fieldNames: readonly string[];
   fieldCount: number;
+  fieldCountSemantics: 'EXACT_SINGLE_RECORD' | 'BOUNDED_UNION_ACROSS_RECORDS';
   managedFieldsApplied: readonly AppliedManagedDmlField[];
+  managedFieldsAppliedCount: number;
+  managedFieldsTruncated: boolean;
+  batch?: boolean;
+  totalCount?: number;
+  allOrNone?: boolean;
 }>;
 
+/**
+ * Batch-aware request evidence for the terminal audit row.
+ *
+ * Reading `input.fields` for a batch would report `fieldCount=0` / `fieldNames=[]`, which reads
+ * as "no fields were sent" and misleads diagnosis. Report the bounded union of requested field
+ * names across rows plus the record count, and never the full payload — the Salesforce wire
+ * submitted payload remains the authoritative evidence.
+ */
 function safeDmlRequestSummary(
   input: ToolInput,
   operation: DmlOperation,
-  appliedManagedFields: readonly AppliedManagedDmlField[] = Object.freeze([]),
+  managedFieldEvidence: ManagedFieldEvidence = NO_MANAGED_FIELD_EVIDENCE,
 ): SafeDmlRequestSummary {
-  const fields = isRecord(input.fields) ? Object.keys(input.fields).sort() : [];
+  const records = Array.isArray(input.records) ? input.records : undefined;
+  const fieldNames = records ? batchFieldNameUnion(records) : isRecord(input.fields) ? Object.keys(input.fields).sort() : [];
   return Object.freeze({
     operation,
-    ...(Array.isArray(input.records) ? { batch: true, totalCount: input.records.length, allOrNone: input.allOrNone === true } : {}),
     ...(typeof input.objectApiName === 'string' ? { objectApiName: input.objectApiName } : {}),
-    ...(operation === 'UPDATE' && typeof input.recordId === 'string' ? { recordId: input.recordId } : {}),
-    fieldNames: Object.freeze(fields),
-    fieldCount: fields.length,
-    managedFieldsApplied: Object.freeze(appliedManagedFields.map((field) => Object.freeze({ ...field }))),
+    ...(records
+      ? { batch: true, totalCount: records.length, allOrNone: input.allOrNone === true }
+      : operation === 'UPDATE' && typeof input.recordId === 'string' ? { recordId: input.recordId } : {}),
+    fieldNames: Object.freeze(fieldNames),
+    fieldCount: fieldNames.length,
+    fieldCountSemantics: records ? 'BOUNDED_UNION_ACROSS_RECORDS' : 'EXACT_SINGLE_RECORD',
+    managedFieldsApplied: Object.freeze(managedFieldEvidence.applied.map((field) => Object.freeze({ ...field }))),
+    managedFieldsAppliedCount: managedFieldEvidence.appliedCount,
+    managedFieldsTruncated: managedFieldEvidence.truncated,
   });
+}
+
+function batchFieldNameUnion(records: readonly unknown[]): string[] {
+  const names = new Set<string>();
+  for (const item of records.slice(0, 200)) {
+    if (!isRecord(item) || !isRecord(item.fields)) continue;
+    for (const name of Object.keys(item.fields)) names.add(name);
+  }
+  return [...names].sort().slice(0, 200);
+}
+
+/**
+ * The agent-requested fields exactly as they arrived, before managed-field injection.
+ * Batch rows use the same explicit `records[index].Field` key convention as the P7
+ * submitted-field evidence column so one collection API row stays readable.
+ */
+function requestedFieldValues(input: ToolInput): Readonly<Record<string, unknown>> {
+  if (Array.isArray(input.records)) {
+    return Object.fromEntries(input.records.slice(0, 200).flatMap((item, index) =>
+      isRecord(item) && isRecord(item.fields)
+        ? Object.entries(item.fields).map(([name, value]) => [`records[${index}].${name}`, value] as const)
+        : []));
+  }
+  return isRecord(input.fields) ? input.fields : {};
 }
 
 function hostDmlErrorToolResult(
@@ -380,9 +460,18 @@ function resolvedManagedFieldValues(
   input: ToolInput,
   applied: readonly AppliedManagedDmlField[],
 ): Readonly<Record<string, unknown>> {
-  const fields = isRecord(input.fields) ? input.fields : {};
+  const records = Array.isArray(input.records) ? input.records : undefined;
   const output: Record<string, unknown> = {};
-  for (const field of applied) output[field.fieldApiName] = fields[field.fieldApiName];
+  for (const field of applied) {
+    // Batch entries keep the request row they belong to, so the audit evidence stays
+    // unambiguous when the same managed field is applied to several rows.
+    const row = records
+      ? field.recordIndex === undefined ? undefined : records[field.recordIndex]
+      : input;
+    const fields = isRecord(row) && isRecord(row.fields) ? row.fields : undefined;
+    if (!fields) continue;
+    output[records ? `records[${field.recordIndex}].${field.fieldApiName}` : field.fieldApiName] = fields[field.fieldApiName];
+  }
   return Object.freeze(output);
 }
 

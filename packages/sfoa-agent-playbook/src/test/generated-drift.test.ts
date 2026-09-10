@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { describe, it } from 'node:test';
+import { AGENT_PLAYBOOK_VERSION } from '../version.js';
 
 const SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), '../../scripts/sync-generated.mjs');
 
@@ -17,7 +18,7 @@ describe('generated Agent artifact drift guard', () => {
       for (const file of ['docs/agent/DIFY_AGENT_INSTRUCTION.md', 'docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md',
         '.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md', '.codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md']) {
         const content = readFileSync(resolve(root, file), 'utf8');
-        assert.match(content, /1\.7\.0/u);
+        assert.match(content, new RegExp(AGENT_PLAYBOOK_VERSION.replace(/\./gu, '\\.'), 'u'));
         assert.match(content, /PLATFORM_IDENTITY_FALLBACK/u);
         assert.match(content, /ask once/u);
         assert.match(content, /optional and absent/u);

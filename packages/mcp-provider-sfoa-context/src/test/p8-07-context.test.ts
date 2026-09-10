@@ -91,8 +91,31 @@ test('Picklist, MultiPicklist, mixed Record Types and unresolved raw fallback ne
   assert.deepEqual(result.results.map((row) => row.resolutionStatus), ['RESOLVED', 'RESOLVED', 'PARTIAL', 'UNRESOLVED']);
   assert.equal(JSON.stringify(input), before); assert.equal(requests.length, 4);
 });
-test('relationship context filters by CREATE governance and USER createability without querying org schema', async () => {
-  const reads: string[] = [];
+/**
+ * HF09. One Picklist row carries both surfaces at once: the raw API value that a DML payload,
+ * SOQL filter or Audit row must keep, and the current Salesforce label a normal business
+ * answer may show. Pinning them together prevents a future "helpful" normalization from
+ * leaking the label into mutation or audit evidence.
+ */
+test('one Picklist row keeps the raw API value for DML/filter/Audit and the label for answers', async () => {
+  const connection = { getApiVersion: () => '67.0', request: async ({ url }: { url: string }) =>
+    url.includes('/picklist-values/') ? { values: [{ value: 'COMPLETED', label: '已完成' }] }
+      : { apiName: 'Root__c', label: 'Root', labelPlural: 'Roots', defaultRecordTypeId: RT,
+          fields: { Status__c: { apiName: 'Status__c', label: '状态', dataType: 'Picklist', required: false, createable: true, updateable: true } },
+          recordTypeInfos: { [RT]: { recordTypeId: RT, name: 'Business', available: true, defaultRecordTypeMapping: true } } } } as unknown as Connection;
+  const result = await new PresentationRelationshipExecutor(org(connection)).display({ objectApiName: 'Root__c',
+    values: [{ fieldApiName: 'Status__c', rawValue: 'COMPLETED', recordTypeId: RT }] });
+  const row = result.results[0];
+  assert.equal(row?.rawValue, 'COMPLETED');
+  assert.equal(row?.displayValue, '已完成');
+  assert.equal(row?.resolutionStatus, 'RESOLVED');
+  // A DML payload and a SOQL filter both continue to use the raw API value.
+  assert.equal({ Status__c: row?.rawValue }.Status__c, 'COMPLETED');
+  assert.equal(`SELECT Id FROM Root__c WHERE Status__c = '${row?.rawValue}'`,
+    "SELECT Id FROM Root__c WHERE Status__c = 'COMPLETED'");
+});
+
+test('relationship context filters by CREATE governance and USER createability without querying org schema', async () => {  const reads: string[] = [];
   const connection = { sobject: (name: string) => ({ describe: async () => {
     reads.push(name);
     return name === 'Root__c' ? { name, label: 'Root', childRelationships: ['InternalParticipant__c', 'CustomerParticipant__c', 'Denied__c'].map((childSObject) => ({ childSObject, field: 'Root__c', relationshipName: 'Children' })) }

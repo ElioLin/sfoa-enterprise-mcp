@@ -15,13 +15,32 @@ reference is never sent to Salesforce. Collection SaveResult order associates th
 reference at the provider boundary; agents use the explicit returned mapping.
 Malformed/incomplete responses are UNKNOWN; failed items never supply a parent ID.
 
+`isError` reports whether the Tool execution completed, not whether every record
+succeeded: SUCCESS and PARTIAL_SUCCESS return `isError=false`, and only FAILED and
+OUTCOME_UNKNOWN are Tool errors. A PARTIAL_SUCCESS already committed its successful
+items, so treating it as a Tool error would route clients into a correction/retry
+path that could duplicate CREATE; clientReferenceId is correlation, never an
+idempotency key. Guidance requires re-preparing only the FAILED items in a new
+batch, and never an automatic retry after OUTCOME_UNKNOWN.
+
+`update_records` rejects two items for the same record before dispatch
+(`MCP_DML_BATCH_DUPLICATE_RECORD_ID`). Comparison uses the 15-character canonical
+identity because 15- and 18-character IDs of one record differ only by checksum;
+one collection request cannot express two different updates to the same record.
+
 P7 keeps one wire API row per collection. Batch submitted fields use explicit
 `records[index].Field` keys in the compatible bounded scalar evidence column;
-SALESFORCE_REQUEST/RESPONSE payloads retain bounded actual collection bytes.
-BATCH_DML_OUTCOME records counts and partial metadata linked by publicApiCallId.
-The compatible terminal enum remains unchanged; responseSummary has batch status
-and counts, and the Admin Workbench shows PARTIAL_SUCCESS explicitly. Audit is
-observational and fail-open; no synthetic per-item API rows are created.
+requested fields use the same convention. SALESFORCE_REQUEST/RESPONSE payloads
+retain bounded actual collection bytes. BATCH_DML_OUTCOME records counts and
+partial metadata linked by publicApiCallId. The compatible terminal enum remains
+unchanged; responseSummary carries `businessOutcome`, `batch` status, counts and
+`partial`, and the Admin Workbench shows PARTIAL_SUCCESS explicitly. The audit
+`result`/`outcome` still describe the Tool invocation, so a partial commit is never
+recorded as a complete SUCCESS or a complete FAILED. Terminal audit request
+summaries for batches report `batch`, `objectApiName`, `totalCount`, `allOrNone`
+and the bounded union of requested field names, never `fieldCount=0` from reading
+the singular `fields` shape. Audit is observational and fail-open; no synthetic
+per-item API rows are created.
 
 `resolve_field_display_values` is a bounded USER read Tool. It resolves Picklist
 and MultiPicklist API values from current UI API field/Record Type metadata,
@@ -41,7 +60,16 @@ CREATE initial facts distinguish USER_EXPLICIT, SALESFORCE_CREATE_DEFAULT,
 CURRENT_USER_FACT and TRUSTED_RUNTIME_DEFAULT. Explicit > Salesforce > runtime;
 missing dependencies use UNRESOLVED provenance rather than claiming a supplied value.
 trustedForVisibility and resolutionStatus remain separate. Managed DML defaults
-are not proven Lightning defaults and are not used to decide visibility.
+are not proven Lightning defaults and are not used to decide visibility, so the
+server supplies no TRUSTED_RUNTIME_DEFAULT provider by default: Managed Lookup
+resolution must not run as a side effect of observing Dynamic Forms. A
+caller-supplied trusted provider stays read-only, request-USER and bounded, is
+never overridden, and must prove its Lightning CREATE initial-value semantics.
+A failure inside it is isolated: the affected dependencies become explicit
+UNKNOWN facts with a bounded reason and the remaining resolution still computes;
+only genuine metadata/snapshot failure keeps the existing whole-resolver
+PAGE_LAYOUT fallback contract. Record-dependent CONTAINER visibility remains
+UNKNOWN with CONTAINER_RECORD_UNSUPPORTED evidence.
 Only needed USER fields are requested through current USER UI API optionalFields
 (25 fields, 32 KiB response, existing shared 3-second extra-read deadline). FLS
 omission/failure/bounds remain UNKNOWN. P7 UI_CONTEXT payload carries provenance
@@ -49,11 +77,25 @@ and dependencies; main summaries contain counts. Unsupported record-dependent
 containers remain UNKNOWN because field sections do not react to unsaved drafts.
 USER/form-factor rules can be evaluated for supported container ancestry.
 
-Canonical Playbook 1.7.0 owns BATCH/COMPOUND/PICKLIST guidance and all client
-renderers. Complete the intent checklist, use proven parent IDs, prove complete
-UPDATE scope, and split >200 into a finite request plan. A truncated query is not
-permission to update a subset. Clear user mutation intent requires no second
-batch confirmation. Disabled plural Tools permit bounded singular execution.
+Canonical Playbook 1.8.0 owns BATCH/COMPOUND/PICKLIST guidance and all client
+renderers; Server Instructions, Dify Instruction, WorkBuddy System Prompt,
+WorkBuddy Skill and the WeCom role setting render the same selection matrix and
+must not drift. Complete the intent checklist, use proven parent IDs, prove
+complete UPDATE scope, and split >200 into a finite request plan. A truncated
+query is not permission to update a subset. Clear user mutation intent requires
+no second batch confirmation.
+
+Tool selection is capability-driven: both enabled — 1 record uses the singular
+Tool, 2..200 use the plural Tool; singular only — 1 record uses the singular Tool
+and 2..200 use bounded singular calls; plural only — 1 record uses the plural Tool
+with exactly 1 item and 2..200 use it normally; neither — the operation is
+unavailable. The Agent is never told to call a Tool absent from `tools/list`.
+
+`get_record_relationship_context` is bounded evidence, not an exhaustive schema.
+A `truncated=true` or `resolutionStatus=PARTIAL` result is non-exhaustive, so a
+named relationship must never be reported as non-existent on that basis: continue
+with the enabled bounded metadata capability, then ask the user once if it is
+still undetermined. Never widen recall by dumping the whole Org Schema.
 
 See `docs/sfoa/P8-07-IMPLEMENTATION-REPORT.md` for exact verification and external
 UAT limitations. Fixture and guidance contract tests do not prove live LLM behavior

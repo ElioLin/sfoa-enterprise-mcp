@@ -1,4 +1,4 @@
-import type { AgentCapabilities } from './capabilities.js';
+import type { AgentCapabilities, AgentRecognizedToolName } from './capabilities.js';
 import {
   AGENT_WORKFLOWS,
   PLAYBOOK_DEFINITION,
@@ -185,11 +185,11 @@ function weComCapabilityLines(capabilities: AgentCapabilities | undefined): stri
     lines.push('- 读取：不可用 — 未启用被认可的业务读取工具；不要声称可访问实时记录。');
   }
   lines.push(createReady
-    ? `- 新建：可用 — 对象范围 ${codeList(capabilities.createAllowedObjects)}。`
-    : '- 新建：不可用 — 未启用 `create_record` 或缺少有效新建对象策略；禁止新建。');
+    ? `- 新建：可用 — 对象范围 ${codeList(capabilities.createAllowedObjects)}。${mutationToolShapeZh(capabilities, 'create_record', 'create_records')}`
+    : '- 新建：不可用 — 未启用 `create_record`/`create_records` 或缺少有效新建对象策略；禁止新建。');
   lines.push(updateReady
-    ? `- 更新：可用 — 对象范围 ${codeList(capabilities.updateAllowedObjects)}。`
-    : '- 更新：不可用 — 未启用 `update_record` 或缺少有效更新对象策略；禁止更新。');
+    ? `- 更新：可用 — 对象范围 ${codeList(capabilities.updateAllowedObjects)}。${mutationToolShapeZh(capabilities, 'update_record', 'update_records')}`
+    : '- 更新：不可用 — 未启用 `update_record`/`update_records` 或缺少有效更新对象策略；禁止更新。');
   lines.push(`- 诊断链就绪：${capabilities.diagnosticReady ? '是' : '否'}。`);
   lines.push(`- 动态表单证据：\`${capabilities.dynamicFormEvidence}\`。`);
   lines.push(`- 平台托管 DML 字段：${managedFieldList(capabilities)}。`);
@@ -271,13 +271,15 @@ function sectionStatusLines(
   if (name === 'CREATE') {
     const ready = (capabilities.enabledTools.includes('create_record') || capabilities.enabledTools.includes('create_records')) && capabilities.createAllowedObjects.length > 0;
     return ready
-      ? [`- Status: available for ${codeList(capabilities.createAllowedObjects)}.`]
+      ? [`- Status: available for ${codeList(capabilities.createAllowedObjects)}.`,
+          `- Mutation Tool selection: ${mutationToolSelectionLine(capabilities, 'create_record', 'create_records')}`]
       : ['- Status: unavailable — `create_record` or an effective CREATE object policy is absent; do not create.'];
   }
   if (name === 'UPDATE') {
     const ready = (capabilities.enabledTools.includes('update_record') || capabilities.enabledTools.includes('update_records')) && capabilities.updateAllowedObjects.length > 0;
     return ready
-      ? [`- Status: available for ${codeList(capabilities.updateAllowedObjects)}.`]
+      ? [`- Status: available for ${codeList(capabilities.updateAllowedObjects)}.`,
+          `- Mutation Tool selection: ${mutationToolSelectionLine(capabilities, 'update_record', 'update_records')}`]
       : ['- Status: unavailable — `update_record` or an effective UPDATE object policy is absent; do not update.'];
   }
   if (name === 'DIAGNOSIS' && !capabilities.diagnosticReady) {
@@ -308,6 +310,46 @@ function renderSelectedReference(title: string, sectionNames: readonly PlaybookS
 
 function codeList(values: readonly string[]): string {
   return values.length > 0 ? values.map((value) => `\`${value}\``).join(', ') : '`none`';
+}
+
+/**
+ * The WeCom role setting is Chinese-first; its capability list must state the same
+ * singular/plural selection matrix as the canonical BATCH section.
+ */
+function mutationToolShapeZh(
+  capabilities: AgentCapabilities,
+  singular: AgentRecognizedToolName,
+  plural: AgentRecognizedToolName,
+): string {
+  const hasSingular = capabilities.enabledTools.includes(singular);
+  const hasPlural = capabilities.enabledTools.includes(plural);
+  if (hasSingular && hasPlural) return `单条用 \`${singular}\`，多条（2..200）用 \`${plural}\`。`;
+  if (hasSingular) return `\`${plural}\` 未启用：单条用 \`${singular}\`，多条改用有界的单条循环调用。`;
+  if (hasPlural) return `\`${singular}\` 未启用：单条用 \`${plural}\` 且仅含 1 条记录，多条正常使用 \`${plural}\`。`;
+  return '两个变更工具均未启用。';
+}
+
+/**
+ * Keep the rendered capability facts aligned with the BATCH tool-selection matrix: the Agent
+ * must never be told an operation is available and then sent to a Tool missing from `tools/list`.
+ */
+function mutationToolSelectionLine(
+  capabilities: AgentCapabilities,
+  singular: AgentRecognizedToolName,
+  plural: AgentRecognizedToolName,
+): string {
+  const hasSingular = capabilities.enabledTools.includes(singular);
+  const hasPlural = capabilities.enabledTools.includes(plural);
+  if (hasSingular && hasPlural) {
+    return `\`${singular}\` and \`${plural}\` are both enabled — 1 record uses \`${singular}\`; 2..200 records use \`${plural}\`.`;
+  }
+  if (hasSingular) {
+    return `\`${plural}\` is disabled — 1 record uses \`${singular}\`; 2..200 records use bounded \`${singular}\` calls.`;
+  }
+  if (hasPlural) {
+    return `\`${singular}\` is disabled — 1 record uses \`${plural}\` with exactly 1 item; 2..200 records use \`${plural}\`.`;
+  }
+  return 'neither mutation Tool is enabled.';
 }
 
 function managedFieldList(capabilities: AgentCapabilities): string {

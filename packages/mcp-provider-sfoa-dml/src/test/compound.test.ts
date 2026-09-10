@@ -65,7 +65,27 @@ test('child partial failure preserves root success and reports incomplete intent
   const result = await scenario(1, objects.slice(1), 'CHILD_PARTIAL');
   assert.equal(result.status, 'PARTIAL_SUCCESS');
   assert.deepEqual(result.phases.map((phase) => phase.status), ['SUCCESS', 'PARTIAL_SUCCESS', 'SUCCESS']);
+  // Exactly one collection request per phase, in intent order: nothing was retried or re-created.
   assert.equal(result.calls.length, 3);
+  assert.deepEqual(result.calls.map((call) => call.object), objects);
+  const child = result.phases[1]!;
+  assert.equal(child.succeeded, 1); assert.equal(child.failed, 1); assert.equal(child.unknown, 0);
+  assert.equal(child.results[1]?.salesforceErrors?.[0]?.errorCode, 'FIELD_CUSTOM_VALIDATION_EXCEPTION');
+  // The committed root and the successful child keep their proven IDs; no root is deleted.
+  assert.equal(result.phases[0]?.status, 'SUCCESS');
+  assert.ok(result.mapping.get('root-0'));
+  assert.ok(child.results.find((row) => row.success)?.recordId);
+});
+test('after a partial child batch only the failed item qualifies for re-preparation', async () => {
+  const result = await scenario(1, objects.slice(1), 'CHILD_PARTIAL');
+  const child = result.phases[1]!;
+  const committed = child.results.filter((row) => row.success).map((row) => row.clientReferenceId);
+  const reprepared = child.results.filter((row) => !row.success).map((row) => row.clientReferenceId);
+  assert.equal(committed.length, 1); assert.equal(reprepared.length, 1);
+  assert.equal(committed.some((reference) => reprepared.includes(reference)), false);
+  // clientReferenceId is correlation, not an idempotency key: resubmitting a committed row
+  // would create a second Salesforce record rather than being deduplicated.
+  assert.equal(JSON.stringify(reprepared).includes(String(committed[0])), false);
 });
 for (const failure of ['ROOT_FAILED', 'ROOT_UNKNOWN'] as const) test(`${failure} creates no children and cannot complete intent`, async () => {
   const result = await scenario(2, objects.slice(1), failure);

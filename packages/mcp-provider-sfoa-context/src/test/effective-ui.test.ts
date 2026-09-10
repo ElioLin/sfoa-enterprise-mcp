@@ -7,7 +7,8 @@ import { evaluateVisibility, type VisibilityFacts } from '../visibility.js';
 import { resolveActivePage } from '../active-page.js';
 import { recordActionContextInputSchema, recordActionContextOutputSchema } from '../schemas.js';
 import { collectUiSnapshot } from '../ui-snapshot-refresh.js';
-import { UI_PARSER_VERSION, type UiSnapshot } from '../effective-ui-contracts.js';
+import { initialFact } from '../create-initial-state.js';
+import type { UiSnapshot } from '../effective-ui-contracts.js';
 
 test('structural parser retains ancestry, sections, repeated instances and desktop ignores mobile detail', () => {
   const raw = fixturePage();
@@ -194,8 +195,48 @@ test('snapshot absence and parse failure fall back while valid Page Layout remai
   }
 });
 
-test('concurrent USER contexts cannot share evaluated fields or draft values', async () => {
-  const shared = fixtureSnapshot();
+/**
+ * HF03. A trusted runtime-default provider is optional evidence for visibility only, so a
+ * failure inside it must not collapse the whole Dynamic Forms resolution into a PAGE_LAYOUT
+ * fallback. Only the affected dependency becomes UNKNOWN; the rest still computes.
+ */
+test('a failing trusted runtime-default provider is isolated from the rest of the resolution', async () => {
+  const requested: string[][] = [];
+  const fixture = runtimeFixture('ENFORCE', fixtureSnapshot(), PROFILE, {
+    resolveRuntimeDefaults: async (_objectApiName, dependencies) => {
+      requested.push([...dependencies]); throw new Error('PLATFORM_USER_LOOKUP_FAILED');
+    },
+  });
+  const output = await fixture.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE' });
+  assert.deepEqual(requested, [['Type__c']]);
+  assert.equal(output.uiContext?.formSource, 'DYNAMIC_FORMS');
+  assert.equal(output.coverage?.dynamicFormsEvaluated, true);
+  assert.equal(fixture.evidence[0]?.fallbackUsed, false);
+  assert.deepEqual(fixture.evidence[0]?.runtimeDefaultResolution,
+    { requested: 1, resolved: 0, reason: 'PLATFORM_USER_LOOKUP_FAILED' });
+  const byName = Object.fromEntries(output.fields!.map((field) => [field.apiName, field]));
+  // The failed dependency is explicitly UNKNOWN, never silently VISIBLE or HIDDEN.
+  assert.equal(byName.Discount__c?.visibilityState, 'UNKNOWN');
+  assert.equal(byName.Secret__c?.visibilityState, 'UNKNOWN');
+  // Facts that never depended on the provider are unaffected.
+  assert.equal(byName.ApiRequired__c?.effectiveRequired, true);
+  assert.equal(byName.NoFls__c?.effectiveEditable, false);
+  assert.equal(byName.Internal__c?.effectiveEditable, false);
+  assert.equal(fixture.counts().metadataCalls, 0);
+});
+
+test('a supplied trusted runtime-default provider still contributes visibility evidence', async () => {
+  const fixture = runtimeFixture('ENFORCE', fixtureSnapshot(), PROFILE, {
+    resolveRuntimeDefaults: async () => [initialFact('Record.Type__c', 'Internal', 'TRUSTED_RUNTIME_DEFAULT')],
+  });
+  const output = await fixture.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE' });
+  assert.equal(fixture.evidence[0]?.fallbackUsed, false);
+  assert.deepEqual(fixture.evidence[0]?.runtimeDefaultResolution, { requested: 1, resolved: 1, reason: null });
+  const byName = Object.fromEntries(output.fields!.map((field) => [field.apiName, field]));
+  assert.equal(byName.Secret__c?.visibilityState, 'VISIBLE');
+});
+
+test('concurrent USER contexts cannot share evaluated fields or draft values', async () => {  const shared = fixtureSnapshot();
   const results = await Promise.all(Array.from({ length: 40 }, async (_unused, index) => {
     const profile = index % 2 ? '00e000000000002AAA' : PROFILE;
     const fixture = runtimeFixture('ENFORCE', shared, profile);

@@ -20,7 +20,6 @@ import {
   isSfoaContextToolName,
   type SfoaContextToolName,
   type EffectiveUiOptions,
-  initialFact,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
   NoopRuntimeLogger,
@@ -290,18 +289,16 @@ export async function createGovernedMcpServer(
           ...options.effectiveUi,
           managedFields: (options.managedDmlFieldRules ?? []).filter((rule) => rule.enabled && rule.applyOnCreate)
             .map((rule) => `${rule.objectApiName}.${rule.targetFieldApiName}`),
-          resolveRuntimeDefaults: async (objectApiName, dependencyFields) => {
-            const resolver = new ManagedDmlFieldResolver(options.scope.salesforce, options.scope.context,
-              (options.managedDmlFieldRules ?? []).filter((rule) => dependencyFields.includes(rule.targetFieldApiName)));
-            const resolution = await resolver.resolve('CREATE', { objectApiName, fields: {} });
-            const fields = resolution.input.fields as Record<string, unknown>;
-            // Server-managed DML values are real runtime defaults, but do not prove
-            // Lightning initial values. Only UI API defaults/explicit drafts can do that.
-            return Object.entries(fields).map(([name, value]) => ({
-              ...initialFact(`Record.${name}`, value, 'TRUSTED_RUNTIME_DEFAULT'), trustedForVisibility: false,
-              reason: 'DML_DEFAULT_NOT_PROVEN_LIGHTNING_INITIAL',
-            }));
-          },
+          // Deliberately no `resolveRuntimeDefaults` wiring. Server-managed DML values are real
+          // for mutation payloads but do not prove Lightning New Page initial values, so they
+          // were always consumed with trustedForVisibility=false — they could never change
+          // visibility. Running ManagedDmlFieldResolver here only added request-USER Salesforce
+          // lookups (for example PLATFORM_USER_LOOKUP) as a pure side effect of observing a
+          // Dynamic Forms page, and any lookup failure aborted the whole resolution into a
+          // PAGE_LAYOUT fallback. UNKNOWN is the honest answer when no provider is proven
+          // equivalent to Salesforce initial values. A caller that does have a trustworthy,
+          // read-only, request-USER, bounded provider can still supply one through
+          // EffectiveUiOptions.resolveRuntimeDefaults.
           audit: (evidence) => recordUiContextAudit(options.requestAuditContext, evidence),
         },
         toolNames: contextToolNames as readonly SfoaContextToolName[],

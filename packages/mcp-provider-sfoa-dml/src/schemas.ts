@@ -132,6 +132,32 @@ function uniqueReferences(items: readonly { clientReferenceId?: string }[], cont
     seen.add(item.clientReferenceId);
   });
 }
+
+export const BATCH_DUPLICATE_RECORD_ID_CODE = 'MCP_DML_BATCH_DUPLICATE_RECORD_ID';
+
+/**
+ * Canonical duplicate detection for one `update_records` batch.
+ *
+ * Salesforce 15- and 18-character IDs for the same record differ only in the trailing
+ * 3-character checksum, so the first 15 characters are the durable identity. Comparing raw
+ * strings would let `A → Status=X` and `A → Status=Y` reach Salesforce as two collection rows
+ * whose commit order decides the final value. Reject that before dispatch.
+ *
+ * Returns the duplicated canonical 15-character identities, in first-seen order.
+ */
+export function duplicateBatchRecordIds(records: readonly { recordId?: unknown }[]): readonly string[] {
+  const seen = new Set<string>();
+  const duplicates: string[] = [];
+  for (const record of records) {
+    const value = typeof record?.recordId === 'string' ? record.recordId.trim() : '';
+    if (!salesforceIdPattern.test(value)) continue;
+    const identity = value.slice(0, 15);
+    if (seen.has(identity)) { if (!duplicates.includes(identity)) duplicates.push(identity); continue; }
+    seen.add(identity);
+  }
+  return Object.freeze(duplicates);
+}
+
 const batchBase = { objectApiName: objectApiNameSchema,
   allOrNone: z.boolean().default(false).describe('Atomicity applies only to this Salesforce request, never across Tool calls.') };
 export const createRecordsInputSchema = z.object({ ...batchBase,

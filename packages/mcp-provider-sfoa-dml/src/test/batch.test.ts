@@ -5,7 +5,7 @@ import { Connection as JsforceConnection } from '@jsforce/jsforce-node';
 import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 import { DmlExecutor, createRecordsInputSchema, updateRecordsInputSchema, batchDmlOutputSchema,
-  BatchRecordsMcpTool, parseDmlAllowlistJson } from '../index.js';
+  BatchRecordsMcpTool, parseDmlAllowlistJson, type CreateRecordsInput, type UpdateRecordsInput } from '../index.js';
 
 const id = (index: number) => `a000000000${String(index).padStart(5, '0')}AAA`;
 const allowlist = parseDmlAllowlistJson('[{"objectApiName":"Root__c","operations":["CREATE","UPDATE"]}]');
@@ -109,4 +109,51 @@ test('real pinned SDK sends one POST/PATCH collection wire request and preserves
     assert.equal(requests[1]?.body.allOrNone, true);
     assert.equal(JSON.stringify(requests).includes('clientReferenceId'), false);
   } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); }
+});
+/**
+ * HF01. `isError` answers "did the Tool execution complete", not "did every record succeed".
+ * A PARTIAL_SUCCESS has already committed its successful rows; reporting it as a Tool error
+ * sends the client into a correction/retry path that can duplicate the committed CREATEs,
+ * because clientReferenceId is correlation and Salesforce has no idempotency key here.
+ */
+const toolResultScenarios: Array<{ name: string; operation: 'CREATE' | 'UPDATE'; response: unknown;
+  input: CreateRecordsInput | UpdateRecordsInput; status: string; isError: boolean }> = [
+  { name: 'SUCCESS', operation: 'CREATE', response: undefined, status: 'SUCCESS', isError: false,
+    input: { objectApiName: 'Root__c', allOrNone: false, records: [{ fields: { Name: 'X' } }] } },
+  { name: 'PARTIAL_SUCCESS', operation: 'UPDATE', isError: false, status: 'PARTIAL_SUCCESS',
+    response: [{ id: id(0), success: true, errors: [] },
+      { success: false, errors: [{ errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION', message: 'Denied', fields: ['Name'] }] }],
+    input: { objectApiName: 'Root__c', allOrNone: false,
+      records: [0, 1].map((index) => ({ recordId: id(index), fields: { Name: 'X' } })) } },
+  { name: 'FAILED', operation: 'CREATE', status: 'FAILED', isError: true,
+    response: [{ success: false, errors: [{ errorCode: 'ALL_OR_NONE_OPERATION_ROLLED_BACK', message: 'Rolled back' }] }],
+    input: { objectApiName: 'Root__c', allOrNone: true, records: [{ fields: { Name: 'X' } }] } },
+  { name: 'OUTCOME_UNKNOWN', operation: 'CREATE', status: 'OUTCOME_UNKNOWN', isError: true,
+    response: new Error('connection lost'),
+    input: { objectApiName: 'Root__c', allOrNone: false, records: [{ fields: { Name: 'X' } }] } },
+];
+for (const scenario of toolResultScenarios) {
+  test(`Tool result semantics: ${scenario.name} reports isError=${scenario.isError} with preserved structured content`, async () => {
+    const { executor } = fixture(scenario.response);
+    const result = await new BatchRecordsMcpTool(executor, scenario.operation).exec(scenario.input);
+    assert.equal(result.isError, scenario.isError);
+    const structured = result.structuredContent as { status?: string; succeeded?: number; failed?: number; results?: unknown[] };
+    assert.equal(structured.status, scenario.status);
+    assert.deepEqual(JSON.parse((result.content[0] as { text: string }).text), JSON.parse(JSON.stringify(structured)));
+    assert.equal(structured.results?.length, scenario.input.records.length);
+  });
+}
+test('duplicate UPDATE record IDs in one batch are rejected before any dispatch', async () => {
+  const { executor, calls } = fixture();
+  const tool = new BatchRecordsMcpTool(executor, 'UPDATE');
+  const eighteen = id(0);
+  const fifteen = eighteen.slice(0, 15);
+  const result = await tool.exec({ objectApiName: 'Root__c', allOrNone: false,
+    records: [{ recordId: eighteen, fields: { Name: 'X' } }, { recordId: fifteen, fields: { Name: 'Y' } }] });
+  assert.equal(result.isError, true);
+  assert.equal((result.structuredContent as { errorCode?: string }).errorCode, 'MCP_DML_BATCH_DUPLICATE_RECORD_ID');
+  assert.equal(calls.length, 0);
+  const distinct = await tool.exec({ objectApiName: 'Root__c', allOrNone: false,
+    records: [0, 1].map((index) => ({ recordId: id(index), fields: { Name: 'X' } })) });
+  assert.equal(distinct.isError, false); assert.equal(calls.length, 1);
 });
