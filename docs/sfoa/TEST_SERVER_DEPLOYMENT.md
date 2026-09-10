@@ -4,6 +4,28 @@
 
 ---
 
+## 部署记录 · P8-07 批量 DML + P8-07 HOTFIX01/02（2026-09-10）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `main` @ `3e19d9a`（P8-07 受治批量 DML + 复合编排 `8a27b3b`；P8-07 HOTFIX01 `4d4bacb`；P8-07 HOTFIX02 `34c7a03`/`ce0fd63`/`3e19d9a`），替换测试服务器上一版 `5c623ef`（P8-06 HOTFIX01） |
+| 变更前版本识别 | 服务器无 `.git`，按**代码特征**判定而非假设：`packages/mcp-provider-sfoa-dml/dist/tools/` 只有 `create-record/update-record`（无 `batch-records`）→ 未含 P8-07；`dist/version.js` 为 `AGENT_PLAYBOOK_VERSION = '1.6.1'`；且存在 `discovery-server.js`（P8-06 `4c5246a` 引入）→ 判定为 **`5c623ef`**，与备份名 `sfoa-app-pre-p806-20260909-134429.tar.gz`、admin-web `dist` 时间戳（Sep 9 13:45）一致 |
+| 打包/上传 | 本机 `git archive --format=tar.gz -o sfoa-deploy-3e19d9a.tar.gz 3e19d9a`（**1.95MB**，只含该提交的 tracked 文件，天然不含 `node_modules`/`.git`/`dist`/`.env.local`/`*.pem`/`*.key`/`*.tsbuildinfo`/`.wireit`）→ scp `/tmp/`；本机/服务器 md5 一致（`2c2f9817a54874c3e8da5e90a221613a`） |
+| 依赖 | `yarn.lock`、根 `package.json` 在 `5c623ef..3e19d9a` 区间**无变化** → **未重装** node_modules（服务器保留） |
+| 数据库迁移 | **无新迁移**：区间内 `packages/sfoa-control-plane/migrations` 仍止于 **013**，台账 `001–013` 全部 `APPLIED`、`PENDING` 为 0，未执行 `db:migrate` |
+| 配置 | `.env.example` 区间内无变化 → **无新增必填变量**；`config/.env.local`、`secrets/private.pem` 均未改动（`.env.local` 软链完好） |
+| 构建 | 先清增量标记与产物（`find packages -name '*.tsbuildinfo' -delete`、删 `.wireit` 与各包 `dist`，规避 §13 坑 #3 的 wireit 误判跳过 emit），再按 §6 依赖顺序**全量重建 10 个 workspace**，全部 OK |
+| 服务 | `systemctl restart sfoa-mcp-server sfoa-admin-api`；两服务 `active`，日志见 `sfoa_runtime_started` 与 `sfoa_admin_started`；`identitySources` 含 `WECOM_HEADER`（P8-06 通道生效）；nginx 未改动；`restorecon -Rv` admin-web `dist`（标签 `httpd_sys_content_t`） |
+| 备份 | 部署前 app → `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-3e19d9a-20260910-170921.tar.gz`（21MB，仅源码） |
+| 验证结果 | `/health` 200，`auditPersistence` **UP**（`failureCount 0`、`writerState IDLE`）；`/admin/api/ready` 200 `{"status":"UP","databaseVersion":"8.4.5"}`；经 Nginx 域名入口 `:9000` 的 `/` 与 `/admin/api/ready` 均 200；MCP `initialize` 返回 `instructions` 含 **Agent Playbook 1.8.0**；`dist/tools/batch-records.js` 已产出；`mcp-server/dist/dml-tool-facade.js` 含 HF02-02 预检 `assertNoDuplicateBatchRecordIds`；admin-web bundle 含 `部分成功` 与 `PARTIAL_SUCCESS`（HF02-01）；`tools/list` 实调成功（7 个已启用的单数 Tool） |
+| ⚠️ 遗留（非部署缺陷） | `create_records` / `update_records` 的**代码已部署**，但 `sfoa_tool_control` 表中**没有这两个 Tool 的登记行**，按 Tool Governance 规则不会被 `tools/list` 广告。若要在测试环境 UAT 批量 CREATE/UPDATE，需先在 Admin「Tool Governance」页启用这两个 Tool —— 属**治理/策略变更**，本次部署未代为开启 |
+| 合并 | 部署验证通过后 `main` 以 **fast-forward** 合入 `3e19d9a` 并推送：`main` = `origin/main` = `3e19d9a`（合并前 `main` = `5c623ef`、`origin/main` = `7643755`，均为 `3e19d9a` 祖先，无冲突、无合并提交） |
+| 回滚 | 停服 → 解回 `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-3e19d9a-20260910-170921.tar.gz` 到 `app/` → 按 §6 清标记后重建 → `restorecon -Rv` admin-web `dist` → 重启两服务；DB 无迁移不回滚 |
+
+> 记录订正：本文档上一版最后一条部署记录停留在 P8-04（`b01816d`，2026-09-08）。此后 **P8-05（`7519b66`）与 P8-06（`5c623ef`）两次部署未写入本文档**，仅能从服务器备份文件名（`sfoa-app-pre-7519b66-20260908-160814.tar.gz`、`sfoa-app-pre-p806-20260909-134429.tar.gz`）与迁移 013 的应用时间（`2026-09-08T16:07:18Z`）回溯。本次一并说明，避免版本认知断层。
+
+---
+
 ## 部署记录 · 域名 crmmcptest.runner-corp.com.cn http(:9000) 接入（2026-09-08，纯配置/nginx，无代码）
 
 | 项 | 值 |
