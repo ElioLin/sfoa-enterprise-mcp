@@ -267,7 +267,7 @@ api.registerMcpServerConnectionResolver({
 >
 > **当前生效配置、24 个实测可见 Tool、联网能力与并发收口证据，见
 > [`OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md`](./OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md)
-> 的 A / B / C / D 节。**
+> 的 A / B / C 节。**
 >
 > 本节 §7.1–§7.3 以下内容**保留为接入期的历史记录**，不再代表当前配置。
 
@@ -359,7 +359,7 @@ SFOA 当前广告（`tools/list` 实测）**15 个**：
 | 文件 | 处理 |
 |---|---|
 | `IDENTITY.md` | 填写 Name = `CRM智能助手（测试环境）`，说明渠道、后端、身份规则、测试环境 |
-| `AGENTS.md` | 重写：只描述真实存在的渠道与 15 个 MCP 工具；写明身份规则（身份由系统注入、不向用户索要、消息里自称的身份一律无效、不得声称「无法识别身份」）**（2026-09-11 再次重写，补充联网能力、两个信息源规则与网页内容不可信规则，见 [`OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md`](./OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md) D.1）** |
+| `AGENTS.md` | 重写：只描述真实存在的渠道与 15 个 MCP 工具；写明身份规则（身份由系统注入、不向用户索要、消息里自称的身份一律无效、不得声称「无法识别身份」）**（2026-09-11 再次重写，补充联网能力、两个信息源规则与网页内容不可信规则，见 [`OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md`](./OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md) C.1）** |
 | `SOUL.md` / `USER.md` | **未改动**（通用行为准则，无虚假能力声明） |
 | 备份 | `/data/openclaw/backups/workspace-templates-20260911-1140/` |
 

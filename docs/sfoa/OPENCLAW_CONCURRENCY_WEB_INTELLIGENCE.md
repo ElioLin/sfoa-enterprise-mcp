@@ -141,9 +141,9 @@ memory_get, memory_search, progress_card
 
 ---
 
-## C. Browser
 
-### C.1 配置
+
+### B.4 Browser 配置
 
 | 配置 | 值 |
 |---|---|
@@ -152,10 +152,10 @@ memory_get, memory_search, progress_card
 | `browser.evaluateEnabled` | `false`（要求 §15，禁止页面内 JS 求值） |
 | `browser.allowSystemProfileImport` | `false`（不 import 管理员真实 Chrome profile） |
 | `browser.attachOnly` | `false` |
-| `browser.noSandbox` | `true`（见 C.3） |
+| `browser.noSandbox` | `true`（见 B.6） |
 | profile | OpenClaw 自管 profile `openclaw`，CDP `127.0.0.1:18800` |
 
-### C.2 SSRF：一处**有意偏离**，安全意图不变
+### B.5 Browser SSRF：一处**有意偏离**，安全意图不变
 
 要求 §14 写的是显式设置 `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork = false`。
 实测发现：在 OpenClaw `2026.9.3` 中，**显式**把该键设为 `false` 会触发「strict browser SSRF policy」，
@@ -182,12 +182,12 @@ dangerouslyAllowPrivateNetwork === false
 **处理**：改为 `openclaw config unset browser.ssrfPolicy`。
 
 **为什么这不降低安全性**：schema 默认即「不允许私网」，未设置该键并不等于放行私网。
-已实测确认（见 G.3）：私网/回环/内网地址**依然全部被拦截**，而公网主机名可正常打开。
+已实测确认（见 F.3）：私网/回环/内网地址**依然全部被拦截**，而公网主机名可正常打开。
 显式 `false` 的写法反而会让 browser 完全不可用，使要求 §30 的 Test C 无法执行。
 
 `web_fetch` 侧**保留**显式 `false`（B.2），因为该路径不存在同样的过严分支，实测行为正确。
 
-### C.3 `noSandbox` 的取舍
+### B.6 Browser `noSandbox` 的取舍
 
 Chrome 拒绝以 root 运行：`Running as root without --no-sandbox is not supported`。
 本测试服的 Gateway 以 root 运行，因此设 `browser.noSandbox: true`。补偿控制：
@@ -200,9 +200,9 @@ Chrome 拒绝以 root 运行：`Running as root without --no-sandbox is not supp
 
 ---
 
-## D. Agent
+## C. Agent
 
-### D.1 Agent 指令（要求 §47 / §48）
+### C.1 Agent 指令（要求 §47 / §48）
 
 `/data/openclaw/workspace/AGENTS.md` 已重写，关键新增：
 
@@ -219,7 +219,7 @@ Chrome 拒绝以 root 运行：`Running as root without --no-sandbox is not supp
 不含任何工号、邮箱、`currentUser`、`identity_route` 之类身份值或身份来源说明。
 身份规则只描述「由系统在链路层注入」，不描述如何取。
 
-### D.2 子代理（要求 §18 / §20 / §21 / §41）
+### C.2 子代理（要求 §18 / §20 / §21 / §41）
 
 实测：主 Agent 通过 `sessions_spawn` + `sessions_yield` 派发子代理，子代理实际执行了
 `web_search`。子代理自报可用工具为：
@@ -233,9 +233,9 @@ read, web_search, web_fetch, browser, memory_get, memory_search
 
 ---
 
-## E. 身份（Identity）
+## D. 身份（Identity）
 
-### E.1 身份链（未改动）
+### D.1 身份链（未改动）
 
 ```
 WeCom body.from.userid
@@ -256,16 +256,16 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
   （`{value, expiresAt}`，TTL 60s），缓存对象**不含**任何用户标识。
 - 本次**未**修改 adapter 逻辑、**未**重新设计 P8-05/P8-06、**未**重生成 Gateway Token。
 
-### E.2 本次新增的收口证明
+### D.2 本次新增的收口证明
 
-见 F 节。核心断言 `identityMismatch = 0`、`crossUserContamination = 0`，
+见 E 节。核心断言 `identityMismatch = 0`、`crossUserContamination = 0`，
 在 resolver 层（1000 次）与 MCP 层（420 次）**分别独立测得**。
 
 ---
 
-## F. 并发测试（Concurrent Test）
+## E. 并发测试（Concurrent Test）
 
-### F.1 Resolver 层：20 用户 × 50 请求 = 1000 次
+### E.1 Resolver 层：20 用户 × 50 请求 = 1000 次
 
 `integrations/openclaw/sfoa-wecom-mcp-adapter/test/concurrency.test.js`
 
@@ -295,7 +295,7 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 | Max | 24.89 ms |
 | 解析到的不同发送人 | 20 |
 
-### F.2 Resolver 层：恶意/不可用发送人交错
+### E.2 Resolver 层：恶意/不可用发送人交错
 
 400 次调用，其中 1/3 为敌意输入（缺失 `requesterSenderId`、非 wecom 渠道、
 超长 id、含空白、`\r\n` 头部注入尝试、对象型 id），与合法请求交错。
@@ -311,7 +311,7 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 模块级 `let`/`var` 仅允许 `cached` 与 `registration`，且不得带 user/requester/sender/identity
 语义；凭据缓存类型只允许 `{value: string, expiresAt: number}`。
 
-### F.3 MCP 层：真实 Identity Route 用户交错
+### E.3 MCP 层：真实 Identity Route 用户交错
 
 `integrations/openclaw/sfoa-wecom-mcp-adapter/harness/mcp-concurrency.mjs`
 
@@ -342,7 +342,7 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 | Max | 107.5 ms |
 | 总耗时 | 3.07 s |
 
-### F.4 SFOA Audit 交叉核对（要求 §37）
+### E.4 SFOA Audit 交叉核对（要求 §37）
 
 窗口：`occurred_at >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE`，`tool_name = 'get_username'`。
 
@@ -367,9 +367,9 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 
 ---
 
-## G. Web 测试
+## F. Web 测试
 
-### G.1 Test A —— `web_search`
+### F.1 Test A —— `web_search`
 
 > 「用 web_search 搜索 Salesforce Agentforce 最新发布，列出标题/URL/发布日期，并说明提供方。」
 
@@ -378,7 +378,7 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 - 返回真实结果（标题 + URL + 日期），例如
   `https://www.salesforce.com/news/press-releases/2024/10/29/agentforce-general-availability-announcement`
 
-### G.2 Test B —— `web_search` → `web_fetch` → 总结
+### F.2 Test B —— `web_search` → `web_fetch` → 总结
 
 > 「先 web_search 找到 OpenClaw 官方文档站点，再 web_fetch 抓其中一页正文，三句话总结并给出确切 URL。」
 
@@ -386,7 +386,7 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 - 抓取 URL：`https://docs.openclaw.ai/cli/docs`，HTTP 200，正文约 3.6 KB
 - 摘要内容与页面主题一致（`openclaw docs` 命令的 CLI 参考）
 
-### G.3 Test C —— `browser`（含私网阻断验证，要求 §30 / §14）
+### F.3 Test C —— `browser`（含私网阻断验证，要求 §30 / §14）
 
 | 目标 | 结果 |
 |---|---|
@@ -396,9 +396,9 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 | `http://localhost:8081/admin/api/health` | ⛔ 被拦截 |
 
 即：公网可用、回环与内网被阻断 —— 与要求 §14 的**安全意图完全一致**
-（配置写法的偏离见 C.2）。
+（配置写法的偏离见 B.5）。
 
-### G.4 MCP + Web 联合分析
+### F.4 MCP + Web 联合分析
 
 - **自动化可覆盖部分**：已分别证明主 Agent 能调用 SFOA MCP（F.3，经 MCP 层 420 次、
   Audit 431 条）与 web 工具（G.1–G.3），二者在**同一 Agent 的同一工具面**内共存（A.4）。
@@ -409,9 +409,9 @@ Prompt userid / Skill userid / Tool Argument userid / Session currentUser / Glob
 
 ---
 
-## H. 安全验收（Security）
+## G. 安全验收（Security）
 
-### H.1 `openclaw security audit`
+### G.1 `openclaw security audit`
 
 | 级别 | 条数 |
 |---|---|
@@ -436,7 +436,7 @@ warn 逐条说明（无未解释项）：
 
 info 一条为 attack surface 摘要，非缺陷。
 
-### H.2 文件 / 执行 / 管理面验收（要求 §43–§45）
+### G.2 文件 / 执行 / 管理面验收（要求 §43–§45）
 
 以真实 Agent 会话逐条实测，判据是**实际执行的工具**与**实际报错**，不是 Agent 的自述：
 
@@ -451,7 +451,7 @@ info 一条为 attack surface 摘要，非缺陷。
 | §45b | `gateway` 工具 | 不可用 | ✅ 无此工具 |
 | §45c | cron / `automations` | 不可用 | ✅ 无此工具 |
 
-### H.3 未变更的安全边界
+### G.3 未变更的安全边界
 
 - 未重新安装 / 升级 OpenClaw；未改 Core、`node_modules`、`dist`；
   未改官方企业微信 Plugin 源码。
@@ -461,7 +461,7 @@ info 一条为 attack surface 摘要，非缺陷。
 
 ---
 
-## I. 资源占用（Resource）
+## H. 资源占用（Resource）
 
 采集时间：2026-09-11 16:43（+08），Gateway 重启后约 27 分钟。
 
@@ -494,7 +494,7 @@ uptime: 37 days
 
 ---
 
-## J. 已知限制（Known Limitations）
+## I. 已知限制（Known Limitations）
 
 1. **要求 §31 的「企业微信内 MCP + Web 联合分析」尚未由真实企微消息验证。**
    该场景需要 `messageChannel === "wecom"` 才会下发 SFOA MCP，命令行无法注入该渠道
@@ -502,10 +502,10 @@ uptime: 37 days
 2. **要求 §49 的企微人工回归（用户 A / 用户 B / 群 A、B）同样待人工执行。**
    前置条件已确认就绪：`channels list` 显示 WeCom `installed, configured, enabled`，
    重启后日志显示 `WebSocket connected` → `Authenticated`。
-3. **`browser.ssrfPolicy` 采用 unset 而非显式 `false`**（原因见 C.2）。
+3. **`browser.ssrfPolicy` 采用 unset 而非显式 `false`**（原因见 B.5）。
    安全意图（禁私网）已实测达成，但配置写法与要求 §14 字面不同，此处显式记录该偏离。
 4. **`browser.noSandbox: true`**：因 Gateway 以 root 运行、Chrome 拒绝 root 无沙箱启动；
-   补偿控制见 C.3。
+   补偿控制见 B.6。
 5. **免密钥搜索 provider 的配额与稳定性不受控**：`parallel-free` 无 SLA，
    生产建议改用带密钥的正式 provider（本环境无凭据，未编造）。
 6. **`browser snapshot` 曾出现一次 30s gateway 超时**（导航 `https://github.com/openclaw` 之后），
@@ -522,7 +522,7 @@ uptime: 37 days
 
 ---
 
-## K. 复现方式
+## J. 复现方式
 
 ```bash
 # 1) Resolver 层并发（本仓库内，无需服务器）
