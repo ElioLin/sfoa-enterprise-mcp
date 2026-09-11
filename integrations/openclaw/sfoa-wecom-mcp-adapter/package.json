@@ -1,0 +1,28 @@
+{
+  "name": "@sfoa/openclaw-wecom-mcp-adapter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenClaw plugin that binds the statically declared sfoa-enterprise-mcp MCP server to the trusted WeCom message requester.",
+  "license": "Apache-2.0",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "openclaw": {
+    "extensions": [
+      "./src/index.js"
+    ]
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.9.3"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  }
+}

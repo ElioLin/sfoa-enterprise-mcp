@@ -1,0 +1,24 @@
+{
+  "id": "sfoa-wecom-mcp-adapter",
+  "enabledByDefault": true,
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "serverName": {
+        "type": "string",
+        "description": "Name of the statically declared MCP server this adapter binds."
+      },
+      "mcpUrl": {
+        "type": "string",
+        "description": "Loopback MCP endpoint of the SFOA runtime."
+      },
+      "mcpWecomClientToken": {
+        "description": "SecretInput for the SFOA WeCom channel credential. Prefer a SecretRef."
+      }
+    }
+  }
+}
