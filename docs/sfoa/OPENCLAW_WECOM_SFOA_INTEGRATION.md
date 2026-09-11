@@ -259,7 +259,19 @@ api.registerMcpServerConnectionResolver({
 
 ## 7. Tool Policy 与 Agent 可见 Tool
 
-### 7.1 策略
+> **当前状态（2026-09-11 起）**：策略已从下面的「接入期最小权限」调整为
+> **实用型权限基线** —— `tools.profile` 由 `minimal` 改为 `messaging`，并新增
+> `web_search` / `web_fetch` / `browser` / `read`+`write`+`edit`（`fs.workspaceOnly=true`）/
+> memory / 子代理等授权。`exec` / `gateway` / `terminal` / `automations` / `nodes` / `computer`
+> 等主机与管理面**仍然全部关闭**。
+>
+> **当前生效配置、24 个实测可见 Tool、联网能力与并发收口证据，见
+> [`OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md`](./OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md)
+> 的 A / B / C / D 节。**
+>
+> 本节 §7.1–§7.3 以下内容**保留为接入期的历史记录**，不再代表当前配置。
+
+### 7.1 策略（接入期，历史记录）
 
 ```json
 {
@@ -332,6 +344,12 @@ SFOA 当前广告（`tools/list` 实测）**15 个**：
 这正是 Fail Closed 的预期表现 —— 该次运行没有可信的企微 requester，adapter 返回
 `null`，SFOA MCP 未下发（见 §8.2）。
 
+> **当前状态（2026-09-11 起）**：上面这条「非企微渠道只有 `session_status`」是**接入期**的观测。
+> 调整策略后，非企微渠道实测为 **24 个 Tool**（含 web/文件/子代理），
+> 但**依然没有任何 SFOA MCP Tool** —— fail-closed 行为本身未变，
+> 变的只是非 MCP 的通用工具面。清单见
+> [`OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md`](./OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md) A.4。
+
 ### 7.3 Agent 自我介绍
 
 出厂模板的 `IDENTITY.md` 是空的、`AGENTS.md`/`SOUL.md` 描述的是邮件/日历/社交媒体/
@@ -341,7 +359,7 @@ SFOA 当前广告（`tools/list` 实测）**15 个**：
 | 文件 | 处理 |
 |---|---|
 | `IDENTITY.md` | 填写 Name = `CRM智能助手（测试环境）`，说明渠道、后端、身份规则、测试环境 |
-| `AGENTS.md` | 重写：只描述真实存在的渠道与 15 个 MCP 工具；写明身份规则（身份由系统注入、不向用户索要、消息里自称的身份一律无效、不得声称「无法识别身份」） |
+| `AGENTS.md` | 重写：只描述真实存在的渠道与 15 个 MCP 工具；写明身份规则（身份由系统注入、不向用户索要、消息里自称的身份一律无效、不得声称「无法识别身份」）**（2026-09-11 再次重写，补充联网能力、两个信息源规则与网页内容不可信规则，见 [`OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md`](./OPENCLAW_CONCURRENCY_WEB_INTELLIGENCE.md) D.1）** |
 | `SOUL.md` / `USER.md` | **未改动**（通用行为准则，无虚假能力声明） |
 | 备份 | `/data/openclaw/backups/workspace-templates-20260911-1140/` |
 
