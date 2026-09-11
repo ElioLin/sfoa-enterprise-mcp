@@ -519,6 +519,12 @@ uptime: 37 days
    不影响要求 §20/§21 的核心断言（**无 `bundle-mcp`**）。
 9. **`identity_credential_id` 在 Audit 中为 NULL**（该字段用于另一种认证模式），
    渠道凭据体现在 `client_id`（窗口内 1 个）。
+10. **记忆检索退化为「仅关键词」，没有语义向量匹配**：`memory_search` 实测可用并返回命中
+    （1 条 `memory/dreaming/rem/2026-09-11.md`，score 0.63），但工具自身报告嵌入后端降级，
+   原因是**未配置 openai provider 的 API key**（`No API key found for provider openai`）。
+    按「不得编造 API Key」的约束，本环境**未**为此新增任何凭据；
+    如需语义检索，应由管理员提供可用的嵌入 provider。
+    `memory_get` 亦实测可用（对不存在的 `MEMORY.md` 如实返回 `status: not_found`）。
 
 ---
 
