@@ -14,8 +14,17 @@ OpenClaw 基线安装与加固见 [`OPENCLAW_TEST_SERVER_DEPLOYMENT.md`](./OPENC
 - 分支：`feature/openclaw-concurrency-web-intelligence`
 - 基线：`origin/feature/openclaw-wecom-sfoa-integration` @ `f57f860`
 - OpenClaw：`2026.9.3` (build `1391f7c`)，**Core / node_modules / dist / 官方企微 Plugin 均未改动**
-- 模型：`custom-192-168-155-105-3001/DeepSeekV32`（未改动）
+- 模型：`custom-192-168-155-105-3001/DeepSeekV32`（**本文写作时的状态**）
 - SFOA 仓库代码改动：**0**
+
+> **状态更新（2026-09-12，`feature/openclaw-multimodal-input` 分支）**
+> 本文写作时默认模型为 `DeepSeekV32`，其后测试服已接入四个模型。
+> 当前（实测）默认模型为 `custom-192-168-155-105-3001/qwen3-vl`，
+> fallback 为 `custom-192-168-155-105-3001/deepseek-flash`，
+> 并新增 `imageModel` / `pdfModel` / `tools.media` / `attachments.ttlHours`。
+> 四模型真实身份与能力的实测结论见
+> [`OPENCLAW_MULTIMODAL_INPUT_PHASE1.md`](./OPENCLAW_MULTIMODAL_INPUT_PHASE1.md)。
+> 本文其余内容（Tool Policy、Web、身份并发、资源）仍然有效，未作改动。
 
 ---
 
