@@ -16,6 +16,13 @@ The repository was cloned with full Git history. It was not downloaded as a ZIP 
 
 ## Integration policy
 
+2026-09-13 Skill Foundation changes no official Salesforce implementation, MCP
+contract, dependency or lockfile. The required upstream-owned `CHANGELOG.md`
+preface is covered by its existing modification-matrix row; alternative report-only
+documentation would leave the mandatory project changelog stale. Merge risk LOW,
+limited to that preface. Skill tooling and canonical/generated guidance are
+SFoA-owned, and existing root `package.json` commands remain unchanged.
+
 1. Keep `upstream` pointed only at the Salesforce repository.
 2. Keep the company repository as `origin`; its current URL is the supplied GitHub repository.
 3. Keep Salesforce-owned implementation files as close to Upstream as possible.

@@ -16,6 +16,27 @@ export const PLATFORM_SKILL_PATHS = Object.freeze([
   '.codebuddy/skills/sfoa-mcp-maintainer',
 ]);
 
+export function platformSkillPaths(skillName) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(skillName) || skillName.length > 64) {
+    throw new Error(`Invalid Skill directory name: ${skillName}`);
+  }
+  return PLATFORM_SKILL_PATHS.map((destination) => path.posix.join(path.posix.dirname(destination), skillName));
+}
+
+export async function discoverSkills(projectRoot) {
+  const root = path.join(projectRoot, 'skills');
+  const entries = await readdir(root, { withFileTypes: true });
+  const directories = [];
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name, 'en-US'))) {
+    if (entry.isSymbolicLink()) throw new Error(`Canonical Skill must not be a symbolic link: ${entry.name}`);
+    if (!entry.isDirectory()) continue;
+    platformSkillPaths(entry.name);
+    directories.push(path.join(root, entry.name));
+  }
+  if (directories.length === 0) throw new Error('No canonical Skills found.');
+  return directories;
+}
+
 const REQUIRED_FILES = Object.freeze([
   'SKILL.md',
   'agents/openai.yaml',
@@ -42,20 +63,24 @@ const REQUIRED_FILES = Object.freeze([
 
 export async function validateSkill({ canonicalDir }) {
   const errors = [];
-  for (const relativePath of REQUIRED_FILES) {
+  const skillName = path.basename(canonicalDir);
+  try { platformSkillPaths(skillName); } catch (error) { errors.push(error.message); }
+  const maintainer = skillName === SKILL_NAME;
+  for (const relativePath of maintainer ? REQUIRED_FILES : ['SKILL.md']) {
     if (!await exists(path.join(canonicalDir, relativePath))) errors.push(`missing ${relativePath}`);
   }
   if (errors.length === 0) {
     const skillText = await readFile(path.join(canonicalDir, 'SKILL.md'), 'utf8');
     const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(skillText)?.[1] ?? '';
-    if (!/^name:\s*sfoa-mcp-maintainer\s*$/mu.test(frontmatter)) errors.push('SKILL.md frontmatter name is invalid');
+    if (/^name:\s*(.+?)\s*$/mu.exec(frontmatter)?.[1] !== skillName) errors.push('SKILL.md frontmatter name must match its directory');
     const description = /^description:\s*(.+)$/mu.exec(frontmatter)?.[1] ?? '';
-    for (const keyword of ['develop', 'debug', 'troubleshoot', 'operate', 'review', 'test', 'audit', 'Salesforce', 'MCP', 'identity', 'DML', 'database']) {
+    if (!description.trim()) errors.push('SKILL.md description is required');
+    for (const keyword of maintainer ? ['develop', 'debug', 'troubleshoot', 'operate', 'review', 'test', 'audit', 'Salesforce', 'MCP', 'identity', 'DML', 'database'] : []) {
       if (!description.toLocaleLowerCase('en-US').includes(keyword.toLocaleLowerCase('en-US'))) {
         errors.push(`SKILL.md description does not cover ${keyword}`);
       }
     }
-    if (!skillText.includes('advisory project context, not a reasoning boundary')) {
+    if (maintainer && !skillText.includes('advisory project context, not a reasoning boundary')) {
       errors.push('SKILL.md does not declare its advisory reasoning boundary');
     }
     if (/\b(?:TODO|TBD|PLACEHOLDER)\b/u.test(skillText)) errors.push('SKILL.md contains an unfinished placeholder');
@@ -71,20 +96,21 @@ export async function validateSkill({ canonicalDir }) {
 export async function syncSkill({ projectRoot, canonicalDir = path.join(projectRoot, 'skills', SKILL_NAME) }) {
   const validation = await validateSkill({ canonicalDir });
   if (!validation.ok) throw new Error(`Canonical Skill validation failed: ${validation.errors.join('; ')}`);
-  for (const relativePath of PLATFORM_SKILL_PATHS) {
+  const destinations = platformSkillPaths(path.basename(canonicalDir));
+  for (const relativePath of destinations) {
     const destination = safeDestination(projectRoot, relativePath);
     await rm(destination, { recursive: true, force: true });
     await mkdir(path.dirname(destination), { recursive: true });
     await cp(canonicalDir, destination, { recursive: true, force: true, errorOnExist: false });
   }
-  return Object.freeze({ ...validation, destinations: PLATFORM_SKILL_PATHS });
+  return Object.freeze({ ...validation, destinations });
 }
 
 export async function checkSkill({ projectRoot, canonicalDir = path.join(projectRoot, 'skills', SKILL_NAME) }) {
   const validation = await validateSkill({ canonicalDir });
   const drift = [];
   const canonical = await fileDigestMap(canonicalDir);
-  for (const relativePath of PLATFORM_SKILL_PATHS) {
+  for (const relativePath of platformSkillPaths(path.basename(canonicalDir))) {
     const destination = safeDestination(projectRoot, relativePath);
     if (!await exists(destination)) {
       drift.push(`${relativePath}: missing`);
@@ -102,15 +128,16 @@ export async function checkSkill({ projectRoot, canonicalDir = path.join(project
 export async function packageSkill({ projectRoot, canonicalDir = path.join(projectRoot, 'skills', SKILL_NAME), outputPath }) {
   const validation = await validateSkill({ canonicalDir });
   if (!validation.ok) throw new Error(`Canonical Skill validation failed: ${validation.errors.join('; ')}`);
+  const skillName = path.basename(canonicalDir);
   const target = outputPath
     ? path.resolve(projectRoot, outputPath)
-    : path.join(projectRoot, '.temp', 'skill-packages', `${SKILL_NAME}.zip`);
+    : path.join(projectRoot, '.temp', 'skill-packages', `${skillName}.zip`);
   const files = await listFiles(canonicalDir);
   const entries = [];
   for (const file of files) {
     if (file.isSymbolicLink) throw new Error(`Cannot package symbolic link ${file.relativePath}.`);
     entries.push(Object.freeze({
-      name: `${SKILL_NAME}/${file.relativePath.replaceAll(path.sep, '/')}`,
+      name: `${skillName}/${file.relativePath.replaceAll(path.sep, '/')}`,
       data: await readFile(file.absolutePath),
     }));
   }
@@ -140,7 +167,7 @@ export async function deliveryCheck({ projectRoot, canonicalDir = path.join(proj
       problems: Object.freeze(validation.errors.map((error) => `validation: ${error}`)),
     });
   }
-  const skillDirs = [path.relative(projectRoot, canonicalDir), ...PLATFORM_SKILL_PATHS];
+  const skillDirs = [path.relative(projectRoot, canonicalDir), ...platformSkillPaths(path.basename(canonicalDir))];
   const candidates = [];
   for (const dir of skillDirs) {
     for (const file of await listFiles(path.join(projectRoot, dir))) {
@@ -205,7 +232,16 @@ async function main() {
   const arguments_ = parseCliArguments(process.argv.slice(2));
   const action = arguments_._[0] ?? 'validate';
   const projectRoot = arguments_['project-root'] ? path.resolve(String(arguments_['project-root'])) : await findProjectRoot();
-  const canonicalDir = arguments_.canonical ? path.resolve(String(arguments_.canonical)) : path.join(projectRoot, 'skills', SKILL_NAME);
+  const canonicalDirs = arguments_.canonical
+    ? [path.resolve(String(arguments_.canonical))]
+    : await discoverSkills(projectRoot);
+  if (arguments_.output && canonicalDirs.length !== 1) throw new Error('--output requires --canonical when packaging multiple Skills.');
+  for (const canonicalDir of canonicalDirs) {
+    await runAction({ action, projectRoot, canonicalDir, arguments_ });
+  }
+}
+
+async function runAction({ action, projectRoot, canonicalDir, arguments_ }) {
   if (action === 'validate') {
     const result = await validateSkill({ canonicalDir });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -283,7 +319,7 @@ async function listFiles(root, current = root) {
 
 function safeDestination(projectRoot, relativePath) {
   const destination = path.resolve(projectRoot, relativePath);
-  if (!isWithin(projectRoot, destination) || path.basename(destination) !== SKILL_NAME) {
+  if (!isWithin(projectRoot, destination) || !platformSkillPaths(path.basename(destination)).includes(relativePath)) {
     throw new Error(`Unsafe Skill destination: ${relativePath}.`);
   }
   return destination;

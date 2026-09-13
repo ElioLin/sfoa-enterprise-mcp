@@ -15,6 +15,14 @@ yarn skill:package
 
 The tests cover canonical structure, sync/drift, portable ZIP, secret masking, SQL read-only guard, missing `.env.local`, DB unavailable, Audit not found/reconstruction, checked-in platform consistency, and Git delivery trackability. `skill:delivery` fails when a required Skill file is missing, Git-ignored, or untracked; `skill:smoke` rebuilds a clean checkout from committed `HEAD` bytes via `git archive` and reruns the Skill gates there, so the evidence comes from committed Git bytes rather than a possibly dirty working tree.
 
+The CLI gates now cover all canonical `skills/*` directories. Multi-Skill tests
+verify discovery, independent copies, drift cleanup, per-name ZIP contents,
+generic validation failures and delivery for every checked-in Skill. These are
+delivery tests, not proof of OpenClaw automatic selection or CRM behavior.
+Business-Skill acceptance additionally needs actual Run Skill-read evidence,
+positive/negative/explicit prompts and real WeCom UAT; do not label an offline
+non-WeCom run as requester-scoped MCP end-to-end evidence.
+
 ## Focused workspaces
 
 ```text

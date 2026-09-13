@@ -100,6 +100,17 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+2026-09-13: SFOA OpenClaw Skill Foundation starts from the verified complete
+`origin/feature/openclaw-multimodal-input` at
+`0944b568aa8d931a127e4c4a914514a9f02b7393`, on
+`feature/openclaw-sfoa-skill-foundation`. The long-term
+[Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md) defines five specialized
+business/technical Skills while retaining the developer-only maintainer Skill.
+This phase implements only `sfoa-crm-core` and minimally generalizes canonical
+Skill delivery. No MCP Tool or OpenClaw Core change is included. Runtime deploy,
+automatic invocation and real WeCom acceptance are separate evidence gates;
+current status is tracked in [the Core report](SFOA_CRM_CORE_SKILL.md).
+
 P8-07 (2026-09-09) extends latest GitHub main `5c623ef13a88f9e20e2cf897f56b213ebcb2994e`
 with explicit CREATE fact provenance, bounded USER visibility dependencies,
 current Salesforce display labels, synchronous collection CREATE/UPDATE and

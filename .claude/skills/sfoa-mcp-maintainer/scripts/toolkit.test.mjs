@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { AuditTraceNotFoundError, reconstructTrace, requireAuditRows } from './audit-trace.mjs';
 import { assertReadOnlySql } from './shared/db.mjs';
 import { loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './shared/project.mjs';
-import { checkSkill, deliveryCheck, packageSkill, syncSkill, validateSkill } from './manage.mjs';
+import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillPaths, syncSkill, validateSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 
 const canonicalDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,6 +44,62 @@ test('package generation creates a portable ZIP from canonical source', async (c
   assert.ok(archive.includes(Buffer.from('sfoa-mcp-maintainer/SKILL.md')));
   assert.ok(result.fileCount >= 18);
   assert.match(result.sha256, /^[0-9a-f]{64}$/u);
+});
+
+test('multiple canonical Skills sync independently and package with their own names', async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'sfoa-multiple-skills-'));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const maintainer = path.join(root, 'skills', 'sfoa-mcp-maintainer');
+  const business = path.join(root, 'skills', 'sfoa-crm-core');
+  await cp(canonicalDir, maintainer, { recursive: true });
+  await mkdir(path.join(business, 'references'), { recursive: true });
+  await writeFile(path.join(business, 'SKILL.md'), '---\nname: sfoa-crm-core\ndescription: Query CRM\n---\n[Guide](references/query.md)\n');
+  await writeFile(path.join(business, 'references', 'query.md'), 'Use current evidence.\n');
+  await writeFile(path.join(root, 'skills', 'notes.txt'), 'not a Skill directory');
+  assert.deepEqual((await discoverSkills(root)).map((dir) => path.basename(dir)), ['sfoa-crm-core', 'sfoa-mcp-maintainer']);
+  for (const dir of await discoverSkills(root)) await syncSkill({ projectRoot: root, canonicalDir: dir });
+  const maintainerBefore = await readFile(path.join(root, '.agents', 'skills', 'sfoa-mcp-maintainer', 'SKILL.md'));
+  await writeFile(path.join(root, '.claude', 'skills', 'sfoa-crm-core', 'extra.txt'), 'stale');
+  assert.equal((await checkSkill({ projectRoot: root, canonicalDir: business })).ok, false);
+  assert.equal((await checkSkill({ projectRoot: root, canonicalDir: maintainer })).ok, true);
+  await syncSkill({ projectRoot: root, canonicalDir: business });
+  assert.equal((await checkSkill({ projectRoot: root, canonicalDir: business })).ok, true);
+  assert.deepEqual(await readFile(path.join(root, '.agents', 'skills', 'sfoa-mcp-maintainer', 'SKILL.md')), maintainerBefore);
+  const archive = await packageSkill({ projectRoot: root, canonicalDir: business });
+  assert.equal(path.basename(archive.outputPath), 'sfoa-crm-core.zip');
+  const bytes = await readFile(archive.outputPath);
+  assert.ok(bytes.includes(Buffer.from('sfoa-crm-core/references/query.md')));
+  assert.ok(!bytes.includes(Buffer.from('sfoa-mcp-maintainer/')));
+  await rm(path.join(business, 'references', 'query.md'));
+  assert.equal((await validateSkill({ canonicalDir: business })).ok, false);
+});
+
+test('generic validation rejects missing descriptions, mismatched names and broken links', async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'sfoa-invalid-skill-'));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const dir = path.join(root, 'future-skill');
+  await mkdir(dir);
+  for (const body of [
+    '---\nname: future-skill\n---\n',
+    '---\nname: wrong-name\ndescription: valid\n---\n',
+    '---\nname: future-skill\ndescription: valid\n---\n[Missing](references/absent.md)',
+  ]) {
+    await writeFile(path.join(dir, 'SKILL.md'), body);
+    assert.equal((await validateSkill({ canonicalDir: dir })).ok, false);
+  }
+  assert.throws(() => platformSkillPaths('../outside'), /Invalid Skill/u);
+  assert.throws(() => platformSkillPaths('x'.repeat(65)), /Invalid Skill/u);
+});
+
+test('every checked-in canonical Skill validates and matches all generated targets', async () => {
+  const dirs = await discoverSkills(projectRoot);
+  assert.ok(dirs.some((dir) => path.basename(dir) === 'sfoa-mcp-maintainer'));
+  for (const dir of dirs) {
+    const checked = await checkSkill({ projectRoot, canonicalDir: dir });
+    assert.equal(checked.ok, true, JSON.stringify({ skill: path.basename(dir), ...checked }));
+    const delivered = await deliveryCheck({ projectRoot, canonicalDir: dir });
+    assert.equal(delivered.ok, true, JSON.stringify(delivered.problems));
+  }
 });
 
 test('environment parsing and output sanitization never reveal configured secrets', () => {

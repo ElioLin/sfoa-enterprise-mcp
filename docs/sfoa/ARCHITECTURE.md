@@ -6,6 +6,14 @@ Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
 ## System boundary
 
+The OpenClaw Skill Foundation adds advisory business-agent guidance above the
+existing MCP contract, with canonical sources in `skills/*` and independently
+deployed runtime copies. It does not register Tools, resolve identity, evaluate
+Salesforce permissions or execute a deterministic workflow. `sfoa-crm-core`
+supplies common boundaries; future specialized Skills supplement it. The
+maintainer Skill remains a development/operations artifact and is excluded from
+the ordinary business Agent. See [Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md).
+
 P8-07 adds plural DML execution at the existing Provider seam and USER-only
 presentation/relationship context. See [ADR-0021](adr/ADR-0021-runtime-batch-orchestration.md).
 Single and batch use identical CREATE/UPDATE authority; the host applies managed

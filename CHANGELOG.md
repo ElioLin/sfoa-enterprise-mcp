@@ -1,3 +1,12 @@
+# SFoA OpenClaw Skill Foundation (2026-09-13)
+
+- Establish the SFOA Skill Suite baseline and implement only `sfoa-crm-core`,
+  with separate hard boundaries and flexible evidence/tool-selection guidance.
+- Extend existing Skill delivery to multiple canonical sources without copying
+  maintainer tooling into business Skills. Preserve maintainer-specific gates.
+- Deployment, live invocation and WeCom acceptance status are recorded in
+  `docs/sfoa/SFOA_CRM_CORE_SKILL.md`; local delivery does not imply runtime READY.
+
 # SFoA P8-07 (2026-09-09)
 
 - Add governed synchronous batch CREATE/UPDATE, explicit CREATE initial provenance,

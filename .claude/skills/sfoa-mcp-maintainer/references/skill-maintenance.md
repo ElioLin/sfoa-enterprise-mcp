@@ -2,6 +2,29 @@
 
 This Skill is a canonical, portable project artifact. Edit only `skills/sfoa-mcp-maintainer/`; `.agents`, `.claude`, and `.codebuddy` copies are generated.
 
+## Multiple canonical Skills
+
+The existing `manage.mjs` CLI discovers every direct directory under `skills/`.
+Each directory must contain `SKILL.md` with a matching name and a nonempty inline
+description; local Markdown links must remain inside the portable Skill.
+Maintainer-specific required files, description coverage and advisory-boundary
+checks are retained only for `sfoa-mcp-maintainer`. Business Skills do not acquire
+its operations scripts or dependencies.
+
+All canonical Skills sync to the same three platform roots with their own names.
+`package` creates `.temp/skill-packages/<name>.zip` separately for each Skill.
+Use `--canonical skills/<name>` for a single Skill; custom `--output` requires a
+single selection. Existing single-Skill function defaults and root command names
+remain compatible. Future Skills require no copied management scripts.
+
+`skills/sfoa-crm-core` is business guidance for OpenClaw. Its runtime destination
+is `/data/openclaw/workspace/skills/sfoa-crm-core`; deploy from canonical bytes,
+back up existing Skills/configuration, verify the current OpenClaw configuration
+schema and main eligible list, then validate actual Skill reads in Runs.
+Development-client copies are not the business runtime allowlist: ordinary main
+must not expose `sfoa-mcp-maintainer`. Suite policy and runtime evidence live in
+`docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md` and `SFOA_CRM_CORE_SKILL.md` in the repo.
+
 ## Update when durable facts change
 
 Update for architecture, package/module topology, runtime/identity flow, Tool or DML governance model, Audit/DB schema, startup/test/deployment commands, or repeatedly useful troubleshooting knowledge. Do not encode a one-off bug, transient environment incident, user-specific data, or unverified hypothesis.
