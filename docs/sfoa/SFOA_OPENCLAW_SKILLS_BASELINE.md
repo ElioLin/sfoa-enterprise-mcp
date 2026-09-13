@@ -83,3 +83,5 @@ Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、�
 验收应覆盖 CREATE required fields、Dynamic Forms、Record Type、dependencies、initial facts、draft refinement、missing field checklist、READY gate、batch create/update，以及 Page Layout、Conditional Required、Defaults、Managed Lookup、Lookup Filter、Picklist 与 Salesforce Validation。用户已给值不重复询问；真实未知不猜测；UPDATE 不套 CREATE 全表单；批量按真实逐项结果核对。
 
 本次 CREATE UAT 只观察并记录字段遗漏、当前 Context、提问 / payload 差异和实际错误，不声称 Core 已彻底解决必填问题。没有真实 UAT 或同条件证据，就不能给出“遗漏已修复”或改善百分比。
+
+2026-09-13 真人 UAT 已形成[具体基线](SFOA_SKILL_UAT_20260913.md)：漏掉可见必填“计划交谈事项”、未解决来源 PENDING 就要求客户、部分容器条件 UNKNOWN，以及完整 MCP response 与 Agent 上下文之间的截断。第二阶段必须分别验收模型提问、受支持条件 refinement、上下文完整性、未支持语义的阻断；不能只增加 Prompt 并宣称严格保证完整性。用户于 2026-09-14 授权 Core 完成后直接继续 Skill-02；Core 的真人重测未完成前不发布该专业 Skill。

@@ -1,5 +1,7 @@
 # OpenClaw 多模态输入能力校准与模型路由收口（Phase 1）
 
+2026-09-14 后续变更：Skill Foundation 对照测试后，仅 main 业务 Agent 默认模型覆盖为 `deepseek-flash`，fallback 为 `qwen3-vl`；imageModel / pdfModel / media 配置沿用本阶段。理由、实际 Core 读取证据与真人重测限制见 [SFOA_CRM_CORE_SKILL.md](SFOA_CRM_CORE_SKILL.md)。下面保留 Phase 1 当时的实测配置，不作为最新 main 默认配置。
+
 测试服 `crm-ex-test02` / `192.168.156.203`。
 
 本文回答一个问题：**当前已经接进来的四个模型，到底哪些能力是真的？**

@@ -1,5 +1,21 @@
 # Troubleshooting workflow
 
+## Business Skill discovery versus invocation
+
+`openclaw skills list --agent main --json` and `systemPromptReport.skills` prove
+discovery, not that the model read a Skill. Match a successful `read` Tool result
+containing its frontmatter to the same run/session. A refreshed snapshot can
+coexist with skipped instructions; compare isolated runs with already configured
+models before attributing that to the loader. Never forge a WeCom requester for CLI UAT.
+
+For CREATE field omissions, compare protected P7 `MCP_RESPONSE` / `UI_CONTEXT`
+with the Agent Tool text and final question. An untruncated MCP response can still
+be truncated in the Agent context or diagnostic export. Distinguish PENDING from
+unsupported UNKNOWN conditions; defaults do not make unsupported container rules
+evaluable. See `docs/sfoa/SFOA_SKILL_UAT_20260913.md` for evidence and its limits.
+
+## General investigation
+
 Use this evidence order as a recommendation, not a restriction:
 
 ```text

@@ -6,6 +6,10 @@
   maintainer tooling into business Skills. Preserve maintainer-specific gates.
 - Deployment, live invocation and WeCom acceptance status are recorded in
   `docs/sfoa/SFOA_CRM_CORE_SKILL.md`; local delivery does not imply runtime READY.
+- Record the September 13 WeCom UAT failures and concrete CREATE field omissions.
+  Compare configured models for actual Skill reads; select deepseek-flash for the
+  test main Agent with existing multimodal settings preserved. Real-user retest
+  remains pending; record-change is not yet released.
 
 # SFoA P8-07 (2026-09-09)
 

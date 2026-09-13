@@ -1,5 +1,7 @@
 # OpenClaw 测试服务器部署与验收记录（crm-ex-test02）
 
+2026-09-14 Skill Foundation 后续部署：main Skill allowlist、runtime copy、模型覆盖及备份见 [SFOA_CRM_CORE_SKILL.md](SFOA_CRM_CORE_SKILL.md)；该阶段仍为 PARTIAL，历史 Baseline 通过不代表新的 Skill UAT 通过。
+
 > 本文档记录 **OpenClaw Baseline** 在测试服务器 `crm-ex-test02`（`192.168.156.203`）上的实际部署与验收结果。
 >
 > 本阶段由 Codex 完成主体实施（2026-09-08 ~ 09-10），因额度耗尽未收口；**2026-09-11 由 Claude Code 接管现场完成复核、纠错、验收与记录**。文档中每一条结论都对应服务器或双端抓包的真实证据，**不存在未经实测的推断**。
