@@ -130,11 +130,12 @@ Text / Image / PDF / Web / MCP / Identity 都需新验证；身份特别核对 `
 | `yarn ai:snapshot` | PASS（完整多模态基线上） |
 | `skill:sync` / `check` / `delivery` | PASS，两个 canonical 与六个副本 |
 | `skill:test` | PASS，17 tests（包含新增多 Skill 测试） |
-| `skill:smoke` | PASS：995b84a clean archive，1,066 files；修订后另跑 |
+| `skill:smoke` | PASS：995b84a 与 e9dee6c 的 clean archive；最终修订执行结果见任务报告 |
 | Text / Image / PDF / Web / MCP live regression | PASS（组件）：Text、Image、PDF、Web、MCP 已实测；新的企微图片/PDF E2E 待测 |
 | Identity adapter local regression | PASS，11 tests；20 用户 × 50 请求，1,000 次解析全部成功，identityMismatch=0，crossUserContamination=0；混合无效发送人 400 次，134 次正确 withheld |
 | Identity live regression | PASS：两个 USER route 匹配；无身份 401/MCP_PLATFORM_USER_REQUIRED；真人 requester 对应 P7 |
-| Git commit + push | 核心提交已完成；最终修订 SHA / push 状态见任务最终报告与本分支 log |
+| `skill:package` | PASS，core 八文件 ZIP 与 maintainer 二十三文件 ZIP 独立生成 |
+| Git commit + push | 核心与 UAT 修订已提交；最终 SHA / push 状态见任务最终报告与本分支 log |
 
 提交前检查 status / diff / diff --check；扫描 WeCom / Gateway / MCP / Model / Salesforce / DB / JWT / Private Key 等敏感值，排除测试凭据与运行配置。生成副本由 `skill:sync` 产生并随 canonical 提交，`skill:delivery` 保证 Git 可交付。
 

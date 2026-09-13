@@ -40,6 +40,8 @@ Playbook Audit：`58819c4c-29fa-4841-82de-9541e4ac6bea`。第一次 Context Audi
 
 UI_CONTEXT 字段状态：VISIBLE 21、PENDING 5、UNKNOWN 11、HIDDEN 8。UNKNOWN 包含 `CONTAINER_RECORD_UNSUPPORTED`：部分 section/container 条件即使依赖值已有 Salesforce 默认事实，当前 resolver 仍保守返回 UNKNOWN。补齐前置字段不能消除这种不支持的语义；Skill 不能自行把 UNKNOWN 改为 VISIBLE/HIDDEN。
 
+2026-09-14 的独立 maintainer 只读探针（不是补造真人 UAT）进一步验证：同对象/类型提交 `draftFields={Source__c:"客户"}`、`refinement=1`，resolution `843bfdba-339e-42e2-85a2-bcb45cddafbd` 返回客户 VISIBLE/required、线索与商机 HIDDEN、计划交谈事项仍 VISIBLE/required，而会议安排仍 UNKNOWN；coverage 仍 PARTIAL。未执行 DML。它证明受支持前置条件可被重新解析，也证明该步骤不能自行解决不支持的容器语义。
+
 ## 传输与模型理解是两个独立问题
 
 OpenClaw 持久化的 Tool text 含 `structuredContent` 与 text content 两份表示，同时出现中间省略和尾部截断标记；正文约 30k 字符，details 也被标记为截断。P7 保存了未截断 MCP response。因此至少存在“完整 MCP response → Agent Tool 上下文”之间的内容损失，不能将必填遗漏全部归因于模型没有遵循 Skill。
