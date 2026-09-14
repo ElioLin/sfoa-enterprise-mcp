@@ -529,3 +529,21 @@ Ready and visible to model:
 §20 的判定条件逐项成立：Skill doctrine 正确、02A 范围收口、description 收口、Machine Gate PASS（32/32）、Skill-01 regression PASS、canonical source PASS、Runtime Copy PASS（已部署并逐字节校验）、`openclaw skills check` PASS、业务 Agent 可见 `sfoa-crm-core` + `sfoa-record-change`、业务 Agent 不可见 `sfoa-mcp-maintainer`、Runtime 未改动。
 
 保留的未完成项（不改变上述判定）：Routing Smoke 未执行（§9）；真人企微 UAT 未执行；Skill-02B 未开始。
+
+## 11. 推送状态
+
+本轮提交在 `hotfix/openclaw-sfoa-record-change-02a-delivery` 本地完成：
+
+```text
+da3ffb3  feat(skill): close Skill-02A delivery with runtime copy and hardened gates
+ef80914  docs(skill): record the full Skill-02A commit chain          (已在 origin)
+fd880c6  docs(sfoa): state Skill-02A in the project baseline and architecture
+25d67b9  docs(skill): record Skill-02A delivery report and verified gates
+0a006a3  feat(skill): add SFOA record change readiness kernel and CREATE doctrine
+```
+
+**Push 未成功。** 本环境当前无法访问 GitHub：`git ls-remote origin` 与 `git push` 都返回 `CONNECT tunnel failed, response 502`（本地代理），清除代理后直连 `github.com:443` 亦超时。会话开始时 `git fetch --all --prune` 仍可用，属环境网络中断，与本次改动无关。请在网络恢复后执行：
+
+```bash
+git push -u origin hotfix/openclaw-sfoa-record-change-02a-delivery
+```
