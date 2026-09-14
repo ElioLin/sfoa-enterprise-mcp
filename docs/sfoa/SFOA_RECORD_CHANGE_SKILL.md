@@ -12,7 +12,11 @@ Report ID: SFOA-OPENCLAW-SKILL-02A · 2026-09-14
 | Base Commit SHA | `ef6b4e25c9360727ed7e1d3737ab774f9cc08ab7` |
 | 开发分支 | `feature/openclaw-sfoa-record-change-02a` |
 | 实现 Commit | `0a006a375f5a017019c105a0a1603d98128977b7` |
+| 报告 Commit | `25d67b916255a5fc3ee0f5943075f746099232f9` |
+| 文档一致性 Commit | `fd880c6aae6070c8e680a582f4010b024b56ca38` |
 | 当时 `origin/main` | `25a15ce4fbf642fd995a7e61ab3fc92be1616a97`（未合入本分支） |
+
+本报告之后的纯文档提交不改变 `skills/sfoa-record-change/` 的任何 canonical 字节；Skill 交付以实现 Commit `0a006a3` 的 canonical 内容与 G 节记录的 SHA-256 为准。
 
 执行 `git fetch --all --prune` 后核对：`origin` 为 `github.com/ElioLin/sfoa-enterprise-mcp.git`，`upstream` 为 `github.com/salesforcecli/mcp.git`。远端 `hotfix/openclaw-sfoa-crm-core-data-completeness` 与 `feature/openclaw-sfoa-skill-foundation` 的跟踪引用已被 prune（`origin/...: gone`），因此 Base 取本地最新真实代码状态 `ef6b4e2`（HOTFIX02 数据完整性），而不是已落后的 `main`。`feature/openclaw-sfoa-record-change` 不存在，未覆盖任何他人分支。
 
