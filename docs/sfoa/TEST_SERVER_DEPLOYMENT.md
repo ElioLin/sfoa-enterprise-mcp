@@ -27,6 +27,7 @@
 | Agent 可见性 | `agents.entries.main.skills` = `["sfoa-crm-core","browser-automation","sfoa-record-change"]`；`skills.entries` 仅两项且 `enabled:true`；`sfoa-crm-core`/`sfoa-record-change` 均 `eligible:true, modelVisible:true`；业务 workspace `/data/openclaw/workspace/skills/` **只含这两个 Skill，`sfoa-mcp-maintainer` 不在其中** |
 | 合并 | 部署验证通过后 `main` 以 **fast-forward** 合入本分支并推送（合并前 `main` = `origin/main` = `25a15ce`，是本分支 tip 的祖先，`HEAD..main` 计数为 0 → 无冲突、无合并提交）。此次 FF 同时把 OpenClaw 测试服基线 / WeCom→SFOA 集成 / 并发·联网 / 多模态 / Skill-01/02A 全部带入 `main` |
 | 回滚 | 停服 → 解回上述 `sfoa-app-pre-345b739-20260914-171541.tar.gz` 到 `app/` → `systemctl restart sfoa-mcp-server sfoa-admin-api`；DB 无迁移不回滚 |
+| 一致性 | 本条记录所在的提交（及其后的记录修订）随同 fast-forward 一并进入 `main`，并且服务器 `app/` 也重新同步到**同一个提交**。因此 `main` 的 tip 与测试服务器 `app/` 逐字节一致；如需核对，按 §3.5 用该提交的 sha256 清单跑 `sha256sum -c` |
 | ⚠️ 未做 | 本次**未**执行真实企业微信 UAT，**未**产生任何 Salesforce 业务记录（校验只用 CLI 轮次与文件哈希，CLI 轮次不暴露 SFOA MCP 工具）。Skill-02A 状态仍为 `READY FOR HUMAN UAT`，**不是** `LIVE UAT PASSED` |
 
 ---
