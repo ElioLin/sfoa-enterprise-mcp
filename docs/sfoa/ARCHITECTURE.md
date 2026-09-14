@@ -10,7 +10,8 @@ The OpenClaw Skill Foundation adds advisory business-agent guidance above the
 existing MCP contract, with canonical sources in `skills/*` and independently
 deployed runtime copies. It does not register Tools, resolve identity, evaluate
 Salesforce permissions or execute a deterministic workflow. `sfoa-crm-core`
-supplies common boundaries; future specialized Skills supplement it. The
+supplies the common boundaries and `sfoa-record-change` adds the evidence-based
+CREATE readiness doctrine; further specialized Skills supplement them. The
 maintainer Skill remains a development/operations artifact and is excluded from
 the ordinary business Agent. See [Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md).
 

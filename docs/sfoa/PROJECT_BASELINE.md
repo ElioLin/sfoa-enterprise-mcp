@@ -106,10 +106,20 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 `feature/openclaw-sfoa-skill-foundation`. The long-term
 [Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md) defines five specialized
 business/technical Skills while retaining the developer-only maintainer Skill.
-This phase implements only `sfoa-crm-core` and minimally generalizes canonical
+That phase implemented only `sfoa-crm-core` and minimally generalized canonical
 Skill delivery. No MCP Tool or OpenClaw Core change is included. Runtime deploy,
 automatic invocation and real WeCom acceptance are separate evidence gates;
 current status is tracked in [the Core report](SFOA_CRM_CORE_SKILL.md).
+
+2026-09-14: Skill-02A adds the second business Skill, canonical
+`skills/sfoa-record-change/`, on `feature/openclaw-sfoa-record-change-02a` based on
+`ef6b4e25c9360727ed7e1d3737ab774f9cc08ab7`. It inherits every `sfoa-crm-core` hard
+rule and adds only the evidence-based `CHANGE_READY` mutation-readiness doctrine for
+CREATE plus the batch CREATE safety floor. No MCP Tool, DB state, Identity Route,
+governance, migration or Runtime file changes; `packages/**` is untouched. UPDATE
+readiness, complete batch grouping and full outcome reconciliation remain Skill-02B.
+Delivery stops at READY FOR HUMAN UAT; see
+[the Skill-02A report](SFOA_RECORD_CHANGE_SKILL.md).
 
 P8-07 (2026-09-09) extends latest GitHub main `5c623ef13a88f9e20e2cf897f56b213ebcb2994e`
 with explicit CREATE fact provenance, bounded USER visibility dependencies,
