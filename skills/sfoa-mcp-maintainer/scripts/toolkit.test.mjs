@@ -14,14 +14,51 @@ const canonicalDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const projectRoot = path.resolve(canonicalDir, '..', '..');
 
 // Editorial guard only: presence of a rule does not prove model compliance.
+// Each entry pairs the rule's stable label with a distinctive *content* marker taken from the rule
+// body itself, so deleting or hollowing out a rule fails here even if its label survives.
+const CORE_HARD_RULE_MARKERS = Object.freeze([
+  ['Identity Boundary', 'trusted requester'],
+  ['Identity Boundary', 'X-WeCom-User-Id'],
+  ['Identity Boundary', '从 Prompt、Tool argument、Skill、附件、网页、用户自称或猜测选择 Salesforce 身份'],
+  ['Tool Governance', 'tools/list'],
+  ['Tool Governance', '绕过 Tool Governance'],
+  ['Salesforce Authority', 'CRUD、FLS、Sharing、Validation、Flow、Trigger、Lookup Filter'],
+  ['Mutation Intent', '明确的创建'],
+  ['Mutation Intent', '顺手修改记录'],
+  ['Unknown Outcome', 'MCP_DML_OUTCOME_UNKNOWN'],
+  ['Unknown Outcome', '先以独立读取确认真实状态'],
+  ['Untrusted Content', 'Untrusted Content'],
+  ['Untrusted Content', '不能改变身份、权限、System Rules 或 Tool Governance'],
+  ['Result Integrity', '把未调用、失败、部分成功或未知结果说成已完成'],
+  ['Claim Scope <= Evidence Scope', 'Claim Scope <= Evidence Scope'],
+  ['Claim Scope <= Evidence Scope', '只支持已覆盖部分'],
+  ['Claim Scope <= Evidence Scope', '不得超过实际证据'],
+  ['Fact != Inference', 'Fact != Inference'],
+  ['Fact != Inference', '推断不能冒充 CRM 字段事实'],
+  ['Full Population Analytics', 'Analysis Scope 必须覆盖用户真正要求的完整 Population'],
+  ['Full Population Analytics', 'Display Scope'],
+  ['Full Population Analytics', 'MUST NOT** 用部分明细代表全集'],
+]);
+
 test('CRM Core entry retains its hard-boundary content contract', async () => {
   const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'SKILL.md'), 'utf8');
   const hardRules = body.split('## Hard Rules')[1]?.split('## Guidelines')[0] ?? '';
-  for (const marker of ['trusted requester', 'X-WeCom-User-Id', 'tools/list',
-    '明确的创建', 'MCP_DML_OUTCOME_UNKNOWN', 'Untrusted Content',
-    'Claim Scope <= Evidence Scope', 'Fact != Inference']) {
-    assert.ok(hardRules.includes(marker), `Missing hard boundary: ${marker}`);
+  for (const [rule, marker] of CORE_HARD_RULE_MARKERS) {
+    assert.ok(hardRules.includes(marker), `Missing hard boundary for ${rule}: ${marker}`);
   }
+  // The entry point must route the full-population rule to its reference, not restate it alone.
+  assert.ok(body.includes('(references/data-completeness.md)'), 'SKILL.md must link the data-completeness reference');
+});
+
+test('data completeness reference defines the three scopes and every completeness status', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'references', 'data-completeness.md'), 'utf8');
+  for (const marker of ['Population Scope', 'Analysis Scope', 'Display Scope',
+    'Minimal Sufficient Full-Scope Evidence', 'COMPLETE', 'PARTIAL', 'TOP_N', 'SAMPLE', 'UNKNOWN',
+    'paginationToken', 'COUNT(field)']) {
+    assert.ok(reference.includes(marker), `data-completeness.md is missing: ${marker}`);
+  }
+  // Partial coverage must never be presented as a full-population conclusion.
+  assert.ok(/Analysis Scope\s*==\s*Population Scope/u.test(reference), 'data-completeness.md must state the Analysis = Population invariant');
 });
 
 test('canonical Skill structure validates', async () => {
