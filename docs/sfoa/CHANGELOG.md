@@ -21,7 +21,7 @@ This changelog records SFoA baseline and architecture changes. Salesforce Upstre
   `PLATFORM_IDENTITY_FALLBACK` explicit-wins and omit-to-fallback, Lookup 0/1/multiple
   handling, Label-to-API-Value Picklist resolution, evidence truncation and
   `PARTIAL_SUCCESS` / `OUTCOME_UNKNOWN` no-replay safety.
-- Extend the maintainer toolkit gate with 10 new tests: a label/content marker
+- Extend the maintainer toolkit gate with 9 new tests: a label/content marker
   contract for all 23 readiness rules, per-reference content contracts, the abstract
   真人 UAT regression case (VISIBLE+effectiveRequired gap, `dependsOn` refinement,
   explicit owner over fallback), a no-hardcoding guard (no Salesforce ID literal, no
