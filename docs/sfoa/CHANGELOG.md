@@ -2,6 +2,45 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-14 — Skill-02A closure review: runtime drift fix, routing evidence, refresh semantics
+
+Independent re-verification of the HOTFIX01 delivery against live server state and
+runtime evidence. No Skill doctrine, Runtime, MCP Tool, Identity Route, WeCom
+chain, governance, Provider or migration change; `packages/` diff is 0.
+
+- **Fixed a runtime-copy drift that HOTFIX01 left behind.** File-by-file
+  comparison of canonical against `/data/openclaw/workspace/skills/` showed
+  `sfoa-crm-core/references/mutation-boundaries.md` out of sync: the deployed copy
+  still told the Agent that `sfoa-record-change` "该 Skill 当前未实现", while
+  canonical had already replaced that with the readiness-gate handoff. HOTFIX01
+  redeployed only `sfoa-record-change` and never republished the `sfoa-crm-core`
+  file changed by `0a006a3`, so one Agent turn could read two contradictory
+  statements. Republished the runtime copy through the repo's own mechanism
+  (`runtime-sync` restaged, then a directory publish — never `cp -r skills/*`),
+  after backing up to `/data/openclaw/backups/20260914-skill-02a-crm-core-drift-fix/`.
+  All 16 files are now byte-identical to canonical.
+- **Executed the routing smoke that HOTFIX01 left open, with transcript
+  evidence.** OpenClaw 2026.9.3 logs no per-turn skill injection (only config
+  reloads; `skills curator status` has no usage records), so routing was proven
+  from `openclaw agent --json`'s `systemPromptReport` plus the session
+  transcript instead of from model replies. The model-visible skill index is
+  exactly three entries (browser-automation, sfoa-crm-core, sfoa-record-change).
+  "帮我创建一个 Salesforce 客户拜访申请" read both `sfoa-crm-core/SKILL.md` and
+  `sfoa-record-change/SKILL.md`; "帮我查询今天的客户拜访" read only
+  `sfoa-crm-core/SKILL.md`. The CLI turn exposes no SFOA MCP tools, so no
+  Salesforce write was reachable on this path.
+- **Recorded the session-refresh semantics.** With `skills.load` unset, a
+  republished Skill body is picked up by a new session without a gateway restart
+  (verified: the new canonical text was read, the retired text was not). Only the
+  gateway's skill index (name + description) is cached, so a restart is required
+  for a new Skill or a description change — not for a body change.
+- **Confirmed the gate entry point, correcting an initial misreading.**
+  `yarn skill:runtime:check` exits 0 on a clean copy, 1 with
+  `drift=["references/outcomes.md: differs"]` on a mutated one, and 1 with an
+  explicit refusal when `--runtime-root` is omitted. Requiring the root is
+  deliberate — the OpenClaw workspace must never be guessed — and yarn forwards
+  the documented parameter correctly, so this is not a defect.
+
 ## 2026-09-14 — Skill-02A HOTFIX01 delivery and runtime deployment closure
 
 - Shorten the `sfoa-record-change` frontmatter description from 248 to 153

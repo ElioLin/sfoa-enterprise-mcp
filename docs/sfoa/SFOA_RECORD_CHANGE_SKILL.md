@@ -317,7 +317,7 @@ Canonical 文件 SHA-256 前缀：`SKILL.md` `6b10aff838d2`、`readiness-gate.md
 
 真人 UAT 必须验证的最小集合：
 
-1. 用户自然语言「帮我创建一个客户拜访申请……」时，Agent 是否读取 `sfoa-record-change`。
+1. 用户自然语言「帮我创建一个客户拜访申请……」时，Agent 是否读取 `sfoa-record-change`。**（CLI 轮次已取得证据，见 §12.2；企微身份链路下的同等行为仍待真人确认）**
 2. VISIBLE + `effectiveRequired` 且无值的字段是否被提问（对应历史遗漏的「计划交谈事项」类字段）。
 3. `PENDING` + `dependsOn` 是否先补前置再 refinement，而不是直接把依赖字段当全局必填。
 4. 多 Record Type 时是否询问，而不是静默使用默认类型。
@@ -516,19 +516,19 @@ Ready and visible to model:
 | `skills/` 中是否部署 | 只有 `sfoa-crm-core` 与 `sfoa-record-change` |
 | 机器门禁 | 业务 Skill 无 `scripts/`、无 `agents/openai.yaml`、不命名 maintainer；`runtime-sync` 拒绝 maintainer |
 
-## 9. 未执行项
+## 9. Routing Smoke
 
-**Routing Smoke（§13）未执行。** 本轮已完成 description 注册、eligible 与 `modelVisible` 核对，但没有产生一次真实的 routing 决策。原因：随后一次服务器只读检查命令被沙箱权限拒绝（涉及本机 SSH 私钥路径），按拒绝提示停止后续服务器操作，未重试。
-
-因此「自然语言『帮我创建一个 Salesforce 客户拜访申请』同时命中 `sfoa-crm-core` + `sfoa-record-change`」以及「纯查询不强制加载 mutation doctrine」**尚未取得运行证据**。这两项应由真人企微 UAT 一并覆盖；不要把它写成 PASS。
+**HOTFIX01 本轮未执行**（当时一次服务器只读命令被沙箱权限拒绝，按拒绝提示停止）。**闭环复核轮已执行并取得运行证据，见 §12.2。**
 
 ## 10. HOTFIX01 最终状态
 
 **READY FOR HUMAN UAT**
 
-§20 的判定条件逐项成立：Skill doctrine 正确、02A 范围收口、description 收口、Machine Gate PASS（32/32）、Skill-01 regression PASS、canonical source PASS、Runtime Copy PASS（已部署并逐字节校验）、`openclaw skills check` PASS、业务 Agent 可见 `sfoa-crm-core` + `sfoa-record-change`、业务 Agent 不可见 `sfoa-mcp-maintainer`、Runtime 未改动。
+§20 的判定条件逐项成立：Skill doctrine 正确、02A 范围收口、description 收口、Machine Gate PASS（32/32）、Skill-01 regression PASS、canonical source PASS、Runtime Copy PASS、`openclaw skills check` PASS、业务 Agent 可见 `sfoa-crm-core` + `sfoa-record-change`、业务 Agent 不可见 `sfoa-mcp-maintainer`、Runtime 未改动。
 
-保留的未完成项（不改变上述判定）：Routing Smoke 未执行（§9）；真人企微 UAT 未执行；Skill-02B 未开始。
+保留的未完成项（不改变上述判定）：真人企微 UAT 未执行；Skill-02B 未开始。
+
+> 注：本节的 Runtime Copy 结论以**闭环复核轮**（§12）为准。HOTFIX01 当日只对 `sfoa-record-change` 的 7 个文件做了逐字节校验，当时 `sfoa-crm-core` 的 runtime copy 已相对 canonical 漂移，复核轮已发现并修复为 16/16 全量一致。
 
 ## 11. 推送状态
 
@@ -547,3 +547,83 @@ fd880c6  docs(sfoa): state Skill-02A in the project baseline and architecture
 ```bash
 git push -u origin hotfix/openclaw-sfoa-record-change-02a-delivery
 ```
+
+## 12. 闭环复核轮（Claude Code，2026-09-14）
+
+独立复核 HOTFIX01 的全部论断，以服务器真实状态与运行证据为准，不采信报告结论本身。
+
+### 12.1 Runtime Copy 漂移（发现并修复）
+
+复核时逐文件比对 canonical 与 `/data/openclaw/workspace/skills/`，发现 **`sfoa-crm-core` 漂移**：16 个文件中 15 个一致，`references/mutation-boundaries.md` 不一致。
+
+- 服务器侧（旧）第 15 行称 `sfoa-record-change`「**该 Skill 当前未实现**」。
+- canonical（`0a006a3` 起）已改为「专门的就绪判断由 `sfoa-record-change` 承载（当前覆盖 CREATE 与批量 CREATE）」。
+
+即业务 Agent 在同一份提示里会读到「Core 说这个 Skill 没实现」与「这个 Skill 已可见」互相矛盾的两句话。根因：HOTFIX01 只重新部署了 `sfoa-record-change`，未重发被 `0a006a3` 改过的 `sfoa-crm-core`。
+
+修复：用仓库自身机制生成 runtime copy，再整目录发布，不使用 `cp -r skills/*`。
+
+```bash
+node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-sync \
+  --runtime-root <staging>          # 只发布 BUSINESS_SKILL_ALLOWLIST
+yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
+```
+
+结果：备份 `/data/openclaw/backups/20260914-skill-02a-crm-core-drift-fix/`；重新发布后 **16/16 文件服务器侧 SHA-256 与 canonical 逐一相同**；`当前未实现` 计数为 0。
+
+### 12.2 Routing Smoke（已执行，取得运行证据）
+
+OpenClaw 2026.9.3 不打印逐轮 skill 注入日志（`gateway.log` 仅 config reload 痕迹，`skills curator status` 无使用记录），因此改用 `openclaw agent --json` 的 `systemPromptReport` + session transcript 取证，不靠模型回复推测。
+
+前置事实（决定了本轮 smoke 不可能产生写入）：CLI 轮次的工具清单为 24 个纯本地工具（`read`/`edit`/`write`/`sessions`/`web_*`/`memory_*`/`intent` 等），**不含任何 SFOA MCP 工具**，故 `create_record` 在该路径上不可达。
+
+模型可见的 skill 索引（`systemPromptReport.skills.entries`）恰为 3 条，总计 1369 字符：
+
+```text
+browser-automation   333
+sfoa-crm-core        335
+sfoa-record-change   324
+```
+
+正向（CREATE 意图）：
+
+```text
+prompt: 帮我创建一个 Salesforce 客户拜访申请
+transcript 读到的文件:
+  /data/openclaw/workspace/skills/sfoa-crm-core/SKILL.md
+  /data/openclaw/workspace/skills/sfoa-record-change/SKILL.md
+```
+
+负向（纯查询）：
+
+```text
+prompt: 帮我查询今天的客户拜访
+transcript 读到的文件:
+  /data/openclaw/workspace/skills/sfoa-crm-core/SKILL.md
+  （未加载 sfoa-record-change）
+```
+
+即：CREATE 同时命中 Core + Record Change，纯查询只加载 Core，不加载 mutation doctrine。两项均为 transcript 中 `read` 工具调用与 toolResult 的直接证据，非回复推断。
+
+### 12.3 会话刷新（§15）
+
+`skills.load` 为 `{}`（无 watcher）。实测：部署新内容后**未重启 gateway**，新 session 经 `read` 读到的是**新的 canonical 正文**（`专门的就绪判断` 命中，`当前未实现` 未命中）。
+
+结论：Skill **正文**按需从磁盘读取，内容变更不需要 restart；被缓存的只是 gateway 启动时载入的 **skill 索引（name + description）**。因此只要 description 不变，重新发布正文无需重启；新增 Skill 或改 description 才需要（HOTFIX01 当时正是新增 Skill，所以那次 restart 是必要的）。
+
+### 12.4 门禁与入口命令复核
+
+| 命令 | exit | 结果 |
+| --- | --- | --- |
+| `node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs` | 0 | 32/32 PASS |
+| `yarn skill:check` | 0 | 21 平台副本无漂移 |
+| `yarn skill:runtime:check --runtime-root <staging>` | 0 | `ok=true`，`drift=[]` |
+| `yarn skill:runtime:check --runtime-root <drifted>` | 1 | `ok=false`，`drift=["references/outcomes.md: differs"]` |
+| `yarn skill:runtime:check`（缺 `--runtime-root`） | 1 | 明确拒绝，不猜测 workspace |
+
+`runtime-root` 必须显式传入是**有意的安全设计**（避免猜错 workspace 误写），不是缺陷：README 与 `skill-maintenance.md` 记录的调用方式都带该参数，yarn 会正确转发。
+
+### 12.5 本轮未改动
+
+未修改任何 Skill doctrine、Runtime、MCP Tool、Identity Route、WeCom 链路、治理、Provider 或迁移；`packages/` diff 为 0。本轮仅：重新发布 runtime copy、修正本文档。
+

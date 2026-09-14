@@ -88,7 +88,7 @@ Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、�
 
 交付内容与机器门禁见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md)。02A 只建立 CREATE 的 readiness doctrine 与 batch 安全底线，不新增 MCP Tool、不新增 DB 状态、不改 Runtime。
 
-Runtime Copy 已从 canonical 发布到 `/data/openclaw/workspace/skills/sfoa-record-change/`（7 文件，服务器侧 SHA-256 与 canonical 逐一相同），并在 `skills.entries` 与 `agents.entries.main.skills` 中启用，保留既有 `sfoa-crm-core` 与 `browser-automation`。发布与漂移检查复用既有 toolkit：
+Runtime Copy 已从 canonical 发布到 `/data/openclaw/workspace/skills/`，`sfoa-crm-core`（9 文件）与 `sfoa-record-change`（7 文件）**全部 16 个文件服务器侧 SHA-256 与 canonical 逐一相同**，并在 `skills.entries` 与 `agents.entries.main.skills` 中启用，保留既有 `sfoa-crm-core` 与 `browser-automation`。发布与漂移检查复用既有 toolkit：
 
 ```text
 yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
@@ -96,6 +96,8 @@ yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 ```
 
 两个动作只迭代 `manage.mjs` 中的显式业务 allowlist，因此 `sfoa-mcp-maintainer` 无法进入业务 workspace。
+
+> 逐字节校验覆盖**两个** Skill，是闭环复核轮修正的结果。HOTFIX01 当时只校验了新部署的 `sfoa-record-change`，`sfoa-crm-core` 的 `references/mutation-boundaries.md` 已相对 canonical 漂移（旧文案仍称 `sfoa-record-change` 未实现），复核轮发现并重新发布修复。漂移成因与证据见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md) §12.1。
 
 机器门禁通过不等于行为验收通过。真人企微 UAT 必须单独验证：模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」，是否对 VISIBLE + effectiveRequired 的缺失字段提问，是否先解决 PENDING 依赖再 refinement，是否遵守 explicit owner > fallback。Routing Smoke 本轮未执行，随真人 UAT 一并覆盖。
 
