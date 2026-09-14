@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { AuditTraceNotFoundError, reconstructTrace, requireAuditRows } from './audit-trace.mjs';
 import { assertReadOnlySql } from './shared/db.mjs';
-import { loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './shared/project.mjs';
+import { exists, loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './shared/project.mjs';
 import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillPaths, syncSkill, validateSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 
@@ -40,6 +40,55 @@ const CORE_HARD_RULE_MARKERS = Object.freeze([
   ['Full Population Analytics', 'MUST NOT** 用部分明细代表全集'],
 ]);
 
+// Same editorial-guard technique for the second business Skill. Each entry pairs a stable rule
+// label with a distinctive content marker from the rule body, so deleting or hollowing out a
+// readiness rule fails here even if its label survives. Presence proves the rule text is
+// checked in; it never proves model compliance.
+const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
+  ['CHANGE_READY Gate', '`CHANGE_READY != true` 时 **MUST NOT** 调用'],
+  ['CHANGE_READY Gate', '不是 Tool、不是 DB 状态、不是 Token'],
+  ['Context != Ready', '调用过 `get_record_action_context` **只**证明已获取上下文'],
+  ['Context != Ready', '据此认为表单已检查完成'],
+  ['Record Type Gate', '无法唯一判断时 **MUST** 询问'],
+  ['Record Type Gate', '静默替用户选择业务 Record Type'],
+  ['Required Checklist', '进入 Missing Required Checklist 并询问'],
+  ['Required Checklist', '`apiRequired=true` 与 UI 可见性无关'],
+  ['PENDING', '未知就先询问依赖'],
+  ['PENDING', '看见 PENDING 就忽略并直接 CREATE'],
+  ['UNKNOWN', '`UNKNOWN` 不等于 `PENDING`'],
+  ['UNKNOWN', '把 UNKNOWN 推断成任何一种可见状态'],
+  ['Critical Dependency', 'Critical Dynamic Dependency'],
+  ['Critical Dependency', '未稳定时 `CHANGE_READY=false`'],
+  ['HIDDEN', '`visibilityState=HIDDEN` 的字段 **MUST NOT** 询问'],
+  ['Refinement Limit', '`refinementLimitReached`'],
+  ['Refinement Limit', '并如实说明当前页面条件无法充分解析'],
+  ['Initial Facts', '无故重复询问'],
+  ['Initial Facts', '转成当前 Schema 可证明的字段'],
+  ['Defaults', 'Flow / Trigger 保存后才可能补的值'],
+  ['Managed Field', '`PLATFORM_IDENTITY`、`AI_CREATED_MARKER`'],
+  ['Managed Field', '由 Runtime 负责'],
+  ['Owner Fallback', '省略该字段交由 Runtime fallback'],
+  ['Owner Fallback', '自行查询并写入 Salesforce User ID'],
+  ['Explicit Wins', '偷偷改用 platform fallback'],
+  ['Lookup Ambiguity', '模型生成 ID'],
+  ['Lookup Ambiguity', '自动寻找其他候选重试'],
+  ['Picklist', '硬编码 Label → API Value 映射'],
+  ['Picklist', '先解决 controller'],
+  ['Evidence Completeness', '宣称所有 Required Fields 已验证完成'],
+  ['Evidence Completeness', 'Evidence Delivery Incomplete'],
+  ['Batch Readiness', 'A / B 已经产生 Salesforce 副作用'],
+  ['Unknown Outcome', '`MCP_DML_OUTCOME_UNKNOWN` **MUST NOT** 自动重复 CREATE'],
+  ['Partial Success', '整批重新调用 `create_records`'],
+  ['Mutation Intent', '为了「补全」而写入'],
+  ['No Hardcoding', '硬编码 Salesforce Required Fields'],
+  ['No Hardcoding', '公司字段业务规则'],
+  ['Salesforce Authority', 'Validation Rule、FLS、Sharing、Lookup Filter、Flow、Trigger'],
+]);
+
+// The ordinary OpenClaw business Agent sees exactly these Skills. `sfoa-mcp-maintainer` is a
+// development/operations Skill and must never become visible through a business Skill.
+const BUSINESS_SKILL_NAMES = Object.freeze(['sfoa-crm-core', 'sfoa-record-change']);
+
 test('CRM Core entry retains its hard-boundary content contract', async () => {
   const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'SKILL.md'), 'utf8');
   const hardRules = body.split('## Hard Rules')[1]?.split('## Guidelines')[0] ?? '';
@@ -60,6 +109,149 @@ test('data completeness reference defines the three scopes and every completenes
   // Partial coverage must never be presented as a full-population conclusion.
   assert.ok(/Analysis Scope\s*==\s*Population Scope/u.test(reference), 'data-completeness.md must state the Analysis = Population invariant');
 });
+
+test('record change entry retains its readiness hard-boundary content contract', async () => {
+  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'SKILL.md'), 'utf8');
+  const hardRules = body.split('## Hard Rules')[1]?.split('## 何时加载')[0] ?? '';
+  assert.ok(hardRules.length > 0, 'SKILL.md must expose a bounded Hard Rules section');
+  for (const [rule, marker] of RECORD_CHANGE_HARD_RULE_MARKERS) {
+    assert.ok(hardRules.includes(marker), `Missing hard boundary for ${rule}: ${marker}`);
+  }
+  // The Skill must declare that it inherits Core instead of restating Core's own rules.
+  assert.ok(body.includes('sfoa-record-change inherits all hard rules from sfoa-crm-core'),
+    'SKILL.md must declare the Core inheritance contract');
+  // Every declared reference must stay reachable, so the routing list cannot silently drop one.
+  for (const name of ['readiness-gate', 'create-readiness', 'dynamic-forms', 'managed-lookups',
+    'lookup-and-picklist', 'outcomes']) {
+    assert.ok(body.includes(`(references/${name}.md)`), `SKILL.md must route to references/${name}.md`);
+  }
+});
+
+test('record change readiness reference defines the gate, its blocking conditions and per-record scope', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'readiness-gate.md'), 'utf8');
+  for (const marker of ['Evidence-Based Mutation Readiness', 'Tool-Call-Count-Based Readiness',
+    'Blocking condition', '不是 MCP Tool、不是数据库字段', 'Critical Dynamic Dependency',
+    '∀ intended record: CHANGE_READY(record) == true', 'coverage=PARTIAL',
+    '全部 blocking condition 为 false 时才可以']) {
+    assert.ok(reference.includes(marker), `readiness-gate.md is missing: ${marker}`);
+  }
+  // Readiness must stay a judgement, never a new runtime mechanism.
+  assert.ok(reference.includes('不是新的 Workflow Engine') || reference.includes('不是 Ready Token'),
+    'readiness-gate.md must deny inventing a runtime readiness mechanism');
+});
+
+test('dynamic forms reference keeps the four states distinct and gates refinement by evidence', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'dynamic-forms.md'), 'utf8');
+  for (const marker of ['`VISIBLE`', '`HIDDEN`', '`PENDING`', '`UNKNOWN`',
+    '`UNKNOWN` 不等于 `PENDING`', 'Critical Dynamic Dependency', '`uiContext.refinementLimitReached`',
+    '`refinement` 取值 `0..3`', 'Evidence Delivery Incomplete', 'Runtime Coverage Partial',
+    'completeLightningPageEvaluated', '看见 PENDING → 忽略 → CREATE']) {
+    assert.ok(reference.includes(marker), `dynamic-forms.md is missing: ${marker}`);
+  }
+  // A PAGE_LAYOUT fallback carries no effective properties and must not be described as Dynamic Forms.
+  assert.ok(reference.includes('fallbackUsed=true'), 'dynamic-forms.md must handle the PAGE_LAYOUT fallback');
+  assert.ok(reference.includes('MUST NOT') && reference.includes('UNKNOWN'),
+    'dynamic-forms.md must forbid guessing UNKNOWN');
+});
+
+test('managed lookup reference separates strict managed, marker and user-overridable fallback', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'managed-lookups.md'), 'utf8');
+  for (const marker of ['`PLATFORM_IDENTITY`', '`AI_CREATED_MARKER`', '`PLATFORM_IDENTITY_FALLBACK`',
+    'MCP_DML_MANAGED_LOOKUP_NOT_FOUND', 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS', 'MCP_DML_MANAGED_LOOKUP_FAILED',
+    'omit field', '大小写不敏感', 'MCP_DML_INPUT_INVALID', 'CREATE 专用']) {
+    assert.ok(reference.includes(marker), `managed-lookups.md is missing: ${marker}`);
+  }
+  // Explicit user values must survive, and an explicit failure must never silently fall back.
+  assert.ok(reference.includes('显式用户输入优先'), 'managed-lookups.md must keep explicit values authoritative');
+  assert.ok(reference.includes('偷偷 fallback 到当前用户'), 'managed-lookups.md must forbid a silent fallback');
+  assert.ok(reference.includes('为了 fallback 自己查出 Salesforce User ID'),
+    'managed-lookups.md must forbid resolving the platform user Id client-side');
+});
+
+test('create readiness reference keeps initial facts, record type gate and the UAT regression case', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'create-readiness.md'), 'utf8');
+  for (const marker of ['recordTypeSelectionRequired', 'availableRecordTypes', '`draftFields`', '`refinement`',
+    '`USER_EXPLICIT`', '`SALESFORCE_CREATE_DEFAULT`', '`CURRENT_USER_FACT`', '`TRUSTED_RUNTIME_DEFAULT`',
+    '`UNRESOLVED`', 'Missing Required Checklist', '`create_records`', '`allOrNone`', '`clientReferenceId`',
+    '计划交谈事项', 'dependsOn=[Source__c]', '`PLATFORM_IDENTITY_FALLBACK`', 'explicit > fallback']) {
+    assert.ok(reference.includes(marker), `create-readiness.md is missing: ${marker}`);
+  }
+  // A Salesforce default must never replace a real business Record Type choice.
+  assert.ok(reference.includes('默认值不是用户业务意图的替代品'),
+    'create-readiness.md must deny silently accepting the default Record Type');
+  // The Agent-side fact ledger must stay a reasoning doctrine, not a new runtime enum.
+  assert.ok(reference.includes('仅为 reasoning doctrine'),
+    'create-readiness.md must mark the fact ledger as reasoning doctrine only');
+});
+
+test('lookup and picklist reference covers every match count and the Label/API Value split', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'lookup-and-picklist.md'), 'utf8');
+  for (const marker of ['1 match', '0 match', 'multiple match', 'referenceTo', 'Lookup Filter',
+    'API Value', 'controllerName', 'validFor', 'resolve_field_display_values', 'Dependent Picklist',
+    '凭名字猜 Salesforce ID', '模型生成 ID']) {
+    assert.ok(reference.includes(marker), `lookup-and-picklist.md is missing: ${marker}`);
+  }
+  assert.ok(reference.includes('先解决 Controller'), 'lookup-and-picklist.md must resolve the controller first');
+});
+
+test('outcomes reference forbids replaying UNKNOWN and resubmitting a partial batch', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'outcomes.md'), 'utf8');
+  for (const marker of ['PARTIAL_SUCCESS', 'OUTCOME_UNKNOWN', 'MCP_DML_OUTCOME_UNKNOWN', 'clientReferenceId',
+    'isError', 'allOrNone', 'MCP_DML_OBJECT_NOT_ALLOWED', '逐项结果与计数']) {
+    assert.ok(reference.includes(marker), `outcomes.md is missing: ${marker}`);
+  }
+  assert.ok(reference.includes('**不是** Salesforce 业务字段，**不是**幂等键'),
+    'outcomes.md must deny treating clientReferenceId as an idempotency key');
+  assert.ok(reference.includes('只包含真实失败项'), 'outcomes.md must limit recovery to the failed items');
+});
+
+test('record change Skill never hardcodes Salesforce truth', async () => {
+  const directory = path.join(projectRoot, 'skills', 'sfoa-record-change');
+  for (const relativePath of ['SKILL.md', 'references/readiness-gate.md', 'references/create-readiness.md',
+    'references/dynamic-forms.md', 'references/managed-lookups.md', 'references/lookup-and-picklist.md',
+    'references/outcomes.md']) {
+    const text = await readFile(path.join(directory, relativePath), 'utf8');
+    // A quoted 15/18-character token that contains a digit is a Salesforce ID literal. Ordinary
+    // API field names such as `fieldCreateable` contain no digits and must not be flagged.
+    assert.doesNotMatch(text, /['"`](?=[A-Za-z0-9]*\d)[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?['"`]/u,
+      `${relativePath} must not embed a Salesforce ID literal`);
+    // No Record Type ID / DeveloperName or Picklist API Value assignment may be frozen in text.
+    assert.doesNotMatch(text, /RecordTypeId\s*[:=]\s*['"`]/u, `${relativePath} must not freeze a RecordTypeId`);
+    assert.doesNotMatch(text, /DeveloperName\s*[:=]\s*['"`]/u, `${relativePath} must not freeze a DeveloperName`);
+  }
+});
+
+test('the business Skill suite stays separate from the maintainer toolkit', async () => {
+  const discovered = (await discoverSkills(projectRoot)).map((dir) => path.basename(dir));
+  for (const name of BUSINESS_SKILL_NAMES) {
+    assert.ok(discovered.includes(name), `missing business Skill: ${name}`);
+  }
+  assert.ok(discovered.includes('sfoa-mcp-maintainer'), 'the maintainer Skill must remain canonical');
+  for (const name of BUSINESS_SKILL_NAMES) {
+    const directory = path.join(projectRoot, 'skills', name);
+    // Business Skills carry guidance only: no operations scripts and no platform agent manifest.
+    for (const maintainerOnly of ['scripts', path.join('agents', 'openai.yaml')]) {
+      assert.equal(await exists(path.join(directory, maintainerOnly)), false,
+        `${name} must not carry the maintainer-only artifact ${maintainerOnly}`);
+    }
+    // A business Skill must never name the maintainer Skill, so it cannot leak it into a main Agent.
+    for (const file of await listSkillFiles(directory)) {
+      const text = await readFile(file, 'utf8');
+      assert.ok(!text.includes('sfoa-mcp-maintainer'),
+        `${path.relative(projectRoot, file)} must not reference the maintainer Skill`);
+    }
+  }
+});
+
+async function listSkillFiles(root, current = root) {
+  const output = [];
+  for (const item of await readdir(current, { withFileTypes: true })) {
+    const absolutePath = path.join(current, item.name);
+    if (item.isDirectory()) output.push(...await listSkillFiles(root, absolutePath));
+    else if (item.isFile()) output.push(absolutePath);
+  }
+  return output;
+}
 
 test('canonical Skill structure validates', async () => {
   const result = await validateSkill({ canonicalDir });

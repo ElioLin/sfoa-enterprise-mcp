@@ -2,6 +2,39 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-14 — Skill-02A `sfoa-record-change` (Readiness Kernel + CREATE)
+
+- Add the second OpenClaw business Skill as canonical `skills/sfoa-record-change/`
+  (short `SKILL.md` with 23 hard rules plus six references: readiness gate, CREATE
+  readiness, Dynamic Forms, managed lookups, lookup/picklist, outcomes). It declares
+  inheritance of every `sfoa-crm-core` hard rule and adds only the
+  evidence-based `CHANGE_READY` mutation-readiness doctrine.
+- The Skill is doctrine, not a workflow engine: it defines how to discover facts,
+  how to verify them, what blocks a write and when evidence is sufficient. No new
+  MCP Tool, no DB state, no Ready Token, no transaction state table, no workflow
+  state machine, and no Runtime change.
+- Core CREATE rules grounded in current code: `recordTypeSelectionRequired` and
+  `availableRecordTypes` hard gate, `draftFields` + `refinement` 0..3 with
+  `refinementLimitReached`, the four-state Dynamic Forms semantics
+  (`VISIBLE`/`HIDDEN`/`PENDING`/`UNKNOWN`), Missing Required Checklist from
+  `apiRequired` / `layoutRequired` / `effectiveRequired` / `requiredSource`,
+  `PLATFORM_IDENTITY_FALLBACK` explicit-wins and omit-to-fallback, Lookup 0/1/multiple
+  handling, Label-to-API-Value Picklist resolution, evidence truncation and
+  `PARTIAL_SUCCESS` / `OUTCOME_UNKNOWN` no-replay safety.
+- Extend the maintainer toolkit gate with 10 new tests: a label/content marker
+  contract for all 23 readiness rules, per-reference content contracts, the abstract
+  真人 UAT regression case (VISIBLE+effectiveRequired gap, `dependsOn` refinement,
+  explicit owner over fallback), a no-hardcoding guard (no Salesforce ID literal, no
+  frozen `RecordTypeId`/`DeveloperName`), and a business-suite separation gate proving
+  no business Skill carries maintainer scripts or names the maintainer Skill.
+- Update `sfoa-crm-core/references/mutation-boundaries.md` so the CREATE required-field
+  and READY gate hand-off points at the now-existing professional Skill instead of
+  describing it as unimplemented. No Core hard rule changed.
+- MCP Runtime, Identity Route, WeCom identity chain, Tool/DML governance, official
+  Provider code, migrations and Salesforce data are unchanged. Delivery stops at
+  READY FOR HUMAN UAT; UPDATE readiness, complete batch grouping and full outcome
+  reconciliation remain Skill-02B.
+
 ## 2026-09-06 — P8-04 effective CREATE implementation for UAT
 
 - AMEND-006 moves independent New UI/Agent accuracy gates after implementation.

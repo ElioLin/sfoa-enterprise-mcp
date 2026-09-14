@@ -25,6 +25,16 @@ Development-client copies are not the business runtime allowlist: ordinary main
 must not expose `sfoa-mcp-maintainer`. Suite policy and runtime evidence live in
 `docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md` and `SFOA_CRM_CORE_SKILL.md` in the repo.
 
+`skills/sfoa-record-change` is the second business Skill (Skill-02A: readiness
+kernel + CREATE). Its runtime destination is
+`/data/openclaw/workspace/skills/sfoa-record-change`, and the ordinary main
+allowlist carries it alongside `sfoa-crm-core` only. Business Skills are guidance
+only: they carry no `scripts/` and no `agents/openai.yaml`, and they must never name
+`sfoa-mcp-maintainer`. `toolkit.test.mjs` enforces both, plus a label/content marker
+contract per readiness rule and a no-hardcoding guard, so a business Skill cannot
+silently inherit the maintainer toolkit or freeze Salesforce truth. Delivery report:
+`docs/sfoa/SFOA_RECORD_CHANGE_SKILL.md`.
+
 ## Update when durable facts change
 
 Update for architecture, package/module topology, runtime/identity flow, Tool or DML governance model, Audit/DB schema, startup/test/deployment commands, or repeatedly useful troubleshooting knowledge. Do not encode a one-off bug, transient environment incident, user-specific data, or unverified hypothesis.
