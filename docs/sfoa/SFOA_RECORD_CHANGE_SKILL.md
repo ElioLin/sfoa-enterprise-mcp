@@ -532,21 +532,23 @@ Ready and visible to model:
 
 ## 11. 推送状态
 
-本轮提交在 `hotfix/openclaw-sfoa-record-change-02a-delivery` 本地完成：
+**已推送。** 闭环复核轮中 GitHub 网络恢复，`hotfix/openclaw-sfoa-record-change-02a-delivery` 已推送到 `origin`（`007cde8`，含 HOTFIX01 的 `da3ffb3` / `94ea6a2`）。HOTFIX01 当时的 push 失败（`CONNECT tunnel failed, response 502`）为环境网络中断，与改动无关，现已解除。
+
+当前分支链（以 origin 为准）：
 
 ```text
+007cde8  docs(skill): close Skill-02A with runtime drift fix and routing evidence
+94ea6a2  docs(skill): record the HOTFIX01 push status
 da3ffb3  feat(skill): close Skill-02A delivery with runtime copy and hardened gates
-ef80914  docs(skill): record the full Skill-02A commit chain          (已在 origin)
+ef80914  docs(skill): record the full Skill-02A commit chain
 fd880c6  docs(sfoa): state Skill-02A in the project baseline and architecture
 25d67b9  docs(skill): record Skill-02A delivery report and verified gates
 0a006a3  feat(skill): add SFOA record change readiness kernel and CREATE doctrine
+ef6b4e2  docs(skill): record HOTFIX02 data completeness delivery and open UAT   (base，origin/main 之外)
 ```
 
-**Push 未成功。** 本环境当前无法访问 GitHub：`git ls-remote origin` 与 `git push` 都返回 `CONNECT tunnel failed, response 502`（本地代理），清除代理后直连 `github.com:443` 亦超时。会话开始时 `git fetch --all --prune` 仍可用，属环境网络中断，与本次改动无关。请在网络恢复后执行：
+`hotfix/openclaw-sfoa-record-change-02a-delivery` 基于 `ef80914`，`ef80914` 又基于 HOTFIX02（`ef6b4e2`）。整条链相对 `origin/main`（`25a15ce4`）共 20 个提交，其余为已推送到各自 `origin/feature/*` 的 OpenClaw 工作流提交；本次未引入任何 `packages/` 改动。
 
-```bash
-git push -u origin hotfix/openclaw-sfoa-record-change-02a-delivery
-```
 
 ## 12. 闭环复核轮（Claude Code，2026-09-14）
 

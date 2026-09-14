@@ -40,6 +40,10 @@ chain, governance, Provider or migration change; `packages/` diff is 0.
   explicit refusal when `--runtime-root` is omitted. Requiring the root is
   deliberate — the OpenClaw workspace must never be guessed — and yarn forwards
   the documented parameter correctly, so this is not a defect.
+- **Pushed the HOTFIX branch.** GitHub became reachable again during this round,
+  so `hotfix/openclaw-sfoa-record-change-02a-delivery` is now on `origin`
+  (`007cde8`). The HOTFIX01 push failure was an environment network interruption,
+  not a change-related one.
 
 ## 2026-09-14 — Skill-02A HOTFIX01 delivery and runtime deployment closure
 
