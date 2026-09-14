@@ -2,6 +2,45 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-14 — Test server deployed at the Skill-02A tip; `main` fast-forwarded; LF archiving defect fixed
+
+Deployed `hotfix/openclaw-sfoa-record-change-02a-delivery` @ `345b739` to the test
+server and fast-forwarded `main` onto it. No Runtime, MCP Tool, Identity Route,
+WeCom chain, governance, Provider or migration change; `packages/`, `yarn.lock`,
+migrations and `.env.example` are byte-identical to the previously deployed
+`3e19d9a`, so no rebuild and no service restart were performed.
+
+- **Found and fixed a latent deployment-procedure defect.** The documented
+  packaging command `git archive ... <sha>` re-applies `core.autocrlf`; on this
+  Windows checkout (`core.autocrlf=true`) it rewrote every text file to CRLF, so
+  the archive was **not** equivalent to the repository bytes. Measured on
+  `skills/sfoa-record-change/SKILL.md`: 9576 B (LF, = git blob = OpenClaw runtime
+  copy) versus 9643 B (CRLF) from a plain `git archive`. The old procedure is
+  therefore why the deployed `skills/` tree carried CRLF. Corrected to
+  `git -c core.autocrlf=false -c core.eol=lf archive`, documented in
+  `TEST_SERVER_DEPLOYMENT.md` §3.1, and the whole deployed tree was re-synced to
+  LF. This is a **false-drift source**: CRLF canonical makes `skill:runtime:check`
+  report every file as drifted even though the Skill text is identical.
+- **Verified the deployment byte-for-byte, not by inspection.** Built a SHA-256
+  manifest of all 1102 tracked blobs at `345b739` and ran `sha256sum -c` against
+  `/data/sfoa-enterprise-mcp/app`: 1102 OK, 0 FAILED, 0 MISSING. Also confirmed
+  16/16 Skill files byte-identical to `/data/openclaw/workspace/skills/`
+  (`skill:check` and `skill:runtime:check` both `drift: []`), and the machine gate
+  `toolkit.test.mjs` at 32/32 both locally and on the deployed tree.
+- **Deployed additively.** Used `rsync -a` without `--delete` from a staging
+  extract, so server-only files survive: `.env.local`, `.idea`, `projects`,
+  `.temp`, `.workbuddy`, `.codegraph/codegraph.db*`, `.claude/settings.local.json`,
+  `node_modules` and every package `dist`. Procedure written up as §3.5.
+- **`main` fast-forwarded** from `25a15ce` to `345b739` (0 commits on `main` the
+  branch lacked, so no merge commit). This also brings the OpenClaw test-server
+  baseline, WeCom→SFOA integration, concurrency/web-intelligence, multimodal and
+  Skill-01/02A work onto `main`. Agent visibility unchanged:
+  `agents.entries.main.skills` = `sfoa-crm-core`, `browser-automation`,
+  `sfoa-record-change`; `sfoa-mcp-maintainer` remains outside the business
+  workspace.
+- **Not done:** no real WeCom UAT, and no Salesforce record was created. Status
+  stays `READY FOR HUMAN UAT`, not `LIVE UAT PASSED`.
+
 ## 2026-09-14 — Skill-02A closure review: runtime drift fix, routing evidence, refresh semantics
 
 Independent re-verification of the HOTFIX01 delivery against live server state and

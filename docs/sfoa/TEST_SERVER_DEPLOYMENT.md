@@ -4,6 +4,33 @@
 
 ---
 
+## 部署记录 · OpenClaw Skill-02A 交付 + 全量字节对齐（2026-09-14）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `hotfix/openclaw-sfoa-record-change-02a-delivery` @ `345b739`（Skill-02A `sfoa-record-change` 交付 + `sfoa-crm-core` 同步 + OpenClaw WeCom/并发/多模态集成链），替换测试服务器上一版 `main` @ `3e19d9a`（P8-07 HOTFIX02） |
+| 变更前版本识别 | 服务器无 `.git`，按**代码特征**判定：`packages/mcp-provider-sfoa-dml/dist/tools/batch-records.js` 存在（P8-07）、`packages/sfoa-mcp-server/dist/discovery-server.js` 存在（P8-06）、`dml-tool-facade.js` 含 `assertNoDuplicateBatchRecordIds`（HF02-02）→ 判定为 **`3e19d9a`**，与上一条部署记录及备份 `sfoa-app-pre-3e19d9a-20260910-170921.tar.gz` 一致 |
+| **运行时代码差异 = 0** | `git diff 3e19d9a..345b739 -- packages yarn.lock 'packages/sfoa-control-plane/migrations' .env.example config` 结果为空。该区间 111 个文件全部落在 `docs/sfoa`、`skills/`、`.claude`/`.agents`/`.codebuddy` 生成副本、`integrations/openclaw`，外加根 `package.json` 两个 `skill:runtime:*` 开发脚本。**故本次未清增量标记、未重建 workspace、未 `systemctl restart`** —— 重启对运行行为是 no-op，仅会增加无谓风险 |
+| 打包（⚠️ 本次修正） | `git archive` 会重新应用 `core.autocrlf`：本机 `core.autocrlf=true`，直接 `git archive HEAD` 产出的文本文件是 **CRLF**，与仓库 blob（LF）**不等价**（实测 `skills/sfoa-record-change/SKILL.md` 9576 B LF → 9643 B CRLF，+67 B = 行数）。**正确命令**：`git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz -o <name>.tar.gz <sha>`。旧流程从 Windows 检出打包会把 CRLF 带上服务器（本次在改动前的服务器备份中实测到 `skills/sfoa-mcp-maintainer/SKILL.md` 就是 CRLF），属**存量流程缺陷**，已一并修正 |
+| 上传/校验 | `sfoa-app-lf-345b739-20260914-171645.tar.gz`（2,324,567 B，1102 个 tracked 文件）→ scp `/data/sfoa-enterprise-mcp/incoming/`；本机/服务器 sha256 一致（`eaa5210595644ed4961d83508674fe8420f6b99f32bc61c6ee793c17fdbfce1a`） |
+| 落盘方式 | 先解到 `staging-lf-345b739/`，再用 **`rsync -a`（不带 `--delete`）** 覆盖到 `app/`，因此服务器独有文件全部保留：`.env.local`、`.idea`、`projects`、`.temp`、`.workbuddy`、`.codegraph/codegraph.db*`、`.claude/settings.local.json`、`node_modules`、各包 `dist` |
+| 依赖 | `yarn.lock` 与根 `package.json` 依赖段无变化 → **未重装** node_modules |
+| 数据库迁移 | **无新迁移**：`packages/sfoa-control-plane/migrations` 无变化，未执行 `db:migrate` |
+| 配置 | `.env.example` 无变化 → **无新增必填变量**；`config/.env.local`、`secrets/private.pem` 未改动 |
+| 构建 | **未构建**（见「运行时代码差异 = 0」）。既有 `dist/` 由与 HEAD 字节相同的源码产出，仍然有效 |
+| 服务 | **未重启**。`sfoa-mcp-server`、`sfoa-admin-api`、`openclaw-gateway` 三服务 `active`；`/health` **200**；`/admin/api/ready` **200**（Admin API 实际监听 **127.0.0.1:8081**，`8080` 上取该路径是 404，勿误判） |
+| 备份 | 部署前 app → `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-345b739-20260914-171541.tar.gz`（9,369,900 B，1717 文件，sha256 `637910ff0d244b9b7626863df23ff30af3b8a95898a91a5bdb8ae0403bdd72f5`） |
+| 字节级验证 | 以 HEAD 的 1102 个 blob 内容生成 sha256 清单，在服务器 `app/` 下 `sha256sum -c`：**OK 1102 / FAILED 0 / MISSING 0**。即部署树与仓库字节**完全一致** |
+| Skill 校验 | `yarn skill:check` → `ok:true`、`drift:[]`（3 个 canonical Skill 与其 `.claude`/`.agents`/`.codebuddy` 生成副本一致）；`yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills` → 两个业务 Skill 均 `ok:true`、`drift:[]`；独立 `diff -rq` 复核 `sfoa-crm-core`（9）+ `sfoa-record-change`（7）= **16/16 文件字节相同** |
+| 机器门禁 | `node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs`：本机 **32/32 pass**，服务器 `app/` 部署树同样 **32/32 pass** |
+| OpenClaw 插件 | `/data/openclaw/plugins/sfoa-wecom-mcp-adapter` 的 `openclaw.plugin.json`(`857a3b04…`)、`src/index.js`(`eb92ac47…`)、`src/resolver.js`(`ac3909a3…`) 与 HEAD 逐一相同 → **无需重发** |
+| Agent 可见性 | `agents.entries.main.skills` = `["sfoa-crm-core","browser-automation","sfoa-record-change"]`；`skills.entries` 仅两项且 `enabled:true`；`sfoa-crm-core`/`sfoa-record-change` 均 `eligible:true, modelVisible:true`；业务 workspace `/data/openclaw/workspace/skills/` **只含这两个 Skill，`sfoa-mcp-maintainer` 不在其中** |
+| 合并 | 部署验证通过后 `main` 以 **fast-forward** 合入本分支并推送（合并前 `main` = `origin/main` = `25a15ce`，是本分支 tip 的祖先，`HEAD..main` 计数为 0 → 无冲突、无合并提交）。此次 FF 同时把 OpenClaw 测试服基线 / WeCom→SFOA 集成 / 并发·联网 / 多模态 / Skill-01/02A 全部带入 `main` |
+| 回滚 | 停服 → 解回上述 `sfoa-app-pre-345b739-20260914-171541.tar.gz` 到 `app/` → `systemctl restart sfoa-mcp-server sfoa-admin-api`；DB 无迁移不回滚 |
+| ⚠️ 未做 | 本次**未**执行真实企业微信 UAT，**未**产生任何 Salesforce 业务记录（校验只用 CLI 轮次与文件哈希，CLI 轮次不暴露 SFOA MCP 工具）。Skill-02A 状态仍为 `READY FOR HUMAN UAT`，**不是** `LIVE UAT PASSED` |
+
+---
+
 ## 部署记录 · P8-07 批量 DML + P8-07 HOTFIX01/02（2026-09-10）
 
 | 项 | 值 |
@@ -233,9 +260,23 @@ git --version
 
 ### 3.1 打包（Git Bash 本机执行）
 
+**首选（按提交导出，与仓库字节严格等价）**：
+
 ```bash
 cd /d/GitProject/sfoa-enterprise-mcp
 
+# ⚠️ 必须显式关闭 autocrlf/eol，否则文本文件会被改写成 CRLF，与仓库 blob 不一致。
+git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz \
+    -o sfoa-app-$(git rev-parse --short HEAD)-$(date +%Y%m%d-%H%M%S).tar.gz HEAD
+```
+
+> `git archive` 只导出该提交的 tracked 文件，天然不含 `node_modules`/`.git`/`dist`/`.env.local`/`*.pem`/`*.key`/`*.tsbuildinfo`/`.wireit`，无需手工排除。
+>
+> **`-c core.autocrlf=false -c core.eol=lf` 不是可选项。** 本机 `core.autocrlf=true`，不带这两个开关时 `git archive` 会把文本文件重新写成 CRLF：实测 `skills/sfoa-record-change/SKILL.md` 由 9576 B（LF）变成 9643 B（CRLF，+67 B = 行数）。这会让服务器上的 `skills/` 与 OpenClaw runtime 副本、以及 `skill:check` / `skill:runtime:check` 的逐字节比较全部产生**假漂移**。部署后必须用 §3.5 的清单校验确认。
+
+**备选（直接归档工作区，仅在不按提交导出时使用）**：
+
+```bash
 tar --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='tmp' \
     --exclude='secrets' --exclude='.env.local' --exclude='*.pem' --exclude='*.key' \
     --exclude='*.tsbuildinfo' --exclude='.wireit' \
@@ -282,6 +323,39 @@ yarn install --frozen-lockfile
 ```
 
 > 本仓库 `workspaces.nohoist=["**"]`，每个 workspace 有独立 `node_modules`，必须**在根目录整体安装**，不能只装单个包。依赖没变时跳过，`node_modules` 装一次后一直有效。
+
+### 3.5 落盘与字节校验（推荐做法）
+
+**不要用 `rsync --delete` 直接覆盖 `app/`**：服务器上有若干**独有、不在仓库里**的文件，`--delete` 会把它们删掉——`.env.local`、`.idea`、`projects`、`.temp`、`.workbuddy`、`.codegraph/codegraph.db*`、`.claude/settings.local.json`、`node_modules`、各包 `dist`。推荐「先解到 staging，再 `rsync -a`（不带 `--delete`）覆盖」：
+
+```bash
+# 1) 先备份现有 app（只备源码，排除产物）
+tar czf /data/sfoa-enterprise-mcp/backup/sfoa-app-pre-$(date +%Y%m%d-%H%M%S).tar.gz \
+    -C /data/sfoa-enterprise-mcp/app \
+    --exclude=node_modules --exclude=dist --exclude=lib --exclude=.wireit \
+    --exclude=.nyc_output --exclude=test-results --exclude=.codegraph \
+    --exclude=.temp --exclude='*.tsbuildinfo' .
+
+# 2) 解到 staging，再覆盖（不带 --delete，服务器独有文件全部保留）
+STAGE=/data/sfoa-enterprise-mcp/staging-$(date +%Y%m%d-%H%M%S)
+mkdir -p "$STAGE" && tar xzf /data/sfoa-enterprise-mcp/incoming/<name>.tar.gz -C "$STAGE"
+rsync -a "$STAGE"/ /data/sfoa-enterprise-mcp/app/
+```
+
+**部署后必须做的字节校验**（这是判断「部署是否真的等价于该提交」的唯一硬证据，代码特征比对不能替代）：
+
+```bash
+# 本机：按 HEAD 的 blob 内容生成 sha256 清单（LF，与 git 内部存储一致）
+git -c core.autocrlf=false ls-tree -r HEAD   # 取 blob；或用 §3.1 的 LF 归档解包后逐个 sha256sum
+# 上传清单后在服务器执行：
+cd /data/sfoa-enterprise-mcp/app
+sha256sum -c /data/sfoa-enterprise-mcp/incoming/expected.txt | grep -v ': OK$'
+# 期望：无输出（全部 OK）。任何 FAILED/MISSING 都要先查清再继续。
+```
+
+> **运行时代码没变时不要重建、不要重启。** 先执行 `git diff <服务器当前版本>..<目标提交> -- packages yarn.lock 'packages/sfoa-control-plane/migrations' .env.example config`：若为空，则既有 `dist/` 仍由相同源码产出、依然有效，重建 + `systemctl restart` 对行为是 no-op，只会增加风险。此时确认 `packages/` 源码无差异即可跳过 §6 与 §7。
+>
+> 判断「服务器当前是什么版本」不要靠猜：服务器没有 `.git`，用**代码特征**（某文件/某函数是否存在）+ 归档 mtime + 备份文件名三方对齐，见各条部署记录的「变更前版本识别」。
 
 ---
 
