@@ -59,3 +59,11 @@ P7：COUNT `788c1e74-f46c-448c-8361-eacd68846d40`，明细 `445aac7d-e7e3-4fd2-a
 Auto invocation PASS（首次正文读取、后续摘要复用）；当前身份/MCP/Web链路 PASS。本轮没有新增图片/PDF企微场景，不能给新的多模态 E2E PASS。原反例、显式调用和 Skill delivery gates 沿用已记录且未修改实现的验证结果，不因本次文档更新重复运行。
 
 **STATUS 保持 PARTIAL。** 下一步先修复并验证 Core 的“查询范围与结论范围一致”问题；随后按已有条件授权进入 `sfoa-record-change`，以本轮和 [9 月 13 日基线](SFOA_SKILL_UAT_20260913.md)覆盖字段完整性、前置条件 refinement、Record Type、managed/default、UNKNOWN、截断及 READY Gate。不得以 Skill 已读取替代输出正确性验收，也不得宣称尚未实现的专业 Skill 已完成。
+
+## HOTFIX01 final UAT（独立于上文历史失败）
+
+基于远端 `origin/feature/openclaw-sfoa-skill-foundation` 的 `851edd04` 开始；fetch/status/branch/log 确认干净且同步。仅提升 Claim Scope <= Evidence Scope 与 Fact != Inference 到 Core 入口硬规则，细节补充到 references；不修改 MCP、Identity、CREATE 完整性或 Skill pipeline。
+
+HOTFIX01 新版验收进行中，旧 Run 不变更为 PASS。最终必须保留新的真人集合查询与 CRM+Web 分析 Run；隔离模拟证据测试和内容 Contract Test 不能替代它们。
+
+计划验证 Q1 COUNT>LIMIT 不外推、Q2 金额集合证据、Q3 日期集合证据、A1 客户/字段/时间范围、A2 Search/Fetch 区分、A3 事实/推断/未知；以及 deepseek-v4-pro 的 P1/P4/N2 独立会话。CREATE、Dynamic Forms、前置字段及 Action Context 截断修复全部留给下一阶段。

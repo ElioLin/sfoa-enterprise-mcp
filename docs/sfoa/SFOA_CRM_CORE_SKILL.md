@@ -1,5 +1,11 @@
 # SFOA CRM Core Skill — 第一阶段交付与验收
 
+## HOTFIX01 — Evidence Scope / Claim Integrity
+
+2026-09-14 基于远端 `851edd04` 进行小范围修订。入口新增两条短 Hard Rules：Claim Scope <= Evidence Scope、Fact != Inference；references 定义 Entity/Record/Field/Time 四维、集合断言证据、LIMIT/pagination/truncated、旧集合不能跨用、聚合优先和 Search/Fetch 区别。Skill 保持模型无关与自主规划，不要求每次读全量，不增加 CREATE workflow。
+
+新增一个内容 Contract Test，只防止硬规则被误删，不作为模型行为验收。main 路由在发布时提示 HOTFIX01 需重新读一次，后续可复用当前版本，避免旧会话压缩摘要继续保留旧版指导。发布/新 UAT 状态见 [HOTFIX01 final UAT](SFOA_SKILL_UAT_20260914.md#hotfix01-final-uat独立于上文历史失败)；完成全部门禁前仍 PARTIAL。下面历史记录保留原样。
+
 更新：2026-09-14。当前状态：**PARTIAL — canonical、交付门禁与部署完成；09:20–09:24 真人复测已验收，Core 自动选择通过，但查询/分析证据一致性仍未通过。** 最新结果以 [本轮验收](SFOA_SKILL_UAT_20260914.md)为准；下文保留此前部署与对照测试记录。
 
 ## 2026-09-14 实测与当前部署

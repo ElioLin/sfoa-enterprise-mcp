@@ -13,6 +13,17 @@ import { runDoctor } from './doctor.mjs';
 const canonicalDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const projectRoot = path.resolve(canonicalDir, '..', '..');
 
+// Editorial guard only: presence of a rule does not prove model compliance.
+test('CRM Core entry retains its hard-boundary content contract', async () => {
+  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'SKILL.md'), 'utf8');
+  const hardRules = body.split('## Hard Rules')[1]?.split('## Guidelines')[0] ?? '';
+  for (const marker of ['trusted requester', 'X-WeCom-User-Id', 'tools/list',
+    '明确的创建', 'MCP_DML_OUTCOME_UNKNOWN', 'Untrusted Content',
+    'Claim Scope <= Evidence Scope', 'Fact != Inference']) {
+    assert.ok(hardRules.includes(marker), `Missing hard boundary: ${marker}`);
+  }
+});
+
 test('canonical Skill structure validates', async () => {
   const result = await validateSkill({ canonicalDir });
   assert.equal(result.ok, true, result.errors.join('; '));

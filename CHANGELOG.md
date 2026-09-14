@@ -1,5 +1,10 @@
 # SFoA OpenClaw Skill Foundation (2026-09-13)
 
+- HOTFIX01 (2026-09-14): promote evidence-scope and fact/inference boundaries to
+  the CRM Core entry; document aggregate-first evidence, partial coverage and
+  search-versus-fetch semantics. Add an editorial contract guard, separate from
+  runtime and real WeCom acceptance. No MCP/identity/DML implementation changes.
+
 - Establish the SFOA Skill Suite baseline and implement only `sfoa-crm-core`,
   with separate hard boundaries and flexible evidence/tool-selection guidance.
 - Extend existing Skill delivery to multiple canonical sources without copying
