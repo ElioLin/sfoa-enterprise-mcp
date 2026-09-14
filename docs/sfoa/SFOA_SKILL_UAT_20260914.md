@@ -67,3 +67,48 @@ Auto invocation PASS（首次正文读取、后续摘要复用）；当前身份
 HOTFIX01 新版验收进行中，旧 Run 不变更为 PASS。最终必须保留新的真人集合查询与 CRM+Web 分析 Run；隔离模拟证据测试和内容 Contract Test 不能替代它们。
 
 计划验证 Q1 COUNT>LIMIT 不外推、Q2 金额集合证据、Q3 日期集合证据、A1 客户/字段/时间范围、A2 Search/Fetch 区分、A3 事实/推断/未知；以及 deepseek-v4-pro 的 P1/P4/N2 独立会话。CREATE、Dynamic Forms、前置字段及 Action Context 截断修复全部留给下一阶段。
+
+## HOTFIX02 — Full Population Analytics / Data Completeness
+
+2026-09-14 基于远端 `origin/feature/openclaw-sfoa-skill-foundation` 的 `c195afe1` 开始。fetch / status / branch -a / -vv / log 确认干净同步，main 仍为 `25a15ce4` 未合入，故 Base 取该 feature 分支。HOTFIX Branch：`hotfix/openclaw-sfoa-crm-core-data-completeness`。
+
+### 本轮直接针对的历史失败
+
+上文本轮「查询」与「CRM + Web」两节记录的失败有一个共同根因：**部分明细被当作全集的证据**。`COUNT=76` 配 `LIMIT 50` 的明细，被扩写成「这 76 条全部 Amount 为空」「所有商机最后修改时间都在同一天」；只返回 Account / Stage / Count 的 35 条商机聚合，被扩写成「35 条金额全空」与全量日期、产品占比。HOTFIX01 已有 Claim Scope <= Evidence Scope 与 Fact != Inference 两条入口规则，但复测显示不足以约束「统计断言可以用部分明细支撑」这一具体形态。
+
+### 本轮变更
+
+Core 入口新增第三条 Hard Rule **Full Population Analytics**：要求总数、全部、整体、统计、分析、趋势、占比、分布、平均值、总金额、极值等集合级结论的 **Analysis Scope 必须覆盖用户真正要求的完整 Population**；允许 Display Scope 小于 Population Scope，但不得用部分明细代表全集；只有用户意图本身是部分范围（最近 N / 最大 N / 举例 / 随机）时，Analysis 才可等于该 TOP_N / SAMPLE 且须标注。同时把既有规则显式命名，便于逐条契约检查。
+
+新增 `references/data-completeness.md`：三个 Scope 的定义与不变量、Minimal Sufficient Full-Scope Evidence、NULL / Blank 结论需总记录数与非空计数对比、TOP_N / SAMPLE 的合法性、默认「查数据」行为、「列出全部」与「分析全部」的区分、Row-level 全量语义分析的分批覆盖与「禁止编造 paginationToken / cursor / page」、COMPLETE / PARTIAL / TOP_N / SAMPLE / UNKNOWN 状态、用户可见的「总量 / 分析范围 / 展示范围」提示、Previous Run Population 复用前六项核对、Web Search 同样受 Scope 约束。`query-guidance.md` 与 `evidence-and-errors.md` 增加入口链接。
+
+没有改动 MCP、Identity、DML、Tool Governance、OpenClaw Core、官方 Plugin 或 adapter；没有开放企微文档能力；没有引入 `sfoa-record-change` 的必填字段 / READY Gate 内容。
+
+### 已完成的机器可验证门禁
+
+Canonical `291750a5aa9b3af027f1ef5601e51b43ad8e0322`。`skill:sync` / `check` PASS（两个 canonical、六个副本、drift 空）；`skill:test` PASS 19 tests；`skill:delivery` PASS；`skill:package` PASS（core 九文件 `03f3a72f…`）；`skill:smoke` 从 `291750a` 的 `git archive` 重建 PASS 且 19 tests 全通过。
+
+Contract Test 加强为「规则标签 + 规则正文特征串」配对，并另跑变异检查：删除 Full Population Analytics 条目、掏空或改名其余七条规则正文等 11 种变异全部被捕获（11/11）。这仍只是防止规则被误删，不是模型行为验收。
+
+Runtime：`/data/openclaw/workspace/skills/sfoa-crm-core/` 九个文件与 canonical 逐字节 SHA256 一致（`SKILL.md` = `f64ca14b…`，`references/data-completeness.md` = `d82e2c43…`）；备份 `/data/openclaw/backups/20260914-111225-core-data-completeness`；config validate 通过，Gateway active，11:12:32 企微 WebSocket 认证成功；main modelVisible 仍仅 `sfoa-crm-core` 与 `browser-automation`，maintainer 未暴露。AGENTS 路由修订标记由 HOTFIX01 更新为 HOTFIX02（单行，备份 `/data/openclaw/backups/20260914-111542-agents-routing`），使持有旧版压缩摘要的会话重新读取当前 Core。
+
+### 模型符合性探针（隔离会话，无 requester-scoped MCP）
+
+| 请求模型 | 生效 `responseModel` | rerouted | P1 `帮我查一下这个客户` | P4 CRM + Web | N2 `17*23` |
+| --- | --- | --- | --- | --- | --- |
+| `deepseek-flash`（当前 primary） | `deepseek-flash` | false | 读 Core 正文，命中 HOTFIX02 特征串；无 CRM 工具时如实说明并拒绝绕过 | 同上；明确区分 CRM 事实与公开信息 | 未读 Core，答 391 |
+| `qwen3-vl`（当前配置 fallback） | `qwen3` | true | **未读 Core**，直接澄清 | **未读 Core** | 未读 Core |
+| `deepseek-v4-pro` | `deepseek-flash` | true | 无效证据，见下 | 无效证据 | 无效证据 |
+| `DeepSeekV32`（对照） | `DeepSeekV32` | false | — | — | — |
+
+Run ID：deepseek-flash P1 `9a9ac137-6560-431b-bb8a-46577788eae3`、P4 `4539816a-15bf-4310-9b3e-021dfee968a5`、N2 `d4ffc6ad-de8b-4023-aa6b-9401f2e1176e`；qwen3-vl P1 `c6dc78cd-f423-4dd4-a17c-39669527b7e2`、P4 `d08e26c6-295a-4e65-8e8c-26f1a534aa22`、N2 `c076caa2-a14a-46d8-8289-25b8be6a1666`。
+
+判定依据是会话轨迹中成功的 `read` 调用及其返回正文是否包含仅存在于 HOTFIX02 版本的特征串，不是回答风格。`deepseek-v4-pro` 的请求被 provider 以 `deepseek-flash` 返回（`effective.responseModel=deepseek-flash`），而同批对照中 `deepseek-flash` 与 `DeepSeekV32` 均为 `rerouted=false`，说明该别名当前没有独立后端。因此 §33 要求的 deepseek-v4-pro 专项**无法产出有效证据，记为 BLOCKED，不等于通过**。配置的 fallback `qwen3-vl` 在 CRM 正例上仍不读 Core，这是既有记录的复现（非本次回归），但意味着 fallback 生效时新规则不会被应用。
+
+### 仍未完成：七项真人企微验收
+
+Case 1–7 需要真人经企业微信发起：Case 1 完整总体 + 部分展示、Case 2 金额统计、Case 3 阶段分布、Case 4 日期范围、Case 5 Top N、Case 6 CRM + Web、Case 7 Previous Run 隔离。requester-scoped SFOA MCP 只在企微渠道注入，本轮隔离会话中模型自己报告「本次运行没有 CRM 工具」，因此这些 Run 无法在 CLI/webchat 产生；本轮也没有可行方式以真人身份发送企微消息。
+
+这七项记为 **PENDING（需人工执行）**，本轮一项都不写成 PASS。Contract Test、变异检查与模型探针都**不能**替代它们。每项要保留的证据与判定标准已在任务定义中给出，验收时应记录企微入站时间、Run ID、P7 的 COUNT / 聚合 / 明细调用，以及最终回答是否同时说明「统计基于全部 N 条」与「展示 M 条」。
+
+**HOTFIX02 状态：实现与全部机器可验证门禁 PASS；行为验收 PENDING。Core 仍为 PARTIAL。** 上文 09:20–09:24 的历史 PARTIAL 判定保持原样，不因本次修订改写为 PASS。

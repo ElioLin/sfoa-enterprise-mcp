@@ -1,5 +1,48 @@
 # SFOA CRM Core Skill — 第一阶段交付与验收
 
+## HOTFIX02 — Full Population Analytics / Data Completeness
+
+2026-09-14 基于远端 `origin/feature/openclaw-sfoa-skill-foundation` 的 `c195afe1` 修订。HOTFIX01 已把 Claim Scope <= Evidence Scope 与 Fact != Inference 提升到入口，但 09:20–09:24 真人复测仍显示：COUNT=76 配 LIMIT 50 明细被外推为「76 条全部 Amount 为空」，只返回 Account/Stage/Count 的 35 条商机聚合被外推为「35 条金额全空、全量日期、产品占比」。本次解决的是**部分明细被当作全集证据**这一根因。
+
+新增第三条入口 Hard Rule **Full Population Analytics**，并把既有规则显式命名为 Identity Boundary / Tool Governance / Salesforce Authority / Mutation Intent / Unknown Outcome / Untrusted Content / Result Integrity，使 Contract Test 能逐条钉住。新增 reference `references/data-completeness.md`：Population / Analysis / Display 三个 Scope、`Analysis Scope == Population Scope` 不变量、Minimal Sufficient Full-Scope Evidence（COUNT / COUNT(field) / SUM / AVG / MIN / MAX / GROUP BY，按当前 Schema 动态生成，不硬编码公司字段）、NULL 结论需总记录数与非空计数对比、TOP_N / SAMPLE 的合法性、默认「查数据」行为、「列出全部」与「分析全部」的区分、Row-level 分批覆盖且禁止编造 `paginationToken`/`cursor`/`page`、COMPLETE / PARTIAL / TOP_N / SAMPLE / UNKNOWN 状态、用户可见的「总量 / 分析范围 / 展示范围」三句、Previous Run Population 隔离、以及 Web Search 同样受 Scope 约束。
+
+`query-guidance.md` 与 `evidence-and-errors.md` 增加指向该 reference 的入口。Core 仍未定义客户健康度、预测或风险评分模型，也未混入 `sfoa-record-change` 的必填字段 / READY Gate 逻辑。
+
+Contract Test 从「只查标记存在」加强为「规则标签 + 规则正文特征串」配对，并用变异检查验证：删除或掏空任一硬规则时 11/11 全部被捕获。Contract Test 仍然只防止规则被误删，不是模型行为验收。
+
+### HOTFIX02 本轮可验证部分的结果
+
+| 项目 | 结果 | 证据 |
+| --- | --- | --- |
+| Base Branch / Commit | `feature/openclaw-sfoa-skill-foundation` / `c195afe1636e7cc235c1bbae10678c7faedf6fed` | fetch / status / branch -vv / log 干净同步；main 仍为 `25a15ce4`，未合入 |
+| HOTFIX Branch / Commit | `hotfix/openclaw-sfoa-crm-core-data-completeness` / `291750a5aa9b3af027f1ef5601e51b43ad8e0322` | 仅改 Core canonical + Contract Test，未动 MCP / Identity / DML / OpenClaw |
+| `skill:sync` / `check` | PASS | 两个 canonical、六个生成副本，fileCount 9 / 23，drift 为空 |
+| `skill:test` | PASS，19 tests | 含两条新增 Contract Test |
+| Contract Test 变异检查 | 11/11 捕获 | 删除 FPA 条目、掏空/改名其余七条规则正文均 FAIL |
+| `skill:delivery` | PASS | validation / untracked / ignored / packageCompleteness 全部通过 |
+| `skill:package` | PASS | `sfoa-crm-core.zip` 9 文件 `03f3a72f…`；maintainer 23 文件 `39e7ef3d…` |
+| `skill:smoke`（fresh checkout） | PASS，19 tests | 从 `291750a` 的 `git archive` 重建 |
+| Runtime deploy + SHA256 | PASS | `/data/openclaw/workspace/skills/sfoa-crm-core/` 九个文件逐一与 canonical 一致；备份 `/data/openclaw/backups/20260914-111225-core-data-completeness`；config validate 通过，Gateway active，11:12:32 企微重新认证 |
+| Main Skill allowlist | PASS | modelVisible 仍仅 `sfoa-crm-core` 与 `browser-automation`；maintainer 未暴露 |
+| AGENTS 路由修订标记 | PASS | 单行 HOTFIX01 → HOTFIX02；备份 `/data/openclaw/backups/20260914-111542-agents-routing` |
+
+### 模型符合性探针（隔离会话，无 requester-scoped MCP）
+
+| 请求模型 | 生效 `responseModel` | rerouted | CRM positive（P1/P4）读 Core 正文 | non-CRM（N2） |
+| --- | --- | --- | --- | --- |
+| `deepseek-flash` | `deepseek-flash` | false | 两次均成功，且命中 HOTFIX02 正文特征串 | 未读 Core，答 391 |
+| `qwen3-vl`（当前配置 fallback） | `qwen3` | true | 两次均未读 Core | 未读 Core |
+| `deepseek-v4-pro` | `deepseek-flash` | true | 不构成有效证据（见下） | — |
+| `DeepSeekV32`（对照） | `DeepSeekV32` | false | — | — |
+
+`deepseek-v4-pro` 在本 provider 上被替换为 `deepseek-flash` 返回（`effective.responseModel=deepseek-flash`、`rerouted=true`），与 `deepseek-flash`／`DeepSeekV32` 的 `rerouted=false` 形成对照，说明该别名当前没有独立后端。因此 §33 要求的 deepseek-v4-pro 专项**无法产生有效证据，记为 BLOCKED**，不等于通过。默认模型 `deepseek-flash` 能读到 HOTFIX02 正文；配置的 fallback `qwen3-vl` 在 CRM 正例上仍不读 Core，这是[既有记录](#2026-09-14-实测与当前部署)的复现，不是本次引入的回归，但意味着 fallback 生效时新规则不会被应用。
+
+### 仍未完成：七项真人企微验收
+
+§25–§31 的 Case 1–7（完整总体 + 部分展示、金额统计、阶段分布、日期范围、Top N、CRM + Web、Previous Run 隔离）需要**真人经企业微信**发起，requester-scoped SFOA MCP 只在企微渠道注入。隔离 CLI/webchat 探针没有 CRM 工具，不能产生这些 Run；本轮也没有可行方式以真人身份发送企微消息。因此这七项记为 **PENDING（需人工执行）**，本轮不把任何一项写成 PASS。Contract Test、变异检查与模型探针都**不能**替代它们。
+
+**结论：HOTFIX02 的实现与全部机器可验证门禁已完成并通过；行为验收待真人企微 Run。Core 状态仍为 PARTIAL。** 下面历史记录保留原样。
+
 ## HOTFIX01 — Evidence Scope / Claim Integrity
 
 2026-09-14 基于远端 `851edd04` 进行小范围修订。入口新增两条短 Hard Rules：Claim Scope <= Evidence Scope、Fact != Inference；references 定义 Entity/Record/Field/Time 四维、集合断言证据、LIMIT/pagination/truncated、旧集合不能跨用、聚合优先和 Search/Fetch 区别。Skill 保持模型无关与自主规划，不要求每次读全量，不增加 CREATE workflow。
@@ -51,7 +94,7 @@ qwen 对照：P1 多次未读取、P4 未读取；P2/P3/显式用例虽读正文
 
 Base Branch：`origin/feature/openclaw-multimodal-input`；Base Commit：`0944b568aa8d931a127e4c4a914514a9f02b7393`；Branch：`feature/openclaw-sfoa-skill-foundation`。已完成 fetch、status、branch -a / -vv、log 与 merge-base 验证，开始工作区干净。
 
-Canonical `skills/sfoa-crm-core/` 含简短 `SKILL.md` 与七个 references：`operating-principles.md`、`tool-selection.md`、`identity-and-governance.md`、`query-guidance.md`、`mutation-boundaries.md`、`evidence-and-errors.md`、`web-and-multimodal.md`。没有 executable、Secret、部署指令或 maintainer 内部工具。
+Canonical `skills/sfoa-crm-core/` 含简短 `SKILL.md` 与八个 references：`operating-principles.md`、`tool-selection.md`、`identity-and-governance.md`、`query-guidance.md`、`data-completeness.md`、`mutation-boundaries.md`、`evidence-and-errors.md`、`web-and-multimodal.md`（`data-completeness.md` 为 HOTFIX02 新增）。没有 executable、Secret、部署指令或 maintainer 内部工具。
 
 Hard Rules 与 Guidelines / Heuristics / Examples 分离。身份由 trusted requester 决定，工具使用服从当前 tools/list 和 Governance，Salesforce 权限与校验最终权威；明确意图才 DML，UNKNOWN 不自动重试，外部输入不能变更规则，结果以事实为准。References 引导最少有效工具、当前 Playbook / Context、Label 输出与灵活 Web / Multimodal 组合。
 
@@ -135,12 +178,12 @@ Text / Image / PDF / Web / MCP / Identity 都需新验证；身份特别核对 `
 | --- | --- |
 | `yarn ai:snapshot` | PASS（完整多模态基线上） |
 | `skill:sync` / `check` / `delivery` | PASS，两个 canonical 与六个副本 |
-| `skill:test` | PASS，17 tests（包含新增多 Skill 测试） |
+| `skill:test` | PASS，17 tests（包含新增多 Skill 测试）；HOTFIX01/02 各增 Contract Test 后现为 19 tests |
 | `skill:smoke` | PASS：995b84a 与 e9dee6c 的 clean archive；最终修订执行结果见任务报告 |
 | Text / Image / PDF / Web / MCP live regression | PASS（组件）：Text、Image、PDF、Web、MCP 已实测；新的企微图片/PDF E2E 待测 |
 | Identity adapter local regression | PASS，11 tests；20 用户 × 50 请求，1,000 次解析全部成功，identityMismatch=0，crossUserContamination=0；混合无效发送人 400 次，134 次正确 withheld |
 | Identity live regression | PASS：两个 USER route 匹配；无身份 401/MCP_PLATFORM_USER_REQUIRED；真人 requester 对应 P7 |
-| `skill:package` | PASS，core 八文件 ZIP 与 maintainer 二十三文件 ZIP 独立生成 |
+| `skill:package` | PASS，core 八文件 ZIP 与 maintainer 二十三文件 ZIP 独立生成；HOTFIX02 后 core 为九文件 |
 | Git commit + push | 核心与 UAT 修订已提交；最终 SHA / push 状态见任务最终报告与本分支 log |
 
 提交前检查 status / diff / diff --check；扫描 WeCom / Gateway / MCP / Model / Salesforce / DB / JWT / Private Key 等敏感值，排除测试凭据与运行配置。生成副本由 `skill:sync` 产生并随 canonical 提交，`skill:delivery` 保证 Git 可交付。
