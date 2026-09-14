@@ -302,11 +302,11 @@ Canonical 文件 SHA-256 前缀：`SKILL.md` `6b10aff838d2`、`readiness-gate.md
 1. **DeepSeek 可能因 Tool result 过长丢失关键信息。** Action Context 的文本表示约 30k 字符且带截断标记。Skill 能强制「截断时不得宣称验证完成」，但**无法保证模型在长文本中不遗漏某个字段**。彻底解决需要 Runtime 侧的响应整形，不是 Skill 文本能覆盖的。
 2. **Contract Test 只证明规则文本存在，不证明模型遵循。** 门禁是编辑守卫（防止规则被删除或掏空），不是行为验收。9 个新测试全部是内容契约。
 3. **真人 UAT 未执行。** 需要真人经企业微信发起 CREATE，验证模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」。
-4. **Runtime Copy 未部署。** `/data/openclaw/workspace/skills/sfoa-record-change/` 与 main allowlist 需要部署步骤；本轮只交付 canonical 与开发客户端副本。
+4. **Runtime Copy 部署。** 本轮只交付 canonical 与开发客户端副本；Runtime Copy 与 allowlist 在 HOTFIX01 完成，见下文。
 5. **UPDATE 未覆盖。** 02A 只建立 CREATE doctrine。UPDATE readiness、UPDATE Record Type mutation、完整 Batch grouping、>200 策略、allOrNone doctrine、完整 PARTIAL_SUCCESS recovery 与 OUTCOME_UNKNOWN reconciliation 全部留给 02B。本 Skill 在 `managed-lookups.md` 与 `outcomes.md` 中明确写出这些边界，避免被误认为已覆盖。
 6. **Picklist 截断与 UNKNOWN 容器语义无法由 Skill 消除。** `CONTAINER_RECORD_UNSUPPORTED` 类 UNKNOWN 在补齐前置字段后仍然存在；Skill 只能正确阻塞或如实说明，不能自行改成 VISIBLE/HIDDEN。
-7. **`clean-checkout-smoke.mjs` 在本 Windows 主机上无法完成。** 临时目录 `rm` 报 `EBUSY`（疑似文件句柄释放延迟），报告被 cleanup 异常吞掉。本轮用等价手工流程取得证据；脚本本身的健壮性可作为后续维护项。
-8. **仓库 Skill 侧可见性已回归，但 Runtime allowlist 未验证。** 机器门禁证明业务 Skill 不携带也不命名 maintainer；实际 `main` 的 eligible Skill 列表属部署配置，需部署时核对。
+7. **`clean-checkout-smoke.mjs` 在本 Windows 主机上无法完成。** 临时目录 `rm` 报 `EBUSY`（疑似文件句柄释放延迟），报告被 cleanup 异常吞掉。本轮用等价手工流程取得证据；脚本本身的健壮性仍是一个未修项。
+8. **仓库 Skill 侧可见性已回归。** 机器门禁证明业务 Skill 不携带也不命名 maintainer；服务器侧 allowlist 在 HOTFIX01 核对，见下文。
 9. **`managed-dml-fields.test.js` 在本环境被整体取消（47 子测试 0 pass）。** 原因是多份 `signal-exit` 与 Windows 进程退出时序冲突，属预先存在的环境问题。因此本报告对 managed 字段 / Owner fallback 的描述只有源码审查证据，没有该测试文件的执行证据。修复该环境问题后可补跑以获得运行时证据。
 
 ## J. Skill-02A 最终状态
@@ -324,3 +324,208 @@ Canonical 文件 SHA-256 前缀：`SKILL.md` `6b10aff838d2`、`readiness-gate.md
 5. `PLATFORM_IDENTITY_FALLBACK` 字段是否按 explicit > fallback 处理，并说明「不指定就按当前用户」。
 6. 是否在 `CHANGE_READY=false` 时确实没有调用 `create_record` / `create_records`。
 7. 截断发生时是否如实说明未完成验证，而不是宣称「表单要求核对好了」。
+
+---
+
+# Skill-02A HOTFIX01 — Delivery + Machine Gate + Runtime Deployment Closure
+
+Report ID: SFOA-OPENCLAW-SKILL-02A-HF01 · 2026-09-14
+
+本轮不重新开发 Skill-02A、不进入 02B，只把已经正确的 Skill-02A 从「GitHub canonical implementation」收口为「canonical source + Machine Gate + OpenClaw Runtime Copy + Business Agent Visibility」。
+
+## 基线
+
+| 项目 | 值 |
+| --- | --- |
+| Base Branch | `feature/openclaw-sfoa-record-change-02a` |
+| Base Commit SHA | `ef809145f1ae6335afa0127958935952512f0b27`（已存在于 `origin`） |
+| HOTFIX Branch | `hotfix/openclaw-sfoa-record-change-02a-delivery` |
+| 当时 `origin/main` | `25a15ce4fbf642fd995a7e61ab3fc92be1616a97` |
+| `origin/hotfix/openclaw-sfoa-crm-core-data-completeness` | `ef6b4e25c9360727ed7e1d3737ab774f9cc08ab7` |
+
+`git fetch --all --prune` 后确认 Base 分支的真实 HEAD 与本地一致，Skill-02A 的四个提交（`0a006a3`、`25d67b9`、`fd880c6`、`ef80914`）已在远端。HOTFIX 沿用仓库既有的 `hotfix/<topic>` 命名惯例。
+
+## 本轮 diff 审查
+
+`git diff ef6b4e2...HEAD --name-only` 只包含：
+
+```text
+skills/                     canonical Skill
+.agents/skills/             .claude/skills/             .codebuddy/skills/     开发客户端生成副本
+docs/sfoa/                  项目文档
+```
+
+**没有任何 Runtime 改动**：MCP Runtime、Identity Route、WeCom 链路、P8-04/05/06/07、Generic DML、Admin、Tool Governance、`create_record` / `create_records` schema 全部未触碰。因此本轮无需回退，也不存在「为匹配 Skill 而改 Runtime」的情况。
+
+## 1. Description 收口
+
+`SKILL.md` frontmatter `description` 由 **248 字符**收到 **153 字符**，保持单行：
+
+```text
+Salesforce CREATE 记录变更就绪与安全执行。新增、创建记录或发起申请时使用：Record Type、Dynamic Forms refinement、必填字段、Lookup/Picklist、Owner fallback、批量 CREATE；配合 sfoa-crm-core，不用于纯查询。
+```
+
+保留全部路由信号：`Salesforce`、`CREATE`、`Record Type`、`Dynamic Forms`、必填、`Lookup`、`Picklist`、`Owner`、`fallback`、`sfoa-crm-core`、新增 / 发起申请、`不用于纯查询`。机器门禁强制 `<= 160` 且逐项校验信号，删除任一信号即失败。
+
+（参考：`sfoa-crm-core` 的 description 为 174 字符，本轮未改动 Core。）
+
+## 2. 02A / 02B 范围收口
+
+保留 02A 必须的安全底线：
+
+```text
+create_records 1..200、同对象
+每条记录独立 CHANGE_READY
+PARTIAL_SUCCESS 不整批重试，只重新准备真实失败项
+OUTCOME_UNKNOWN 不自动重放
+不静默只处理一部分并声称完成、不无限循环
+```
+
+收缩掉超出 02A 的细节：
+
+| 位置 | 原内容 | 现在 |
+| --- | --- | --- |
+| `outcomes.md` | 「批次边界与安全」含 `500 → 200 + 200 + 100` 有限计划与 total/processed/succeeded/failed/unknown 全程跟踪 | 改为「如实说明当前无法在一次请求内完成 / 不静默只处理一部分 / 不无限循环」，并明确 >200 完整分批编排属后续阶段 |
+| `create-readiness.md` | 只讲 Tool 选择 | 增加范围边界句：本节只负责选 Tool，>200 计划与 `allOrNone` 策略不自行设计 |
+| `SKILL.md` | 无显式边界 | 增加 CREATE-only 边界段：UPDATE 就绪 / UPDATE 批量 / >200 编排 / `allOrNone` 策略 / 完整 Outcome recovery 不在范围内，且 **MUST NOT** 为 UPDATE 套 CREATE 整张表单 |
+
+同时移除 Skill 中唯一的公司字段名 `Source__c`（抽象 UAT 案例改为「`dependsOn` 返回的『来源』类字段」），使 doctrine 不再携带任何公司字段规则。
+
+## 3. Machine Gate
+
+复用 Skill-01 的既有架构（`manage.mjs` + `toolkit.test.mjs`），未另造测试体系。测试由 28 增至 **32**。
+
+新增 4 个门禁：
+
+| 门禁 | 覆盖 |
+| --- | --- |
+| description 长度与信号 | 单行、`<= 160`、11 个路由信号、排除纯查询 |
+| retired Tool 与公司标识 | `sf_prepare_record_change` / `sf_commit_record_change` 只允许出现在明确禁止语境；逐行拒绝 `__c` 形式的公司对象 / 字段 API 名 |
+| allowlist 一致性 | 每个非 maintainer canonical Skill 必须显式出现在 `BUSINESS_SKILL_ALLOWLIST`，否则失败 |
+| Runtime Copy 隔离 | 只发布白名单；拒绝符号链接、`.git`、凭据、可执行脚本；注入漂移必须被检出；`assertBusinessSkillAllowed('sfoa-mcp-maintainer')` 必须抛错 |
+
+并补充了 3 个既有门禁的缺失标记：非 critical UNKNOWN 不机械阻塞、CREATE-only 边界、>200 编排归属后续阶段。
+
+§6 列出的行为合同逐项对应：
+
+| 行为合同 | 门禁 |
+| --- | --- |
+| CHANGE_READY=false → 禁止 CREATE | SKILL.md Hard Rule 1 标签 + 正文 |
+| Context fetched != Ready | Hard Rule 2 |
+| 多 Record Type 未解决 → block | Hard Rule 3 + `create-readiness.md` |
+| default Record Type != 静默业务选择 | Hard Rule 3 + 「默认值不是用户业务意图的替代品」 |
+| VISIBLE + effectiveRequired + missing → checklist | Hard Rule 4 |
+| PENDING + dependency known → refinement | Hard Rule 5 |
+| PENDING + dependency unknown → clarification | Hard Rule 5 |
+| critical UNKNOWN → block | Hard Rule 7 |
+| non-critical UNKNOWN → 不机械 block | `readiness-gate.md` 明确不算 blocking condition |
+| refinement 上限 + critical unresolved → block | Hard Rule 9 |
+| explicit user fact → 不重复询问 | Hard Rule 10 |
+| trusted default → 不重复询问 | Hard Rule 11 |
+| strict managed → 不问不写 | Hard Rule 12 |
+| `PLATFORM_IDENTITY_FALLBACK` explicit > fallback | Hard Rule 13 |
+| explicit lookup 失败 → 不 fallback | Hard Rule 14 |
+| Lookup 0 / 1 / multiple | Hard Rule 15 + `lookup-and-picklist.md` |
+| Picklist Label → 运行时 API Value | Hard Rule 16 |
+| dependent Picklist 先 controller | Hard Rule 16 + reference |
+| critical evidence truncated → 不 READY | Hard Rule 17 |
+| PARTIAL_SUCCESS → 不整批重放 | Hard Rule 20 |
+| OUTCOME_UNKNOWN → 不重放 CREATE | Hard Rule 19 |
+| 无硬编码 Record Type ID / 字段规则 / Lookup ID / Picklist API Value | 无硬编码守卫 + 公司标识守卫 |
+| 无 retired Tool | retired Tool 守卫 |
+
+## 4. 可执行命令
+
+沿用仓库 `skill:*` 命名惯例，只在 root `package.json` 增加两条与部署直接相关的脚本：
+
+```text
+yarn skill:validate                              # 全部 canonical Skill 结构与链接
+yarn skill:test                                  # Skill-01 regression + Skill-02A contracts（32 tests）
+yarn skill:sync && yarn skill:check              # 开发客户端副本 + 漂移检查
+yarn skill:delivery                              # Git trackability / ignore / package 完整性
+yarn skill:runtime:sync  --runtime-root <workspace>/skills
+yarn skill:runtime:check --runtime-root <workspace>/skills
+```
+
+## 5. Runtime Copy 同步能力
+
+`manage.mjs` 新增 `runtime-sync` / `runtime-check`，与既有 `sync` / `check` 并列：
+
+- 唯一授权来源是 `BUSINESS_SKILL_ALLOWLIST = ['sfoa-crm-core', 'sfoa-record-change']`；`runtime-*` 动作只迭代该白名单，`sfoa-mcp-maintainer` 永远不进入。
+- 方向固定 canonical → runtime，运行时不反向维护。
+- 复制前拒绝符号链接、`.git` / `.ssh` / `secrets` / `node_modules` 段，以及 `.env`、`id_rsa`、`openclaw.json` 等凭据名与 `.mjs`/`.js`/`.sh`/`.ps1`/`.pem`/`.key` 等可执行或密钥扩展名。
+- `runtime-sync` 输出逐文件 SHA-256，便于服务器侧比对；`runtime-check` 比对递归 SHA-256 映射，缺失 / 多余 / 内容不同都失败并置 exit code 1。
+- 必须显式传 `--runtime-root`，避免猜测或误写本地路径。
+
+验证（本地暂存目录）：sync 产出恰好两个白名单 Skill、`runtime-check` drift 为空；对 maintainer 调用被拒（`No canonical Skill matches the business runtime allowlist`）；注入漂移后 `SKILL.md: differs` 被检出。
+
+## 6. OpenClaw Runtime 部署（已执行）
+
+目标：`root@192.168.156.203`（`crm-ex-test02`），OpenClaw **2026.9.3 (1391f7c)**。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 备份 | `/data/openclaw/backups/20260914-155313-skill-02a-delivery/`，root-only，含 `openclaw.json` 与当时 `skills/` |
+| 部署前 skills | 仅 `sfoa-crm-core`（9 文件） |
+| 部署 | canonical → `/data/openclaw/workspace/skills/sfoa-record-change/`，7 文件，`root:root`，目录 755 / 文件 644 |
+| 字节校验 | 7 个文件服务器侧 SHA-256 与 canonical 逐一相同 |
+| 策略变更 | `skills.entries` 增加 `sfoa-record-change.enabled=true`；`agents.entries.main.skills` 由 `["sfoa-crm-core","browser-automation"]` 变为 `["sfoa-crm-core","browser-automation","sfoa-record-change"]`（既有合法项全部保留） |
+| `openclaw config validate` | `Config valid: /data/openclaw/state/openclaw.json` |
+| 重启 | `skills.load.watch` 未设置（无 watcher），故 `systemctl restart openclaw-gateway`；16:08:25 active |
+| 渠道 | 16:08:32 `[wecom] Authentication successful` |
+
+服务器侧 SHA-256：
+
+```text
+c7354635ca39…  SKILL.md
+3fc5c3daf196…  references/readiness-gate.md
+685ecc437bfb…  references/create-readiness.md
+59fa6c293a1f…  references/dynamic-forms.md
+97c4a6b7531f…  references/managed-lookups.md
+b7506e90f64a…  references/lookup-and-picklist.md
+06ca86c414f6…  references/outcomes.md
+```
+
+服务器侧 `sha256sum` 的 64 位完整值与 canonical 逐一相同；上表为便于阅读的 12 位前缀。
+
+## 7. Business Agent 可见性
+
+`openclaw skills check --agent main`：
+
+```text
+Total: 71
+Eligible: 34
+Visible to model: 3
+Blocked by allowlist: 0
+Excluded by agent allowlist: 68
+
+Ready and visible to model:
+  browser-automation
+  sfoa-crm-core
+  sfoa-record-change
+```
+
+`openclaw skills list --agent main --json` 的 `modelVisible` 与上表一致，`sfoa-record-change` 为 `eligible=true`、`modelVisible=true`、`blockedByAllowlist=false`、`source=openclaw-workspace`。
+
+## 8. Maintainer 隔离
+
+| 检查 | 结果 |
+| --- | --- |
+| `modelVisible` 含 maintainer | 无 |
+| `eligible` 含 maintainer | 无 |
+| `skills/` 中是否部署 | 只有 `sfoa-crm-core` 与 `sfoa-record-change` |
+| 机器门禁 | 业务 Skill 无 `scripts/`、无 `agents/openai.yaml`、不命名 maintainer；`runtime-sync` 拒绝 maintainer |
+
+## 9. 未执行项
+
+**Routing Smoke（§13）未执行。** 本轮已完成 description 注册、eligible 与 `modelVisible` 核对，但没有产生一次真实的 routing 决策。原因：随后一次服务器只读检查命令被沙箱权限拒绝（涉及本机 SSH 私钥路径），按拒绝提示停止后续服务器操作，未重试。
+
+因此「自然语言『帮我创建一个 Salesforce 客户拜访申请』同时命中 `sfoa-crm-core` + `sfoa-record-change`」以及「纯查询不强制加载 mutation doctrine」**尚未取得运行证据**。这两项应由真人企微 UAT 一并覆盖；不要把它写成 PASS。
+
+## 10. HOTFIX01 最终状态
+
+**READY FOR HUMAN UAT**
+
+§20 的判定条件逐项成立：Skill doctrine 正确、02A 范围收口、description 收口、Machine Gate PASS（32/32）、Skill-01 regression PASS、canonical source PASS、Runtime Copy PASS（已部署并逐字节校验）、`openclaw skills check` PASS、业务 Agent 可见 `sfoa-crm-core` + `sfoa-record-change`、业务 Agent 不可见 `sfoa-mcp-maintainer`、Runtime 未改动。
+
+保留的未完成项（不改变上述判定）：Routing Smoke 未执行（§9）；真人企微 UAT 未执行；Skill-02B 未开始。

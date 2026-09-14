@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { AuditTraceNotFoundError, reconstructTrace, requireAuditRows } from './audit-trace.mjs';
 import { assertReadOnlySql } from './shared/db.mjs';
 import { exists, loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './shared/project.mjs';
-import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillPaths, syncSkill, validateSkill } from './manage.mjs';
+import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillPaths, syncSkill, validateSkill,
+  BUSINESS_SKILL_ALLOWLIST, assertBusinessSkillAllowed, checkRuntimeSkill, syncRuntimeSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 
 const canonicalDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -120,6 +121,10 @@ test('record change entry retains its readiness hard-boundary content contract',
   // The Skill must declare that it inherits Core instead of restating Core's own rules.
   assert.ok(body.includes('sfoa-record-change inherits all hard rules from sfoa-crm-core'),
     'SKILL.md must declare the Core inheritance contract');
+  // Skill-02A stays CREATE-only: the scope boundary must remain explicit so UPDATE doctrine
+  // cannot drift in without a deliberate decision.
+  assert.ok(body.includes('UPDATE 就绪、UPDATE 批量、超过当前 200 上限'),
+    'SKILL.md must state the CREATE-only scope boundary');
   // Every declared reference must stay reachable, so the routing list cannot silently drop one.
   for (const name of ['readiness-gate', 'create-readiness', 'dynamic-forms', 'managed-lookups',
     'lookup-and-picklist', 'outcomes']) {
@@ -132,6 +137,7 @@ test('record change readiness reference defines the gate, its blocking condition
   for (const marker of ['Evidence-Based Mutation Readiness', 'Tool-Call-Count-Based Readiness',
     'Blocking condition', '不是 MCP Tool、不是数据库字段', 'Critical Dynamic Dependency',
     '∀ intended record: CHANGE_READY(record) == true', 'coverage=PARTIAL',
+    '与本次 mutation 无关的 UNKNOWN',
     '全部 blocking condition 为 false 时才可以']) {
     assert.ok(reference.includes(marker), `readiness-gate.md is missing: ${marker}`);
   }
@@ -173,7 +179,7 @@ test('create readiness reference keeps initial facts, record type gate and the U
   for (const marker of ['recordTypeSelectionRequired', 'availableRecordTypes', '`draftFields`', '`refinement`',
     '`USER_EXPLICIT`', '`SALESFORCE_CREATE_DEFAULT`', '`CURRENT_USER_FACT`', '`TRUSTED_RUNTIME_DEFAULT`',
     '`UNRESOLVED`', 'Missing Required Checklist', '`create_records`', '`allOrNone`', '`clientReferenceId`',
-    '计划交谈事项', 'dependsOn=[Source__c]', '`PLATFORM_IDENTITY_FALLBACK`', 'explicit > fallback']) {
+    '计划交谈事项', '`dependsOn` 返回「来源」类字段', '`PLATFORM_IDENTITY_FALLBACK`', 'explicit > fallback']) {
     assert.ok(reference.includes(marker), `create-readiness.md is missing: ${marker}`);
   }
   // A Salesforce default must never replace a real business Record Type choice.
@@ -203,6 +209,11 @@ test('outcomes reference forbids replaying UNKNOWN and resubmitting a partial ba
   assert.ok(reference.includes('**不是** Salesforce 业务字段，**不是**幂等键'),
     'outcomes.md must deny treating clientReferenceId as an idempotency key');
   assert.ok(reference.includes('只包含真实失败项'), 'outcomes.md must limit recovery to the failed items');
+  // 02A owns the safety floor only; full >200 orchestration is a later phase.
+  assert.ok(reference.includes('超过 200 的完整分批编排'),
+    'outcomes.md must hand full >200 orchestration to a later phase');
+  assert.ok(reference.includes('不静默只处理一部分并声称完成'),
+    'outcomes.md must forbid silently processing a subset');
 });
 
 test('record change Skill never hardcodes Salesforce truth', async () => {
@@ -252,6 +263,88 @@ async function listSkillFiles(root, current = root) {
   }
   return output;
 }
+
+test('record change description stays a single short routing line', async () => {
+  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'SKILL.md'), 'utf8');
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(body)?.[1] ?? '';
+  const description = /^description:\s*(.+)$/mu.exec(frontmatter)?.[1] ?? '';
+  assert.ok(description.length > 0, 'SKILL.md description is required');
+  // OpenClaw routes on this line, so it must stay short enough to read at a glance.
+  assert.ok(description.length <= 160, `description must stay within 160 characters, got ${description.length}`);
+  assert.ok(!description.includes('\n'), 'description must stay a single line');
+  for (const signal of ['Salesforce', 'CREATE', 'Record Type', 'Dynamic Forms', '必填', 'Lookup', 'Picklist',
+    'Owner', 'fallback', 'sfoa-crm-core']) {
+    assert.ok(description.includes(signal), `description must keep the routing signal: ${signal}`);
+  }
+  assert.ok(description.includes('不用于纯查询'), 'description must exclude pure read requests');
+});
+
+test('record change Skill keeps retired tools and company identifiers out of its doctrine', async () => {
+  const directory = path.join(projectRoot, 'skills', 'sfoa-record-change');
+  for (const file of await listSkillFiles(directory)) {
+    const relativePath = path.relative(directory, file);
+    const lines = (await readFile(file, 'utf8')).split('\n');
+    lines.forEach((line, index) => {
+      for (const retired of ['sf_prepare_record_change', 'sf_commit_record_change']) {
+        if (!line.includes(retired)) continue;
+        // Naming a retired Tool is only allowed inside an explicit prohibition. The Skill must
+        // never present it as a callable contract unless current code proves it exists again.
+        assert.ok(/MUST NOT|不存在|历史/u.test(line),
+          `${relativePath}:${index + 1} names the retired Tool ${retired} outside a prohibition`);
+      }
+      // A company-specific custom object or field API name must never be frozen into doctrine.
+      assert.doesNotMatch(line, /\b[A-Za-z][A-Za-z0-9_]*__[cr]\b/u,
+        `${relativePath}:${index + 1} must not hardcode a custom object or field API name`);
+    });
+  }
+});
+
+test('the business runtime allowlist matches the discovered non-maintainer Skills', async () => {
+  const business = (await discoverSkills(projectRoot))
+    .map((dir) => path.basename(dir))
+    .filter((name) => name !== 'sfoa-mcp-maintainer');
+  // A new business Skill must be an explicit runtime-allowlist decision, never an accident.
+  assert.deepEqual([...business].sort(), [...BUSINESS_SKILL_ALLOWLIST].sort(),
+    'every non-maintainer canonical Skill needs an explicit business runtime allowlist entry');
+});
+
+test('runtime copy publishes only the allowlist, refuses credentials and stays drift-checkable', async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'sfoa-runtime-copy-'));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const runtimeRoot = path.join(root, 'workspace', 'skills');
+  for (const name of BUSINESS_SKILL_ALLOWLIST) {
+    const published = await syncRuntimeSkill({ canonicalDir: path.join(projectRoot, 'skills', name), runtimeRoot });
+    assert.equal(published.skillName, name);
+    assert.ok(published.fileCount >= 7);
+    assert.ok(published.files.every((file) => /^[0-9a-f]{64}$/u.test(file.sha256)),
+      'every published file must carry a verifiable SHA-256 for server-side comparison');
+  }
+  const present = (await readdir(runtimeRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  assert.deepEqual(present, [...BUSINESS_SKILL_ALLOWLIST].sort(),
+    'the runtime copy must contain exactly the allowlisted business Skills');
+  assert.ok(!present.includes('sfoa-mcp-maintainer'), 'the maintainer Skill must never reach a business runtime');
+  for (const name of BUSINESS_SKILL_ALLOWLIST) {
+    const checked = await checkRuntimeSkill({ canonicalDir: path.join(projectRoot, 'skills', name), runtimeRoot });
+    assert.equal(checked.ok, true, JSON.stringify(checked.drift));
+  }
+  await writeFile(path.join(runtimeRoot, 'sfoa-record-change', 'SKILL.md'), 'drift', 'utf8');
+  assert.equal((await checkRuntimeSkill({
+    canonicalDir: path.join(projectRoot, 'skills', 'sfoa-record-change'), runtimeRoot })).ok, false);
+  assert.throws(() => assertBusinessSkillAllowed('sfoa-mcp-maintainer'), /allowlist/u);
+  // A canonical directory that carries credential or executable content is refused outright.
+  const poisoned = path.join(root, 'skills', 'sfoa-record-change');
+  await mkdir(path.join(poisoned, 'references'), { recursive: true });
+  await writeFile(path.join(poisoned, 'SKILL.md'), '---\nname: sfoa-record-change\ndescription: temp\n---\nBody.\n', 'utf8');
+  await writeFile(path.join(poisoned, 'references', 'note.md'), 'note\n', 'utf8');
+  await writeFile(path.join(poisoned, '.env'), 'SECRET=1\n', 'utf8');
+  await assert.rejects(() => syncRuntimeSkill({ canonicalDir: poisoned, runtimeRoot: path.join(root, 'other') }),
+    /credential/u);
+  await rm(path.join(poisoned, '.env'));
+  await writeFile(path.join(poisoned, 'helper.mjs'), 'export {};\n', 'utf8');
+  await assert.rejects(() => syncRuntimeSkill({ canonicalDir: poisoned, runtimeRoot: path.join(root, 'other') }),
+    /executable/u);
+});
 
 test('canonical Skill structure validates', async () => {
   const result = await validateSkill({ canonicalDir });

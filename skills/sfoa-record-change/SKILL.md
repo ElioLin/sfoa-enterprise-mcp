@@ -1,6 +1,6 @@
 ---
 name: sfoa-record-change
-description: SFOA Salesforce 记录变更就绪判断与安全执行指导，当前覆盖 CREATE 与批量 CREATE。用于创建或新增 Salesforce 记录、发起申请、创建拜访申请、创建客户、新增商机、新建业务单据、批量创建同类记录，以及判断必填字段、Record Type、Dynamic Forms 依赖、Lookup、Picklist、Owner 与 managed 字段是否已经准备完成。与 sfoa-crm-core 联合生效。不用于纯查询、统计、分析或一般文本任务，也不承担仓库开发运维。
+description: Salesforce CREATE 记录变更就绪与安全执行。新增、创建记录或发起申请时使用：Record Type、Dynamic Forms refinement、必填字段、Lookup/Picklist、Owner fallback、批量 CREATE；配合 sfoa-crm-core，不用于纯查询。
 ---
 
 # SFOA Record Change
@@ -42,6 +42,8 @@ description: SFOA Salesforce 记录变更就绪判断与安全执行指导，当
 创建 Salesforce 记录、新增记录、发起申请、创建拜访申请、创建客户、新增商机、新建业务单据、批量创建同类记录，或需要判断一次 CREATE 是否已经准备完成。
 
 纯查询、统计、分析、诊断、闲聊、数学与一般网页搜索不要加载本 Skill；这些场景只需 Core。当请求同时包含读取与写入时，读取部分按 Core 执行，写入部分按本 Skill 的 Gate 执行。
+
+本 Skill 当前只覆盖 **CREATE 与批量 CREATE** 的就绪判断与安全底线。UPDATE 就绪、UPDATE 批量、超过当前 200 上限的完整分批编排、`allOrNone` 业务策略与完整 Outcome recovery 不在本 Skill 范围内：遇到时如实说明边界，**MUST NOT** 据此为 UPDATE 套用 CREATE 的整张表单流程。
 
 ## Guidelines / Heuristics
 

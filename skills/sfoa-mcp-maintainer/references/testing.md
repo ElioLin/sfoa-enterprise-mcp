@@ -11,7 +11,20 @@ yarn skill:delivery
 yarn skill:test
 yarn skill:smoke
 yarn skill:package
+yarn skill:runtime:sync  --runtime-root <openclaw workspace>/skills
+yarn skill:runtime:check --runtime-root <openclaw workspace>/skills
 ```
+
+`skill:test` is the single entry point for both business Skills: it holds the
+`sfoa-crm-core` hard-boundary contract, the `sfoa-record-change` readiness
+contract, the per-reference content contracts, the abstract CREATE UAT regression
+case, the no-hardcoding and retired-Tool guards, the description bound, and the
+runtime-copy allowlist/isolation gate. `skill:runtime:sync` publishes only the
+explicit business allowlist in `manage.mjs` and refuses symbolic links,
+version-control metadata, credentials and executable scripts; `skill:runtime:check`
+compares recursive SHA-256 maps so a drifted runtime copy fails with exit code 1.
+A new non-maintainer canonical Skill must be added to that allowlist explicitly, or
+`skill:test` fails.
 
 The tests cover canonical structure, sync/drift, portable ZIP, secret masking, SQL read-only guard, missing `.env.local`, DB unavailable, Audit not found/reconstruction, checked-in platform consistency, and Git delivery trackability. `skill:delivery` fails when a required Skill file is missing, Git-ignored, or untracked; `skill:smoke` rebuilds a clean checkout from committed `HEAD` bytes via `git archive` and reruns the Skill gates there, so the evidence comes from committed Git bytes rather than a possibly dirty working tree.
 

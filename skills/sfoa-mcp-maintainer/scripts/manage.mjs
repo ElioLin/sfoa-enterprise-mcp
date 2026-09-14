@@ -211,6 +211,89 @@ async function verifyPackageCompleteness({ projectRoot, canonicalDir }) {
   }
 }
 
+/**
+ * 普通业务 Agent 可见的 Skill 白名单。
+ *
+ * 这是 Runtime Copy 的唯一授权来源：只有显式列在这里的 Skill 才允许发布到
+ * OpenClaw workspace。`sfoa-mcp-maintainer` 是开发/运维 Skill，永远不得进入
+ * 这个列表，也不得因为「方便同步」而把整个 `skills/*` 复制到 Runtime。
+ */
+export const BUSINESS_SKILL_ALLOWLIST = Object.freeze(['sfoa-crm-core', 'sfoa-record-change']);
+
+/** Runtime Copy 中禁止出现的文件特征：凭据、版本库元数据与可执行脚本。 */
+const RUNTIME_FORBIDDEN_SEGMENTS = Object.freeze(['.git', '.ssh', 'secrets', 'node_modules', '__pycache__']);
+const RUNTIME_FORBIDDEN_EXTENSIONS = Object.freeze(['.mjs', '.js', '.cjs', '.sh', '.ps1', '.bat', '.exe', '.pem', '.key', '.crt', '.p12', '.pfx']);
+const RUNTIME_FORBIDDEN_NAMES = Object.freeze(['.env', '.env.local', 'id_rsa', 'id_rsa.pub', 'openclaw.json', 'credentials']);
+
+export function assertBusinessSkillAllowed(skillName) {
+  if (!BUSINESS_SKILL_ALLOWLIST.includes(skillName)) {
+    throw new Error(`Skill ${skillName} is not in the business runtime allowlist (${BUSINESS_SKILL_ALLOWLIST.join(', ')}). Refusing to deploy it to a business Agent.`);
+  }
+}
+
+/**
+ * 业务 Skill 的 Runtime Copy 发布。
+ *
+ * 方向永远是 canonical → runtime，绝不反向维护。只复制白名单内的单个 Skill 目录，
+ * 并在复制前拒绝符号链接、版本库元数据、凭据与可执行脚本，避免把 maintainer
+ * 工具链或 Secret 带进普通业务 Agent 的 workspace。
+ */
+export async function syncRuntimeSkill({ canonicalDir, runtimeRoot }) {
+  const skillName = path.basename(canonicalDir);
+  assertBusinessSkillAllowed(skillName);
+  const validation = await validateSkill({ canonicalDir });
+  if (!validation.ok) throw new Error(`Canonical Skill validation failed: ${validation.errors.join('; ')}`);
+  const files = await listFiles(canonicalDir);
+  for (const file of files) {
+    if (file.isSymbolicLink) throw new Error(`Runtime Copy refuses symbolic links: ${file.relativePath}`);
+    assertRuntimePortable(file.relativePath);
+  }
+  const resolvedRoot = path.resolve(runtimeRoot);
+  const destination = path.join(resolvedRoot, skillName);
+  if (path.dirname(destination) !== resolvedRoot) throw new Error(`Unsafe Runtime Copy destination: ${destination}`);
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(destination, { recursive: true });
+  await cp(canonicalDir, destination, { recursive: true, force: true, errorOnExist: false });
+  const digests = await fileDigestMap(canonicalDir);
+  return Object.freeze({
+    skillName,
+    destination: toPosix(destination),
+    fileCount: files.length,
+    files: Object.freeze([...digests.entries()].map(([name, digest]) => Object.freeze({ name, sha256: digest })).sort((left, right) => left.name.localeCompare(right.name, 'en-US'))),
+  });
+}
+
+/** 比对 canonical 与 Runtime Copy 的递归 SHA-256 映射，报告缺失、多出与内容漂移。 */
+export async function checkRuntimeSkill({ canonicalDir, runtimeRoot }) {
+  const skillName = path.basename(canonicalDir);
+  assertBusinessSkillAllowed(skillName);
+  const validation = await validateSkill({ canonicalDir });
+  const destination = path.join(path.resolve(runtimeRoot), skillName);
+  if (!await exists(destination)) {
+    return Object.freeze({ ok: false, skillName, destination: toPosix(destination), validation, drift: Object.freeze(['missing Runtime Copy']) });
+  }
+  const canonical = await fileDigestMap(canonicalDir);
+  const copy = await fileDigestMap(destination);
+  const drift = [];
+  for (const name of [...new Set([...canonical.keys(), ...copy.keys()])].sort()) {
+    if (canonical.get(name) !== copy.get(name)) drift.push(`${name}: ${canonical.has(name) ? (copy.has(name) ? 'differs' : 'missing') : 'unexpected'}`);
+  }
+  return Object.freeze({ ok: validation.ok && drift.length === 0, skillName, destination: toPosix(destination), validation, drift: Object.freeze(drift) });
+}
+
+function assertRuntimePortable(relativePath) {
+  const posix = toPosix(relativePath);
+  const segments = posix.split('/');
+  const name = segments.at(-1) ?? '';
+  if (segments.some((segment) => RUNTIME_FORBIDDEN_SEGMENTS.includes(segment))) {
+    throw new Error(`Runtime Copy refuses version-control, secret or dependency content: ${posix}`);
+  }
+  if (RUNTIME_FORBIDDEN_NAMES.includes(name.toLowerCase())
+    || RUNTIME_FORBIDDEN_EXTENSIONS.some((extension) => name.toLowerCase().endsWith(extension))) {
+    throw new Error(`Runtime Copy refuses credential or executable content: ${posix}`);
+  }
+}
+
 async function git(arguments_, cwd) {
   try {
     const result = await execFileAsync('git', arguments_, { cwd, windowsHide: true, maxBuffer: 64 * 1024 * 1024, encoding: 'utf8' });
@@ -232,11 +315,20 @@ async function main() {
   const arguments_ = parseCliArguments(process.argv.slice(2));
   const action = arguments_._[0] ?? 'validate';
   const projectRoot = arguments_['project-root'] ? path.resolve(String(arguments_['project-root'])) : await findProjectRoot();
+  const runtimeAction = action === 'runtime-sync' || action === 'runtime-check';
   const canonicalDirs = arguments_.canonical
     ? [path.resolve(String(arguments_.canonical))]
     : await discoverSkills(projectRoot);
   if (arguments_.output && canonicalDirs.length !== 1) throw new Error('--output requires --canonical when packaging multiple Skills.');
-  for (const canonicalDir of canonicalDirs) {
+  // Runtime actions never iterate every canonical Skill: only the explicit business allowlist
+  // may reach an OpenClaw business workspace.
+  const selected = runtimeAction
+    ? canonicalDirs.filter((dir) => BUSINESS_SKILL_ALLOWLIST.includes(path.basename(dir)))
+    : canonicalDirs;
+  if (runtimeAction && selected.length === 0) {
+    throw new Error(`No canonical Skill matches the business runtime allowlist (${BUSINESS_SKILL_ALLOWLIST.join(', ')}).`);
+  }
+  for (const canonicalDir of selected) {
     await runAction({ action, projectRoot, canonicalDir, arguments_ });
   }
 }
@@ -273,7 +365,17 @@ async function runAction({ action, projectRoot, canonicalDir, arguments_ }) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
-  throw new Error(`Unknown Skill action: ${action}. Use validate, sync, check, delivery, or package.`);
+  if (action === 'runtime-sync' || action === 'runtime-check') {
+    if (!arguments_['runtime-root']) throw new Error(`${action} requires --runtime-root so the OpenClaw workspace is never guessed.`);
+    const runtimeRoot = String(arguments_['runtime-root']);
+    const result = action === 'runtime-sync'
+      ? await syncRuntimeSkill({ canonicalDir, runtimeRoot })
+      : await checkRuntimeSkill({ canonicalDir, runtimeRoot });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.ok && action === 'runtime-check') process.exitCode = 1;
+    return;
+  }
+  throw new Error(`Unknown Skill action: ${action}. Use validate, sync, check, delivery, package, runtime-sync, or runtime-check.`);
 }
 
 async function validateLinks(canonicalDir, errors) {

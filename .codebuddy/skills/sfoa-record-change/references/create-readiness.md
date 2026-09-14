@@ -96,9 +96,9 @@ Default 必须有实时 Runtime / Salesforce evidence。`defaultValueTruncated=t
 
 不要机械追求「整次 CREATE 只能问一次」。正确语义是：**当当前 Dynamic Forms dependency layer 已经稳定时，一次性合并询问这一层真正缺失的字段。**
 
-示例（抽象，不绑定具体公司对象）：某字段 `Customer` 处于 `PENDING`、`dependsOn=[Source__c]`，而 `Source__c` 未知。第一次只应该询问 `Source__c`。用户回答后写入 draft 并 refinement，`Customer` 可能变成 VISIBLE + Required，此时再询问 `Customer`。这是正确行为。
+示例（抽象，不绑定具体公司对象与字段名）：字段 A 处于 `PENDING`，`dependsOn` 返回字段 B，而字段 B 未知。第一次只应该询问字段 B。用户回答后写入 draft 并 refinement，字段 A 可能变成 VISIBLE + Required，此时再询问字段 A。这是正确行为。
 
-**MUST NOT** 为了「只问一次」提前猜测后续字段。
+**MUST NOT** 为了「只问一次」提前猜测后续字段。**MUST NOT** 把具体字段 API 名写进本 Skill；`dependsOn` 与 draft 的字段名一律来自当前 Action Context。
 
 ## create_record 还是 create_records
 
@@ -114,6 +114,8 @@ Default 必须有实时 Runtime / Salesforce evidence。`defaultValueTruncated=t
 
 每条 `create_records` item 携带自己的 `recordTypeId` 与最新 `uiContextResolutionId`（当 Runtime 提供时）。**MUST NOT** 把收集 Context 用的 Record Type 与实际提交的 `recordTypeId` 混用。
 
+范围边界：本节只负责**选择哪一个 Tool**。超过当前 200 上限的完整分批计划、`allOrNone` 业务策略与复杂 batch recovery 属于后续阶段；遇到时只要求如实说明边界，不自行设计编排方案。
+
 ## 真人 UAT 回归案例（抽象表达，不绑定 org 数据）
 
 场景：用户要求创建一个「客户拜访申请」类记录，并已经提供了部分字段。
@@ -121,15 +123,15 @@ Default 必须有实时 Runtime / Salesforce evidence。`defaultValueTruncated=t
 当前 Action Context 表现为：
 
 - 「计划交谈事项」类字段：`visibilityState=VISIBLE`、`effectiveRequired=true`、`effectiveEditable=true`、无默认值。
-- 「客户」类字段：`visibilityState=PENDING`、`dependsOn=[Source__c]`。
+- 「客户」类字段：`visibilityState=PENDING`，`dependsOn` 返回「来源」类字段。
 - 「来源」类字段：初始未知。
 - 「归属人」类字段：可见必填，受 `PLATFORM_IDENTITY_FALLBACK` 管理。
 
 正确行为必须同时满足：
 
 1. 不能漏掉可见必填的「计划交谈事项」类字段。
-2. 不能忽略 `Source__c` 依赖直接 CREATE。
-3. `Source__c` 得到之后必须 refinement，再重新判断「客户」类字段。
+2. 不能忽略 `dependsOn` 返回的「来源」类字段依赖直接 CREATE。
+3. 「来源」类字段得到之后必须 refinement，再重新判断「客户」类字段。
 4. Owner 必须遵守 explicit > fallback。
 5. 所有 blocking condition 消失后才允许 CREATE。
 

@@ -2,6 +2,41 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-14 — Skill-02A HOTFIX01 delivery and runtime deployment closure
+
+- Shorten the `sfoa-record-change` frontmatter description from 248 to 153
+  characters on one line, keeping every routing signal (Salesforce, CREATE,
+  Record Type, Dynamic Forms, required fields, Lookup/Picklist, Owner fallback,
+  `sfoa-crm-core`, the create/apply trigger and the pure-read exclusion).
+- Close the 02A/02B boundary: keep the CREATE batch safety floor (1..200,
+  per-record readiness, no full replay after PARTIAL_SUCCESS, no CREATE replay
+  after OUTCOME_UNKNOWN, no silent partial execution) and remove the >200 finite
+  plan, `allOrNone` strategy and full outcome recovery from the 02A doctrine. The
+  Skill now states its CREATE-only scope and forbids applying the CREATE form to
+  UPDATE. The last company field name (`Source__c`) is removed so no company field
+  rule remains in the Skill.
+- Add `runtime-sync` / `runtime-check` to the maintainer toolkit and
+  `yarn skill:runtime:sync` / `skill:runtime:check`: canonical → runtime only,
+  driven by an explicit `BUSINESS_SKILL_ALLOWLIST`, refusing symbolic links,
+  version-control metadata, credentials and executable scripts, and comparing
+  recursive SHA-256 maps. `sfoa-mcp-maintainer` can never reach a business
+  workspace, and a new business Skill requires an explicit allowlist entry.
+- Extend the machine gate from 28 to 32 tests: description length and routing
+  signals, retired-Tool and company-identifier guards, allowlist consistency, and
+  runtime-copy isolation with drift detection. Skill-01 regression is unchanged.
+- Deploy the runtime copy to `/data/openclaw/workspace/skills/sfoa-record-change/`
+  (7 files, root-only backup at `/data/openclaw/backups/20260914-155313-skill-02a-delivery`),
+  enable it in `skills.entries` and add it to `agents.entries.main.skills` while
+  preserving `sfoa-crm-core` and `browser-automation`. All 7 server SHA-256 values
+  match canonical; config validates; the Gateway restarted and WeCom
+  re-authenticated. `openclaw skills check --agent main` reports exactly three
+  model-visible Skills, and `sfoa-mcp-maintainer` is neither eligible nor visible.
+- Document the OpenClaw business Skill entry point in `README.md` and the runtime
+  deployment procedure in the maintainer Skill.
+- No MCP Runtime, Identity Route, WeCom chain, governance, Provider, migration or
+  Salesforce data change. The routing smoke was not executed; it is left to the
+  human WeCom UAT.
+
 ## 2026-09-14 — Skill-02A `sfoa-record-change` (Readiness Kernel + CREATE)
 
 - Add the second OpenClaw business Skill as canonical `skills/sfoa-record-change/`

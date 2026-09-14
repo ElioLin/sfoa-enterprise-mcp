@@ -84,11 +84,20 @@ Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、�
 
 验收覆盖 CREATE required fields、Dynamic Forms、Record Type、dependencies、initial facts、draft refinement、missing field checklist、READY gate、batch create/update，以及 Page Layout、Conditional Required、Defaults、Managed Lookup、Lookup Filter、Picklist 与 Salesforce Validation。用户已给值不重复询问；真实未知不猜测；UPDATE 不套 CREATE 全表单；批量按真实逐项结果核对。
 
-### 02A：Readiness Kernel + CREATE（已交付，待真人 UAT）
+### 02A：Readiness Kernel + CREATE（已交付并部署，待真人 UAT）
 
-交付内容与机器门禁见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md)。02A 只建立 CREATE 的 readiness doctrine 与 batch 安全底线，不新增 MCP Tool、不新增 DB 状态、不改 Runtime。Runtime Copy 目标为 `/data/openclaw/workspace/skills/sfoa-record-change/`，由 canonical 发布。
+交付内容与机器门禁见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md)。02A 只建立 CREATE 的 readiness doctrine 与 batch 安全底线，不新增 MCP Tool、不新增 DB 状态、不改 Runtime。
 
-机器门禁通过不等于行为验收通过。真人企微 UAT 必须单独验证：模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」，是否对 VISIBLE + effectiveRequired 的缺失字段提问，是否先解决 PENDING 依赖再 refinement，是否遵守 explicit owner > fallback。
+Runtime Copy 已从 canonical 发布到 `/data/openclaw/workspace/skills/sfoa-record-change/`（7 文件，服务器侧 SHA-256 与 canonical 逐一相同），并在 `skills.entries` 与 `agents.entries.main.skills` 中启用，保留既有 `sfoa-crm-core` 与 `browser-automation`。发布与漂移检查复用既有 toolkit：
+
+```text
+yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
+yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
+```
+
+两个动作只迭代 `manage.mjs` 中的显式业务 allowlist，因此 `sfoa-mcp-maintainer` 无法进入业务 workspace。
+
+机器门禁通过不等于行为验收通过。真人企微 UAT 必须单独验证：模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」，是否对 VISIBLE + effectiveRequired 的缺失字段提问，是否先解决 PENDING 依赖再 refinement，是否遵守 explicit owner > fallback。Routing Smoke 本轮未执行，随真人 UAT 一并覆盖。
 
 ### 02B：UPDATE + Batch + Outcome Hardening（未实现）
 

@@ -33,8 +33,31 @@ Project documentation:
 - [P8-05 WeCom enterprise MCP identity channel](docs/sfoa/P8_05_WECOM_IDENTITY_CHANNEL.md)
 - [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)
 - [Authoritative baseline](docs/sfoa/PROJECT_BASELINE.md)
+- [OpenClaw Skill Suite baseline](docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md)
+- [Skill-01 `sfoa-crm-core` report](docs/sfoa/SFOA_CRM_CORE_SKILL.md)
+- [Skill-02A `sfoa-record-change` report](docs/sfoa/SFOA_RECORD_CHANGE_SKILL.md)
 
 The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` / `yarn agent:check` for P6 Agent Playbook distributions. Run `yarn skill:sync` / `yarn skill:check` / `yarn skill:delivery` / `yarn skill:smoke` for the P7-08 Codex, Claude Code, and WorkBuddy/CodeBuddy Skill copies and their Git-trackability clean-clone proof; `yarn ai:doctor` checks local diagnostic prerequisites without printing secrets. Run `yarn validate:p5` for the repeatable product regression Gate. Real credentials belong only in ignored local environment files or secret injection.
+
+### OpenClaw business Skills
+
+Canonical sources are `skills/sfoa-crm-core/` and `skills/sfoa-record-change/`; `skills/` is the only place a Skill is edited. The ordinary WeCom business Agent sees exactly those two, never `sfoa-mcp-maintainer`, which is a development/operations Skill for Codex, Claude Code, and WorkBuddy.
+
+```bash
+# 1. Edit only under skills/<name>/, then validate, test and refresh the dev-client copies.
+yarn skill:validate
+yarn skill:test          # Skill-01 regression + Skill-02A readiness contracts
+yarn skill:sync && yarn skill:check
+
+# 2. Publish the allowlisted business Skills to the OpenClaw workspace (canonical -> runtime only).
+yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
+yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
+
+# 3. On the OpenClaw host, confirm the business Agent's visible Skills.
+openclaw skills list --agent main --json
+```
+
+`runtime-sync` copies only the explicit business allowlist in `skills/sfoa-mcp-maintainer/scripts/manage.mjs` and refuses symbolic links, version-control metadata, credentials, and executable scripts; `runtime-check` compares recursive SHA-256 maps so a drifted runtime copy fails. Adding a business Skill requires an explicit allowlist entry, which `yarn skill:test` enforces. Never copy the whole `skills/*` tree into a business workspace. See the [Skill Suite baseline](docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md) for the eligibility policy and the runtime deployment procedure.
 
 ### Supported agent integrations
 

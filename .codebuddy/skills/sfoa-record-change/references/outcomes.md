@@ -51,12 +51,19 @@ UNKNOWN / OUTCOME_UNKNOWN / MCP_DML_OUTCOME_UNKNOWN
 
 **MUST NOT** 整批重新调用 `create_records`，避免重复创建已经成功的 Salesforce Record。只有在用户意图仍要求完成剩余工作、且失败原因可修正时，才可以准备一个**只包含真实失败项**的新批次。
 
-## 批次边界与安全
+## 批次边界
 
-- 一次 `create_records` 最多 200 项，且必须同对象。
-- 用户要求超过当前上限时，先明确完整范围，再按当前 Playbook 制定有限计划（例如 500 → 200 + 200 + 100），并全程跟踪 total / processed / succeeded / failed / unknown。**MUST NOT** 无限循环。
-- 任意一批出现 `OUTCOME_UNKNOWN` 时停止自动继续，先验证状态。
-- **MUST NOT** 把多个 Tool 调用说成同一个事务。
+一次 `create_records` 最多 200 项，且必须同对象。用户要求的范围超过当前上限时，02A 只要求三件事：
+
+```text
+如实说明当前无法在一次请求内完成
+不静默只处理一部分并声称完成
+不无限循环
+```
+
+**MUST NOT** 把多个 Tool 调用说成同一个事务。任意一批出现 `OUTCOME_UNKNOWN` 时停止自动继续，先验证状态。
+
+超过 200 的完整分批编排、`allOrNone` 业务策略与复杂 batch recovery 属于后续阶段，本 Skill 不做规划或承诺。
 
 ## 汇报要求
 

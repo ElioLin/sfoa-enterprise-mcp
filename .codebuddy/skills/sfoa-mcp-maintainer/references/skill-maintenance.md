@@ -52,3 +52,31 @@ Update for architecture, package/module topology, runtime/identity flow, Tool or
 9. Update project baseline/changelog and add or supersede an ADR when the durable architectural decision changed.
 
 The sync mechanism copies bytes rather than using symlinks for Windows 11 portability. `skill:check` compares recursive SHA-256 maps for all three platform copies. Never hand-edit generated copies. Shared helper modules live under `scripts/shared/` (not `scripts/lib/`): the root `.gitignore` ignores any `lib` directory, so helper modules there would be silently excluded from commits while local tests still pass. The `delivery` gate exists to catch that class of defect.
+
+## OpenClaw runtime copy
+
+`skill:sync` targets development-client copies only. Publishing to a business Agent
+uses the same `manage.mjs` CLI with an explicit runtime root:
+
+```text
+yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
+yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
+```
+
+The direction is always canonical → runtime; a runtime copy is never the source of
+truth and is never edited in place. Both actions iterate only
+`BUSINESS_SKILL_ALLOWLIST` in `manage.mjs`, so `sfoa-mcp-maintainer` cannot reach a
+business workspace and a new business Skill requires a deliberate allowlist entry
+(`skill:test` fails otherwise). `runtime-sync` refuses symbolic links,
+version-control metadata, credentials and executable scripts, and prints a
+per-file SHA-256 map for server-side comparison. `runtime-check` fails with exit
+code 1 on missing, unexpected or differing files.
+
+Deploying also means updating the Agent policy, which is not a Skill file: the
+ordinary business Agent needs `skills.entries.<name>.enabled = true` and its name
+added to the non-empty `agents.entries.<agent>.skills` allowlist without dropping
+existing legitimate entries. Since `skills.load.watch` is not set by default, a
+Gateway restart is normally required for a new Skill to become eligible; verify
+with `openclaw skills list --agent <agent> --json` and compare `modelVisible`
+against the intended allowlist. Record the deployment, backup path, SHA-256
+comparison and `modelVisible` result in the phase report.

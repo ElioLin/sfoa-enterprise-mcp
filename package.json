@@ -27,6 +27,8 @@
     "skill:delivery": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs delivery",
     "skill:package": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs package",
     "skill:test": "node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs",
+    "skill:runtime:sync": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-sync",
+    "skill:runtime:check": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-check",
     "skill:smoke": "node skills/sfoa-mcp-maintainer/scripts/clean-checkout-smoke.mjs",
     "ai:doctor": "node skills/sfoa-mcp-maintainer/scripts/doctor.mjs",
     "ai:db": "node skills/sfoa-mcp-maintainer/scripts/db-inspect.mjs",
