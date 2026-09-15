@@ -13,6 +13,7 @@
 | Base branch | `main` |
 | Base SHA | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1`（`docs(sfoa): state that main and the test server share one commit`，即 Skill-02A FINAL 真实远端 tip） |
 | 02B branch | `feature/openclaw-sfoa-record-change-02b` |
+| Final SHA | `2b6c91d027df23ea668cf203437b528d6b534da7`（已 push 到 `origin`） |
 | Base 判定依据 | `git fetch --all --prune` 后 `main` = `origin/main` = `3adae7b`；`origin/feature/openclaw-sfoa-record-change-02a` 停在 `ef80914`，Skill-02A 的 HOTFIX 交付在 `origin/hotfix/openclaw-sfoa-record-change-02a-delivery` @ `345b739`，两者均已并入 `main`。因此 `main` 是 Skill-02A FINAL 的真实基线，02B 从 `main` 切出，**未**基于旧的 `feature/openclaw-sfoa-record-change-02a` 开发 |
 
 ---
@@ -241,7 +242,10 @@ yarn skill:validate  → ok:true ×3（record-change 9 文件 / crm-core 9 / mai
 yarn skill:check     → ok:true ×3，drift: []
 yarn skill:delivery  → ok:true ×3，untracked: []，ignored: []，packageCompleteness: true，problems: []
 yarn skill:sync      → 3 个 Skill × 3 个平台副本重新生成
+yarn skill:smoke     → 从提交后 HEAD 的字节重建全新 checkout 后重跑全部 Skill 门禁：63/63 pass，exit 0
 ```
+
+`skill:smoke` 是唯一从**已提交**字节重建的关卡，因此它排除「本地未提交/未跟踪文件让门禁通过」这一失败模式。
 
 ---
 
