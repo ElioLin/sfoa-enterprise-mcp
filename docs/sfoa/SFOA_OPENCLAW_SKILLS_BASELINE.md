@@ -101,13 +101,20 @@ yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 
 机器门禁通过不等于行为验收通过。真人企微 UAT 必须单独验证：模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」，是否对 VISIBLE + effectiveRequired 的缺失字段提问，是否先解决 PENDING 依赖再 refinement，是否遵守 explicit owner > fallback。Routing Smoke 本轮未执行，随真人 UAT 一并覆盖。
 
-### 02B：UPDATE + Batch + Outcome Hardening（机器实现完成，待真人 UAT）
+### 02B：UPDATE + Batch + Outcome Hardening（已实现、已部署、待真人 UAT）
 
-交付内容见[Skill-02B 实施报告](SKILL_02B_IMPLEMENTATION_REPORT.md)。02B 补齐 UPDATE readiness doctrine（Target Resolution、Minimal Patch、Required/Defaults 语义分离、Owner 不注入 fallback、Record Type 不静默变更、Dynamic Forms UPDATE 能力边界）、完整 Batch doctrine（逐条就绪、同对象分组、1..200 上限、>200 顺序分批且 UNKNOWN 即停、allOrNone 策略、clientReferenceId 非幂等键）与 Outcome Reconciliation（FAILED != UNKNOWN、read-back 不等于事务成功、仅失败子集可重试）。
+交付内容见[Skill-02B 实施报告](SKILL_02B_IMPLEMENTATION_REPORT.md)，审查与部署收口见
+[Skill-02B FINAL REVIEW + 部署收口](SKILL_02B_FINAL_REVIEW_REPORT.md)。02B 补齐 UPDATE readiness doctrine（Target Resolution、Minimal Patch、Required/Defaults 语义分离、Owner 不注入 fallback、Record Type 不静默变更、Dynamic Forms UPDATE 能力边界）、完整 Batch doctrine（逐条就绪、同对象分组、1..200 上限、>200 顺序分批且 UNKNOWN 即停、allOrNone 策略、clientReferenceId 非幂等键）与 Outcome Reconciliation（FAILED != UNKNOWN、read-back 不等于事务成功、仅失败子集可重试）。
 
 02B 同样不新增 MCP Tool、不新增 DB 状态、不改 Runtime（`packages/` diff = 0）。Skill 结构从 7 文件扩展为 9 文件：`SKILL.md` + 8 个 references（`outcomes.md` 被职责扩展后的 `outcome-reconciliation.md` 取代）。机器门禁从 32 扩展到 63 个测试，并新增 `scripts/record-change-gates.mjs` 作为可执行的决策模型，使门禁验证**行为**而不只验证文案存在。CREATE regression PASS，`MCP Runtime changed: NO`。
 
-Runtime Copy 的发布机制未变（同一个 `BUSINESS_SKILL_ALLOWLIST` 与 `skill:runtime:sync/check`），02B 演练结果为 `sfoa-crm-core`(9) + `sfoa-record-change`(9) = 18 文件、两个 Skill 均 `drift: []`、maintainer 被显式拒绝。**服务器侧发布与 `openclaw skills check --agent main` 尚未执行**（本机无免密 SSH），属部署步骤；因此 02B 状态是 `IMPLEMENTATION COMPLETE — READY FOR INTEGRATED HUMAN UAT`，**不是** `Skill-02 COMPLETE`。
+审查轮另外修正了 `sfoa-crm-core` 中两处被 02B 变成事实错误的跨 Skill 叙述（旧文案仍称 `sfoa-record-change` 只覆盖 CREATE、且称「当前只实现 Core」），避免同一 Agent turn 读到互相矛盾的 Skill。
+
+**已部署到测试环境**（2026-09-15）：`/data/openclaw/workspace/skills/` 现为 `sfoa-crm-core`(9) + `sfoa-record-change`(9) = **18 文件，canonical 与 runtime `diff -r` 逐字节一致**、`drift: []`、22/22 doctrine 探针命中；`openclaw skills check --agent main` 报 `Visible to model: 3`（browser-automation、sfoa-crm-core、sfoa-record-change），`sfoa-mcp-maintainer` 在目录、`find`、`skills check` 与运行中 Gateway 索引四处均不可见。发布复用既有 `BUSINESS_SKILL_ALLOWLIST` + `skill:runtime:sync/check`，未新建第二套机制，也未使用 `cp -r skills/*`。
+
+实测刷新语义（修正 02A 记录）：body 与 description 变更均被**运行中的** Gateway 直接反映，**无需重启**；验证运行进程请用 `openclaw gateway call skills.status --json`（`openclaw skills list` 直读 workspace、不经过 Gateway，不能作为运行进程的证据）。重启仅为 fallback。
+
+02B 状态为 `IMPLEMENTATION COMPLETE · DEPLOYMENT COMPLETE · READY FOR INTEGRATED HUMAN UAT`，**不是** `Skill-02 COMPLETE`。02B 尚未合入 `main`（`main` = `3adae7b`）。
 
 > 上一条 02A 记录中的「16 个文件」是 02A 时刻的真实快照，本轮扩展后已变为 18 个文件；两处不矛盾，后者是前者的超集。
 

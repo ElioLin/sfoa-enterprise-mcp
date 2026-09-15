@@ -4,6 +4,36 @@
 
 ---
 
+## 部署记录 · OpenClaw Skill-02B 交付 + Runtime Copy 发布（2026-09-15）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/openclaw-sfoa-record-change-02b` @ `4b3b2ff`（Skill-02B `sfoa-record-change` UPDATE + Batch + Outcome 收口，以及 `sfoa-crm-core` 两处跨 Skill 事实修正），替换测试服务器上一版 `main` @ `3adae7b`（Skill-02A 交付） |
+| 变更前版本识别 | 服务器无 `.git`，按**文件清单 + 内容特征**判定：`/data/openclaw/workspace/skills/sfoa-record-change` 与 `app/skills/sfoa-record-change` 均 **7 文件**、含 `references/outcomes.md`、`SKILL.md` 9576 B / sha256 `c7354635…`、不含 `UPDATE != CREATE` → 判定为 **Skill-02A**，与 `main` @ `3adae7b` 一致 |
+| **运行时代码差异 = 0** | `git diff 3adae7b..4b3b2ff -- packages yarn.lock packages/sfoa-control-plane/migrations .env.example config integrations` 为空。改动只落在 `skills/`（canonical + 三处生成副本）与 `docs/sfoa/`。**故未清增量标记、未重建 workspace、未 `systemctl restart`** 任一服务 |
+| 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-02b-final-4b3b2ff.tar.gz`（**2,446,821 B**，1344 个 tracked 条目，sha256 `9cde97603eed890573e391f6de7e06024345dc53a87721be1cc61c12176f17fc`）。实测归档内 `skills/sfoa-record-change/SKILL.md` **crlf=0 / loneLf=118**（纯 LF），避免 §3.1 的 CRLF 假漂移 |
+| 上传/校验 | 经 ssh 写入 `/tmp/`，服务器侧 `sha256sum` 与本地**一致** |
+| 落盘方式 | 先解到 `staging-02b-final-4b3b2ff/`，再用 **`rsync -a`（不带 `--delete`）** 覆盖到 `app/`，服务器独有文件全部保留（`.env.local`、`.idea`、`projects`、`.temp`、`.workbuddy`、`node_modules`、各包 `dist`）。**额外一步**：02B 退役的 `references/outcomes.md` 不参与 rsync 删除，已显式 `rm` canonical + `.agents`/`.claude`/`.codebuddy` 共 **4 处**，并复查 `find` 结果为 0 |
+| 备份（Skill） | `/data/openclaw/backups/20260915-095931-skill-02b-delivery/sfoa-record-change/`（7 文件，02A 版本完整保留） |
+| 备份（app） | 只备份本次可能改动的子树：`/data/sfoa-enterprise-mcp/backup/sfoa-app-skills-02b-pre-20260915-095931.tar.gz`（89,387 B）、`sfoa-app-docs-02b-pre-20260915-095931.tar.gz`（652,098 B）。**未**做 5.6 G 全量 app 打包（其中绝大部分是 `node_modules` 与 `dist`，本轮不可能被改动），范围与理由已在报告中说明 |
+| 依赖 | `yarn.lock` 与根 `package.json` 依赖段无变化 → **未重装** `node_modules` |
+| 数据库迁移 | **无新迁移**：`packages/sfoa-control-plane/migrations` 无变化，未执行 `db:migrate` |
+| 配置 | `.env.example` 无变化 → **无新增必填变量**；`config/.env.local`、`secrets/private.pem` 未改动 |
+| 构建 | **未构建**（见「运行时代码差异 = 0」）。Skill 不参与 MCP 运行时 |
+| 服务 | **未重启**。`MCP Runtime changed: NO` |
+| Runtime Copy 发布 | 复用既有机制，未新建第二套：`yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills`（方向 canonical → runtime，受 `BUSINESS_SKILL_ALLOWLIST` 约束） |
+| Skill 校验 | 服务器 `app/` 上 `manage.mjs validate` → 3 个 Skill `ok:true`；`check` → `drift: []`；`runtime-check` → 两个业务 Skill `ok:true`、`drift: []` |
+| 字节级验证 | `diff -r` 比对 canonical 与 runtime：`sfoa-crm-core` 9/9 **IDENTICAL**、`sfoa-record-change` 9/9 **IDENTICAL**。另有 22/22 doctrine 探针在 runtime 副本中命中（`UPDATE != CREATE`、`TARGET_RESOLVED`、`Minimal Patch`、`∀ record: CHANGE_READY(record) == true`、`MCP_DML_BATCH_DUPLICATE_RECORD_ID`、`200 + 200 + 100`、`FAILED != UNKNOWN`、`Read-Back != Transaction Success` 等），`missing: 0` |
+| 机器门禁 | 本机 `yarn skill:test` **63/63 pass**（exit 0）；`skill:validate`/`skill:check`/`skill:delivery` 全 `ok:true`、`drift: []`、`problems: []`；`skill:smoke` 从提交后 HEAD 字节重建亦 63/63 |
+| Agent 可见性 | `openclaw skills check --agent main` → **Visible to model: 3** = `browser-automation`、`sfoa-crm-core`、`sfoa-record-change`。`agents.entries.main.skills` 仍为 `["sfoa-crm-core","browser-automation","sfoa-record-change"]`（**数组未被覆盖**，既有 `browser-automation` 保留）；`skills.entries` 仅两个 SFOA Skill 且 `enabled=true` |
+| Maintainer 隔离 | `/data/openclaw/workspace/skills/` 顶层**只有**两个业务 Skill；`find` 匹配 `*maintainer*` = 0；workspace 内 `*.mjs`/`*.js`/`scripts/` = 0；`openclaw skills info sfoa-mcp-maintainer --agent main` → `Skill not found`；运行中 Gateway 索引 `maintainer: false`。**未**使用 `cp -r skills/*` |
+| 刷新语义（本轮实测修正） | `skills.load`/`skills.watch` 均未设置、本轮未改配置（故日志中「skills snapshot invalidated by config change」未触发）、Gateway 进程仍是最初 pid；但 `openclaw gateway call skills.status --json`（答案来自运行进程）已返回**新的 151 字符 description**，且全新 session 经 Gateway 的一轮 UPDATE 意图探针已应用 `TARGET_RESOLVED` 等 02B 规则 → **无需重启**。注意 `openclaw skills list` 直读 workspace、不产生 Gateway 日志行，不能作为运行进程的证据 |
+| 会话探针 | 明确禁止写入的 UPDATE 意图探针：模型复述「明确的 UPDATE 意图（不是 CREATE）」「Gate 1 — TARGET_RESOLVED」「目标唯一解析前不生成也不提交 Patch」，并确认**未调用任何写入工具、未修改任何记录** |
+| ⚠️ 未做 | 本次**未**执行真实企业微信 UAT，**未**产生任何 Salesforce 业务记录。批量 UAT 前仍需在 Admin「Tool Governance」确认 `create_records` / `update_records` 已启用。02B **尚未合入 `main`**（`main` 仍为 `3adae7b`），因此「`main` == 服务器 `app/`」这一不变量在合并前暂时不成立 |
+| 回滚 | 恢复 Skill：`cp -a /data/openclaw/backups/20260915-095931-skill-02b-delivery/sfoa-record-change /data/openclaw/workspace/skills/`。恢复 app 子树：解回上述两个 `sfoa-app-*-02b-pre-*.tar.gz` 到 `app/`。无 DB 迁移不回滚，无需重启服务 |
+
+---
+
 ## 部署记录 · OpenClaw Skill-02A 交付 + 全量字节对齐（2026-09-14）
 
 | 项 | 值 |

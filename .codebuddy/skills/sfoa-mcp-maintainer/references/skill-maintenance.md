@@ -87,8 +87,28 @@ code 1 on missing, unexpected or differing files.
 Deploying also means updating the Agent policy, which is not a Skill file: the
 ordinary business Agent needs `skills.entries.<name>.enabled = true` and its name
 added to the non-empty `agents.entries.<agent>.skills` allowlist without dropping
-existing legitimate entries. Since `skills.load.watch` is not set by default, a
-Gateway restart is normally required for a new Skill to become eligible; verify
-with `openclaw skills list --agent <agent> --json` and compare `modelVisible`
-against the intended allowlist. Record the deployment, backup path, SHA-256
-comparison and `modelVisible` result in the phase report.
+existing legitimate entries.
+
+Refresh semantics, corrected by measurement during the Skill-02B deployment (the
+earlier assumption was stricter than reality):
+
+- A **new** Skill needs the policy change above, and that config change itself
+  invalidates the snapshot — the gateway logs `skills snapshot invalidated by
+  config change (...)` and `config hot reload applied`.
+- A **content or description change to an already-eligible Skill** did not require a
+  restart: with `skills.load` unset and no watcher, the live gateway still returned
+  the new description and a fresh session applied the new body. Restart is the
+  fallback, not a routine step.
+- Verify against the **running process**, not the filesystem. `openclaw skills list`
+  reads the workspace directly and emits no gateway log line, so it cannot prove
+  what the live process holds. Use
+  `openclaw gateway call skills.status --json`, whose answer comes from the gateway
+  and also reports `agentSkillFilter`.
+- `openclaw gateway restart` refuses when the state dir or config path is
+  non-default ("service management skipped"). The owning unit is the system
+  `openclaw-gateway.service`, so the restart path is
+  `systemctl restart openclaw-gateway`.
+
+Confirm either way with `openclaw skills list --agent <agent> --json` and compare
+`modelVisible` against the intended allowlist. Record the deployment, backup path,
+SHA-256 comparison and `modelVisible` result in the phase report.

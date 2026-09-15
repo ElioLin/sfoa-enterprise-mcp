@@ -283,29 +283,27 @@ MCP Runtime changed: NO
 | Runtime copy 机制 | `yarn skill:runtime:sync --runtime-root <root>` 演练发布 `sfoa-crm-core`(9) + `sfoa-record-change`(9) = 18 文件；`yarn skill:runtime:check` → 两个 Skill 均 `ok:true`、`drift: []` |
 | Business agent visibility | 由 `BUSINESS_SKILL_ALLOWLIST = ['sfoa-crm-core','sfoa-record-change']` 驱动，**没有**新增第二套 sync system |
 | Maintainer isolation | `yarn skill:runtime:sync --canonical skills/sfoa-mcp-maintainer` 被拒绝并退出 1：`No canonical Skill matches the business runtime allowlist (sfoa-crm-core, sfoa-record-change).` 演练 root 中不存在 `sfoa-mcp-maintainer` |
-| 服务器发布 | **未执行**。本机无到 `192.168.156.203` 的免密 SSH（`Permission denied (publickey,...)`），故 `/data/openclaw/workspace/skills/sfoa-record-change/` 的发布与服务器侧 SHA-256 比对、`openclaw skills check --agent main`、Gateway 重启属**部署步骤**，见 §11 与 UAT 文档 §0 |
+| 服务器发布 | **已完成**（2026-09-15，见 [Skill-02B FINAL REVIEW](SKILL_02B_FINAL_REVIEW_REPORT.md) §6）：部署前 server 与 app 均为 02A（7 文件、含 `outcomes.md`）；经 `runtime-sync` 发布后 canonical↔runtime `diff -r` 逐字节一致，22/22 doctrine 探针命中，`drift: []`；业务 Agent `Visible to model: 3`；`sfoa-mcp-maintainer` 四重确认不可见 |
 
 ---
 
-## 11. 部署到测试服务器（待执行的操作步骤）
+## 11. 部署到测试服务器（已完成）
 
-服务器侧复用既有机制，**不新建第二套 sync**：
+已于 2026-09-15 用既有机制完成，全程未新建第二套 sync。完整过程、备份路径、哈希与验证证据见
+[Skill-02B FINAL REVIEW](SKILL_02B_FINAL_REVIEW_REPORT.md) §6。要点：
 
-```bash
-# 1) 停手前备份
-cp -a /data/openclaw/workspace/skills/sfoa-record-change \
-      /data/openclaw/backups/<ts>-skill-02b-delivery/
-
-# 2) 发布 runtime copy（canonical → runtime，单向）
-cd /data/sfoa-enterprise-mcp/app
-yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
-yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
-
-# 3) 应用代码更新（见 TEST_SERVER_DEPLOYMENT.md 的 LF 打包与 rsync -a 流程）
-#    本轮 packages/ diff = 0，因此无需重建、无需 systemctl restart（skill 不参与运行时）
+```text
+备份 runtime Skill → /data/openclaw/backups/20260915-095931-skill-02b-delivery/
+备份 app 可达子树 → sfoa-app-skills-02b-pre-*.tar.gz、sfoa-app-docs-02b-pre-*.tar.gz
+打包（纯 LF）      → git -c core.autocrlf=false -c core.eol=lf archive <sha>
+落盘              → staging + rsync -a（不带 --delete）+ 显式删除 4 处退役 outcomes.md
+发布              → yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
+漂移检查           → yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 ```
 
-可执行性已在本机用同一 toolkit 演练验证。Skill 内容变更不改变 MCP 工具面，因此**不要求重启服务**；`skills.load` 未设置时，新会话即读取新 body（Skill-02A 复核轮已验证该刷新语义）。
+`packages/` diff = 0，因此**未重建、未重启**任何服务。Skill 内容变更在实测中由运行中的 Gateway
+直接反映（无需重启）；验证运行进程请用 `openclaw gateway call skills.status --json`，因为
+`openclaw skills list` 直读 workspace、不经过 Gateway。
 
 ---
 
@@ -323,13 +321,13 @@ yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 
 ## 13. Final Decision
 
-```text
-A.
+本报告记录的是**实施阶段**结论。后续的审查 + 部署收口轮已把状态推进为：
 
-SKILL-02 IMPLEMENTATION COMPLETE
-READY FOR INTEGRATED HUMAN UAT
+```text
+SKILL-02 IMPLEMENTATION COMPLETE · DEPLOYMENT COMPLETE · READY FOR INTEGRATED HUMAN UAT
 ```
 
-理由：机器实现、canonical + 生成副本 + runtime copy 演练、四组机器门禁（UPDATE / Batch / Outcome / CREATE regression）全部通过；`MCP Runtime changed: NO`；无 blocking issue。**不**声明 `Skill-02 COMPLETE` —— 按阶段定义，只有在 CREATE + UPDATE + Batch 的真人企微整体测试无 blocker 之后才进入该状态。
+以 [Skill-02B FINAL REVIEW + 部署收口](SKILL_02B_FINAL_REVIEW_REPORT.md) 为最终状态来源。**仍不**声明
+`Skill-02 COMPLETE` —— 只有 CREATE + UPDATE + Batch 的真人企微整体测试无 blocker 后才进入该状态。
 
 下一步：按 [Skill-02 Integrated Human UAT](SKILL_02_INTEGRATED_HUMAN_UAT.md) 执行真人企业微信测试。

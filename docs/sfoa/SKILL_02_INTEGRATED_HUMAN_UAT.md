@@ -2,21 +2,25 @@
 
 > 适用对象：业务侧真人 UAT 执行者。
 > 通道：企业微信 → OpenClaw → SFOA MCP → Salesforce。
-> 前置状态：`SKILL-02 IMPLEMENTATION COMPLETE — READY FOR INTEGRATED HUMAN UAT`。
+> 前置状态：`SKILL-02 IMPLEMENTATION COMPLETE · DEPLOYMENT COMPLETE · READY FOR INTEGRATED HUMAN UAT`。
+> 部署与门禁证据见 [Skill-02B FINAL REVIEW + 部署收口](SKILL_02B_FINAL_REVIEW_REPORT.md)。
 > 本文**不主张**已经通过；通过与否由执行者按 §3 的判定标准填写。
 
 ---
 
-## 0. 前置检查（UAT 前必须完成）
+## 0. 前置检查
 
-| # | 检查 | 命令 / 位置 | 期望 |
-| --- | --- | --- | --- |
-| 0.1 | 部署 02B 代码到 test server（步骤见 [实施报告 §11](SKILL_02B_IMPLEMENTATION_REPORT.md)） | 服务器 `app/` | 部署树字节与提交一致 |
-| 0.2 | 发布 runtime copy | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` 然后 `runtime:check` | 两个业务 Skill `ok:true`、`drift:[]` |
-| 0.3 | 确认 Agent 可见 Skill | `openclaw skills check --agent main` | 恰好 3 个：`browser-automation`、`sfoa-crm-core`、`sfoa-record-change`；**不含** `sfoa-mcp-maintainer` |
-| 0.4 | 确认 mutation Tool 已启用 | Admin → Tool Governance（或 `sfoa_tool_control`） | UAT 用到的 `create_record`、`update_record` **以及批量场景的** `create_records`、`update_records` 均处于启用状态且对象在 DML allowlist 内 |
-| 0.5 | 确认身份链路 | 企微发一条只读问题 | Agent 使用当前企微用户的 Salesforce 身份，不是固定账号 |
-| 0.6 | 准备测试数据 | 在 Salesforce 侧 | 至少 3 条同类测试记录（其中 2 条可用于批量、1 条用于单条 UPDATE），字段都留出可安全修改的空间 |
+| # | 检查 | 命令 / 位置 | 期望 | 状态 |
+| --- | --- | --- | --- | --- |
+| 0.1 | 部署 02B 代码到 test server | 服务器 `app/` | 部署树字节与提交一致 | ✅ 已完成（`4b3b2ff`，`app/skills` 为 02B） |
+| 0.2 | 发布 runtime copy | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` 然后 `runtime:check` | 两个业务 Skill `ok:true`、`drift:[]` | ✅ 已完成（canonical↔runtime 逐字节一致） |
+| 0.3 | 确认 Agent 可见 Skill | `openclaw skills check --agent main` | 恰好 3 个：`browser-automation`、`sfoa-crm-core`、`sfoa-record-change`；**不含** `sfoa-mcp-maintainer` | ✅ 已完成 |
+| 0.4 | 确认 mutation Tool 已启用 | Admin → Tool Governance（或 `sfoa_tool_control`） | UAT 用到的 `create_record`、`update_record` **以及批量场景的** `create_records`、`update_records` 均处于启用状态且对象在 DML allowlist 内 | ⬜ **待确认**（P8-07 记录显示这两个批量 Tool 可能无登记行） |
+| 0.5 | 确认身份链路 | 企微发一条只读问题 | Agent 使用当前企微用户的 Salesforce 身份，不是固定账号 | ⬜ 待确认 |
+| 0.6 | 准备测试数据 | 在 Salesforce 侧 | 至少 3 条同类测试记录（其中 2 条可用于批量、1 条用于单条 UPDATE），字段都留出可安全修改的空间 | ⬜ 待准备 |
+
+> 0.1–0.3 已由部署收口轮完成并用只读证据验证（部署轮**未**产生任何 Salesforce 业务记录）。
+> 0.4–0.6 属业务侧准备，UAT 开始前完成即可。
 
 > **0.4 特别提醒**：现有部署记录显示 `sfoa_tool_control` 表可能没有登记 `create_records` / `update_records`，按治理规则这两个 Tool 不会被 `tools/list` 广告。若未启用，批量用例会表现为「工具不可用」而不是缺陷 —— 先启用再测。
 

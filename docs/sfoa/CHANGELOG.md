@@ -2,6 +2,72 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-15 — Skill-02B final review, cross-Skill fact fix, and OpenClaw test-env deployment closure
+
+Review + deployment round for Skill-02B; no new Skill capability. 02B branch is
+`feature/openclaw-sfoa-record-change-02b`, base `main` @ `3adae7b`, review start
+`5626163`, final `4b3b2ff`. 02A FINAL is `hotfix/openclaw-sfoa-record-change-02a-delivery`
+@ `345b739`. 02B is **not** merged into `main` yet.
+
+- **Found and fixed two stale cross-Skill facts.** Skill-02B made two statements in
+  the co-visible `sfoa-crm-core` Skill factually wrong, and both are read in the same
+  Agent turn as `sfoa-record-change`, so leaving them would let one Skill contradict
+  the other: `references/mutation-boundaries.md` still described the readiness
+  doctrine as covering "CREATE 与批量 CREATE" only, and
+  `references/operating-principles.md` still claimed "当前只实现 Core；未来 eligible
+  sfoa-record-change" — which would let an Agent skip `sfoa-record-change` entirely
+  and invalidate the integrated UAT before it starts. Only those two facts were
+  corrected; no Hard Rule text, no gate marker and no `sfoa-record-change` file
+  changed. This deliberately widened the round's diff beyond the expected scope, with
+  the reason recorded in the review report.
+- **Verified the deployment gap instead of assuming it.** GitHub already had
+  Skill-02B, but `/data/openclaw/workspace/skills/sfoa-record-change/` and the
+  deployed `app/` tree were still Skill-02A: 7 files, still carrying
+  `references/outcomes.md`, `SKILL.md` 9576 B / sha256 `c7354635…`, no UPDATE
+  doctrine. Pushed does not mean deployed.
+- **Deployed through the existing mechanism only.** Backed up the runtime Skill to
+  `/data/openclaw/backups/20260915-095931-skill-02b-delivery/` and the two reachable
+  app subtrees (`skills`, `docs`) rather than tarring the 5.6 G app tree that is
+  mostly `node_modules` and `dist`. Packaged the commit with
+  `git -c core.autocrlf=false -c core.eol=lf archive` (2,446,821 B, 1344 entries,
+  sha256 `9cde9760…`, verified pure LF), confirmed the hash on the server, synced
+  additively with `rsync -a` without `--delete`, and explicitly `rm`-ed the four
+  retired `outcomes.md` copies that a non-deleting sync would otherwise leave behind.
+  Republished canonical → runtime with the repo's own
+  `manage.mjs runtime-sync --runtime-root /data/openclaw/workspace/skills`.
+- **Byte-verified the result.** `diff -r` shows canonical == runtime for both
+  business Skills (9 and 9 files); 22/22 doctrine probes hit in the deployed runtime
+  copy; no `outcomes.md` anywhere. `manage.mjs validate`/`check` on the deployed tree:
+  3 Skills `ok:true`, `drift: []`.
+- **Business Agent visibility and maintainer isolation confirmed four ways.**
+  `openclaw skills check --agent main` reports `Visible to model: 3` =
+  `browser-automation`, `sfoa-crm-core`, `sfoa-record-change`;
+  `agents.entries.main.skills` still carries `browser-automation` (array not
+  overwritten); `skills.entries` holds exactly the two SFOA Skills, enabled;
+  `sfoa-mcp-maintainer` is absent from the workspace directory, from `find`, from
+  `skills check` and from the live gateway index, and `runtime-sync --canonical
+  skills/sfoa-mcp-maintainer` is refused.
+- **Corrected the Skill refresh semantics by measurement.** The 02A entry
+  concluded that because the gateway caches the skill index (name + description), a
+  description change needs a restart. Measured this round: with `skills.load` and
+  `skills.watch` unset and no config change, the **live** gateway
+  (`openclaw gateway call skills.status --json`, which answers from the running
+  process) already returned the new 151-character description, and a fresh session
+  applied the new body and the `TARGET_RESOLVED` gate. **No restart was needed.**
+  Note also that `openclaw skills list` reads the workspace directly and emits no
+  gateway log line, so it cannot prove what the running process holds, and
+  `openclaw gateway restart` refuses under a non-default state dir (the owning unit
+  is the system `openclaw-gateway.service`). Restart stays a fallback, never a
+  routine step.
+- **No service disruption.** `packages/` diff is 0, so nothing was rebuilt and none
+  of `sfoa-mcp-server`, `sfoa-admin-api` or `openclaw-gateway` was restarted.
+  `MCP Runtime changed: NO`.
+- **Not done:** no real WeCom UAT and no Salesforce record was written; the session
+  probe explicitly forbade any write tool. Status is
+  `SKILL-02 IMPLEMENTATION COMPLETE · DEPLOYMENT COMPLETE · READY FOR INTEGRATED
+  HUMAN UAT`, not `Skill-02 COMPLETE`. See
+  `SKILL_02B_FINAL_REVIEW_REPORT.md`.
+
 ## 2026-09-15 — Skill-02B: UPDATE readiness + Batch mutation + Outcome reconciliation
 
 Extends `sfoa-record-change` from CREATE-only to full record-mutation doctrine
