@@ -1,0 +1,53 @@
+{
+  "targetRecordId": "a0fC5000000n9RxIAI",
+  "pre": {
+    "checkedAt": "2026-09-15T06:03:13.101Z",
+    "targetRecordId": "a0fC5000000n9RxIAI",
+    "record": [
+      {
+        "attributes": {
+          "type": "Account_Visit__c",
+          "url": "/services/data/v67.0/sobjects/Account_Visit__c/a0fC5000000n9RxIAI"
+        },
+        "Id": "a0fC5000000n9RxIAI",
+        "Name": "Visit-004209",
+        "LastModifiedDate": "2026-09-14T09:35:01.000+0000",
+        "LastModifiedById": "005C8000003yL1eIAE"
+      }
+    ],
+    "linksOnTarget": [],
+    "probeResidue": []
+  },
+  "post": {
+    "checkedAt": "2026-09-15T06:03:51.364Z",
+    "targetRecordId": "a0fC5000000n9RxIAI",
+    "record": [
+      {
+        "attributes": {
+          "type": "Account_Visit__c",
+          "url": "/services/data/v67.0/sobjects/Account_Visit__c/a0fC5000000n9RxIAI"
+        },
+        "Id": "a0fC5000000n9RxIAI",
+        "Name": "Visit-004209",
+        "LastModifiedDate": "2026-09-14T09:35:01.000+0000",
+        "LastModifiedById": "005C8000003yL1eIAE"
+      }
+    ],
+    "linksOnTarget": [],
+    "probeResidue": []
+  },
+  "recordUnchanged": true,
+  "linksPre": 0,
+  "linksPost": 0,
+  "residuePre": 0,
+  "residuePost": 0,
+  "evidenceNote": {
+    "rawArtifactSha256": {
+      "pre": "a347f6b095e944d7e226fd7709e9894d2a0ad4946e70140969f9a84766ea7093",
+      "post": "88cd4c316c1887dd569976baebb9ac03142c67396d89c7bdb9eeaeff65514829"
+    },
+    "rawArtifactLocation": "crm-ex-test02:/tmp/target-pre.json, /tmp/target-post.json",
+    "purpose": "Independent read-only pre/post check of the target record, proving the probe left the business record unmodified and left no ContentDocumentLink or ContentVersion residue behind.",
+    "everythingElseVerbatim": true
+  }
+}
