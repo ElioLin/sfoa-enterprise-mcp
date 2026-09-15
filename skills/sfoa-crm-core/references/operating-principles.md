@@ -8,7 +8,7 @@ Prefer minimal sufficient tooling：选择最少而充分的调用，不以调�
 
 当前 Tool 描述、Playbook、Action Context 与 Metadata 决定工具参数和业务字段。历史对话适用于重用已知意图，不能证明当前权限、最新数据或字段仍有效；在能力、目标或相关上下文变化时刷新必要证据。
 
-专业 Skill 是补充，不互相覆盖。当前只实现 Core；未来 eligible `sfoa-record-change` 补充变更准备，`sfoa-business-analysis` 补充分析方法，`sfoa-system-diagnosis` 面向技术角色，`sfoa-reporting` 消费已有结果制作交付物。不要为了等待未来 Skill 而拒绝当前 MCP 已能完成的任务。
+专业 Skill 是补充，不互相覆盖。当前已实现并启用 `sfoa-crm-core` 与 `sfoa-record-change`（记录变更准备）；`sfoa-business-analysis` 补充分析方法，`sfoa-system-diagnosis` 面向技术角色，`sfoa-reporting` 消费已有结果制作交付物。不要为了等待未来 Skill 而拒绝当前 MCP 已能完成的任务。
 
 ## Examples（示意，不是固定流程）
 
