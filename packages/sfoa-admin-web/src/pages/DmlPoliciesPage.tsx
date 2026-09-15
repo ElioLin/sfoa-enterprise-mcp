@@ -38,6 +38,7 @@ type PolicyForm = Readonly<{
   objectApiName: string;
   allowCreate: boolean;
   allowUpdate: boolean;
+  attachmentEnabled: boolean;
   enabled: boolean;
   remark: string | null;
 }>;
@@ -95,6 +96,7 @@ export default function DmlPoliciesPage() {
       objectApiName: record.objectApiName,
       allowCreate: record.allowCreate,
       allowUpdate: record.allowUpdate,
+      attachmentEnabled: record.attachmentEnabled,
       enabled: true,
       remark: record.remark,
       rowVersion: record.rowVersion,
@@ -150,7 +152,7 @@ export default function DmlPoliciesPage() {
   const ruleMutationError = saveRule.error ?? disableRule.error ?? deleteRule.error;
 
   const openCreate = (): void => {
-    form.setFieldsValue({ objectApiName: '', allowCreate: false, allowUpdate: false, enabled: true, remark: null });
+    form.setFieldsValue({ objectApiName: '', allowCreate: false, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null });
     setEditing('create');
   };
   const openEdit = (record: DmlPolicyRecord): void => {
@@ -158,6 +160,7 @@ export default function DmlPoliciesPage() {
       objectApiName: record.objectApiName,
       allowCreate: record.allowCreate,
       allowUpdate: record.allowUpdate,
+      attachmentEnabled: record.attachmentEnabled,
       enabled: record.enabled,
       remark: record.remark,
     });
@@ -195,7 +198,7 @@ export default function DmlPoliciesPage() {
   return (
     <PageFrame
       title="DML 操作策略"
-      description="为两种已支持的 DML 操作提供默认拒绝的对象允许列表。每个对象策略可配置由 MCP 从可信请求身份派生或固定写入的托管字段。"
+      description="为 CREATE/UPDATE 提供默认拒绝的对象允许列表，并独立决定该对象是否允许附件上传。每个对象策略可配置由 MCP 从可信请求身份派生或固定写入的托管字段。"
       action={<Button type="primary" aria-label="添加对象策略" icon={<PlusOutlined />} onClick={openCreate}>添加对象策略</Button>}
     >
       <Space orientation="vertical" size="middle" className="full-width">
@@ -209,11 +212,12 @@ export default function DmlPoliciesPage() {
                 rowKey="id"
                 pagination={false}
                 dataSource={[...query.data.items]}
-                scroll={{ x: 1040 }}
+                scroll={{ x: 1140 }}
                 columns={[
                   { title: '对象 API 名称', dataIndex: 'objectApiName', render: (value: string) => <code>{value}</code> },
                   { title: 'CREATE', dataIndex: 'allowCreate', render: (value: boolean) => <StatusTag label={value ? 'ALLOWED' : 'DENIED'} tone={value ? 'success' : 'neutral'} /> },
                   { title: 'UPDATE', dataIndex: 'allowUpdate', render: (value: boolean) => <StatusTag label={value ? 'ALLOWED' : 'DENIED'} tone={value ? 'success' : 'neutral'} /> },
+                  { title: '附件上传', dataIndex: 'attachmentEnabled', render: (value: boolean) => <StatusTag label={value ? 'ALLOWED' : 'DENIED'} tone={value ? 'success' : 'neutral'} /> },
                   { title: '状态', dataIndex: 'enabled', render: (value: boolean) => <StatusTag label={value ? 'ENABLED' : 'DISABLED'} /> },
                   { title: '备注', dataIndex: 'remark', render: (value: string | null) => value ?? '—' },
                   {
@@ -272,6 +276,7 @@ export default function DmlPoliciesPage() {
               <Descriptions.Item label="托管规则">{managedQuery.data?.count ?? '加载中'}</Descriptions.Item>
               <Descriptions.Item label="允许创建">{managedPolicy.allowCreate ? '是' : '否'}</Descriptions.Item>
               <Descriptions.Item label="允许编辑">{managedPolicy.allowUpdate ? '是' : '否'}</Descriptions.Item>
+              <Descriptions.Item label="允许附件上传">{managedPolicy.attachmentEnabled ? '是' : '否'}</Descriptions.Item>
               <Descriptions.Item label="可信身份值来源" span={2}>当前可信平台用户编号</Descriptions.Item>
             </Descriptions>
             <MutationError error={ruleMutationError} />
@@ -362,15 +367,21 @@ function PolicyModal({
             name="allowCreate"
             label="CREATE"
             valuePropName="checked"
-            dependencies={['allowUpdate', 'enabled']}
+            dependencies={['allowUpdate', 'attachmentEnabled', 'enabled']}
             rules={[({ getFieldValue }) => ({
               validator: async (_rule, value: boolean) => {
-                if (!getFieldValue('enabled') || value || getFieldValue('allowUpdate')) return;
-                throw new Error('启用策略前，请允许 CREATE、UPDATE 或两者。');
+                if (!getFieldValue('enabled') || value || getFieldValue('allowUpdate') || getFieldValue('attachmentEnabled')) return;
+                throw new Error('启用策略前，请允许 CREATE、UPDATE、附件上传或其中任意组合。');
               },
             })]}
           ><Switch /></Form.Item>
           <Form.Item name="allowUpdate" label="UPDATE" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item
+            name="attachmentEnabled"
+            label="附件上传"
+            valuePropName="checked"
+            extra="独立授权：允许该对象接收已由平台收到的文件；与 CREATE/UPDATE 互不影响。"
+          ><Switch /></Form.Item>
           <Form.Item name="enabled" label="策略状态" valuePropName="checked"><Switch checkedChildren="已启用" unCheckedChildren="已停用" /></Form.Item>
         </Space>
         <Form.Item name="remark" label="备注" rules={[{ max: 512 }]}><Input.TextArea rows={3} maxLength={512} showCount /></Form.Item>

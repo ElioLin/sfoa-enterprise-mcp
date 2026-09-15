@@ -1,3 +1,63 @@
+# SFoA Skill-02C Attachment Upload (2026-09-15)
+
+- Add a governed `upload_files_to_record` Tool that publishes files an inbound
+  channel already delivered onto one existing business record as Salesforce
+  Files. It is host-native like `get_agent_playbook`: no Provider supplies it, so
+  the governed and the discovery inventory are each given its descriptor
+  explicitly, and a name collision with an upstream Provider fails closed rather
+  than silently resolving in either direction. Governance that enables the Tool
+  on a runtime with no Attachment Ingress bound — or with no attachment-enabled
+  object — is refused by *both* servers with `MCP_ATTACHMENT_CONFIGURATION_INVALID`
+  rather than advertised by discovery and refused on execution. Files reach
+  Salesforce only through an opaque `att_…` reference that the SFOA Attachment
+  Ingress minted for the requesting platform user — the schema has no `path`,
+  `filePath`, `content`, `base64`, `versionData` or `sourceUrl`, so an Agent can
+  name neither a file nor an arbitrary host path nor a URL.
+- Add the SFOA Attachment Ingress: one controlled staging root, streaming metered
+  writes under an opaque reference, requester-scoped resolution in which an
+  unknown reference and another requester's reference raise the *same*
+  `MCP_ATTACHMENT_NOT_OWNED`, containment re-derived when a file is opened so a
+  tampered row cannot read outside the root, plus a TTL reaper and per-owner
+  bounding. The ingress decides nothing about acceptability: no extension, MIME
+  or size-limit mirror of Salesforce file rules exists in configuration, database
+  or UI, so Salesforce stays the final authority on which files it accepts.
+- Keep attachment enablement independent of CREATE/UPDATE. It has its own policy
+  channel and Tool inventory rather than joining `MCP_DML_ALLOWLIST_JSON`, because
+  attaching a file is neither a CREATE nor a field UPDATE and an object may
+  legitimately accept files while accepting no record mutation. Migration `014`
+  adds `attachment_enabled` as `NOT NULL DEFAULT false`, so an upgraded object
+  does not suddenly accept attachments. The Files objects (`ContentVersion`,
+  `ContentDocument`, `ContentDocumentLink`) stay internal technical objects that
+  are never exposed as Generic DML targets.
+- Publish as the requesting user through the REST multipart endpoint with
+  `FirstPublishLocationId`, discover the `ContentDocumentId` through a platform
+  query, and report one result per file under the P8-07 outcome model
+  (`SUCCESS`/`FAILED`/`OUTCOME_UNKNOWN`/`NOT_ATTEMPTED` per file against an
+  aggregate of `SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`/`OUTCOME_UNKNOWN`). An unknown
+  outcome stops the call, reports the remainder as `NOT_ATTEMPTED` and is never
+  replayed; a proven failure may be retried file by file; the platform's own
+  `errorCode` and message are preserved verbatim. A rejection Salesforce states
+  in its own format is a proven failure, and only an answer Salesforce did not
+  write leaves the outcome unknown.
+- Extend the existing P7 audit and Tool governance instead of adding a channel:
+  one terminal event per invocation carrying runId/traceId, source channel, the
+  platform and mapped Salesforce user, the object and record, and per file the
+  reference, name, MIME type, size, digest, Salesforce API path, ContentVersionId,
+  ContentDocumentId, status, HTTP status and duration — and never a file byte, its
+  base64 form, the raw multipart body, a staged path or a Bearer token.
+- Extend the existing `sfoa-record-change` Skill rather than adding a new one: a
+  single activation line in `SKILL.md` and a new `references/file-attachments.md`
+  holding the attachment doctrine (only attachment-enabled objects; create first;
+  a CREATE `OUTCOME_UNKNOWN` forbids upload; an attachment `FAILED` does not undo a
+  successful create; an attachment `OUTCOME_UNKNOWN` is never replayed; never
+  invent a reference; never pass a path or URL).
+- Add the OpenClaw Attachment Bridge inside our own `sfoa-wecom-mcp-adapter`
+  plugin. The official WeCom plugin is **not** modified and OpenClaw Core is not
+  patched; the bridge stages the files a conversation message carried and injects
+  their references into the turn, gated by `attachmentBridgeEnabled` and by the
+  host's `hooks.allowConversationAccess` grant. Verification and external UAT
+  status: `docs/sfoa/SKILL_02C_IMPLEMENTATION_REPORT.md`.
+
 # SFoA OpenClaw Skill Foundation (2026-09-13)
 
 - HOTFIX01 (2026-09-14): promote evidence-scope and fact/inference boundaries to

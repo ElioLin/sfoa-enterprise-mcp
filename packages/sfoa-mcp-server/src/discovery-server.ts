@@ -29,6 +29,8 @@ import {
   recordLinksToolConfig,
 } from './agent-guidance.js';
 import { contextToolConfig } from './context-tool-facade.js';
+import { isSfoaAttachmentToolName } from './attachment-policy.js';
+import { createUploadFilesToRecordTool } from './attachment-tool.js';
 import { remoteToolConfig } from './remote-tool-facade.js';
 import { createInventoryServices } from './upstream-drift.js';
 import { RemoteRuntimeError } from './errors.js';
@@ -71,6 +73,15 @@ export type DiscoveryServerOptions = Readonly<{
   diagnosticReady: boolean;
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
   dynamicFormsConfigured?: boolean;
+  /**
+   * True when the SFOA Attachment Ingress is bound to this runtime. The attachment Tool
+   * is host-native and has no ingress of its own, so it can only ever execute on a
+   * runtime that has one. Discovery renders the governance snapshot and cannot see an
+   * ingress, so the binding is stated explicitly: a governance snapshot that enables the
+   * Tool without one is refused here with the same code the governed composition raises,
+   * rather than advertised to a channel that could never execute it.
+   */
+  attachmentIngressEnabled?: boolean;
 }>;
 
 /**
@@ -131,7 +142,8 @@ function resolveDiscoveryWorkflow(raw: unknown): AgentWorkflow {
 export async function createDiscoveryMcpServer(options: DiscoveryServerOptions): Promise<McpServer> {
   const runtime = options.initializedProvider;
   const capabilities = createRuntimeAgentCapabilities(runtime.enabledTools, runtime.dmlAllowlist,
-    options.diagnosticReady, options.managedDmlFieldRules, options.dynamicFormsConfigured);
+    options.diagnosticReady, options.managedDmlFieldRules, options.dynamicFormsConfigured,
+    runtime.attachmentPolicy);
   const server = new McpServer({ name: 'sfoa-mcp-server', version: '0.1.0-p6-agent' }, {
     instructions: serverInstructions(capabilities),
   });
@@ -139,6 +151,13 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
     throw new McpError(ErrorCode.InvalidRequest, 'MCP_DISCOVERY_EXECUTION_FORBIDDEN: End-user identity is required to execute tools.');
   };
   try {
+    const attachmentToolNames = runtime.attachmentTools.enabledTools;
+    if (!options.attachmentIngressEnabled && attachmentToolNames.length > 0) {
+      throw new RemoteRuntimeError(
+        'MCP_ATTACHMENT_CONFIGURATION_INVALID',
+        `Enabled Tool ${attachmentToolNames.join(', ')} requires the SFOA Attachment Ingress, which is not enabled on this runtime.`,
+      );
+    }
     const services = createInventoryServices();
     const tools = [
       ...await runtime.toolSource.provideTools(services),
@@ -148,6 +167,11 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
         diagnosticQueryExecutor: { execute: forbidden },
         metadataContextExecutor: { execute: forbidden },
       }).provideTools(services),
+      // Host-native, like the governed runtime: `upload_files_to_record` has no Provider
+      // behind it, so discovery has to be given its descriptor explicitly. Discovery
+      // registers a Tool only after resolving it in this inventory, so omitting it would
+      // make discovery refuse to describe a Tool the runtime actually serves.
+      ...runtime.attachmentTools.enabledTools.map(() => createUploadFilesToRecordTool()),
     ].filter((tool) => tool.getReleaseState() === ReleaseState.GA);
     const byName = new Map(tools.map((tool) => [tool.getName(), tool]));
     if (byName.size !== tools.length) throw new RemoteRuntimeError('MCP_PROVIDER_INITIALIZATION_FAILED', 'Duplicate discovery Tool.');
@@ -165,6 +189,13 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
       }
       const tool = byName.get(name);
       if (!tool) throw new RemoteRuntimeError('MCP_TOOL_NOT_AVAILABLE', `Enabled Tool ${name} is unavailable for discovery.`);
+      if (isSfoaAttachmentToolName(name)) {
+        // The host-native descriptor above already carries the attachment Tool's own
+        // title, input shape and output shape. Falling through to the remote branch below
+        // would advertise it with a Provider's schema instead.
+        server.registerTool(name, tool.getConfig(), forbidden);
+        continue;
+      }
       const config = isSfoaDmlToolName(name) ? tool.getConfig()
         : isSfoaContextToolName(name) ? contextToolConfig(tool) : remoteToolConfig(tool, runtime.policy.getRecord(name));
       server.registerTool(name, config, forbidden);

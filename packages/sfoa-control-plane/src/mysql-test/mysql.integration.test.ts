@@ -336,7 +336,7 @@ if (!setup) {
     });
     const tool = await store.repositories.tools.createIfAbsent('run_soql_query', true, null);
     const dml = await store.repositories.dmlPolicies.create({
-      objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null,
+      objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null,
     });
     const managed = await store.repositories.managedDmlFieldRules.create({
       dmlPolicyId: dml.id,
@@ -360,7 +360,7 @@ if (!setup) {
     await store.repositories.tools.update(tool.toolName, { enabled: false, remark: null, rowVersion: tool.rowVersion });
     await store.repositories.managedDmlFieldRules.disable(managed.id, managed.rowVersion);
     await store.repositories.dmlPolicies.update(dml.id, {
-      objectApiName: 'Lead', allowCreate: false, allowUpdate: true, enabled: true, remark: null, rowVersion: dml.rowVersion,
+      objectApiName: 'Lead', allowCreate: false, allowUpdate: true, attachmentEnabled: false, enabled: true, remark: null, rowVersion: dml.rowVersion,
     });
     const second = await loadMySqlRequestPolicySnapshot(store.database, 'dynamic-user');
     assert.deepEqual(second.enabledTools, []);

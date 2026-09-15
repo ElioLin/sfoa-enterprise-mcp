@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   AGENT_PLAYBOOK_VERSION,
+  GENERATED_AGENT_ARTIFACT_MARKER,
   PLAYBOOK_SECTION_NAMES,
   createAgentCapabilities,
   renderDifyInstruction,
@@ -22,9 +23,9 @@ describe('canonical SFoA Agent Playbook', () => {
     }
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.8.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.9.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
-      'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
+      'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
     ]);
   });
@@ -132,10 +133,7 @@ describe('canonical SFoA Agent Playbook', () => {
       assert.doesNotMatch(output, /Status: available for/u);
       assert.match(output, /## ORG_OBJECT_USAGE/u);
     }
-    assert.match(
-      renderWorkBuddySkill(),
-      /GENERATED FROM SFoA Agent Playbook \(@sfoa\/agent-playbook\) 1\.8\.0; DO NOT EDIT DIRECTLY/u,
-    );
+    assert.ok(renderWorkBuddySkill().includes(GENERATED_AGENT_ARTIFACT_MARKER), 'generated marker');
   });
 
   it('encodes the P8-03 presentation-intelligence contract on the workflow surfaces', () => {
@@ -175,6 +173,62 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(full, /## CORE —/u);
     assert.match(renderDifyInstruction(capabilities), /get_record_display_context/u);
     assert.match(renderServerInstructions(capabilities), /keep raw Salesforce Record IDs internal/u);
+  });
+
+  it('distributes the file-attachment contract as its own capability, never as Generic DML', () => {
+    const enabled = createAgentCapabilities({
+      enabledTools: ['run_soql_query', 'create_record', 'upload_files_to_record'],
+      createAllowedObjects: ['Quote__c'],
+      updateAllowedObjects: [],
+      attachmentEnabledObjects: ['Quote__c', 'Lead'],
+    });
+
+    // Attachment enablement is its own list and never derives from CREATE/UPDATE.
+    assert.deepEqual(enabled.attachmentEnabledObjects, ['Lead', 'Quote__c']);
+    const createOnly = createAgentCapabilities({
+      enabledTools: ['create_record'],
+      createAllowedObjects: ['Quote__c'],
+      attachmentEnabledObjects: ['Quote__c'],
+    });
+    assert.deepEqual(createOnly.attachmentEnabledObjects, [],
+      'a CREATE grant must not imply attachment upload');
+    const attachmentOnly = createAgentCapabilities({
+      enabledTools: ['upload_files_to_record'],
+      createAllowedObjects: ['Quote__c'],
+      attachmentEnabledObjects: ['Quote__c'],
+    });
+    assert.deepEqual(attachmentOnly.createAllowedObjects, [],
+      'an attachment grant must not imply CREATE');
+    assert.deepEqual(attachmentOnly.attachmentEnabledObjects, ['Quote__c']);
+
+    for (const text of [renderWorkflow('CREATE', enabled), renderFullPlaybook(enabled), renderDifyInstruction(enabled)]) {
+      assert.match(text, /Attachment-enabled objects: `Lead`, `Quote__c`/u);
+      assert.match(text, /Attachment-enabled objects:[\s\S]*never implied by either/u);
+    }
+    const attachment = renderWorkflow('CREATE', enabled);
+    assert.match(attachment, /## ATTACHMENT —/u);
+    // Never a Generic DML object surface.
+    assert.match(attachment, /ContentVersion, ContentDocument and ContentDocumentLink are Salesforce internal technical objects/u);
+    assert.match(attachment, /Never pass them to `create_record`, `create_records`, `update_record` or `update_records`/u);
+    // The model never handles file bytes or a caller-supplied location.
+    assert.match(attachment, /It never accepts file content, base64, a byte array, a filesystem path, or a URL/u);
+    assert.match(attachment, /never attempt to read a file in order to upload it/u);
+    // Reference handling, target resolution, per-file outcomes, and Salesforce's authority.
+    assert.match(attachment, /Never invent, guess, transform, or reuse another user's reference/u);
+    assert.match(attachment, /never attach to a record whose CREATE ended OUTCOME_UNKNOWN/u);
+    assert.match(attachment, /Report each file's own status/u);
+    assert.match(attachment, /Salesforce is the final authority on whether a file is accepted/u);
+    assert.match(attachment, /An attachment with OUTCOME_UNKNOWN must not be automatically retried/u);
+    // UPDATE carries the same section; READ and DIAGNOSIS do not.
+    assert.match(renderWorkflow('UPDATE', enabled), /## ATTACHMENT —/u);
+    assert.doesNotMatch(renderWorkflow('READ', enabled), /## ATTACHMENT —/u);
+    assert.doesNotMatch(renderWorkflow('DIAGNOSIS', enabled), /## ATTACHMENT —/u);
+    // Without the Tool the section reports itself unavailable rather than silently vanishing.
+    const withoutTool = renderWorkflow('CREATE', createAgentCapabilities({
+      enabledTools: ['create_record'], createAllowedObjects: ['Quote__c'],
+    }));
+    assert.match(withoutTool, /Status: unavailable — `upload_files_to_record` or an effective attachment object policy is absent/u);
+    assert.match(renderServerInstructions(enabled), /upload_files_to_record/u);
   });
 
   it('encodes the CREATE two-stage Record Type dialog so facts load before field questions', () => {
@@ -276,7 +330,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.8.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.9.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.

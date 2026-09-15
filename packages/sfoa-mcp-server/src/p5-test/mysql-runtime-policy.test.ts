@@ -324,7 +324,7 @@ function route(id: string, platformUserId: string, salesforceUsername: string): 
 
 function dml(id: string, allowCreate: boolean, allowUpdate: boolean): DmlPolicyRecord {
   return Object.freeze({
-    id, objectApiName: 'Lead', allowCreate, allowUpdate, enabled: true, remark: null,
+    id, objectApiName: 'Lead', allowCreate, allowUpdate, attachmentEnabled: false, enabled: true, remark: null,
     rowVersion: '1', createdAt: NOW, updatedAt: NOW,
   });
 }

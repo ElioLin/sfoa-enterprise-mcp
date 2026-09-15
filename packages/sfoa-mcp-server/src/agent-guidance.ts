@@ -22,6 +22,7 @@ import {
 import type { DmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
+import { parseAttachmentPolicyJson, type AttachmentPolicy } from './attachment-policy.js';
 import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 
 export const AGENT_PLAYBOOK_RESOURCE_URI = 'sfoa://agent-playbook/current';
@@ -120,6 +121,7 @@ export function createRuntimeAgentCapabilities(
   diagnosticReady: boolean,
   managedDmlFieldRules: readonly RuntimeManagedDmlFieldRule[] = [],
   dynamicFormsConfigured = false,
+  attachmentPolicy: AttachmentPolicy = parseAttachmentPolicyJson(undefined),
 ): AgentCapabilities {
   const rules = dmlAllowlist.getRules();
   return createAgentCapabilities({
@@ -130,6 +132,9 @@ export function createRuntimeAgentCapabilities(
     updateAllowedObjects: rules
       .filter((rule) => rule.operations.includes('UPDATE'))
       .map((rule) => rule.objectApiName),
+    // Sourced from the attachment policy, never from the DML rules above: an object can
+    // be attachment-enabled without being CREATE- or UPDATE-allowed, and vice versa.
+    attachmentEnabledObjects: attachmentPolicy.getObjects(),
     diagnosticReady,
     dynamicFormEvidence: dynamicFormsConfigured ? 'PARTIAL' : 'NOT_AVAILABLE',
     managedDmlFields: managedDmlFieldRules.filter((rule) => rule.enabled).map((rule) => ({

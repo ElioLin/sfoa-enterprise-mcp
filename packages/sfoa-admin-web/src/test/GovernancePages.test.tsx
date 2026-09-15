@@ -114,7 +114,7 @@ describe('Admin governance pages', () => {
     expect(screen.getByText('未知的可执行目录项。')).toBeInTheDocument();
   });
 
-  it('saves independent CREATE and UPDATE policy toggles', async () => {
+  it('saves independent CREATE, UPDATE and attachment policy toggles', async () => {
     const fetchMock = asFetchMock((url, init) => {
       if (url.pathname.endsWith('/dml-policies') && init.method === 'POST') return jsonResponse(policyRecord());
       return jsonResponse(page([]));
@@ -127,13 +127,36 @@ describe('Admin governance pages', () => {
     await user.type(screen.getByLabelText('对象 API 名称'), 'Lead');
     const dialog = screen.getByRole('dialog');
     const toggles = within(dialog).getAllByRole('switch');
-    expect(toggles).toHaveLength(3);
+    expect(toggles).toHaveLength(4);
     await user.click(toggles[0]!);
     await user.click(screen.getByRole('button', { name: '保存策略' }));
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/dml-policies') && init?.method === 'POST')).toBe(true));
     const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/dml-policies') && init?.method === 'POST');
-    expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({ objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null });
+    expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({ objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null });
+  });
+
+  it('treats attachment upload as a grant on its own', async () => {
+    const fetchMock = asFetchMock((url, init) => {
+      if (url.pathname.endsWith('/dml-policies') && init.method === 'POST') return jsonResponse(policyRecord({ allowCreate: false, attachmentEnabled: true }));
+      return jsonResponse(page([]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<DmlPoliciesPage />);
+
+    await user.click(await screen.findByRole('button', { name: '添加对象策略' }));
+    await user.type(screen.getByLabelText('对象 API 名称'), 'Lead');
+    const dialog = screen.getByRole('dialog');
+    const toggles = within(dialog).getAllByRole('switch');
+    // CREATE off, UPDATE off, attachment on, policy enabled: still a meaningful policy,
+    // so no validation error and the request must carry attachmentEnabled=true.
+    await user.click(toggles[2]!);
+    await user.click(screen.getByRole('button', { name: '保存策略' }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/dml-policies') && init?.method === 'POST')).toBe(true));
+    const createCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/dml-policies') && init?.method === 'POST');
+    expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({ objectApiName: 'Lead', allowCreate: false, allowUpdate: false, attachmentEnabled: true, enabled: true, remark: null });
   });
 
   it.each(['PLATFORM_USER_LOOKUP', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const)('manages %s fields with duplicate validation and disable/delete semantics', async (strategy) => {
@@ -343,8 +366,12 @@ function credentialResponse(tokenMarker = 'a') {
   };
 }
 
-function policyRecord() {
-  return { id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null, rowVersion: '1', createdAt: NOW, updatedAt: NOW };
+function policyRecord(overrides: Readonly<Partial<{
+  allowCreate: boolean;
+  allowUpdate: boolean;
+  attachmentEnabled: boolean;
+}>> = {}) {
+  return { id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null, rowVersion: '1', createdAt: NOW, updatedAt: NOW, ...overrides };
 }
 
 function managedFieldRecord(overrides: Readonly<Partial<{

@@ -326,7 +326,16 @@ test("the only shared mutable state is the credential cache, and it holds no ide
   const moduleScopeMutable = /^(?:let|var)\s+([A-Za-z_$][\w$]*)/gm;
 
   for (const [file, source] of Object.entries(sources)) {
-    assert.doesNotMatch(source, /globalThis\.|(?:^|[^.\w])global\./, `${file} must not touch global state`);
+    // One allowance: a read of the platform's own `fetch`, which the attachment
+    // bridge captures once at register time. It is not plugin state and cannot
+    // carry an identity, and every other global — including any assignment to
+    // one — stays refused.
+    const withoutPlatformFetch = source.replaceAll("globalThis.fetch", "");
+    assert.doesNotMatch(
+      withoutPlatformFetch,
+      /globalThis\.|(?:^|[^.\w])global\./,
+      `${file} must not touch global state`,
+    );
 
     // Any module-scope `let`/`var` is shared across concurrent runs. Exactly one
     // is expected — the credential cache in index.js — and it must not be named

@@ -48,6 +48,7 @@ export interface DmlPolicyTable {
   object_api_name: string;
   allow_create: BooleanNumber;
   allow_update: BooleanNumber;
+  attachment_enabled: BooleanNumber;
   enabled: BooleanNumber;
   remark: string | null;
   row_version: Generated<string>;
@@ -199,6 +200,24 @@ export interface AuditPayloadEvidenceTable {
   created_at: GeneratedTimestamp;
 }
 
+export interface AttachmentStagingTable {
+  id: Generated<string>;
+  attachment_ref: string;
+  platform_user_id: string;
+  source_channel: string;
+  run_id: string | null;
+  file_name: string;
+  mime_type: string | null;
+  byte_size: ColumnType<number, number, number>;
+  content_sha256: string;
+  staged_path: string;
+  state: 'STAGED' | 'CONSUMED' | 'EXPIRED' | 'FAILED';
+  failure_code: string | null;
+  created_at: GeneratedTimestamp;
+  expires_at: Timestamp;
+  consumed_at: Timestamp | null;
+}
+
 export interface SchemaMigrationTable {
   version: string;
   checksum_sha256: string;
@@ -218,6 +237,7 @@ export interface ControlPlaneDatabase {
   sfoa_audit_event: AuditEventTable;
   sfoa_salesforce_api_call: SalesforceApiCallTable;
   sfoa_audit_payload_evidence: AuditPayloadEvidenceTable;
+  sfoa_attachment_staging: AttachmentStagingTable;
   sfoa_schema_migration: SchemaMigrationTable;
 }
 

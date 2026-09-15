@@ -10,6 +10,7 @@ import {
   managedDmlFieldStrategySchema,
   normalizeSalesforceUsername,
   RUNTIME_SETTING_KEYS,
+  type AttachmentStagingRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
   type IdentityCredentialRecord,
@@ -25,6 +26,8 @@ import {
 } from './contracts.js';
 import { ControlPlaneError, toControlPlaneError } from './errors.js';
 import type {
+  AttachmentStagingCreateInput,
+  AttachmentStagingRepository,
   ControlPlaneRepositories,
   ControlPlaneRepositoriesWithAuditTrace,
   DiagnosticConfigRepository,
@@ -51,6 +54,7 @@ import { MySqlAuditRepository } from './mysql-audit-repository.js';
 export { MySqlAuditRepository };
 import type { ControlPlaneDatabase } from './schema.js';
 import type {
+  AttachmentStagingTable,
   DiagnosticConfigTable,
   DmlPolicyTable,
   DmlManagedFieldRuleTable,
@@ -371,6 +375,7 @@ export class MySqlDmlPolicyRepository implements DmlPolicyRepository {
         object_api_name: input.objectApiName,
         allow_create: input.allowCreate,
         allow_update: input.allowUpdate,
+        attachment_enabled: input.attachmentEnabled,
         enabled: input.enabled,
         remark: input.remark,
       }).executeTakeFirstOrThrow();
@@ -388,6 +393,7 @@ export class MySqlDmlPolicyRepository implements DmlPolicyRepository {
         object_api_name: input.objectApiName,
         allow_create: input.allowCreate,
         allow_update: input.allowUpdate,
+        attachment_enabled: input.attachmentEnabled,
         enabled: input.enabled,
         remark: input.remark,
         row_version: sql`row_version + 1`,
@@ -581,6 +587,76 @@ export class MySqlRuntimeSettingRepository implements RuntimeSettingRepository {
   }
 }
 
+export class MySqlAttachmentStagingRepository implements AttachmentStagingRepository {
+  public constructor(private readonly database: Executor) {}
+
+  public async create(input: AttachmentStagingCreateInput): Promise<AttachmentStagingRecord> {
+    try {
+      await this.database.insertInto('sfoa_attachment_staging').values({
+        attachment_ref: input.attachmentRef,
+        platform_user_id: input.platformUserId,
+        source_channel: input.sourceChannel,
+        run_id: input.runId,
+        file_name: input.fileName,
+        mime_type: input.mimeType,
+        byte_size: input.byteSize,
+        content_sha256: input.contentSha256,
+        staged_path: input.stagedPath,
+        state: 'STAGED',
+        created_at: input.createdAt,
+        expires_at: input.expiresAt,
+      }).executeTakeFirstOrThrow();
+    } catch (error) {
+      throw mapWriteError(error, 'This attachment reference is already staged.');
+    }
+    const created = await this.getByRef(input.attachmentRef);
+    if (!created) throw notFound('Attachment staging row');
+    return created;
+  }
+
+  public async getByRef(attachmentRef: string): Promise<AttachmentStagingRecord | undefined> {
+    const row = await this.database.selectFrom('sfoa_attachment_staging').selectAll()
+      .where('attachment_ref', '=', attachmentRef).executeTakeFirst();
+    return row ? mapAttachmentStaging(row) : undefined;
+  }
+
+  public async markConsumed(id: string, consumedAt: Date): Promise<void> {
+    await this.database.updateTable('sfoa_attachment_staging')
+      .set({ state: 'CONSUMED', consumed_at: consumedAt, failure_code: null })
+      .where('id', '=', id).where('state', '=', 'STAGED').executeTakeFirst();
+  }
+
+  public async markFailed(id: string, failureCode: string): Promise<void> {
+    await this.database.updateTable('sfoa_attachment_staging')
+      .set({ state: 'FAILED', failure_code: failureCode })
+      .where('id', '=', id).where('state', '=', 'STAGED').executeTakeFirst();
+  }
+
+  public async markExpired(id: string): Promise<void> {
+    await this.database.updateTable('sfoa_attachment_staging')
+      .set({ state: 'EXPIRED' })
+      .where('id', '=', id).where('state', '=', 'STAGED').executeTakeFirst();
+  }
+
+  public async listExpired(now: Date, limit: number): Promise<readonly AttachmentStagingRecord[]> {
+    const rows = await this.database.selectFrom('sfoa_attachment_staging').selectAll()
+      .where('state', '=', 'STAGED').where('expires_at', '<=', now)
+      .orderBy('expires_at').orderBy('id').limit(limit).execute();
+    return Object.freeze(rows.map(mapAttachmentStaging));
+  }
+
+  public async listStagedByOwner(platformUserId: string): Promise<readonly AttachmentStagingRecord[]> {
+    const rows = await this.database.selectFrom('sfoa_attachment_staging').selectAll()
+      .where('platform_user_id', '=', platformUserId).where('state', '=', 'STAGED')
+      .orderBy('id').execute();
+    return Object.freeze(rows.map(mapAttachmentStaging));
+  }
+
+  public async deleteById(id: string): Promise<void> {
+    await this.database.deleteFrom('sfoa_attachment_staging').where('id', '=', id).executeTakeFirst();
+  }
+}
+
 export function createMySqlRepositories(database: Executor): ControlPlaneRepositoriesWithAuditTrace {
   const auditRepository = new MySqlAuditRepository(database);
   return Object.freeze({
@@ -588,6 +664,7 @@ export function createMySqlRepositories(database: Executor): ControlPlaneReposit
     identityCredentials: new MySqlIdentityCredentialRepository(database),
     tools: new MySqlToolControlRepository(database),
     dmlPolicies: new MySqlDmlPolicyRepository(database),
+    attachmentStaging: new MySqlAttachmentStagingRepository(database),
     managedDmlFieldRules: new MySqlManagedDmlFieldRuleRepository(database),
     diagnostic: new MySqlDiagnosticConfigRepository(database),
     runtimeSettings: new MySqlRuntimeSettingRepository(database),
@@ -699,8 +776,28 @@ function mapTool(row: Selectable<ToolControlTable>): ToolControlRecord {
 function mapDml(row: Selectable<DmlPolicyTable>): DmlPolicyRecord {
   return Object.freeze({
     id: String(row.id), objectApiName: row.object_api_name, allowCreate: Boolean(row.allow_create),
-    allowUpdate: Boolean(row.allow_update), enabled: Boolean(row.enabled), remark: row.remark,
+    allowUpdate: Boolean(row.allow_update), attachmentEnabled: Boolean(row.attachment_enabled), enabled: Boolean(row.enabled), remark: row.remark,
     rowVersion: String(row.row_version), createdAt: toIso(row.created_at), updatedAt: toIso(row.updated_at),
+  });
+}
+
+function mapAttachmentStaging(row: Selectable<AttachmentStagingTable>): AttachmentStagingRecord {
+  return Object.freeze({
+    id: String(row.id),
+    attachmentRef: row.attachment_ref,
+    platformUserId: row.platform_user_id,
+    sourceChannel: row.source_channel,
+    runId: row.run_id,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    byteSize: Number(row.byte_size),
+    contentSha256: row.content_sha256,
+    stagedPath: row.staged_path,
+    state: row.state,
+    failureCode: row.failure_code,
+    createdAt: toIso(row.created_at),
+    expiresAt: toIso(row.expires_at),
+    consumedAt: row.consumed_at ? toIso(row.consumed_at) : null,
   });
 }
 

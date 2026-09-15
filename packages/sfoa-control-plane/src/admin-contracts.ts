@@ -105,13 +105,24 @@ const dmlFields = {
   objectApiName: objectApiNameSchema,
   allowCreate: z.boolean(),
   allowUpdate: z.boolean(),
+  attachmentEnabled: z.boolean(),
   enabled: z.boolean(),
   remark: optionalRemarkSchema,
 } as const;
 
+/**
+ * An enabled policy must grant something. Attachment counts on its own: an object that
+ * only accepts files (never a CREATE, never a field UPDATE) is a valid and useful policy,
+ * so it must not be rejected as an empty one.
+ */
+const ENABLED_POLICY_REQUIRES_GRANT = {
+  code: z.ZodIssueCode.custom,
+  message: 'An enabled policy must allow CREATE, UPDATE, attachment upload, or a combination.',
+} as const;
+
 export const adminDmlPolicyCreateSchema = z.object(dmlFields).strict().superRefine((value, context) => {
-  if (value.enabled && !value.allowCreate && !value.allowUpdate) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'An enabled policy must allow CREATE, UPDATE, or both.' });
+  if (value.enabled && !value.allowCreate && !value.allowUpdate && !value.attachmentEnabled) {
+    context.addIssue(ENABLED_POLICY_REQUIRES_GRANT);
   }
 });
 
@@ -119,8 +130,8 @@ export const adminDmlPolicyUpdateSchema = z.object({
   ...dmlFields,
   rowVersion: rowVersionSchema,
 }).strict().superRefine((value, context) => {
-  if (value.enabled && !value.allowCreate && !value.allowUpdate) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'An enabled policy must allow CREATE, UPDATE, or both.' });
+  if (value.enabled && !value.allowCreate && !value.allowUpdate && !value.attachmentEnabled) {
+    context.addIssue(ENABLED_POLICY_REQUIRES_GRANT);
   }
 });
 

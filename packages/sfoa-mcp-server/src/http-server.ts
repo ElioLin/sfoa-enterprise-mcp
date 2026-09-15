@@ -45,6 +45,8 @@ import {
   type IdentityProvider,
 } from './authenticator.js';
 import { assertValidTimeoutHierarchy, type RemoteRuntimeConfig } from './config.js';
+import type { AttachmentIngress } from './attachment-ingress.js';
+import { handleAttachmentIngressRequest } from './attachment-ingress-route.js';
 import {
   formatRemoteRuntimeError,
   RemoteRuntimeError,
@@ -59,6 +61,7 @@ import {
   MutationRequestState,
 } from './provider-runtime.js';
 import {
+  snapshotAttachmentPolicy,
   snapshotDiagnosticRoute,
   snapshotDmlAllowlist,
   snapshotManagedDmlFieldRules,
@@ -114,6 +117,12 @@ export type StartRemoteMcpServerOptions = Readonly<{
   policySnapshotSource?: RuntimePolicySnapshotSource;
   discoveryPolicySnapshotSource?: RuntimeDiscoveryPolicySnapshotSource;
   loadUiSnapshot?: EffectiveUiOptions['loadSnapshot'];
+  /**
+   * The SFOA Attachment Ingress. Present only when the ingress is enabled and its
+   * staging store is available; without it the ingest route is not served and
+   * `upload_files_to_record` is not registered.
+   */
+  attachmentIngress?: AttachmentIngress;
 }>;
 
 type RequestObservation = {
@@ -158,6 +167,7 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       policySnapshotSource: options.policySnapshotSource,
       discoveryPolicySnapshotSource: options.discoveryPolicySnapshotSource,
       loadUiSnapshot: options.loadUiSnapshot,
+      attachmentIngress: options.attachmentIngress,
       identityProvider,
       allowedHosts,
       allowedOrigins,
@@ -271,6 +281,7 @@ type HandleRemoteRequestOptions = Readonly<{
   policySnapshotSource?: RuntimePolicySnapshotSource;
   discoveryPolicySnapshotSource?: RuntimeDiscoveryPolicySnapshotSource;
   loadUiSnapshot?: EffectiveUiOptions['loadSnapshot'];
+  attachmentIngress?: AttachmentIngress;
   identityProvider: IdentityProvider;
   allowedHosts: readonly string[];
   allowedOrigins: readonly string[];
@@ -366,6 +377,23 @@ async function handleRemoteRequest(options: HandleRemoteRequestOptions): Promise
         );
       }
       writeJson(options.response, 200, { status: 'UP' });
+      return;
+    }
+    if (options.attachmentIngress && requestUrl.pathname === options.config.attachment.path) {
+      // A non-MCP surface: it renders its own plain JSON response and error body rather
+      // than the JSON-RPC envelope below, because the channel that posts a file here is
+      // not an MCP client and could not read one.
+      await handleAttachmentIngressRequest({
+        request: options.request,
+        response: options.response,
+        config: options.config.attachment,
+        ingress: options.attachmentIngress,
+        identityProvider: options.identityProvider,
+        platformIdentityHeaders: options.config.platformIdentityHeaders,
+        correlationId: observation.correlationId,
+        logger: options.logger,
+        isReady: options.isReady,
+      });
       return;
     }
     if (requestUrl.pathname !== options.config.mcpPath) {
@@ -550,7 +578,7 @@ async function executeMcpPost(
     const snapshot = await options.discoveryPolicySnapshotSource?.load();
     resources.assertAvailable(signal);
     if (snapshot) assertDiagnosticSnapshotValid(snapshot.enabledTools, snapshot.diagnostic !== null, observation.correlationId);
-    const provider = snapshot ? configureProviderRuntime(options.initializedProvider, snapshot.enabledTools, snapshotDmlAllowlist(snapshot)) : options.initializedProvider;
+    const provider = snapshot ? configureProviderRuntime(options.initializedProvider, snapshot.enabledTools, snapshotDmlAllowlist(snapshot), snapshotAttachmentPolicy(snapshot)) : options.initializedProvider;
     const parsedUi = dynamicFormsObjectPoliciesSchema.safeParse(snapshot?.runtimeSettings.dynamicFormsObjectPolicies ?? []);
     const server = await createDiscoveryMcpServer({
       initializedProvider: provider,
@@ -558,6 +586,7 @@ async function executeMcpPost(
         && provider.enabledTools.includes('run_diagnostic_tooling_query') && provider.enabledTools.includes('get_metadata_component_context'),
       managedDmlFieldRules: snapshot ? snapshotManagedDmlFieldRules(snapshot) : [],
       dynamicFormsConfigured: parsedUi.success && parsedUi.data.some((policy) => policy.mode === 'ENFORCE'),
+      attachmentIngressEnabled: options.attachmentIngress !== undefined,
     });
     // Observe the actual JSON-RPC response body so an HTTP 200 JSON-RPC error is
     // never recorded as a discovery PASS/SUCCESS (the Advertise-but-Deny false
@@ -635,6 +664,7 @@ async function executeMcpPost(
       options.initializedProvider,
       snapshot.enabledTools,
       snapshotDmlAllowlist(snapshot),
+      snapshotAttachmentPolicy(snapshot),
     );
     managedDmlFieldRules = snapshotManagedDmlFieldRules(snapshot);
     diagnosticReady = snapshot.diagnostic?.enabled === true
@@ -700,6 +730,7 @@ async function executeMcpPost(
     mutationRequestState,
     initializedProvider,
     diagnosticReady,
+    ...(options.attachmentIngress ? { attachmentIngress: options.attachmentIngress } : {}),
     managedDmlFieldRules,
     effectiveUi: {
       policies: uiPolicies, integrationDefaultApp,

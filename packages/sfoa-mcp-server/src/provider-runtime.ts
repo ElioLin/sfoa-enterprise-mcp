@@ -41,6 +41,11 @@ import {
   registerAgentGuidance,
   serverInstructions,
 } from './agent-guidance.js';
+import { AttachmentToolFacade } from './attachment-tool-facade.js';
+import { AttachmentToolGovernancePolicy } from './attachment-tool-governance.js';
+import { isSfoaAttachmentToolName, parseAttachmentPolicyJson, type AttachmentPolicy } from './attachment-policy.js';
+import type { AttachmentIngress } from './attachment-ingress.js';
+import { createUploadFilesToRecordTool } from './attachment-tool.js';
 import { ContextToolFacade } from './context-tool-facade.js';
 import {
   OfficialDiagnosticToolingQueryExecutor,
@@ -65,6 +70,9 @@ export type InitializedProviderRuntime = Readonly<{
   policy: ToolGovernancePolicy;
   dmlPolicy: DmlToolGovernancePolicy;
   dmlAllowlist: DmlAllowlistPolicy;
+  /** Objects configured for attachment upload, independent of the DML allowlist. */
+  attachmentPolicy: AttachmentPolicy;
+  attachmentTools: AttachmentToolGovernancePolicy;
   enabledTools: readonly string[];
   inventory: OfficialProviderInventory;
   inventoryComparison: UpstreamInventoryComparison;
@@ -80,6 +88,12 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   mutationRequestState: MutationRequestState;
   initializedProvider: InitializedProviderRuntime;
   diagnosticReady: boolean;
+  /**
+   * Present only when the SFOA Attachment Ingress is enabled on this runtime. Without
+   * it no attachment reference can be resolved, so `upload_files_to_record` is never
+   * registered and never appears in `tools/list`.
+   */
+  attachmentIngress?: AttachmentIngress;
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
   lightningBaseUrl?: string;
   requestAuditContext?: RequestAuditContextController;
@@ -148,6 +162,7 @@ export async function initializeProviderRuntime(
   toolSource: RequestToolSource = new OfficialDxCoreToolSource(),
   inventoryToolSource?: RequestToolSource,
   dmlAllowlist: DmlAllowlistPolicy = parseDmlAllowlistJson(undefined),
+  attachmentPolicy: AttachmentPolicy = parseAttachmentPolicyJson(undefined),
 ): Promise<InitializedProviderRuntime> {
   try {
     const inventory = await inspectOfficialDxCoreInventory(inventoryToolSource);
@@ -160,7 +175,7 @@ export async function initializeProviderRuntime(
       providerToolNames,
       inventory,
       inventoryComparison,
-    }), enabledTools, dmlAllowlist);
+    }), enabledTools, dmlAllowlist, attachmentPolicy);
   } catch (error) {
     if (error instanceof RemoteRuntimeError) throw error;
     throw toRemoteRuntimeError(
@@ -175,11 +190,16 @@ export function configureProviderRuntime(
   baseline: Pick<InitializedProviderRuntime, 'toolSource' | 'providerToolNames' | 'inventory' | 'inventoryComparison'>,
   enabledTools: readonly string[],
   dmlAllowlist: DmlAllowlistPolicy,
+  attachmentPolicy: AttachmentPolicy = parseAttachmentPolicyJson(undefined),
 ): InitializedProviderRuntime {
   const officialEnabledTools = enabledTools.filter(
-    (name) => !isSfoaDmlToolName(name) && !isSfoaContextToolName(name) && !isAgentInfrastructureToolName(name),
+    (name) => !isSfoaDmlToolName(name)
+      && !isSfoaContextToolName(name)
+      && !isSfoaAttachmentToolName(name)
+      && !isAgentInfrastructureToolName(name),
   );
   const dmlEnabledTools = enabledTools.filter(isSfoaDmlToolName);
+  const attachmentEnabledTools = enabledTools.filter(isSfoaAttachmentToolName);
   const officialContextDependencies = [
     ...(enabledTools.includes('run_diagnostic_tooling_query') ? ['run_soql_query'] : []),
     ...(enabledTools.includes('get_metadata_component_context') ? ['retrieve_metadata'] : []),
@@ -191,11 +211,14 @@ export function configureProviderRuntime(
   );
   const policy = new ToolGovernancePolicy(officialEnabledTools, baseline.providerToolNames);
   const dmlPolicy = new DmlToolGovernancePolicy(dmlEnabledTools, dmlAllowlist);
+  const attachmentTools = new AttachmentToolGovernancePolicy(attachmentEnabledTools, attachmentPolicy);
   return Object.freeze({
     ...baseline,
     policy,
     dmlPolicy,
     dmlAllowlist,
+    attachmentPolicy,
+    attachmentTools,
     enabledTools: Object.freeze([...enabledTools]),
   });
 }
@@ -209,6 +232,7 @@ export async function createGovernedMcpServer(
     options.diagnosticReady,
     options.managedDmlFieldRules ?? [],
     options.effectiveUi?.policies.some((policy) => policy.mode === 'ENFORCE') ?? false,
+    options.initializedProvider.attachmentPolicy,
   );
   const server = new McpServer(
     { name: 'sfoa-mcp-server', version: '0.1.0-p6-agent' },
@@ -240,6 +264,21 @@ export async function createGovernedMcpServer(
         );
       }
       toolsByName.set(tool.getName(), tool);
+    }
+
+    // `upload_files_to_record` is host-native: no Provider supplies it, so the runtime
+    // contributes its descriptor to the inventory itself. Only when the Tool is actually
+    // enabled, so a runtime that does not offer attachment upload never has it in hand.
+    // A collision here means an upstream Provider has started shipping the same name, and
+    // the composition is refused rather than silently resolved in either direction.
+    for (const name of options.initializedProvider.attachmentTools.enabledTools) {
+      if (toolsByName.has(name)) {
+        throw new RemoteRuntimeError(
+          'MCP_PROVIDER_INITIALIZATION_FAILED',
+          `An upstream Provider already defines Tool ${name}; the host-native attachment Tool cannot be composed.`,
+        );
+      }
+      toolsByName.set(name, createUploadFilesToRecordTool());
     }
 
     const registered: string[] = [...registerAgentGuidance(server, {
@@ -337,6 +376,41 @@ export async function createGovernedMcpServer(
     for (const name of options.initializedProvider.enabledTools) {
       if (isAgentInfrastructureToolName(name)) continue;
       const tool = toolsByName.get(name);
+      if (isSfoaAttachmentToolName(name)) {
+        // Attachment upload is host-native: it has no Provider Tool behind it, so it is
+        // composed here from the request-scoped Salesforce identity and the Attachment
+        // Ingress. An enabled attachment Tool with no ingress bound to the runtime is a
+        // configuration error, not something to advertise and then fail on.
+        if (!options.attachmentIngress) {
+          throw new RemoteRuntimeError(
+            'MCP_ATTACHMENT_CONFIGURATION_INVALID',
+            `Enabled Tool ${name} requires the SFOA Attachment Ingress, which is not enabled on this runtime.`,
+          );
+        }
+        if (!tool) {
+          throw new RemoteRuntimeError(
+            'MCP_TOOL_NOT_AVAILABLE',
+            `Enabled Tool ${name} has no host-native attachment composition.`,
+          );
+        }
+        const facade = new AttachmentToolFacade({
+          tool,
+          context: options.scope.context,
+          route: options.scope.route,
+          toolTimeoutMs: options.toolTimeoutMs,
+          logger: options.logger,
+          clientId: options.clientId,
+          connectionProvider: options.scope.salesforce,
+          ingress: options.attachmentIngress,
+          attachmentPolicy: options.initializedProvider.attachmentPolicy,
+          platformUserId: options.scope.context.platformUserId,
+          redactionSecrets: options.redactionSecrets,
+        });
+        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
+          runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));
+        registered.push(name);
+        continue;
+      }
       if (!tool) {
         throw new RemoteRuntimeError(
           'MCP_TOOL_NOT_AVAILABLE',
@@ -450,7 +524,9 @@ function runAuditedToolInvocation<T>(
     });
   if (isRecord(input)) {
     auditContext.withOperation({
-      operation: isSfoaDmlToolName(toolName) ? SFOA_DML_TOOL_OPERATIONS[toolName] : undefined,
+      operation: isSfoaDmlToolName(toolName)
+        ? SFOA_DML_TOOL_OPERATIONS[toolName]
+        : isSfoaAttachmentToolName(toolName) ? 'ATTACHMENT' : undefined,
       objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : undefined,
       recordId: typeof input.recordId === 'string' ? input.recordId : undefined,
     });

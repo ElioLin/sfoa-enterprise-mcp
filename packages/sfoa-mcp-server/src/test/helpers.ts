@@ -11,7 +11,13 @@ import {
   type SalesforceConnectionFactory,
   type SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
-import type { RemoteRuntimeConfig } from '../config.js';
+import {
+  DEFAULT_ATTACHMENT_MAX_FILES_PER_OWNER,
+  DEFAULT_ATTACHMENT_MAX_FILE_BYTES,
+  DEFAULT_ATTACHMENT_PATH,
+  DEFAULT_ATTACHMENT_TTL_MS,
+  type RemoteRuntimeConfig,
+} from '../config.js';
 
 export const TEST_CLIENT_TOKEN = 'p2-test-token-with-at-least-thirty-two-characters';
 export const TEST_PLATFORM_USER_A = 'p2-user-a';
@@ -218,6 +224,15 @@ export function createTestRemoteConfig(
     toolTimeoutMs: 1_000,
     enabledTools: Object.freeze(['get_username', 'run_soql_query']),
     dmlAllowlist: parseDmlAllowlistJson(undefined),
+    // Attachments are off by default, exactly as they are in the runtime config: a test
+    // must opt in explicitly to exercise the ingress.
+    attachment: Object.freeze({
+      enabled: false,
+      path: DEFAULT_ATTACHMENT_PATH,
+      ttlMs: DEFAULT_ATTACHMENT_TTL_MS,
+      maxFileBytes: DEFAULT_ATTACHMENT_MAX_FILE_BYTES,
+      maxFilesPerOwner: DEFAULT_ATTACHMENT_MAX_FILES_PER_OWNER,
+    }),
     allowedHosts: Object.freeze([]),
     allowedOrigins: Object.freeze([]),
     useLoopbackHostDefaults: true,

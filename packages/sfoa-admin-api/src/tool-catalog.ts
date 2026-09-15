@@ -4,6 +4,7 @@ import { SFOA_CONTEXT_TOOL_NAMES, SFOA_CONTEXT_TOOL_ROLES } from '@sfoa/mcp-prov
 import { SFOA_DML_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-dml';
 import {
   OFFICIAL_TOOL_CATALOG,
+  SFOA_ATTACHMENT_TOOL_NAMES,
   type ToolClassification,
   type UpstreamInventoryComparison,
 } from '@sfoa/mcp-server';
@@ -89,6 +90,26 @@ export function buildAdminToolCatalog(
       releaseState: 'GA',
       control,
       dependencies: ['Object × CREATE/UPDATE policy'],
+      enableAllowed: true,
+      disabledReason: null,
+    }));
+  }
+
+  for (const toolName of SFOA_ATTACHMENT_TOOL_NAMES) {
+    const control = byName.get(toolName);
+    byName.delete(toolName);
+    records.push(toolRecord({
+      toolName,
+      // A file upload mutates the org, so it is a mutation Tool like any other. It is
+      // deliberately NOT part of SFOA_DML_TOOL_NAMES: ContentVersion is an internal
+      // technical object, and listing it beside the business DML Tools would advertise
+      // it as one.
+      classification: 'MUTATION',
+      executionRole: 'USER',
+      remoteCompatible: true,
+      releaseState: 'GA',
+      control,
+      dependencies: ['Object × attachment policy', 'SFOA Attachment Ingress'],
       enableAllowed: true,
       disabledReason: null,
     }));

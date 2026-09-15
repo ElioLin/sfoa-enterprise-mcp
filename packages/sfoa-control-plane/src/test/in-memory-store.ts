@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   ControlPlaneError,
   encodeBoundedAuditPayload,
+  type AttachmentStagingRecord,
   type AuditEventRecord,
   type AuditPayloadEvidenceRecord,
   type AuditPayloadEvidenceSummaryRecord,
@@ -43,6 +44,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   private credentials = new Map<string, IdentityCredentialRecord>();
   private tools = new Map<string, ToolControlRecord>();
   private dmlPolicies = new Map<string, DmlPolicyRecord>();
+  private attachmentStaging = new Map<string, AttachmentStagingRecord>();
   private managedDmlFieldRules = new Map<string, ManagedDmlFieldRuleRecord>();
   private diagnostic: DiagnosticConfigRecord | undefined;
   private settings = new Map<RuntimeSettingKey, RuntimeSettingRecord>();
@@ -182,6 +184,64 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
           return this.updateDml(id, { ...current, enabled: false, rowVersion });
         },
       },
+      attachmentStaging: {
+        create: async (input) => {
+          if ([...this.attachmentStaging.values()].some((record) => record.attachmentRef === input.attachmentRef)) {
+            throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFLICT', 'This attachment reference is already staged.');
+          }
+          const record: AttachmentStagingRecord = Object.freeze({
+            id: this.entityId(),
+            attachmentRef: input.attachmentRef,
+            platformUserId: input.platformUserId,
+            sourceChannel: input.sourceChannel,
+            runId: input.runId,
+            fileName: input.fileName,
+            mimeType: input.mimeType,
+            byteSize: input.byteSize,
+            contentSha256: input.contentSha256,
+            stagedPath: input.stagedPath,
+            state: 'STAGED' as const,
+            failureCode: null,
+            createdAt: input.createdAt.toISOString(),
+            expiresAt: input.expiresAt.toISOString(),
+            consumedAt: null,
+          });
+          this.attachmentStaging.set(record.id, record);
+          return record;
+        },
+        getByRef: async (attachmentRef) => [...this.attachmentStaging.values()].find(
+          (record) => record.attachmentRef === attachmentRef,
+        ),
+        markConsumed: async (id, consumedAt) => {
+          const current = this.attachmentStaging.get(id);
+          if (!current || current.state !== 'STAGED') return;
+          this.attachmentStaging.set(id, Object.freeze({
+            ...current, state: 'CONSUMED', failureCode: null, consumedAt: consumedAt.toISOString(),
+          }));
+        },
+        markFailed: async (id, failureCode) => {
+          const current = this.attachmentStaging.get(id);
+          if (!current || current.state !== 'STAGED') return;
+          this.attachmentStaging.set(id, Object.freeze({ ...current, state: 'FAILED', failureCode }));
+        },
+        markExpired: async (id) => {
+          const current = this.attachmentStaging.get(id);
+          if (!current || current.state !== 'STAGED') return;
+          this.attachmentStaging.set(id, Object.freeze({ ...current, state: 'EXPIRED' }));
+        },
+        listExpired: async (now, limit) => Object.freeze(
+          [...this.attachmentStaging.values()]
+            .filter((record) => record.state === 'STAGED' && Date.parse(record.expiresAt) <= now.getTime())
+            .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt) || Number(a.id) - Number(b.id))
+            .slice(0, limit),
+        ),
+        listStagedByOwner: async (platformUserId) => Object.freeze(
+          [...this.attachmentStaging.values()]
+            .filter((record) => record.state === 'STAGED' && record.platformUserId === platformUserId)
+            .sort((a, b) => Number(a.id) - Number(b.id)),
+        ),
+        deleteById: async (id) => { this.attachmentStaging.delete(id); },
+      },
       managedDmlFieldRules: {
         listByDmlPolicyId: async (dmlPolicyId, options) => makePage(
           [...this.managedDmlFieldRules.values()]
@@ -309,6 +369,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       credentials: new Map(this.credentials),
       tools: new Map(this.tools),
       dmlPolicies: new Map(this.dmlPolicies),
+      attachmentStaging: new Map(this.attachmentStaging),
       managedDmlFieldRules: new Map(this.managedDmlFieldRules),
       diagnostic: this.diagnostic,
       settings: new Map(this.settings),
@@ -327,6 +388,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       this.credentials = snapshot.credentials;
       this.tools = snapshot.tools;
       this.dmlPolicies = snapshot.dmlPolicies;
+      this.attachmentStaging = snapshot.attachmentStaging;
       this.managedDmlFieldRules = snapshot.managedDmlFieldRules;
       this.diagnostic = snapshot.diagnostic;
       this.settings = snapshot.settings;

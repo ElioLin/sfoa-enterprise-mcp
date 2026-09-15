@@ -93,7 +93,7 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
   );
   await service.updateTool('run_soql_query', { enabled: true, remark: null }, 'admin');
   await assert.rejects(
-    service.createDmlPolicy({ objectApiName: 'Lead', allowCreate: false, allowUpdate: false, enabled: true, remark: null }, 'admin'),
+    service.createDmlPolicy({ objectApiName: 'Lead', allowCreate: false, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null }, 'admin'),
     (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
   );
 
@@ -126,7 +126,7 @@ test('managed DML field rules enforce strategies, parent operations, locking, au
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
   const policy = await service.createDmlPolicy({
-    objectApiName: 'Lead', allowCreate: true, allowUpdate: true, enabled: true, remark: null,
+    objectApiName: 'Lead', allowCreate: true, allowUpdate: true, attachmentEnabled: false, enabled: true, remark: null,
   }, 'admin');
   const created = await service.createManagedDmlFieldRule(policy.id, {
     targetFieldApiName: 'Requested_By__c',
@@ -184,7 +184,7 @@ test('managed field rules are rejected when the parent DML policy disallows the 
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
   const createOnly = await service.createDmlPolicy({
-    objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null,
+    objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null,
   }, 'admin');
   await assert.rejects(
     service.createManagedDmlFieldRule(createOnly.id, {
@@ -195,7 +195,7 @@ test('managed field rules are rejected when the parent DML policy disallows the 
     (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_ADMIN_INPUT_INVALID',
   );
   const updateOnly = await service.createDmlPolicy({
-    objectApiName: 'Account', allowCreate: false, allowUpdate: true, enabled: true, remark: null,
+    objectApiName: 'Account', allowCreate: false, allowUpdate: true, attachmentEnabled: false, enabled: true, remark: null,
   }, 'admin');
   await assert.rejects(
     service.createManagedDmlFieldRule(updateOnly.id, {
@@ -303,7 +303,7 @@ function testCredentialCipher(): IdentityCredentialCipher {
 test('fallback rules support opt-in update while preserving strict rules, validation, and optimistic locking', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneAdminService(store, () => ({ allowed: true }), testCredentialCipher());
-  const policy = await service.createDmlPolicy({ objectApiName: 'Order__c', allowCreate: true, allowUpdate: true, enabled: true, remark: null }, 'admin');
+  const policy = await service.createDmlPolicy({ objectApiName: 'Order__c', allowCreate: true, allowUpdate: true, attachmentEnabled: false, enabled: true, remark: null }, 'admin');
   const input = { targetFieldApiName: 'Order_Owner__c', strategy: 'PLATFORM_USER_LOOKUP' as const, applyOnCreate: true,
     applyOnUpdate: false, lookupObjectApiName: 'Contact', lookupMatchFieldApiName: 'Platform_User_Id__c', enabled: true, remark: null };
   const owner = await service.createManagedDmlFieldRule(policy.id, input, 'admin');

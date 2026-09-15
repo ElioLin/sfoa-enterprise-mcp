@@ -527,7 +527,7 @@ function createOptions(password: string, repositories: ControlPlaneRepositoriesW
     createDmlPolicy: async (input) => dmlRecord({ ...input, id: '1', rowVersion: '1' }),
     updateDmlPolicy: async (id, input) => dmlRecord({ ...input, id, rowVersion: '2' }),
     disableDmlPolicy: async (id) => dmlRecord({
-      id, objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: false, remark: null, rowVersion: '2',
+      id, objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: false, remark: null, rowVersion: '2',
     }),
     createManagedDmlFieldRule: async (dmlPolicyId, input) => managedDmlFieldRecord({ ...input, dmlPolicyId, id: '7', rowVersion: '1' }),
     updateManagedDmlFieldRule: async (dmlPolicyId, id, input) => managedDmlFieldRecord({ ...input, dmlPolicyId, id, rowVersion: '2' }),
@@ -625,7 +625,17 @@ function createRepositories(
       listEnabled: async () => Object.freeze([]),
       create: async (input) => dmlRecord({ ...input, id: '1', rowVersion: '1' }),
       update: async (id, input) => dmlRecord({ ...input, id, rowVersion: '2' }),
-      disable: async (id) => dmlRecord({ id, objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: false, remark: null, rowVersion: '2' }),
+      disable: async (id) => dmlRecord({ id, objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: false, remark: null, rowVersion: '2' }),
+    },
+    attachmentStaging: {
+      create: async (input) => { throw new Error('not used'); },
+      getByRef: async () => undefined,
+      markConsumed: async () => { throw new Error('not used'); },
+      markFailed: async () => { throw new Error('not used'); },
+      markExpired: async () => { throw new Error('not used'); },
+      listExpired: async () => Object.freeze([]),
+      listStagedByOwner: async () => Object.freeze([]),
+      deleteById: async () => undefined,
     },
     managedDmlFieldRules: {
       listByDmlPolicyId: async (_dmlPolicyId, { limit, offset }) => page([], limit, offset),
@@ -684,7 +694,7 @@ function routeRecord(input: Readonly<{
 }
 
 function dmlRecord(input: Readonly<{
-  id: string; objectApiName: string; allowCreate: boolean; allowUpdate: boolean; enabled: boolean; remark: string | null; rowVersion: string;
+  id: string; objectApiName: string; allowCreate: boolean; allowUpdate: boolean; attachmentEnabled: boolean; enabled: boolean; remark: string | null; rowVersion: string;
 }>): DmlPolicyRecord {
   return Object.freeze({ ...input, createdAt: now, updatedAt: now });
 }

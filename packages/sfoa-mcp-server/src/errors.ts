@@ -36,6 +36,29 @@ export const REMOTE_RUNTIME_ERROR_CODES = [
   'MCP_REQUEST_INVALID',
   'MCP_REQUEST_CLEANUP_FAILED',
   'MCP_RECORD_LINK_BASE_URL_NOT_CONFIGURED',
+  /**
+   * SFOA Attachment Ingress codes. The ingress is infrastructure: it moves bytes
+   * from a channel to a controlled staging area and hands back an opaque reference.
+   * It never decides whether Salesforce will accept a file, so none of these codes
+   * describe a Salesforce file rule.
+   */
+  'MCP_ATTACHMENT_INGRESS_DISABLED',
+  'MCP_ATTACHMENT_INPUT_INVALID',
+  'MCP_ATTACHMENT_TOO_LARGE',
+  /** Returned for an unknown ref AND for another requester's ref, so a probe cannot learn that a ref exists. */
+  'MCP_ATTACHMENT_NOT_OWNED',
+  'MCP_ATTACHMENT_EXPIRED',
+  'MCP_ATTACHMENT_PATH_INVALID',
+  'MCP_ATTACHMENT_STAGING_FAILED',
+  /**
+   * `upload_files_to_record` codes. These mirror the `MCP_DML_*` families so an
+   * operator reads one style of code across both mutation surfaces.
+   */
+  'MCP_ATTACHMENT_CONFIGURATION_INVALID',
+  'MCP_ATTACHMENT_OBJECT_NOT_ALLOWED',
+  'MCP_ATTACHMENT_TARGET_INVALID',
+  'MCP_ATTACHMENT_UPLOAD_FAILED',
+  'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
 ] as const;
 
 export type RemoteRuntimeErrorCode = (typeof REMOTE_RUNTIME_ERROR_CODES)[number];

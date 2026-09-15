@@ -1,6 +1,6 @@
 ---
 name: sfoa-record-change
-description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增、创建、修改记录时使用：Record Type、Dynamic Forms、必填字段、最小 Patch、Lookup/Picklist、Owner fallback、批量变更；配合 sfoa-crm-core，不用于纯查询。
+description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增、创建、修改记录时使用：Record Type、Dynamic Forms、必填字段、最小 Patch、Lookup/Picklist、Owner fallback、批量变更、附件上传；配合 sfoa-crm-core，不用于纯查询。
 ---
 
 # SFOA Record Change
@@ -11,7 +11,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 
 事实优先级：**Salesforce / MCP Runtime Fact > Agent Playbook > sfoa-record-change > Model Assumption**。本 Skill 不定义 Salesforce 真相，只定义如何发现真相、如何验证真相、何时还不能写、何时证据已经足够写。
 
-范围：**Salesforce Record Mutation（CREATE + UPDATE，单条 + 批量）**。不做业务分析、系统诊断、报表、Delete 与 Metadata 管理；这些各有其 Skill 或明确不在范围内。
+范围：**Salesforce Record Mutation（CREATE + UPDATE，单条 + 批量）**，以及**把平台已收到的文件附加到一条已存在的记录**（`upload_files_to_record`，独立授权 `attachmentEnabled`）。不做业务分析、系统诊断、报表、Delete 与 Metadata 管理；这些各有其 Skill 或明确不在范围内。
 
 ## Hard Rules
 
@@ -88,7 +88,7 @@ Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
 
 ## 何时加载
 
-创建、新增、修改、更新 Salesforce 记录；发起或变更申请；创建拜访申请、客户、商机；批量创建或批量更新同类记录；需要判断一次 CREATE / UPDATE 是否已经准备完成。
+创建、新增、修改、更新 Salesforce 记录；发起或变更申请；创建拜访申请、客户、商机；批量创建或批量更新同类记录；需要判断一次 CREATE / UPDATE 是否已经准备完成；用户发来文件并希望它落到某条记录上（用 `upload_files_to_record`，对象需已开启附件上传，见 [file-attachments.md](references/file-attachments.md)）。
 
 纯查询、统计、分析、诊断、闲聊、数学与一般网页搜索不要加载本 Skill；这些场景只需 Core。当请求同时包含读取与写入时，读取部分按 Core 执行，写入部分按本 Skill 的 Gate 执行。
 
@@ -113,6 +113,7 @@ Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
 - Managed 字段与 Owner fallback：[managed-lookups.md](references/managed-lookups.md)
 - Lookup 与 Picklist 解析：[lookup-and-picklist.md](references/lookup-and-picklist.md)
 - 批量变更：分组、上限、分批、allOrNone、逐条就绪：[batch-mutations.md](references/batch-mutations.md)
+- 附件上传：`upload_files_to_record`、attachmentRef 归属、逐文件结果：[file-attachments.md](references/file-attachments.md)
 - 写入结果、PARTIAL_SUCCESS、UNKNOWN 与核对：[outcome-reconciliation.md](references/outcome-reconciliation.md)
 
 这些参考资料按任务使用，无需每轮全部读取。当前 Tool Schema、Tool Governance、Playbook 与 Salesforce 返回始终高于本 Skill 的任何描述；若本 Skill 与当前代码或运行时事实冲突，以运行时事实为准，并把差异当作 Runtime Defect 记录，而不是靠 Prompt 掩盖。

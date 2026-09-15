@@ -23,6 +23,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
     'Return trusted Salesforce record links through `get_record_links` when enabled; keep raw Salesforce Record IDs internal in normal business answers.',
     'Normal business answers use current Salesforce display labels; raw API values remain the DML/filter/Audit evidence. Prefer enabled bounded batch Tools for multiple same-object records. One intent can span records and dependent phases: root success alone is not business intent completion. Reconcile every requested item before reporting complete; stop on UNKNOWN.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
+    'Attach files with `upload_files_to_record` only when it is enabled and the object is attachment-enabled; pass only `objectApiName`, `recordId` and the `attachmentRefs` the Ingress issued to this user. Never send file bytes, base64, a filesystem path, or a URL, and never attach to a record whose CREATE ended OUTCOME_UNKNOWN.',
     'Read `sfoa://agent-playbook/current` for the full contract and `sfoa://agent-capabilities/current` for request capabilities; the `sfoa_salesforce_assistant` Prompt can select a workflow.',
     ...(orgObjectPointer ? [orgObjectPointer] : []),
     fallback,
@@ -253,6 +254,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
     `- Enabled Tools: ${codeList(capabilities.enabledTools)}.`,
     `- CREATE allowed objects: ${codeList(capabilities.createAllowedObjects)}.`,
     `- UPDATE allowed objects: ${codeList(capabilities.updateAllowedObjects)}.`,
+    `- Attachment-enabled objects: ${codeList(capabilities.attachmentEnabledObjects)}. This is a separate authorization from CREATE/UPDATE and is never implied by either.`,
     `- READ (SOQL) scope: \`run_soql_query\` is NOT bounded by the CREATE/UPDATE allowlists above. It may read any object the authenticated Salesforce user can read — including Account, Opportunity, Contact, and custom objects that are not CREATE/UPDATE-listed — and those lists govern only \`create_record\`, \`update_record\`, \`create_records\` and \`update_records\`, never reads. The only read-side guard is the ORG_OBJECT_USAGE substitution rule for declared not-in-use standard objects.`,
     `- Diagnostic ready: \`${capabilities.diagnosticReady}\`.`,
     `- Dynamic Forms evidence: \`${capabilities.dynamicFormEvidence}\`.`,
@@ -281,6 +283,13 @@ function sectionStatusLines(
       ? [`- Status: available for ${codeList(capabilities.updateAllowedObjects)}.`,
           `- Mutation Tool selection: ${mutationToolSelectionLine(capabilities, 'update_record', 'update_records')}`]
       : ['- Status: unavailable — `update_record` or an effective UPDATE object policy is absent; do not update.'];
+  }
+  if (name === 'ATTACHMENT') {
+    const ready = capabilities.enabledTools.includes('upload_files_to_record')
+      && capabilities.attachmentEnabledObjects.length > 0;
+    return ready
+      ? [`- Status: available for ${codeList(capabilities.attachmentEnabledObjects)}. Attachment upload is independent of CREATE/UPDATE: an attachment-enabled object needs neither of them, and a CREATE/UPDATE-allowed object is not attachment-enabled unless it is listed here.`]
+      : ['- Status: unavailable — `upload_files_to_record` or an effective attachment object policy is absent; do not attempt to attach files.'];
   }
   if (name === 'DIAGNOSIS' && !capabilities.diagnosticReady) {
     return ['- Status: unavailable — the complete verified Diagnostic chain is not ready; do not claim Diagnostic capability.'];

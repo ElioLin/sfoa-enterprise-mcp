@@ -29,7 +29,9 @@ export type BootstrapResult = Readonly<{
 
 const dmlSchema = z.array(z.object({
   objectApiName: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,127}$/u),
-  operations: z.array(z.enum(['CREATE', 'UPDATE'])).min(1).max(2),
+  // ATTACHMENT is a capability of its own, not an alias for CREATE or UPDATE: it grants
+  // `upload_files_to_record` for this object and grants nothing about record fields.
+  operations: z.array(z.enum(['CREATE', 'UPDATE', 'ATTACHMENT'])).min(1).max(3),
 }).strict()).max(1_000);
 
 export async function bootstrapFromEnvironment(
@@ -123,6 +125,7 @@ export async function bootstrapFromEnvironment(
         objectApiName: policy.objectApiName,
         allowCreate: policy.operations.includes('CREATE'),
         allowUpdate: policy.operations.includes('UPDATE'),
+        attachmentEnabled: policy.operations.includes('ATTACHMENT'),
         enabled: true,
         remark: force ? 'Force-imported by p5:bootstrap' : 'Imported by p5:bootstrap',
       };

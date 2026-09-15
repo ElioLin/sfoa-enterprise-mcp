@@ -5,11 +5,11 @@ description: >
   Picklist handling, record links, and diagnosis through the SFoA MCP service.
 ---
 
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.8.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.9.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Salesforce Assistant
 
-Canonical Playbook version: 1.8.0.
+Canonical Playbook version: 1.9.0.
 
 ## When to use
 
@@ -23,7 +23,7 @@ Use this Skill when a user asks for current Salesforce business data, an allowed
 4. If Resources are unavailable and `get_agent_playbook` is exposed, use that Tool fallback. Never call an absent Tool.
 # SFoA Salesforce Agent Playbook
 
-Playbook-Version: 1.8.0
+Playbook-Version: 1.9.0
 Workflow: ALL
 
 ## Runtime capabilities

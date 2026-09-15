@@ -240,6 +240,7 @@ if (!configured) {
         objectApiName: 'Lead',
         allowCreate: true,
         allowUpdate: false,
+        attachmentEnabled: false,
         enabled: true,
         remark: 'real runtime dynamic DML',
       });
@@ -273,6 +274,7 @@ if (!configured) {
         objectApiName: 'Lead',
         allowCreate: false,
         allowUpdate: true,
+        attachmentEnabled: false,
         enabled: true,
         remark: policy.remark,
         rowVersion: policy.rowVersion,

@@ -526,6 +526,9 @@ Top RSS：`openclaw-gateway 521 MB`、`gnome-shell 336 MB`、`sfoa-mcp-server 23
    ```
    该钩子只是追加「发图片用 `MEDIA:` 指令」一类的提示，与身份链路无关。
    按 §26「最小工具面」原则**故意保持关闭**，不为其开放会话访问权限。
+   > 注意区分：后续 §12 的附件链路需要给 **`sfoa-wecom-mcp-adapter`**（我们自己的插件）
+   > 单独开放同一个开关。那是另一个 `plugins.entries` 条目，理由与影响面都不同，
+   > 不改变本条对官方插件的决定。
 
 4. **SFOA 审计表两列时间基准不同（既有现象，非本次改动引入）**
    - `sfoa_audit_log.occurred_at` 存的是 **UTC**；`created_at` 存的是**服务器本地时间**（UTC+8）。
@@ -630,6 +633,7 @@ node -e 'const{createRequire}=require("node:module");const r=createRequire("/dat
 | `openclaw mcp probe` / `doctor` 报 `failed to start server "sfoa-enterprise-mcp"` | CLI 探测没有 requester 上下文，adapter 返回 `null` | **预期行为**，不是故障。以企微实时消息为准 |
 | 企微通道不连接 | Bot 凭据错误 / 未启用 / 未按 §6.2 写成明文 | `journalctl -u openclaw-gateway \| grep -i wecom`；确认 `channels.wecom.enabled=true`，且 `botId`/`secret` 是**字符串**而非 SecretRef 对象 |
 | 改配置后不生效 | 部分配置需重启 | `systemctl restart openclaw-gateway` |
+| 发文件后 Agent 说没看到附件 | 附件链路未启用 / 未授权会话访问 / 运行时 Ingress 未开 | 见 §12.4 排查顺序 |
 
 ---
 
@@ -640,10 +644,12 @@ node -e 'const{createRequire}=require("node:module");const r=createRequire("/dat
 ```
 integrations/openclaw/sfoa-wecom-mcp-adapter/
 ├── package.json            # openclaw.extensions 指向 ./src/index.js
-├── openclaw.plugin.json    # 插件清单：id / activation / configSchema
+├── openclaw.plugin.json    # 插件清单：id / activation / configSchema（含附件链路配置项）
 ├── src/index.js            # register()：注册 requester-scoped MCP connection resolver
+│                           #   + 附件链路两个钩子（message_received / before_prompt_build）
 ├── src/resolver.js         # 纯函数决策：buildRequesterConnection / normalizeRequesterId
-└── test/resolver.test.js   # node:test，7 项
+├── src/attachments.js      # 纯函数决策：入站媒体选择、Ingress 请求构造、引用注册表、上下文渲染
+└── test/                   # node:test：resolver 7 项、attachments 25 项、bridge 15 项、concurrency 4 项
 ```
 
 ### 11.2 本仓库文档
@@ -656,7 +662,7 @@ integrations/openclaw/sfoa-wecom-mcp-adapter/
 |---|---|
 | `/data/openclaw/plugins/sfoa-wecom-mcp-adapter/` | 由本仓库复制的 adapter（`plugins.load.paths` 链接） |
 | `/data/openclaw/secrets/credentials.json` | 新增 `sfoaWecomMcpToken`、`wecomBotId`、`wecomBotSecret`（`0600 root`） |
-| `/data/openclaw/state/openclaw.json` | `mcp.servers`、`plugins.entries`、`plugins.load.paths`、`tools`、`agents.entries.main.tools`、`agents.entries.main.identity`、`channels.wecom` |
+| `/data/openclaw/state/openclaw.json` | `mcp.servers`、`plugins.entries`、`plugins.load.paths`、`tools`、`agents.entries.main.tools`、`agents.entries.main.identity`、`channels.wecom`；附件链路另加 `plugins.entries.sfoa-wecom-mcp-adapter.config.attachmentBridgeEnabled=true` 与 `plugins.entries.sfoa-wecom-mcp-adapter.hooks.allowConversationAccess=true`（§12.3） |
 | `/data/openclaw/workspace/IDENTITY.md`、`AGENTS.md` | 按实际能力重写（§7.3） |
 | `/data/openclaw/backups/workspace-templates-20260911-1140/` | 原工作区模板备份 |
 
@@ -664,3 +670,121 @@ integrations/openclaw/sfoa-wecom-mcp-adapter/
 
 OpenClaw Core / `dist` / `node_modules`、企业微信官方 Plugin、SFOA 仓库全部内容、
 Salesforce Identity Route、P8-05 / P8-06 语义、nginx、systemd 单元、模型配置。
+
+附件链路（§12）同样**没有**修改企业微信官方 Plugin，也**没有** patch OpenClaw Core；
+它全部落在本仓库自己的 adapter 插件内。决策记录见
+`docs/sfoa/adr/ADR-0023-attachment-bridge-and-requester-scoped-ref.md`。
+
+---
+
+## 12. 附件链路（Attachment Bridge，Skill-02C）
+
+目标：用户在企微里发一个文件并说「把它挂到某条记录上」时，**模型不需要读到文件内容**，
+只需拿到一个不透明引用 `att_…`，由 `upload_files_to_record` 把它落到 Salesforce 记录上。
+
+```text
+企微消息 + 文件
+  → OpenClaw 把文件落到本机 media/inbound/openclaw-staged-*/input-<原名>
+  → [adapter] message_received 钩子：只挑真正落在暂存根下的文件，逐个流式 POST 给
+     SFOA Attachment Ingress（Authorization: 渠道凭证 + X-WeCom-User-Id: 发送人工号）
+  → Ingress 校验身份 → 落暂存区 → 返回 { attachmentRef, fileName, mimeType, byteSize,
+     contentSha256, expiresAt }
+  → [adapter] before_prompt_build 钩子：把 att_… 列表与本轮规则追加进用户消息
+  → 模型调用 upload_files_to_record(objectApiName, recordId, attachmentRefs)
+  → SFOA 按请求人身份（USER，非集成账号）上传 ContentVersion + FirstPublishLocationId
+```
+
+### 12.1 职责边界
+
+| 层 | 负责 | 不负责 |
+|---|---|---|
+| 企业微信官方 Plugin | 收消息、下载媒体、暂存到工作区 | 不知道 SFOA 存在 |
+| 本 adapter 插件 | 选文件、流式转交、注入引用 | 不判断文件类型/大小是否可接受 |
+| SFOA Attachment Ingress | 鉴权、暂存、TTL、归属、SHA-256 | 不判断业务对象是否允许附件 |
+| `upload_files_to_record` | 鉴权、`attachmentEnabled`、对象归属、上传 | 不读文件内容、不落地本地路径 |
+| Salesforce | **文件类型/大小/一切接受规则的最终权威** | —— |
+
+**本链路不做任何本地扩展名 / MIME / 大小镜像策略**：`normalizeMimeType` 只判断
+MIME 是否*格式合法*，不合法就**不发这个头**，由 Salesforce 判；`Content-Length` 只是
+如实上报字节数，是否超限由运行时的上限决定。被拒绝时原样转述 Salesforce 的
+`errorCode` 与 message。
+
+### 12.2 关键设计点
+
+1. **身份同一命名空间**：`message_received` 事件的 `senderId` 与
+   MCP connection resolver 用的 `requesterSenderId` 都来自 `ctx.SenderId`。
+   文件因此必然归属到「这个人的 MCP 连接」所代表的同一个身份。
+2. **不透明引用，不是路径**：注入给模型的只有 `att_…` / 文件名 / MIME / 字节数；
+   暂存绝对路径、文件字节、base64、multipart 原文、渠道凭证**都不进上下文、不进日志**（有断言）。
+3. **结构性阻断 SSRF 与任意读**：只接受本机暂存目录下、经 `path.resolve` 后仍在
+   配置根内的路径；`file://` / `http(s)://` / 带 scheme 的字符串一律拒绝；
+   只带 `url` 的 media fact **从不抓取**（企微媒体 URL 与 `169.254.169.254` 元数据
+   地址都有用例覆盖）；打开时用 `O_NOFOLLOW` + `isFile()`。
+4. **流式而非缓冲**：请求体是 `Readable.toWeb(handle.createReadStream())`，
+   内存占用与文件大小无关，且没有任何一处解码或检查文件内容。
+5. **Fail closed**：渠道不是 wecom、`senderId` 缺失、会话键缺失、
+   `mediaStagingPending=true`、无可信身份 → **不发 Ingress 请求、不注入引用**。
+6. **引用生命周期**：注册表按会话键保存，新一轮消息替换上一轮，到期自动失效，
+   数量有上限；读取是**非消费性**的，因为真正「消费」引用的是运行时，不是这个缓存。
+7. **默认关闭**：`attachmentBridgeEnabled` 默认 `false`，与运行时侧
+   `MCP_ATTACHMENT_INGRESS_ENABLED` 对称。两个开关一起开，在此之前企微文件不会被复制到任何地方。
+
+### 12.3 配置（测试服）
+
+`/data/openclaw/state/openclaw.json`：
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "sfoa-wecom-mcp-adapter": {
+        "config": {
+          "serverName": "sfoa-enterprise-mcp",
+          "mcpUrl": "http://127.0.0.1:8080/mcp",
+          "mcpWecomClientToken": { "secretRef": "sfoaWecomMcpToken" },
+          "attachmentBridgeEnabled": true
+        },
+        "hooks": { "allowConversationAccess": true }
+      }
+    }
+  }
+}
+```
+
+> **`hooks.allowConversationAccess: true` 是必需的，且缺失时是静默失败。**
+> `before_prompt_build` 会拿到本轮会话内容，因此非内置插件必须被显式授权才能运行它。
+> 没有这个授权，Ingress 照常收到文件、`att_…` 照常生成，**但引用永远不会到达模型**
+> —— 表现为「Agent 说没看到附件」。这与 §9.3 第 3 条对**官方插件**的关闭决定不冲突：
+> 那是另一个条目，这里授权的是我们自己的 adapter。
+
+其余可选键：`attachmentIngressPath`（默认 `/attachments`）、
+`attachmentWorkspaceRoot`（默认 `/data/openclaw/workspace`）、
+`attachmentMediaRoot`（默认 `<workspace>/media/inbound`）、
+`attachmentRefTtlMs`（默认 `300000`）。**不需要改配置的地方就不要写配置。**
+
+运行时的对应开关（SFOA 侧，`.env.local` 或 systemd 环境）：
+
+```bash
+MCP_ATTACHMENT_INGRESS_ENABLED=true
+MCP_ATTACHMENT_STAGING_ROOT=/data/sfoa-enterprise-mcp/var/attachments   # 必须是绝对路径且不同于 MCP_PATH
+```
+
+### 12.4 排查顺序
+
+现象：用户发了文件，Agent 却说没有附件。
+
+| 顺序 | 检查 | 期望 |
+|---|---|---|
+| 1 | `plugins.entries.sfoa-wecom-mcp-adapter.config.attachmentBridgeEnabled` | `true` |
+| 2 | `plugins.entries.sfoa-wecom-mcp-adapter.hooks.allowConversationAccess` | `true`（**最常见原因**，缺失时静默） |
+| 3 | 运行时 `MCP_ATTACHMENT_INGRESS_ENABLED` 与 `MCP_ATTACHMENT_STAGING_ROOT` | 已设且合法，否则启动时报错 |
+| 4 | adapter 日志是否有 `attachment bridge disabled` | 有 → 第 1 项没生效（需重启 Gateway） |
+| 5 | adapter 日志 `inbound attachment staging failed` / `Attachment Ingress call failed` | 有 → 看同一行的状态码与稳定错误码（**日志里不会有文件名或路径**） |
+| 6 | 文件是否真的落在暂存根下 | 在 `<attachmentMediaRoot>` 之下；只有 `url` 没有本地路径的媒体不会被转发（预期行为） |
+| 7 | 对象是否开了附件上传 | `attachmentEnabled=false` → Tool 返回稳定错误码，不是链路故障 |
+
+### 12.5 明确不做（v1）
+
+已有文件重挂、版本更新、删除、下载、公开链接；多记录附件（v1 是 **1 条记录 × 1..N 个文件**）；
+本地类型/大小预筛选；把 `ContentVersion` / `ContentDocument` / `ContentDocumentLink`
+暴露成业务 DML 对象。

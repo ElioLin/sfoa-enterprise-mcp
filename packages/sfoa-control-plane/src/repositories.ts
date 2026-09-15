@@ -1,4 +1,5 @@
 import type {
+  AttachmentStagingRecord,
   AuditEventCategory,
   AuditEventRecord,
   AuditEventStatus,
@@ -95,6 +96,7 @@ export type DmlPolicyCreateInput = Readonly<{
   objectApiName: string;
   allowCreate: boolean;
   allowUpdate: boolean;
+  attachmentEnabled: boolean;
   enabled: boolean;
   remark: string | null;
 }>;
@@ -109,6 +111,40 @@ export interface DmlPolicyRepository {
   create(input: DmlPolicyCreateInput): Promise<DmlPolicyRecord>;
   update(id: string, input: DmlPolicyUpdateInput): Promise<DmlPolicyRecord>;
   disable(id: string, rowVersion: string): Promise<DmlPolicyRecord>;
+}
+
+export type AttachmentStagingCreateInput = Readonly<{
+  attachmentRef: string;
+  platformUserId: string;
+  sourceChannel: string;
+  runId: string | null;
+  fileName: string;
+  mimeType: string | null;
+  byteSize: number;
+  contentSha256: string;
+  stagedPath: string;
+  createdAt: Date;
+  expiresAt: Date;
+}>;
+
+/**
+ * Storage for the SFOA Attachment Ingress staging rows.
+ *
+ * The repository is deliberately narrow: the ingress only ever mints, reads by ref,
+ * transitions state, and reaps. There is no search-by-filename or list-by-owner API,
+ * so a caller cannot enumerate another user's staged files even if it reaches here.
+ */
+export interface AttachmentStagingRepository {
+  create(input: AttachmentStagingCreateInput): Promise<AttachmentStagingRecord>;
+  getByRef(attachmentRef: string): Promise<AttachmentStagingRecord | undefined>;
+  markConsumed(id: string, consumedAt: Date): Promise<void>;
+  markFailed(id: string, failureCode: string): Promise<void>;
+  markExpired(id: string): Promise<void>;
+  /** Rows past `expiresAt` that are still STAGED, oldest first. Bounded by `limit`. */
+  listExpired(now: Date, limit: number): Promise<readonly AttachmentStagingRecord[]>;
+  /** Staged rows for one owner, oldest first — used to bound a single owner's footprint. */
+  listStagedByOwner(platformUserId: string): Promise<readonly AttachmentStagingRecord[]>;
+  deleteById(id: string): Promise<void>;
 }
 
 export type ManagedDmlFieldRuleCreateInput = Readonly<{
@@ -311,6 +347,7 @@ export type ControlPlaneRepositories = Readonly<{
   identityCredentials: IdentityCredentialRepository;
   tools: ToolControlRepository;
   dmlPolicies: DmlPolicyRepository;
+  attachmentStaging: AttachmentStagingRepository;
   managedDmlFieldRules: ManagedDmlFieldRuleRepository;
   diagnostic: DiagnosticConfigRepository;
   runtimeSettings: RuntimeSettingRepository;

@@ -57,7 +57,7 @@ test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, a
       identityRoute: { id: platformUserId === TEST_PLATFORM_USER_A ? '1' : '2', platformUserId, userName: 'Test',
         salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now },
       enabledTools: ['get_record_action_context', 'create_record'], managedDmlFieldRules: [], diagnostic: null,
-      dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now }],
+      dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now }],
       runtimeSettings: { dynamicFormsObjectPolicies: [{ objectApiName: 'Lead', mode }], integrationDefaultSalesforceAppDeveloperName: 'App_A' },
     }) },
   });

@@ -182,7 +182,7 @@ function policy(
   enabled = true,
   remark: string | null = null,
 ): DmlPolicyRecord {
-  return Object.freeze({ objectApiName, allowCreate, allowUpdate, enabled, remark, id: objectApiName, rowVersion: '1', createdAt: NOW, updatedAt: NOW });
+  return Object.freeze({ objectApiName, allowCreate, allowUpdate, attachmentEnabled: false, enabled, remark, id: objectApiName, rowVersion: '1', createdAt: NOW, updatedAt: NOW });
 }
 
 function diagnostic(overrides: Partial<DiagnosticConfigRecord> = {}): DiagnosticConfigRecord {

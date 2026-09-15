@@ -6,9 +6,11 @@ import path from 'node:path';
 import { request } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { type RuntimeDiscoveryPolicySnapshot, type IdentityRouteRecord } from '@sfoa/control-plane';
+import { type RuntimeDiscoveryPolicySnapshot, type IdentityRouteRecord,
+  type AttachmentStagingRepository } from '@sfoa/control-plane';
 import type { RuntimeLogEvent } from '@sfoa/identity-runtime';
 import { DiagnosticRequestScopeFactory } from '@sfoa/identity-runtime';
+import { AttachmentIngress } from '../attachment-ingress.js';
 import { startRemoteMcpServer } from '../http-server.js';
 import { classifyMcpRequest, createDiscoveryMcpServer } from '../discovery-server.js';
 import { initializeProviderRuntime } from '../provider-runtime.js';
@@ -89,7 +91,7 @@ test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execu
     global = { ...global, enabledTools: ['get_username', 'run_soql_query', 'retrieve_metadata', 'get_agent_playbook', 'get_record_links',
       'get_record_action_context', 'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'create_record', 'update_record',
       'create_records', 'update_records', 'resolve_field_display_values', 'get_record_relationship_context'],
-      dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: true, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt }],
+      dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: true, attachmentEnabled: false, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt }],
       diagnostic: { id: '1', salesforceUsername: 'diagnostic@example.test', enabled: true, verificationStatus: 'PASS', lastVerifiedAt: global.loadedAt,
         lastErrorCode: null, lastErrorMessageSafe: null, testMetadataType: null, testMetadataFullName: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt } };
     const fullDiscovery = await list();
@@ -378,4 +380,207 @@ test('P8-06 WeCom configuration fails fast: strong independent channel credentia
       ...base, MCP_WECOM_CHANNEL_ENABLED: 'false', MCP_PLATFORM_USER_HEADER_ALIASES: '', MCP_WECOM_CLIENT_TOKEN: TOKEN });
     assert.equal(disabled.wecomChannelEnabled, false);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+// ---------------------------------------------------------------------------
+// Skill-02C: the attachment Tool in both inventories
+//
+// `upload_files_to_record` is host-native: no Provider supplies it, so both the
+// governed composition and the identity-less Discovery server have to be given its
+// descriptor explicitly. These gates prove the two inventories agree — the Tool is
+// advertised by both, identically, exactly when it is enabled and can execute, and it
+// is never advertised by discovery while the governed server would refuse it.
+// ---------------------------------------------------------------------------
+
+const ATTACHMENT_TOOL = 'upload_files_to_record';
+
+/** Every method refuses: an inventory test never stages, resolves or reaps a file. */
+function unusedStagingRepository(): AttachmentStagingRepository {
+  const refuse = (): never => {
+    throw new Error('the staging store is not reachable from an inventory test');
+  };
+  return {
+    create: async () => refuse(),
+    getByRef: async () => refuse(),
+    markConsumed: async () => refuse(),
+    markFailed: async () => refuse(),
+    markExpired: async () => refuse(),
+    listExpired: async () => refuse(),
+    listStagedByOwner: async () => refuse(),
+    deleteById: async () => refuse(),
+  };
+}
+
+type AttachmentGovernance = Readonly<{
+  enabledTools: readonly string[];
+  /** Whether the one object policy row sets `attachment_enabled`. */
+  attachmentEnabled: boolean;
+}>;
+
+type AttachmentInventoryHarness = Readonly<{
+  connections: RecordingConnectionFactory;
+  events: RuntimeLogEvent[];
+  /** Identity-route lookups: a channel request must never cause one. */
+  routeLoads(): number;
+  /** Discovery-snapshot loads: one per channel-credential request. */
+  discoveryLoads(): number;
+  govern(next: AttachmentGovernance): void;
+  /** Identity-less request on the channel credential — served by the Discovery server. */
+  discover(body: unknown): Promise<{ status: number; payload: unknown }>;
+  /** Request bound to a platform user — served by the governed server. */
+  execute(body: unknown): Promise<{ status: number; payload: unknown }>;
+  close(): Promise<void>;
+}>;
+
+async function startAttachmentInventoryHarness(withIngress: boolean): Promise<AttachmentInventoryHarness> {
+  const root = await mkdtemp(path.join(tmpdir(), 'skill-02c-inventory-'));
+  const connections = new RecordingConnectionFactory();
+  const events: RuntimeLogEvent[] = [];
+  const identityRuntime = createTestIdentityRuntime(root, connections, { log: (event) => { events.push(event); } });
+  const loadedAt = new Date().toISOString();
+  let routeLoads = 0;
+  let discoveryLoads = 0;
+  let governance: AttachmentGovernance = { enabledTools: ['get_username'], attachmentEnabled: false };
+  const route: IdentityRouteRecord = { id: '1', platformUserId: TEST_PLATFORM_USER_A, userName: 'Test A',
+    salesforceUsername: TEST_USERNAME_A, enabled: true, remark: null, rowVersion: '1', createdAt: loadedAt, updatedAt: loadedAt };
+  const snapshot = (): RuntimeDiscoveryPolicySnapshot => ({
+    mode: 'mysql', loadedAt, enabledTools: governance.enabledTools,
+    // An attachment-only object policy: it grants neither CREATE nor UPDATE, so it
+    // contributes no DML entry at all and only the attachment channel can see it.
+    dmlPolicies: governance.attachmentEnabled
+      ? [{ id: '1', objectApiName: 'Opportunity', allowCreate: false, allowUpdate: false, attachmentEnabled: true,
+          enabled: true, remark: null, rowVersion: '1', createdAt: loadedAt, updatedAt: loadedAt }]
+      : [],
+    managedDmlFieldRules: [], diagnostic: null, runtimeSettings: {},
+  });
+  const ingress = new AttachmentIngress(unusedStagingRepository(), {
+    root: await mkdtemp(path.join(root, 'staging-')),
+    ttlMs: 900_000, maxFileBytes: 1_048_576, maxFilesPerOwner: 8,
+  });
+  const server = await startRemoteMcpServer({
+    config: createTestRemoteConfig({ wecomChannelEnabled: true, wecomClientToken: TOKEN,
+      platformUserHeaderAliases: ['X-WeCom-User-Id'], platformIdentityHeaders: ['X-Platform-User-Id', 'X-WeCom-User-Id'] }),
+    identityRuntime,
+    policySnapshotSource: { load: async (platformUserId) => { routeLoads += 1; return { ...snapshot(),
+      identityRoute: platformUserId === TEST_PLATFORM_USER_A ? route : null }; } },
+    discoveryPolicySnapshotSource: { load: async () => { discoveryLoads += 1; return snapshot(); } },
+    ...(withIngress ? { attachmentIngress: ingress } : {}),
+  });
+  const post = async (body: unknown, token: string, headers: Record<string, string>) => {
+    const response = await fetch(server.mcpUrl, { method: 'POST',
+      headers: { ...mcpHeaders(undefined, token), ...headers }, body: JSON.stringify(body) });
+    return { status: response.status, payload: await response.json() as unknown };
+  };
+  return {
+    connections, events,
+    routeLoads: () => routeLoads,
+    discoveryLoads: () => discoveryLoads,
+    govern: (next) => { governance = next; },
+    discover: async (body) => await post(body, TOKEN, {}),
+    // The execution surface is reached with the internal service credential: the WeCom
+    // channel credential is routed to Discovery for every Discovery-RPC method, so a
+    // channel-credential `tools/list` could never prove what the governed server serves.
+    execute: async (body) => await post(body, TEST_CLIENT_TOKEN, { 'X-Platform-User-Id': TEST_PLATFORM_USER_A }),
+    close: async () => { await server.close(); await rm(root, { recursive: true, force: true }); },
+  };
+}
+
+type AdvertisedTool = Readonly<{ name: string; inputSchema?: { properties?: Record<string, unknown>; required?: readonly string[] } }>;
+
+function advertised(response: { status: number; payload: unknown }): readonly AdvertisedTool[] {
+  assert.equal(response.status, 200, JSON.stringify(response.payload));
+  return (response.payload as { result: { tools: AdvertisedTool[] } }).result.tools
+    .slice().sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function refusalCode(response: { status: number; payload: unknown }): string {
+  return (response.payload as { error: { data: { errorCode: string } } }).error.data.errorCode;
+}
+
+test('Skill-02C: both inventories advertise upload_files_to_record identically, and only when it is enabled', async () => {
+  const harness = await startAttachmentInventoryHarness(true);
+  try {
+    // An attachment-enabled object with the Tool left disabled grants nothing by itself.
+    harness.govern({ enabledTools: ['get_username'], attachmentEnabled: true });
+    assert.deepEqual(advertised(await harness.discover(rpc('tools/list'))).map((tool) => tool.name), ['get_username']);
+    assert.deepEqual(advertised(await harness.execute(rpc('tools/list'))).map((tool) => tool.name), ['get_username']);
+
+    harness.govern({ enabledTools: ['get_username', ATTACHMENT_TOOL], attachmentEnabled: true });
+    const discovery = advertised(await harness.discover(rpc('tools/list')));
+    const execution = advertised(await harness.execute(rpc('tools/list')));
+    assert.deepEqual(discovery.map((tool) => tool.name), ['get_username', ATTACHMENT_TOOL]);
+    assert.deepEqual(discovery, execution, 'discovery and execution advertise the same Tool schemas');
+
+    const attachment = discovery.find((tool) => tool.name === ATTACHMENT_TOOL);
+    assert.ok(attachment);
+    // The advertised schema is the host-native one — a target record and opaque
+    // references — and not a Provider's. There is no field through which the model
+    // could supply file bytes, a filesystem path or a URL.
+    assert.deepEqual(Object.keys(attachment.inputSchema?.properties ?? {}).sort(),
+      ['attachmentRefs', 'objectApiName', 'recordId']);
+    assert.deepEqual([...(attachment.inputSchema?.required ?? [])].sort(),
+      ['attachmentRefs', 'objectApiName', 'recordId']);
+
+    // The attachment grant reaches the agent as its own capability, sourced from the
+    // attachment policy: this object grants no CREATE and no UPDATE at all.
+    const capabilities = await harness.discover(rpc('resources/read', { uri: 'sfoa://agent-capabilities/current' }));
+    assert.equal(capabilities.status, 200);
+    const rendered = JSON.parse((capabilities.payload as { result: { contents: { text: string }[] } })
+      .result.contents[0]!.text) as { enabledTools: string[]; attachmentEnabledObjects: string[];
+        createAllowedObjects: string[]; updateAllowedObjects: string[] };
+    assert.deepEqual(rendered.attachmentEnabledObjects, ['Opportunity']);
+    assert.deepEqual(rendered.createAllowedObjects, []);
+    assert.deepEqual(rendered.updateAllowedObjects, []);
+    assert.ok(rendered.enabledTools.includes(ATTACHMENT_TOOL));
+
+    // A channel credential is served by Discovery for every advertised RPC, and the
+    // Tool it names there is the Tool the governed server registers. These counters are
+    // what makes that comparison non-vacuous: exactly one request — the execution
+    // `tools/list` — resolved an end-user route, and it still cost no Salesforce access.
+    assert.equal(harness.routeLoads(), 2, 'only the two execution requests resolved an end-user route');
+    assert.equal(harness.discoveryLoads(), 3, 'every channel-credential request was served identity-less');
+    assert.equal(harness.connections.creations.length, 0, 'advertising a Tool opens no Salesforce Connection');
+    assert.equal(harness.connections.apiRequests.length + harness.connections.queryCalls.length
+      + harness.connections.dmlCalls.length, 0);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('Skill-02C: an attachment Tool that could not execute is refused by discovery as well as by the governed server', async () => {
+  // (a) Governance enables the Tool while no object is attachment-enabled: there is no
+  //     target it could ever accept, so the composition refuses before either server runs.
+  const noObject = await startAttachmentInventoryHarness(true);
+  try {
+    noObject.govern({ enabledTools: ['get_username', ATTACHMENT_TOOL], attachmentEnabled: false });
+    for (const [surface, response] of [
+      ['discovery', await noObject.discover(rpc('tools/list'))],
+      ['execution', await noObject.execute(rpc('tools/list'))],
+    ] as const) {
+      assert.equal(response.status, 500, surface);
+      assert.equal(refusalCode(response), 'MCP_ATTACHMENT_CONFIGURATION_INVALID', surface);
+    }
+  } finally {
+    await noObject.close();
+  }
+
+  // (b) Governance enables the Tool with an attachment-enabled object, but this runtime
+  //     has no Attachment Ingress bound: no file could be staged, so none could be
+  //     published. Discovery must not advertise what the governed server would refuse.
+  for (const surface of ['discovery', 'execution'] as const) {
+    const harness = await startAttachmentInventoryHarness(false);
+    try {
+      harness.govern({ enabledTools: ['get_username', ATTACHMENT_TOOL], attachmentEnabled: true });
+      const response = surface === 'discovery'
+        ? await harness.discover(rpc('tools/list'))
+        : await harness.execute(rpc('tools/list'));
+      assert.equal(response.status, 500, surface);
+      assert.equal(refusalCode(response), 'MCP_ATTACHMENT_CONFIGURATION_INVALID', surface);
+      assert.ok(harness.events.some((event) => event.errorCode === 'MCP_ATTACHMENT_CONFIGURATION_INVALID'
+        && event.result === 'ERROR' && event.auditEvent?.eventCategory === 'MCP'),
+        `${surface}: the misconfiguration is audited`);
+    } finally {
+      await harness.close();
+    }
+  }
 });

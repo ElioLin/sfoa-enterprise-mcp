@@ -3,6 +3,7 @@ import {
   JsonLineRuntimeLogger,
   seedSfdxLocalAuthStore,
   type CreateIdentityRuntimeOverrides,
+  type RuntimeLogger,
 } from '@sfoa/identity-runtime';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
@@ -28,7 +29,8 @@ import {
   type CredentialAuthenticator,
 } from './authenticator.js';
 import { HttpBuntuTokenValidator } from './buntu-validator.js';
-import { loadRemoteRuntimeConfig } from './config.js';
+import { AttachmentIngress } from './attachment-ingress.js';
+import { DEFAULT_ATTACHMENT_REAP_INTERVAL_MS, loadRemoteRuntimeConfig } from './config.js';
 import { startRemoteMcpServer, type RemoteMcpServer } from './http-server.js';
 import { MySqlRuntimePolicySnapshotSource, MySqlRuntimeDiscoveryPolicySnapshotSource } from './policy-snapshot.js';
 import { loadMySqlSfdxSeedUsernames } from './runtime-sfdx-seed-usernames.js';
@@ -68,14 +70,25 @@ export async function startConfiguredRemoteRuntime(
     });
     const seedUsernames = await loadMySqlSfdxSeedUsernames(store.repositories);
     await seedSfdxLocalAuthStore(config.identity, seedUsernames);
-    const server = await startRemoteMcpServer({
-      config,
-      identityRuntime,
-      policySnapshotSource: new MySqlRuntimePolicySnapshotSource(database),
-      discoveryPolicySnapshotSource: new MySqlRuntimeDiscoveryPolicySnapshotSource(database),
-      loadUiSnapshot: (organizationId, objectApiName) => new MySqlUiSnapshotRepository(database).get(organizationId, objectApiName),
-      identityProvider: new UnifiedIdentityProvider(buildCredentialAuthenticators(config, store, databaseLogger), config.wecomChannelEnabled),
-    });
+    const attachmentIngress = createAttachmentIngress(config, store);
+    const stopAttachmentReaper = attachmentIngress
+      ? startAttachmentReaper(attachmentIngress, config.attachment.ttlMs, fallbackLogger)
+      : undefined;
+    let server: RemoteMcpServer;
+    try {
+      server = await startRemoteMcpServer({
+        config,
+        identityRuntime,
+        policySnapshotSource: new MySqlRuntimePolicySnapshotSource(database),
+        discoveryPolicySnapshotSource: new MySqlRuntimeDiscoveryPolicySnapshotSource(database),
+        loadUiSnapshot: (organizationId, objectApiName) => new MySqlUiSnapshotRepository(database).get(organizationId, objectApiName),
+        identityProvider: new UnifiedIdentityProvider(buildCredentialAuthenticators(config, store, databaseLogger), config.wecomChannelEnabled),
+        ...(attachmentIngress ? { attachmentIngress } : {}),
+      });
+    } catch (error) {
+      stopAttachmentReaper?.();
+      throw error;
+    }
     let closed = false;
     return Object.freeze({
       ...server,
@@ -85,6 +98,7 @@ export async function startConfiguredRemoteRuntime(
         } finally {
           if (!closed) {
             closed = true;
+            stopAttachmentReaper?.();
             await auditPipeline.close(DEFAULT_AUDIT_FLUSH_TIMEOUT_MS);
             await closeAuditDatabaseBounded(auditDatabase);
             await store.close();
@@ -104,6 +118,65 @@ async function closeAuditDatabaseBounded(database: ControlPlaneDatabaseClient): 
   const closing = database.destroy().catch(() => undefined);
   await Promise.race([closing, delay(AUDIT_POOL_CLOSE_TIMEOUT_MS).then(() => undefined)]);
 }
+
+/**
+ * Builds the Attachment Ingress when it is enabled.
+ *
+ * The staging store is the Control Plane, so an enabled ingress without MySQL has
+ * nowhere to record a reference and is refused rather than started half-wired.
+ */
+function createAttachmentIngress(
+  config: Awaited<ReturnType<typeof loadRemoteRuntimeConfig>>,
+  store: MySqlControlPlaneStore,
+): AttachmentIngress | undefined {
+  if (!config.attachment.enabled) return undefined;
+  const stagingRoot = config.attachment.stagingRoot;
+  if (!stagingRoot) {
+    throw new Error('MCP_ATTACHMENT_INGRESS_ENABLED=true requires MCP_ATTACHMENT_STAGING_ROOT.');
+  }
+  return new AttachmentIngress(store.repositories.attachmentStaging, {
+    root: stagingRoot,
+    ttlMs: config.attachment.ttlMs,
+    maxFileBytes: config.attachment.maxFileBytes,
+    maxFilesPerOwner: config.attachment.maxFilesPerOwner,
+  });
+}
+
+/**
+ * Starts the staging reaper.
+ *
+ * Without it a staged file would only disappear when its owner staged another one, so a
+ * channel that goes quiet would leave files behind indefinitely. The interval never
+ * exceeds the TTL, and is `unref`ed so it can never hold the process open. Reaping is
+ * best-effort: a failure is logged and the next pass retries.
+ */
+function startAttachmentReaper(
+  ingress: AttachmentIngress,
+  ttlMs: number,
+  logger: RuntimeLogger,
+): () => void {
+  const intervalMs = Math.min(ttlMs, DEFAULT_ATTACHMENT_REAP_INTERVAL_MS);
+  const timer = setInterval(() => {
+    void ingress.reapExpired(new Date(), ATTACHMENT_REAP_BATCH_LIMIT).catch((error: unknown) => {
+      void Promise.resolve(logger.log({
+        correlationId: 'attachment-reaper',
+        operation: 'ATTACHMENT_INGRESS',
+        result: 'ERROR',
+        errorCode: 'MCP_ATTACHMENT_STAGING_FAILED',
+        errorMessageSafe: error instanceof Error ? error.message.slice(0, 512) : 'The staging reaper failed.',
+        auditEvent: {
+          eventCategory: 'INTERNAL',
+          eventType: 'ATTACHMENT_REAP_FAILED',
+          eventName: 'SFOA Attachment Ingress reaper',
+        },
+      })).catch(() => undefined);
+    });
+  }, intervalMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+const ATTACHMENT_REAP_BATCH_LIMIT = 100;
 
 function createInternalCredentialAuthenticator(
   authMode: 'internal_bearer' | 'disabled',

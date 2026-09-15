@@ -18,6 +18,27 @@
       },
       "mcpWecomClientToken": {
         "description": "SecretInput for the SFOA WeCom channel credential. Prefer a SecretRef."
+      },
+      "attachmentBridgeEnabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Stage the files a WeCom message carried into the SFOA Attachment Ingress and inject their att_… references into the turn. Off by default; the runtime side needs MCP_ATTACHMENT_INGRESS_ENABLED=true as well."
+      },
+      "attachmentIngressPath": {
+        "type": "string",
+        "description": "Ingress path resolved against mcpUrl's origin. Defaults to /attachments."
+      },
+      "attachmentWorkspaceRoot": {
+        "type": "string",
+        "description": "Absolute OpenClaw workspace root a media path may be resolved against. Defaults to /data/openclaw/workspace."
+      },
+      "attachmentMediaRoot": {
+        "type": "string",
+        "description": "Absolute staging root an inbound file must sit below to be forwarded. Defaults to <attachmentWorkspaceRoot>/media/inbound."
+      },
+      "attachmentRefTtlMs": {
+        "type": "number",
+        "description": "How long a staged reference stays available to the model. Defaults to 300000."
       }
     }
   }

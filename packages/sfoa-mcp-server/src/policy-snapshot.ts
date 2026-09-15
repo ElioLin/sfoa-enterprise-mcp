@@ -7,6 +7,7 @@ import {
 } from '@sfoa/control-plane';
 import { parseDmlAllowlistJson, type DmlAllowlistPolicy } from '@sfoa/mcp-provider-sfoa-dml';
 import { createSalesforceIdentityRoute, type SalesforceIdentityRoute } from '@sfoa/identity-runtime';
+import { parseAttachmentPolicyJson, type AttachmentPolicy } from './attachment-policy.js';
 import type { RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { RemoteRuntimeError } from './errors.js';
 
@@ -72,6 +73,19 @@ export function snapshotDmlAllowlist(snapshot: RuntimeDiscoveryPolicySnapshot): 
     ],
   })).filter((entry) => entry.operations.length > 0);
   return parseDmlAllowlistJson(JSON.stringify(entries));
+}
+
+/**
+ * The attachment channel is derived from the same policy rows but stays a separate
+ * policy: an object that only sets `attachmentEnabled` yields no DML entry above and
+ * would otherwise be silently dropped, and an object that only sets `allowCreate`
+ * must not gain file upload as a side effect.
+ */
+export function snapshotAttachmentPolicy(snapshot: RuntimeDiscoveryPolicySnapshot): AttachmentPolicy {
+  const entries = snapshot.dmlPolicies
+    .filter((policy) => policy.attachmentEnabled)
+    .map((policy) => ({ objectApiName: policy.objectApiName }));
+  return parseAttachmentPolicyJson(JSON.stringify(entries));
 }
 
 export function snapshotManagedDmlFieldRules(snapshot: RuntimeDiscoveryPolicySnapshot): readonly RuntimeManagedDmlFieldRule[] {

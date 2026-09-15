@@ -20,6 +20,7 @@ export const AGENT_RECOGNIZED_TOOL_NAMES = [
   'run_diagnostic_tooling_query',
   'get_metadata_component_context',
   'get_record_display_context',
+  'upload_files_to_record',
   ...AGENT_INFRASTRUCTURE_TOOL_NAMES,
 ] as const;
 
@@ -43,6 +44,7 @@ export type AgentCapabilities = Readonly<{
   enabledTools: readonly AgentRecognizedToolName[];
   createAllowedObjects: readonly string[];
   updateAllowedObjects: readonly string[];
+  attachmentEnabledObjects: readonly string[];
   diagnosticReady: boolean;
   dynamicFormEvidence: DynamicFormEvidence;
   managedDmlFields: readonly ManagedDmlFieldCapability[];
@@ -52,6 +54,7 @@ export type AgentCapabilityInput = Readonly<{
   enabledTools?: readonly string[];
   createAllowedObjects?: readonly string[];
   updateAllowedObjects?: readonly string[];
+  attachmentEnabledObjects?: readonly string[];
   diagnosticReady?: boolean;
   dynamicFormEvidence?: DynamicFormEvidence;
   managedDmlFields?: readonly ManagedDmlFieldCapability[];
@@ -65,6 +68,9 @@ export function createAgentCapabilities(input: AgentCapabilityInput = {}): Agent
     input.enabledTools?.includes(name) === true && recognized.has(name));
   const createToolEnabled = enabledTools.includes('create_record') || enabledTools.includes('create_records');
   const updateToolEnabled = enabledTools.includes('update_record') || enabledTools.includes('update_records');
+  // Attachment upload is its own capability: it is neither a CREATE nor an UPDATE
+  // permission, so it never becomes available as a side effect of either one.
+  const attachmentToolEnabled = enabledTools.includes('upload_files_to_record');
   const diagnosticToolsEnabled = enabledTools.includes('run_diagnostic_tooling_query')
     && enabledTools.includes('get_metadata_component_context');
 
@@ -76,6 +82,9 @@ export function createAgentCapabilities(input: AgentCapabilityInput = {}): Agent
       : Object.freeze([]),
     updateAllowedObjects: updateToolEnabled
       ? Object.freeze(normalizeObjectNames(input.updateAllowedObjects))
+      : Object.freeze([]),
+    attachmentEnabledObjects: attachmentToolEnabled
+      ? Object.freeze(normalizeObjectNames(input.attachmentEnabledObjects))
       : Object.freeze([]),
     diagnosticReady: diagnosticToolsEnabled && input.diagnosticReady === true,
     dynamicFormEvidence: input.dynamicFormEvidence ?? 'NOT_AVAILABLE',

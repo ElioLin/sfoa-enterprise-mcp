@@ -9,6 +9,7 @@ export const PLAYBOOK_SECTION_NAMES = [
   'ORG_OBJECT_USAGE',
   'CREATE',
   'UPDATE',
+  'ATTACHMENT',
   'BATCH',
   'COMPOUND',
   'DIAGNOSIS',
@@ -91,6 +92,16 @@ export const PLAYBOOK_DEFINITION: readonly PlaybookSection[] = Object.freeze([
     'After targets, changes, and user intent are clear, use update_record for one target or update_records for multiple intentionally requested same-object targets.',
     'After proven success, return the target display/name field, a trusted record link when available, and only the fields actually changed.',
   ]),
+  section('ATTACHMENT', 'Attach already-received files to one record', [
+    'Use `upload_files_to_record` only when it is enabled and `objectApiName` is in the attachment-enabled object list below. It publishes files the platform already received; it never reads a file out of the conversation.',
+    'Resolve the target before uploading: the record must already exist and must belong to `objectApiName`. Create the record first, and never attach to a record whose CREATE ended OUTCOME_UNKNOWN — the record may not exist, so nothing may be attached to it.',
+    'Use only an `attachmentRef` the SFOA Attachment Ingress returned for the current user in this conversation. Never invent, guess, transform, or reuse another user\'s reference. A rejected reference is reported as an error with a stable code; report it, never retry it with a modified value.',
+    'The Tool accepts exactly `objectApiName`, `recordId` and 1..10 `attachmentRefs`. It never accepts file content, base64, a byte array, a filesystem path, or a URL. Never try to supply file bytes in any form, and never attempt to read a file in order to upload it.',
+    'One call carries exactly one record and 1..N files, and each file settles independently. Report each file\'s own status. A failed attachment does not undo a successful record creation, and a successfully created record stays successful even when its attachment failed.',
+    'Salesforce is the final authority on whether a file is accepted — type, size, and every other rule. On rejection, report the platform\'s own errorCode and message verbatim. Never pre-filter a file by extension, media type, or size yourself, and never claim a file was rejected for a reason Salesforce did not give.',
+    'ContentVersion, ContentDocument and ContentDocumentLink are Salesforce internal technical objects, not business objects. Never pass them to `create_record`, `create_records`, `update_record` or `update_records`, and never claim to have attached a file that way.',
+    'An attachment with OUTCOME_UNKNOWN must not be automatically retried and must not be resent under a new reference. Establish the current state with an independent USER read or with the user first; a partial failure may be retried per failed file once the cause is fixed.',
+  ]),
   section('BATCH', 'Bounded synchronous batch mutation', [
     'Tool selection matrix — choose by request size and by the Tools actually advertised, never by the Tool you assume exists. Both mutation Tools enabled: exactly 1 record prefers `create_record` / `update_record`, and 2..200 independent records of one object prefer `create_records` / `update_records`. Plural Tool disabled: 1 record uses the singular Tool and 2+ records use bounded singular calls. Singular Tool disabled: 1 record uses the plural Tool carrying exactly 1 item, and 2..200 records use it normally. Both disabled: that operation is unavailable. Never call a Tool that the current connection does not advertise as enabled. Batch Tools retain every single-record allowlist, managed-field and request USER rule. Never use DELETE or automatic UPSERT.',
     'A clear request to create, modify, or change all matching records already supplies mutation intent. Do not add confirmation merely because a batch is involved. Ask only for ambiguous targets/Record Types/Lookups, missing required values, incomplete scope, or unclear execution intent.',
@@ -157,8 +168,8 @@ export const PLAYBOOK_DEFINITION: readonly PlaybookSection[] = Object.freeze([
 export const WORKFLOW_SECTION_MAP: Readonly<Record<AgentWorkflow, readonly PlaybookSectionName[]>> = Object.freeze({
   CORE: selection('CORE', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
   READ: selection('CORE', 'READ', 'ORG_OBJECT_USAGE', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
-  CREATE: selection('CORE', 'CREATE', 'BATCH', 'COMPOUND', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
-  UPDATE: selection('CORE', 'UPDATE', 'BATCH', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
+  CREATE: selection('CORE', 'CREATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
+  UPDATE: selection('CORE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
   DIAGNOSIS: selection('CORE', 'DIAGNOSIS', 'READ', 'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES'),
   ALL: PLAYBOOK_SECTION_NAMES,
 });

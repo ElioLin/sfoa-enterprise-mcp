@@ -103,6 +103,16 @@ export type SalesforceApiPurpose =
   | 'SERVER_MANAGED_LOOKUP'
   | 'DML_CREATE'
   | 'DML_UPDATE'
+  /**
+   * Attachment purposes are separate from `DML_CREATE` / `DML_UPDATE` on purpose. A
+   * ContentVersion upload is a REST multipart call that publishes a File — it is not a
+   * record CREATE in the SFoA sense, and reading them as one would let an operator
+   * conclude that a record was created when only a file was. The target validation
+   * call is its own purpose for the same reason: it proves the record exists and
+   * belongs to the named object before anything is uploaded.
+   */
+  | 'ATTACHMENT_TARGET_VALIDATION'
+  | 'ATTACHMENT_UPLOAD'
   | 'DIAGNOSTIC_TOOLING'
   | 'METADATA_RETRIEVE'
   | 'OBJECT_SCHEMA'

@@ -223,7 +223,7 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
     'id', 'tool_name', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
   sfoa_dml_policy: Object.freeze([
-    'id', 'object_api_name', 'allow_create', 'allow_update', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
+    'id', 'object_api_name', 'allow_create', 'allow_update', 'attachment_enabled', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
   sfoa_dml_managed_field_rule: Object.freeze([
     'id', 'dml_policy_id', 'target_field_api_name', 'strategy', 'apply_on_create', 'apply_on_update',
@@ -255,6 +255,10 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
   sfoa_audit_payload_evidence: Object.freeze([
     'id', 'audit_id', 'salesforce_api_call_id', 'audit_event_id', 'payload_type', 'content_type',
     'original_size_bytes', 'stored_size_bytes', 'truncated', 'content_sha256', 'safe_payload', 'created_at',
+  ]),
+  sfoa_attachment_staging: Object.freeze([
+    'id', 'attachment_ref', 'platform_user_id', 'source_channel', 'run_id', 'file_name', 'mime_type',
+    'byte_size', 'content_sha256', 'staged_path', 'state', 'failure_code', 'created_at', 'expires_at', 'consumed_at',
   ]),
 });
 
@@ -299,6 +303,13 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   idx_sfoa_payload_api: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['salesforce_api_call_id', 'audit_id']), unique: false }),
   idx_sfoa_payload_type: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['payload_type', 'created_at']), unique: false }),
   idx_sfoa_payload_audit: Object.freeze({ tableName: 'sfoa_audit_payload_evidence', columns: Object.freeze(['audit_id', 'id']), unique: false }),
+  uq_sfoa_attachment_staging_ref: Object.freeze({ tableName: 'sfoa_attachment_staging', columns: Object.freeze(['attachment_ref']), unique: true }),
+  idx_sfoa_attachment_staging_owner: Object.freeze({
+    tableName: 'sfoa_attachment_staging', columns: Object.freeze(['platform_user_id', 'state', 'id']), unique: false,
+  }),
+  idx_sfoa_attachment_staging_expiry: Object.freeze({
+    tableName: 'sfoa_attachment_staging', columns: Object.freeze(['state', 'expires_at']), unique: false,
+  }),
 });
 
 const P7_04_COLUMNS = new Set([
@@ -402,6 +413,20 @@ async function executeMigrationStatement(database: ControlPlaneDatabaseClient, s
     `.execute(database);
     if (Number(existing.rows[0]?.count ?? 0) > 0) return;
   }
+
+  // ALTER TABLE ... ADD COLUMN is equally non-idempotent: a crash between the DDL and the
+  // ledger write would otherwise make every later run fail on a duplicate column. The
+  // column is the entire effect of such a statement, so its presence is the whole check.
+  const addColumn = /^ALTER\s+TABLE\s+([A-Za-z][A-Za-z0-9_]*)\s+ADD\s+COLUMN\s+([A-Za-z][A-Za-z0-9_]*)/iu.exec(statement);
+  if (addColumn?.[1] && addColumn[2]) {
+    const existing = await sql<{ count: string }>`
+      SELECT COUNT(*) AS count
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ${addColumn[1]} AND COLUMN_NAME = ${addColumn[2]}
+    `.execute(database);
+    if (Number(existing.rows[0]?.count ?? 0) > 0) return;
+  }
+
   await sql.raw(statement).execute(database);
 }
 

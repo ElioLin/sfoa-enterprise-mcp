@@ -74,6 +74,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
       enabledTools: ['get_username', 'run_soql_query', 'get_agent_playbook', 'get_record_links'],
       createAllowedObjects: [],
       updateAllowedObjects: [],
+      attachmentEnabledObjects: [],
       diagnosticReady: false,
       dynamicFormEvidence: 'NOT_AVAILABLE',
       managedDmlFields: [],
@@ -121,7 +122,7 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
 
     const fallback = await client.callTool({ name: 'get_agent_playbook', arguments: { workflow: 'CREATE' } });
     assert.equal(fallback.isError, undefined);
-    assert.equal(asRecord(fallback.structuredContent).playbookVersion, '1.8.0');
+    assert.equal(asRecord(fallback.structuredContent).playbookVersion, AGENT_PLAYBOOK_VERSION);
     assert.equal(asRecord(fallback.structuredContent).workflow, 'CREATE');
     assert.match(String(asRecord(fallback.structuredContent).guidance), /## CREATE —/u);
     assert.match(String(asRecord(fallback.structuredContent).guidance), /MCP_DML_OUTCOME_UNKNOWN/u);
@@ -372,6 +373,7 @@ function dmlPolicy(
     objectApiName,
     allowCreate,
     allowUpdate,
+    attachmentEnabled: false,
     enabled: true,
     remark: null,
     rowVersion: '1',

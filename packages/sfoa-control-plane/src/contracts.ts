@@ -85,11 +85,50 @@ export type DmlPolicyRecord = Readonly<{
   objectApiName: string;
   allowCreate: boolean;
   allowUpdate: boolean;
+  /**
+   * Whether `upload_files_to_record` may attach files to records of this object.
+   *
+   * Independent of `allowCreate` / `allowUpdate` by design: attaching a file to an
+   * existing record is not a CREATE and is not a field UPDATE, and an object may
+   * legitimately permit one without the others. It is never computed from them.
+   */
+  attachmentEnabled: boolean;
   enabled: boolean;
   remark: string | null;
   rowVersion: string;
   createdAt: string;
   updatedAt: string;
+}>;
+
+export const ATTACHMENT_STAGING_STATES = ['STAGED', 'CONSUMED', 'EXPIRED', 'FAILED'] as const;
+export type AttachmentStagingState = (typeof ATTACHMENT_STAGING_STATES)[number];
+
+/**
+ * One inbound file held by the SFOA Attachment Ingress between the channel that
+ * received it and the Salesforce upload that will publish it.
+ *
+ * This row is infrastructure evidence, not a business record: it holds no file
+ * bytes, and `stagedPath` is the controlled location the ingress owns. Whether the
+ * file is *acceptable* to Salesforce is never decided here — Salesforce is the final
+ * acceptance authority, so no extension, MIME or size rule is mirrored into this row.
+ */
+export type AttachmentStagingRecord = Readonly<{
+  id: string;
+  attachmentRef: string;
+  /** The platform user the ref belongs to. A ref is only resolvable by its owner. */
+  platformUserId: string;
+  sourceChannel: string;
+  runId: string | null;
+  fileName: string;
+  mimeType: string | null;
+  byteSize: number;
+  contentSha256: string;
+  stagedPath: string;
+  state: AttachmentStagingState;
+  failureCode: string | null;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
 }>;
 
 export const MANAGED_DML_FIELD_STRATEGIES = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const;

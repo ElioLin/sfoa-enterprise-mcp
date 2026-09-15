@@ -589,9 +589,9 @@ function concurrentModification(): ControlPlaneError {
   );
 }
 
-function assertMeaningfulDml(input: Pick<DmlPolicyCreateInput, 'allowCreate' | 'allowUpdate' | 'enabled'>): void {
-  if (input.enabled && !input.allowCreate && !input.allowUpdate) {
-    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'An enabled DML policy must allow CREATE, UPDATE, or both.');
+function assertMeaningfulDml(input: Pick<DmlPolicyCreateInput, 'allowCreate' | 'allowUpdate' | 'attachmentEnabled' | 'enabled'>): void {
+  if (input.enabled && !input.allowCreate && !input.allowUpdate && !input.attachmentEnabled) {
+    throw new ControlPlaneError('MCP_ADMIN_INPUT_INVALID', 'An enabled DML policy must allow CREATE, UPDATE, attachment upload, or a combination.');
   }
 }
 
@@ -600,6 +600,7 @@ function safeDmlSummary(record: DmlPolicyRecord): unknown {
     objectApiName: record.objectApiName,
     allowCreate: record.allowCreate,
     allowUpdate: record.allowUpdate,
+    attachmentEnabled: record.attachmentEnabled,
     enabled: record.enabled,
     rowVersion: record.rowVersion,
   };

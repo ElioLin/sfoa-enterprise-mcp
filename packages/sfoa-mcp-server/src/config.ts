@@ -41,6 +41,34 @@ export type BuntuIdentityConfig = Readonly<{
   rawTokenAuditEnabled: boolean;
 }>;
 
+export const DEFAULT_ATTACHMENT_PATH = '/attachments';
+export const DEFAULT_ATTACHMENT_TTL_MS = 900_000;
+export const DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 26_214_400;
+export const DEFAULT_ATTACHMENT_MAX_FILES_PER_OWNER = 50;
+/** The reaper never waits longer than this between passes, however long the TTL is. */
+export const DEFAULT_ATTACHMENT_REAP_INTERVAL_MS = 300_000;
+
+/**
+ * SFOA Attachment Ingress configuration.
+ *
+ * These are *infrastructure* bounds — where staged bytes live, how long they live,
+ * how large one staged file may be, how many one requester may hold. None of them is
+ * a file-acceptance policy: the ingress does not decide which files Salesforce will
+ * take, so there is deliberately no extension list, no MIME allowlist and no
+ * Salesforce-size mirror here. Whether a file is acceptable is settled by Salesforce
+ * when the upload is attempted.
+ */
+export type AttachmentRuntimeConfig = Readonly<{
+  enabled: boolean;
+  /** HTTP path of the ingress endpoint. Never the MCP path. */
+  path: string;
+  /** Absolute controlled staging root. Present only when the ingress is enabled. */
+  stagingRoot?: string;
+  ttlMs: number;
+  maxFileBytes: number;
+  maxFilesPerOwner: number;
+}>;
+
 export type RemoteRuntimeConfig = Readonly<{
   identity: IdentityRuntimeConfig;
   controlPlane: ControlPlaneConfig;
@@ -78,6 +106,7 @@ export type RemoteRuntimeConfig = Readonly<{
   useLoopbackHostDefaults: boolean;
   useLoopbackOriginDefaults: boolean;
   buntuIdentity: BuntuIdentityConfig;
+  attachment: AttachmentRuntimeConfig;
 }>;
 
 const headerNameSchema = z
@@ -127,6 +156,17 @@ const rawRemoteConfigSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    MCP_ATTACHMENT_INGRESS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    MCP_ATTACHMENT_PATH: z.string().trim().min(1).max(255).default(DEFAULT_ATTACHMENT_PATH),
+    MCP_ATTACHMENT_STAGING_ROOT: z.string().trim().min(1).max(1024).optional(),
+    MCP_ATTACHMENT_TTL_MS: z.coerce.number().int().min(10_000).max(86_400_000).default(DEFAULT_ATTACHMENT_TTL_MS),
+    MCP_ATTACHMENT_MAX_FILE_BYTES: z.coerce.number().int().min(1024).max(104_857_600)
+      .default(DEFAULT_ATTACHMENT_MAX_FILE_BYTES),
+    MCP_ATTACHMENT_MAX_FILES_PER_OWNER: z.coerce.number().int().min(1).max(1_000)
+      .default(DEFAULT_ATTACHMENT_MAX_FILES_PER_OWNER),
   })
   .strict();
 
@@ -153,6 +193,12 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'MCP_BUNTU_VALIDATE_TOKEN_URL',
   'MCP_BUNTU_VALIDATE_TIMEOUT_MS',
   'MCP_BUNTU_AUDIT_RAW_TOKEN_ENABLED',
+  'MCP_ATTACHMENT_INGRESS_ENABLED',
+  'MCP_ATTACHMENT_PATH',
+  'MCP_ATTACHMENT_STAGING_ROOT',
+  'MCP_ATTACHMENT_TTL_MS',
+  'MCP_ATTACHMENT_MAX_FILE_BYTES',
+  'MCP_ATTACHMENT_MAX_FILES_PER_OWNER',
 ] as const;
 
 export async function loadRemoteRuntimeConfig(
@@ -273,6 +319,7 @@ export async function loadRemoteRuntimeConfig(
     throw configurationError('MCP_ALLOWED_HOSTS must be explicit when MCP_BIND_HOST is not loopback.');
   }
   const allowedOrigins = parseOrigins(parsed.data.MCP_ALLOWED_ORIGINS);
+  const attachment = parseAttachmentRuntimeConfig(parsed.data, mcpPath, parsed.data.MCP_AUTH_MODE);
   const enabledTools = controlPlane.mode === 'mysql'
     ? Object.freeze([])
     : parseToolNames(parsed.data.MCP_ENABLED_TOOLS);
@@ -325,7 +372,60 @@ export async function loadRemoteRuntimeConfig(
     useLoopbackHostDefaults: loopback && allowedHosts.length === 0,
     useLoopbackOriginDefaults: loopback && allowedOrigins.length === 0,
     buntuIdentity,
+    attachment,
   });
+}
+
+type ParsedAttachmentFields = Readonly<{
+  MCP_ATTACHMENT_INGRESS_ENABLED: boolean;
+  MCP_ATTACHMENT_PATH: string;
+  MCP_ATTACHMENT_STAGING_ROOT?: string;
+  MCP_ATTACHMENT_TTL_MS: number;
+  MCP_ATTACHMENT_MAX_FILE_BYTES: number;
+  MCP_ATTACHMENT_MAX_FILES_PER_OWNER: number;
+}>;
+
+/**
+ * Validates the Attachment Ingress configuration.
+ *
+ * Enabling the ingress without a controlled staging root, or without an identity
+ * source, fails fast here rather than at the first inbound file: an ingress that
+ * cannot attribute a staged file to a platform user would mint references no
+ * requester could ever be proven to own.
+ */
+function parseAttachmentRuntimeConfig(
+  fields: ParsedAttachmentFields,
+  mcpPath: string,
+  authMode: RemoteAuthMode,
+): AttachmentRuntimeConfig {
+  const endpointPath = normalizeEndpointPath(fields.MCP_ATTACHMENT_PATH, 'MCP_ATTACHMENT_PATH', DEFAULT_ATTACHMENT_PATH);
+  const shared = {
+    path: endpointPath,
+    ttlMs: fields.MCP_ATTACHMENT_TTL_MS,
+    maxFileBytes: fields.MCP_ATTACHMENT_MAX_FILE_BYTES,
+    maxFilesPerOwner: fields.MCP_ATTACHMENT_MAX_FILES_PER_OWNER,
+  };
+  if (!fields.MCP_ATTACHMENT_INGRESS_ENABLED) return Object.freeze({ enabled: false, ...shared });
+  if (authMode !== 'internal_bearer') {
+    throw configurationError(
+      'MCP_ATTACHMENT_INGRESS_ENABLED=true requires MCP_AUTH_MODE=internal_bearer so every staged file is attributed to an authenticated platform user.',
+    );
+  }
+  if (endpointPath === mcpPath) {
+    throw configurationError('MCP_ATTACHMENT_PATH must differ from MCP_PATH.');
+  }
+  const stagingRoot = fields.MCP_ATTACHMENT_STAGING_ROOT;
+  if (!stagingRoot) {
+    throw configurationError('MCP_ATTACHMENT_STAGING_ROOT is required when MCP_ATTACHMENT_INGRESS_ENABLED=true.');
+  }
+  if (!path.isAbsolute(stagingRoot)) {
+    throw configurationError('MCP_ATTACHMENT_STAGING_ROOT must be an absolute path.');
+  }
+  const normalizedRoot = path.normalize(stagingRoot);
+  if (normalizedRoot === path.parse(normalizedRoot).root || normalizedRoot.split(path.sep).includes('..')) {
+    throw configurationError('MCP_ATTACHMENT_STAGING_ROOT must be a directory below the filesystem root.');
+  }
+  return Object.freeze({ enabled: true, stagingRoot: normalizedRoot, ...shared });
 }
 
 function normalizePublicUrl(value: string): string {
@@ -422,8 +522,12 @@ async function readLocalEnvironment(projectRoot: string): Promise<Record<string,
 }
 
 function normalizeMcpPath(value: string): string {
+  return normalizeEndpointPath(value, 'MCP_PATH', '/mcp');
+}
+
+function normalizeEndpointPath(value: string, environmentName: string, example: string): string {
   if (!/^\/[A-Za-z0-9/_-]*$/u.test(value) || value.includes('//') || value === '/') {
-    throw configurationError('MCP_PATH must be an absolute path such as /mcp without a query or fragment.');
+    throw configurationError(`${environmentName} must be an absolute path such as ${example} without a query or fragment.`);
   }
   return value.endsWith('/') ? value.slice(0, -1) : value;
 }

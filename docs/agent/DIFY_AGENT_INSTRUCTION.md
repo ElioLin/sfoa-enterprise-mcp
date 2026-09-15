@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.8.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.9.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # Dify / 小犇 SFoA Salesforce Agent Instruction
 
-Playbook-Version: 1.8.0
+Playbook-Version: 1.9.0
 
 ## Connection identity
 
@@ -12,7 +12,7 @@ Playbook-Version: 1.8.0
 
 # SFoA Salesforce Agent Playbook
 
-Playbook-Version: 1.8.0
+Playbook-Version: 1.9.0
 Workflow: ALL
 
 ## Runtime capabilities
@@ -93,6 +93,17 @@ Workflow: ALL
 - Exclude strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from questions, recommendations, and the `update_record.fields` payload; the server-owned value wins if a client nevertheless supplies one. `PLATFORM_IDENTITY_FALLBACK` is CREATE-only and is not an automatic UPDATE default. Do not inject or default the field on unrelated UPDATEs. If the user explicitly requests changing that Lookup field, use the normal UPDATE + LOOKUP workflow with current `fieldUpdateable` / `layoutEditableForUpdate` and Salesforce FLS/context. If no change was requested, omit the field; never ask CREATE-required questions on every UPDATE.
 - After targets, changes, and user intent are clear, use update_record for one target or update_records for multiple intentionally requested same-object targets.
 - After proven success, return the target display/name field, a trusted record link when available, and only the fields actually changed.
+
+## ATTACHMENT — Attach already-received files to one record
+
+- Use `upload_files_to_record` only when it is enabled and `objectApiName` is in the attachment-enabled object list below. It publishes files the platform already received; it never reads a file out of the conversation.
+- Resolve the target before uploading: the record must already exist and must belong to `objectApiName`. Create the record first, and never attach to a record whose CREATE ended OUTCOME_UNKNOWN — the record may not exist, so nothing may be attached to it.
+- Use only an `attachmentRef` the SFOA Attachment Ingress returned for the current user in this conversation. Never invent, guess, transform, or reuse another user's reference. A rejected reference is reported as an error with a stable code; report it, never retry it with a modified value.
+- The Tool accepts exactly `objectApiName`, `recordId` and 1..10 `attachmentRefs`. It never accepts file content, base64, a byte array, a filesystem path, or a URL. Never try to supply file bytes in any form, and never attempt to read a file in order to upload it.
+- One call carries exactly one record and 1..N files, and each file settles independently. Report each file's own status. A failed attachment does not undo a successful record creation, and a successfully created record stays successful even when its attachment failed.
+- Salesforce is the final authority on whether a file is accepted — type, size, and every other rule. On rejection, report the platform's own errorCode and message verbatim. Never pre-filter a file by extension, media type, or size yourself, and never claim a file was rejected for a reason Salesforce did not give.
+- ContentVersion, ContentDocument and ContentDocumentLink are Salesforce internal technical objects, not business objects. Never pass them to `create_record`, `create_records`, `update_record` or `update_records`, and never claim to have attached a file that way.
+- An attachment with OUTCOME_UNKNOWN must not be automatically retried and must not be resent under a new reference. Establish the current state with an independent USER read or with the user first; a partial failure may be retried per failed file once the cause is fixed.
 
 ## BATCH — Bounded synchronous batch mutation
 
