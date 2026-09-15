@@ -22,7 +22,8 @@
 | **02B base SHA** | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1`（= 当时 `main` = `origin/main`） |
 | **02B SHA（审查起点）** | `56261634cf6a8019365ff00dad5be7402d8224e2` |
 | **02B Skill 内容 SHA** | `4b3b2ff0d355272d3654264a962ac44bd3fcc3d4`（本轮审查的跨 Skill 事实修正提交；**此提交的 Skill 内容即为门禁验证与部署的字节**） |
-| **02B 分支 tip（文档收口）** | `9f3167f9efe85e3aded8651a5db55ade824cc20e`（相对上一提交仅 `docs/` 与 maintainer reference，业务 Skill 内容不变） |
+| **02B 首个文档收口提交** | `9f3167f9efe85e3aded8651a5db55ade824cc20e`（相对 `4b3b2ff` 仅 `docs/` 与 maintainer reference，业务 Skill 内容不变） |
+| 02B 分支最终 tip | 本报告及其 SHA 修订提交之后的分支尖端；相对 `4b3b2ff` **只含 `docs/sfoa/` 与 maintainer 维护参考**。因此下面所有「逐字节」「门禁」「部署」证据都以 `4b3b2ff` 的业务 Skill 字节为准，且对分支 tip 依然成立 |
 | 02B 是否已入 main | **否**。`git merge-base --is-ancestor 5626163 main` 为假；02B 仍在 feature 分支上 |
 
 Base 判定依据：`345b739` 是 `main` 的祖先（Skill-02A 的 HOTFIX 交付已并入 main），因此 `main` 就是 Skill-02A FINAL 的真实基线；02B 从 `main` 切出，未基于旧的 02a feature 分支。
