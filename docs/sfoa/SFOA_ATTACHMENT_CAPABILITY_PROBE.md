@@ -5,6 +5,11 @@
 **Probe artifact:** `scripts/sfoa-attachment-capability-probe.mjs` (untracked workspace script; not wired into startup, no MCP Tool, no OpenClaw Skill, no Runtime change)
 **Probe artifact sha256:** `6558c99daf88f82088f2da733081f9faf2b2377bf0f0406f123f4c86a862aaac`
 
+> **Update 2026-09-15 — the single blocking unknown is now closed.** The PENDING business-record
+> association (§10) was verified against a real `Account_Visit__c` record. Overall run verdict is
+> **PASS** with all 18 gates passing. See §18. §10 and §17 are retained unedited as the record of
+> what was true when they were written; where they say PENDING, §18 supersedes them.
+
 ---
 
 ## 0. Baseline
@@ -409,3 +414,72 @@ Blocking unknown: `FirstPublishLocationId` against a real business record, and t
 ### `MORE PROBE REQUIRED`
 
 One command closes it: supply `PROBE_TARGET_RECORD_ID` and re-run. Until then this probe does **not** claim `READY FOR ATTACHMENT TOOL DESIGN`, and it does not report a fabricated pass for the business-record association.
+
+---
+
+## 18. Gate closure run — the business-record association (2026-09-15)
+
+The run that closes §10. Same probe artifact, **same sha256** (`6558c99d…62aaac`) — the script was not modified between runs, so the closure is attributable to the target record being supplied, not to a changed instrument.
+
+```bash
+cd /data/sfoa-enterprise-mcp/app
+PROBE_TARGET_RECORD_ID=a0fC5000000n9RxIAI node scripts/sfoa-attachment-capability-probe.mjs
+```
+
+| Item | Value |
+| --- | --- |
+| Target record | `a0fC5000000n9RxIAI` — `Account_Visit__c`, `Name` = `Visit-004209` |
+| Target chosen by | the operator, naming a record they own; the probe never improvises a target |
+| Identity route | `08548` (unchanged from §2) → `005C8000003yL1eIAE` |
+| Run verdict | **`PASS`** — 18 gates, 0 FAIL, 0 BLOCKED |
+| Raw evidence | `evidence/sfoa-attachment-probe-target-2026-09-15.json` |
+| Pre/post state | `evidence/sfoa-attachment-probe-target-state-2026-09-15.json` |
+
+### 18.1 The three PENDING questions, answered
+
+| §10 open question | Answer | Evidence |
+| --- | --- | --- |
+| Does `FirstPublishLocationId=<businessRecordId>` create the link automatically? | **YES** | gate PASS, `links=2`; the manual-`ContentDocumentLink` fallback was never reached |
+| What `ShareType` / `Visibility` result from publishing to a business record? | **`ShareType=V`, `Visibility=AllUsers`** | link `06AC50000019k7uMAA` → `LinkedEntityId=a0fC5000000n9RxIAI` |
+| Does the target record expose the file through its own Files relationship? | **YES** | query `ContentDocumentLink WHERE LinkedEntityId='a0fC5000000n9RxIAI'` returns that row |
+
+The created artifacts:
+
+| Object | Id |
+| --- | --- |
+| `ContentVersion` | `068C5000000yCkfIAE` |
+| `ContentDocument` | `069C5000000wTw5IAE` |
+| `ContentDocumentLink` → business record | `06AC50000019k7uMAA` — `V` / `AllUsers` |
+| `ContentDocumentLink` → creating user | `06AC50000019k7tMAA` — `I` / `AllUsers` |
+
+Two links are created, not one. The self-link to the creating user (`ShareType=I`) is the §8 default and is **not** suppressed by supplying `FirstPublishLocationId`; the business-record link is added alongside it. `ContentSize` came back `123` and `FileType`/`FileExtension` `TEXT`/`txt`, both derived, matching §7.
+
+### 18.2 The design consequence
+
+**The Agent never needs to operate `ContentDocumentLink`.** The fallback path exists in the script and was not taken: `FirstPublishLocationId` alone produced the correct `ShareType=V` link on the business record. This independently confirms §14's `NO` for exposing `ContentDocumentLink` through Generic DML — not merely as a risk judgement, but because the capability the link would provide is already delivered by the upload call itself.
+
+### 18.3 The record was left as found
+
+Verified by an independent read-only pre/post check through the same scoped connection, **not** by the probe's own self-report:
+
+| Check | Pre | Post |
+| --- | --- | --- |
+| Target record fields (`Id`, `Name`, `LastModifiedDate`, `LastModifiedById`) | baseline | **byte-identical** — `LastModifiedDate` still `2026-09-14T09:35:01.000+0000` |
+| `ContentDocumentLink` rows on the target | 0 | **0** |
+| `ContentVersion` residue (`Title LIKE 'SFOA%Probe%'`) | 0 | **0** |
+
+The pre-state had zero links, so the link observed mid-run can only be this run's. Cleanup deleted two `ContentDocument` roots (HTTP 204 each), cascading `contentVersionRemaining` / `contentDocumentLinkRemaining` / `contentDocumentRemaining` to `0`/`0`/`0`. The business record itself was never modified and never deleted.
+
+### 18.4 Re-confirmed, not newly claimed
+
+The two error probes ran again and reproduced §9 exactly: malformed `FirstPublishLocationId` → HTTP 400 `MALFORMED_ID` with the same Chinese-localized message and **0 side effects**; well-formed but non-existent → **HTTP 201 with an unlinked file created anyway**, tracked and removed by the same run. Difference #2 in §11 therefore still stands, and §18.1 does not soften it — a valid target now works, but a 201 still does not by itself prove *which* record received the file. The §9 reconciliation path remains mandatory for UNKNOWN handling.
+
+### 18.5 Superseded verdict
+
+§17's `PARTIALLY VERIFIED` / `MORE PROBE REQUIRED` is closed. The limitation that produced it no longer exists.
+
+```text
+FEASIBILITY: FEASIBLE   (was FEASIBLE WITH LIMITATIONS)
+```
+
+`READY FOR ATTACHMENT TOOL DESIGN` — the remaining work is implementation, not further probing.

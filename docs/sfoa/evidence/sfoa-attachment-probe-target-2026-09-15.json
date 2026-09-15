@@ -1,0 +1,675 @@
+{
+  "probe": "SFOA_ATTACHMENT_CAPABILITY_PROBE",
+  "mode": "upload",
+  "startedAt": "2026-09-15T06:03:25.806Z",
+  "controlPlaneMode": "mysql",
+  "instanceHost": "runnergroup--uat.sandbox.my.sfcrmproducts.cn",
+  "instanceOrigin": "https://runnergroup--uat.sandbox.my.sfcrmproducts.cn",
+  "dmlAllowlist": [
+    {
+      "objectApiName": "Account_Visit__c",
+      "allowCreate": true,
+      "allowUpdate": true
+    },
+    {
+      "objectApiName": "Contact",
+      "allowCreate": true,
+      "allowUpdate": true
+    },
+    {
+      "objectApiName": "Lead",
+      "allowCreate": true,
+      "allowUpdate": true
+    },
+    {
+      "objectApiName": "Visit_Participants__c",
+      "allowCreate": true,
+      "allowUpdate": true
+    },
+    {
+      "objectApiName": "Visitors_Account__c",
+      "allowCreate": true,
+      "allowUpdate": true
+    }
+  ],
+  "requesterScopedIdentity": {
+    "usedRequesterScopedIdentity": true,
+    "identitySource": "MYSQL_IDENTITY_ROUTE",
+    "platformUserId": "08548",
+    "mappedSalesforceUsername": "candy.zheng@runner-corp.com.cn.uat",
+    "salesforceUserId": "005C8000003yL1eIAE",
+    "organizationId": "00DC5000000lGFpMAM",
+    "connectionRole": "USER",
+    "credentialProfile": "sfoa-shared-jwt",
+    "apiVersion": "67.0",
+    "instanceHost": "runnergroup--uat.sandbox.my.sfcrmproducts.cn"
+  },
+  "describe": {
+    "ContentVersion": {
+      "name": "ContentVersion",
+      "label": "内容版本",
+      "keyPrefix": "068",
+      "queryable": true,
+      "createable": true,
+      "updateable": true,
+      "deletable": false,
+      "custom": false,
+      "fieldCount": 48,
+      "fields": {
+        "Id": {
+          "present": true,
+          "type": "id",
+          "length": 18,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "ContentDocumentId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": true,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "Title": {
+          "present": true,
+          "type": "string",
+          "length": 255,
+          "createable": true,
+          "updateable": true,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "PathOnClient": {
+          "present": true,
+          "type": "string",
+          "length": 500,
+          "createable": true,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "VersionData": {
+          "present": true,
+          "type": "base64",
+          "length": 0,
+          "createable": true,
+          "updateable": true,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "FirstPublishLocationId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": true,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "ContentSize": {
+          "present": true,
+          "type": "int",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "FileExtension": {
+          "present": true,
+          "type": "string",
+          "length": 40,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "FileType": {
+          "present": true,
+          "type": "string",
+          "length": 20,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "IsLatest": {
+          "present": true,
+          "type": "boolean",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "VersionNumber": {
+          "present": true,
+          "type": "string",
+          "length": 20,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "OwnerId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": true,
+          "updateable": true,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "CreatedById": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "CreatedDate": {
+          "present": true,
+          "type": "datetime",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        }
+      }
+    },
+    "ContentDocument": {
+      "name": "ContentDocument",
+      "label": "内容文档",
+      "keyPrefix": "069",
+      "queryable": true,
+      "createable": false,
+      "updateable": true,
+      "deletable": true,
+      "custom": false,
+      "fieldCount": 29,
+      "fields": {
+        "Id": {
+          "present": true,
+          "type": "id",
+          "length": 18,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "Title": {
+          "present": true,
+          "type": "string",
+          "length": 255,
+          "createable": false,
+          "updateable": true,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "LatestPublishedVersionId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "FileType": {
+          "present": true,
+          "type": "string",
+          "length": 20,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "FileExtension": {
+          "present": true,
+          "type": "string",
+          "length": 40,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "ContentSize": {
+          "present": true,
+          "type": "int",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": true,
+          "defaultedOnCreate": false
+        },
+        "OwnerId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": false,
+          "updateable": true,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "CreatedById": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "CreatedDate": {
+          "present": true,
+          "type": "datetime",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "LastModifiedDate": {
+          "present": true,
+          "type": "datetime",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        }
+      }
+    },
+    "ContentDocumentLink": {
+      "name": "ContentDocumentLink",
+      "label": "内容文档连接",
+      "keyPrefix": "06A",
+      "queryable": true,
+      "createable": true,
+      "updateable": true,
+      "deletable": true,
+      "custom": false,
+      "fieldCount": 7,
+      "fields": {
+        "Id": {
+          "present": true,
+          "type": "id",
+          "length": 18,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        },
+        "ContentDocumentId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": true,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "LinkedEntityId": {
+          "present": true,
+          "type": "reference",
+          "length": 18,
+          "createable": true,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": false
+        },
+        "ShareType": {
+          "present": true,
+          "type": "picklist",
+          "length": 40,
+          "createable": true,
+          "updateable": true,
+          "nillable": true,
+          "defaultedOnCreate": false,
+          "picklistValues": [
+            {
+              "value": "V",
+              "active": true,
+              "defaultValue": false
+            },
+            {
+              "value": "C",
+              "active": true,
+              "defaultValue": false
+            },
+            {
+              "value": "I",
+              "active": true,
+              "defaultValue": false
+            }
+          ]
+        },
+        "Visibility": {
+          "present": true,
+          "type": "picklist",
+          "length": 40,
+          "createable": true,
+          "updateable": true,
+          "nillable": true,
+          "defaultedOnCreate": false,
+          "picklistValues": [
+            {
+              "value": "AllUsers",
+              "active": true,
+              "defaultValue": false
+            },
+            {
+              "value": "InternalUsers",
+              "active": true,
+              "defaultValue": false
+            },
+            {
+              "value": "SharedUsers",
+              "active": true,
+              "defaultValue": false
+            }
+          ]
+        },
+        "SystemModstamp": {
+          "present": true,
+          "type": "datetime",
+          "length": 0,
+          "createable": false,
+          "updateable": false,
+          "nillable": false,
+          "defaultedOnCreate": true
+        }
+      }
+    }
+  },
+  "versionDataDescribeFacts": {
+    "createable": true,
+    "updateable": true,
+    "nillable": true,
+    "type": "base64"
+  },
+  "mappedSalesforceUser": {
+    "Id": "005C8000003yL1eIAE",
+    "Username": "candy.zheng@runner-corp.com.cn.uat",
+    "Name": "郑秋婷",
+    "UserType": "Standard",
+    "IsActive": true,
+    "ProfileName": "NOT READABLE (INVALID_FIELD)"
+  },
+  "probeFile": {
+    "filename": "sfoa-attachment-probe.txt",
+    "byteSize": 123,
+    "sha256": "252e4fa10d8e86f6ac1c58c46299051f3a9c0b879583373bb00428ca5067e6d5",
+    "probeId": "9383bbdf-d4de-4c7b-82b8-5e329b255a5c",
+    "contentType": "text/plain"
+  },
+  "businessRecordTarget": {
+    "targetRecordId": "a0fC5000000n9RxIAI",
+    "source": "PROBE_TARGET_RECORD_ID"
+  },
+  "multipartUpload": {
+    "endpoint": "/services/data/v67.0/sobjects/ContentVersion",
+    "requestHost": "runnergroup--uat.sandbox.my.sfcrmproducts.cn",
+    "httpStatus": 201,
+    "redirected": false,
+    "locationHeader": "/services/data/v67.0/sobjects/ContentVersion/068C5000000yCkfIAE",
+    "contentDispositionPart": "entity_content (application/json)",
+    "binaryPart": "VersionData (text/plain, 123 bytes)",
+    "response": {
+      "id": "068C5000000yCkfIAE",
+      "success": true,
+      "errors": []
+    },
+    "createdContentVersionId": "068C5000000yCkfIAE"
+  },
+  "errorProbe": {
+    "malformedTarget": {
+      "scenario": "ContentVersion multipart with a malformed (non-id) FirstPublishLocationId",
+      "firstPublishLocationId": "SFOA-PROBE-NOT-AN-ID",
+      "httpStatus": 400,
+      "salesforceErrorCode": "MALFORMED_ID",
+      "salesforceMessage": "首次发布位置 ID: ID 值类型错误: SFOA-PROBE-NOT-AN-ID",
+      "createdId": null,
+      "sideEffects": 0,
+      "preservesSalesforceFirstCause": true
+    },
+    "nonExistentTarget": {
+      "scenario": "ContentVersion multipart with a well-formed but non-existent FirstPublishLocationId",
+      "firstPublishLocationId": "000000000000000AAA",
+      "httpStatus": 201,
+      "salesforceMessage": "",
+      "createdId": "068C5000000yCmHIAU",
+      "preservesSalesforceFirstCause": false,
+      "note": "This Org created the file even though the target record does not exist; the created id is tracked and removed with the probe data."
+    }
+  },
+  "createdContentVersion": {
+    "Id": "068C5000000yCkfIAE",
+    "ContentDocumentId": "069C5000000wTw5IAE",
+    "Title": "SFOA Attachment Probe 9383bbdf",
+    "PathOnClient": "sfoa-attachment-probe.txt",
+    "FileExtension": "txt",
+    "FileType": "TEXT",
+    "ContentSize": 123,
+    "IsLatest": true,
+    "VersionNumber": "1",
+    "OwnerId": "005C8000003yL1eIAE",
+    "CreatedById": "005C8000003yL1eIAE",
+    "CreatedDate": "2026-09-15T06:03:18.000+0000"
+  },
+  "createdContentDocument": {
+    "Id": "069C5000000wTw5IAE",
+    "Title": "SFOA Attachment Probe 9383bbdf",
+    "LatestPublishedVersionId": "068C5000000yCkfIAE",
+    "FileType": "TEXT",
+    "ContentSize": 123,
+    "OwnerId": "005C8000003yL1eIAE",
+    "CreatedById": "005C8000003yL1eIAE"
+  },
+  "contentDocumentLinks": [
+    {
+      "Id": "06AC50000019k7tMAA",
+      "ContentDocumentId": "069C5000000wTw5IAE",
+      "LinkedEntityId": "005C8000003yL1eIAE",
+      "ShareType": "I",
+      "Visibility": "AllUsers"
+    },
+    {
+      "Id": "06AC50000019k7uMAA",
+      "ContentDocumentId": "069C5000000wTw5IAE",
+      "LinkedEntityId": "a0fC5000000n9RxIAI",
+      "ShareType": "V",
+      "Visibility": "AllUsers"
+    }
+  ],
+  "targetRecordFiles": [
+    {
+      "Id": "06AC50000019k7uMAA",
+      "ContentDocumentId": "069C5000000wTw5IAE",
+      "LinkedEntityId": "a0fC5000000n9RxIAI",
+      "ShareType": "V",
+      "Visibility": "AllUsers"
+    }
+  ],
+  "contentVersionUpdateProbe": {
+    "metadataPatch": {
+      "operation": "PATCH ContentVersion.Title",
+      "httpStatus": 204,
+      "titleAfterPatch": "SFOA Attachment Probe 9383bbdf (metadata patched)",
+      "versionNumberAfterPatch": "1"
+    },
+    "describeObjectUpdateable": true,
+    "describeVersionDataUpdateable": true,
+    "versionDataPatch": {
+      "operation": "PATCH ContentVersion.VersionData (base64)",
+      "httpStatus": 400,
+      "response": [
+        {
+          "message": "IsMajorVersion 为真时，您无法设置 VersionData。",
+          "errorCode": "INVALID_STATUS",
+          "fields": []
+        }
+      ]
+    },
+    "bytesRequireNewVersion": true,
+    "newVersionInsert": {
+      "operation": "POST ContentVersion multipart with ContentDocumentId",
+      "httpStatus": 201,
+      "response": {
+        "id": "068C5000000yCmIIAU",
+        "success": true,
+        "errors": []
+      },
+      "versionsOfDocument": [
+        {
+          "Id": "068C5000000yCkfIAE",
+          "VersionNumber": "1",
+          "IsLatest": false
+        },
+        {
+          "Id": "068C5000000yCmIIAU",
+          "VersionNumber": "2",
+          "IsLatest": true
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "attempted": true,
+    "strategy": "DELETE each probe ContentDocument, then verify version/link cascade",
+    "orphanReconciliation": [
+      {
+        "contentVersionId": "068C5000000yCmHIAU",
+        "exists": true,
+        "contentDocumentId": "069C5000000wTxhIAE",
+        "existsAfterCleanup": false
+      }
+    ],
+    "deleteContentDocument": [
+      {
+        "contentDocumentId": "069C5000000wTw5IAE",
+        "endpoint": "/services/data/v67.0/sobjects/ContentDocument/069C5000000wTw5IAE",
+        "httpStatus": 204
+      },
+      {
+        "contentDocumentId": "069C5000000wTxhIAE",
+        "endpoint": "/services/data/v67.0/sobjects/ContentDocument/069C5000000wTxhIAE",
+        "httpStatus": 204
+      }
+    ],
+    "cascade": {
+      "contentVersionRemaining": 0,
+      "contentDocumentLinkRemaining": 0,
+      "contentDocumentRemaining": 0
+    }
+  },
+  "residueSweep": {
+    "query": "ContentVersion WHERE Title LIKE 'SFOA%Probe%'",
+    "remaining": []
+  },
+  "gates": [
+    {
+      "gate": "requester-scoped identity resolved to one Salesforce user",
+      "status": "PASS"
+    },
+    {
+      "gate": "ContentVersion is queryable and createable",
+      "status": "PASS"
+    },
+    {
+      "gate": "ContentDocument is queryable (client must not INSERT it)",
+      "status": "PASS"
+    },
+    {
+      "gate": "ContentDocumentLink is queryable",
+      "status": "PASS"
+    },
+    {
+      "gate": "FirstPublishLocationId is createable on ContentVersion",
+      "status": "PASS"
+    },
+    {
+      "gate": "VersionData is createable on ContentVersion",
+      "status": "PASS"
+    },
+    {
+      "gate": "ContentDocument is not createable by the client (Salesforce must create it)",
+      "status": "PASS",
+      "detail": "createable=false"
+    },
+    {
+      "gate": "mapped Salesforce user is an active standard user (not a fixed integration identity)",
+      "status": "PASS",
+      "detail": "profile=NOT READABLE (INVALID_FIELD)"
+    },
+    {
+      "gate": "REST multipart binary upload of ContentVersion",
+      "status": "PASS",
+      "detail": "HTTP 201"
+    },
+    {
+      "gate": "ContentDocumentId is auto-populated on the created ContentVersion",
+      "status": "PASS"
+    },
+    {
+      "gate": "Salesforce created the ContentDocument automatically",
+      "status": "PASS"
+    },
+    {
+      "gate": "FirstPublishLocationId created the ContentDocumentLink to the target record",
+      "status": "PASS",
+      "detail": "links=2"
+    },
+    {
+      "gate": "The target business record exposes the probe file through its Files relationship",
+      "status": "PASS"
+    },
+    {
+      "gate": "ContentVersion metadata is updateable in place (Title)",
+      "status": "PASS",
+      "detail": "HTTP 204"
+    },
+    {
+      "gate": "a new version is created by INSERT with ContentDocumentId rather than replacing bytes",
+      "status": "PASS",
+      "detail": "HTTP 201 versions=2"
+    },
+    {
+      "gate": "test-owned cleanup removed every probe ContentDocument, version and link",
+      "status": "PASS"
+    },
+    {
+      "gate": "error probes left no ContentVersion behind",
+      "status": "PASS"
+    },
+    {
+      "gate": "no probe ContentVersion residue remains in the Org",
+      "status": "PASS"
+    }
+  ],
+  "overall": "PASS",
+  "finishedAt": "2026-09-15T06:03:34.631Z",
+  "identityRoutesRedacted": {
+    "totalActiveRoutesAtProbeTime": 8,
+    "note": "Route usernames are redacted to the single probed route; the other routes identify real employees and are not needed as evidence.",
+    "probedRoute": {
+      "platformUserId": "08548",
+      "userName": "黄玉卿",
+      "salesforceUsername": "candy.zheng@runner-corp.com.cn.uat",
+      "enabled": true
+    }
+  },
+  "evidenceNote": {
+    "rawArtifactSha256": "327c2164da822e78b95e56225f81a1889e1c86edad2780f4b5877431d23b477a",
+    "rawArtifactLocation": "crm-ex-test02:/tmp/probe-target-run.json",
+    "transformation": "identityRoutes[] reduced to the probed route only (identityRoutesRedacted); all other keys byte-identical to the raw run output.",
+    "everythingElseVerbatim": true
+  }
+}
