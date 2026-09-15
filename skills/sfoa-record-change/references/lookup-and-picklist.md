@@ -59,6 +59,22 @@ Controller 值本身还没确定时，先确定 Controller —— 这和 Dynamic
 
 面向用户的回答使用 Label；SOQL 过滤、DML payload、Tool evidence 与 Audit 使用原始 API Value。只有用户明确要求 API Value 或技术诊断时才展示 raw value。
 
+## UPDATE 场景的补充
+
+UPDATE 不需要选择 Record Type，但 Picklist 候选仍然**依赖记录当前生效的 Record Type**：
+
+```text
+get_record_action_context(action=UPDATE, recordId=...)
+→ 返回 recordType（当前生效的那一个，不是候选列表）
+→ picklist.values[] 按该 Record Type 返回
+```
+
+**MUST NOT** 拿另一个 Record Type 的候选集来判断本次更新是否合法。
+
+Dependent Picklist 在 UPDATE 中确认 controller 的方式是：记录当前的 controller 字段值，或用户本次同时正在修改的新 controller 值。**MUST NOT** 从全局 Picklist 候选里猜一个 API Value。
+
+清空类意图要按 §Omitted / null 的规则处理：用户明确表达清空 / 取消选择时才发送清空语义；**MUST NOT** 把「没提这个 Picklist」实现成「把它清空」。
+
 ## 与 Change Readiness 的关系
 
 以下任一情况都使 `CHANGE_READY=false`：
@@ -68,3 +84,5 @@ Controller 值本身还没确定时，先确定 Controller —— 这和 Dynamic
 - Picklist 还没有解析成当前 Record Type 的真实 API Value
 - Dependent Picklist 的 controller 尚未确定
 - 提交字段的 `referenceTo` 与用户指定的对象不一致
+- UPDATE 中提交了当前证据证明不可更新的字段（`fieldUpdateable=false` 或 `layoutEditableForUpdate=false`）
+- UPDATE 中提交了用户并未要求修改的 Lookup / Picklist 字段

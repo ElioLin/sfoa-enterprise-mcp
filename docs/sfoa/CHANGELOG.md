@@ -2,6 +2,72 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-15 — Skill-02B: UPDATE readiness + Batch mutation + Outcome reconciliation
+
+Extends `sfoa-record-change` from CREATE-only to full record-mutation doctrine
+(CREATE + UPDATE, single + batch, result reconciliation). No Runtime, MCP Tool,
+Identity Route, WeCom chain, governance, Provider, migration or Salesforce data
+change; `git diff main --stat -- packages yarn.lock packages/sfoa-control-plane/migrations
+.env.example config integrations` is empty, so no rebuild and no service restart.
+
+- **Audited the live contract before writing any doctrine.** Confirmed from source
+  that `get_record_action_context` accepts `action=UPDATE` but rejects
+  `draftFields`/`refinement` (`'draftFields and refinement are CREATE-only'`),
+  requires `recordId`, refuses a `recordTypeId` that differs from the record's own
+  type, returns `defaults: {}`, omits `availableRecordTypes`, and never runs the
+  Dynamic Forms resolver (`coverage.dynamicFormsEvaluated` is `false`). Confirmed
+  `update_record` is `.strict()` with no `recordTypeId`/`uiContextResolutionId`, and
+  that `update_records` is `1..200` same-object with `allOrNone` defaulting to
+  `false` and duplicate-target rejection at `MCP_DML_BATCH_DUPLICATE_RECORD_ID`
+  (15-char identity, two-layer guard). The Skill respects this contract instead of
+  inventing a CREATE-shaped UPDATE.
+- **Added `update-readiness.md`** — `TARGET_RESOLVED` as the first gate, 0/1/multiple
+  match handling, Target Population completeness (inheriting Core's
+  `Claim Scope <= Evidence Scope`), Minimal Patch, `Read Facts != Mutation Intent`,
+  the five-way `omitted / null / false / 0 / ""` distinction,
+  `CREATE Required != UPDATE Missing Required`, no CREATE-default reapplication, no
+  Owner fallback injection, Record Type scope, and the honest statement that
+  Dynamic Forms UPDATE cannot be pre-computed.
+- **Added `batch-mutations.md`** — per-record readiness with universal
+  quantification, clarification before side effects, same-object grouping,
+  per-record patches, the 1..200 bound, bounded sequential `>200` planning
+  (500 → 200+200+100), no parallel dispatch, `allOrNone` policy, and
+  `clientReferenceId` as correlation only — never an idempotency key.
+- **Added `outcome-reconciliation.md`** — replaces `outcomes.md`; adds
+  `FAILED != UNKNOWN`, read-back limits (`Current State Evidence != Transaction
+  Outcome Evidence`), the independent-evidence reconciliation ladder, and the
+  stop-later-batches rule.
+- **Rewrote `SKILL.md`** — description now routes CREATE *and* UPDATE; hard rules
+  23 → 37 with 14 new UPDATE/batch/outcome rules; a CREATE-vs-UPDATE difference
+  table; per-operation `CHANGE_READY` summary; explicit out-of-scope list
+  (Delete / Upsert / Merge / Metadata 管理 / 业务分析). `readiness-gate.md` now
+  carries separate CREATE and UPDATE blocking tables, and `dynamic-forms.md`,
+  `managed-lookups.md`, `lookup-and-picklist.md` and `create-readiness.md` gained
+  their UPDATE boundaries.
+- **Added `scripts/record-change-gates.mjs`** — an executable decision model so the
+  gate asserts behaviour, not just doctrine text. It carries no Salesforce truth
+  (no object names, Record Type IDs, Picklist values or field API names) and is a
+  test oracle, never a Runtime component.
+- **Machine gate 32 → 63 tests.** 14 UPDATE, 7 batch, 4 outcome and 4 CREATE
+  regression tests added, including one that reads the shipped context and DML
+  schemas to prove the CREATE-only inputs stay rejected on UPDATE. `yarn skill:test`
+  63/63 pass; `skill:validate`/`skill:check`/`skill:delivery` all `ok:true` with
+  `drift: []`, `untracked: []` and package completeness verified. CREATE regression
+  PASS.
+- **Runtime copy re-verified, not just re-generated.** Rehearsed the repo's own
+  mechanism: `runtime-sync` publishes exactly `sfoa-crm-core` (9) +
+  `sfoa-record-change` (9) = 18 files, `runtime-check` reports `drift: []` for both,
+  and `runtime-sync --canonical skills/sfoa-mcp-maintainer` is refused with
+  `No canonical Skill matches the business runtime allowlist`. No second sync
+  system was introduced.
+- **Not done:** no real WeCom UAT and no Salesforce record was written. The server
+  publish to `/data/openclaw/workspace/skills/sfoa-record-change/` could not be
+  performed from this workstation (no key-based SSH to `192.168.156.203`); the
+  documented steps are in the implementation report §11. Status is
+  `SKILL-02 IMPLEMENTATION COMPLETE — READY FOR INTEGRATED HUMAN UAT`, not
+  `Skill-02 COMPLETE`. See `SKILL_02B_IMPLEMENTATION_REPORT.md` and
+  `SKILL_02_INTEGRATED_HUMAN_UAT.md`.
+
 ## 2026-09-14 — Test server deployed at the Skill-02A tip; `main` fast-forwarded; LF archiving defect fixed
 
 Deployed `hotfix/openclaw-sfoa-record-change-02a-delivery` @ `345b739` to the test

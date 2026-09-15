@@ -122,4 +122,25 @@ truncated / omitted / response incomplete / required evidence unavailable
 
 ## 询问节奏
 
-当**当前 dependency layer 已经稳定**时，一次性合并询问这一层真正缺失的字段。不要在同一层里把可以一起问的字段拆成多轮，也不要为了「只问一次」提前猜测后续字段。Optional 字段不要无意义追问。
+当**当前 dependency layer 已经稳定**时，一次性合并询问这一层真正缺失的字段。不要在同一层里把同一层可以一起问的字段拆成多轮，也不要为了「只问一次」提前猜测后续字段。Optional 字段不要无意义追问。
+
+## UPDATE 中的边界
+
+本文件的四态语义、PENDING 解析与 refinement 循环是 **CREATE 专用**机制。当前 Runtime 事实：
+
+```text
+get_record_action_context(action=UPDATE)
+→ coverage.dynamicFormsEvaluated == false（恒定）
+→ 不返回 visibilityState / effectiveRequired / effectiveEditable / requiredSource / dependsOn
+→ 不返回 defaults
+→ 不接受 draftFields / refinement
+```
+
+因此 UPDATE 中：
+
+- **MUST NOT** 建立一个假的 CREATE form completeness，也 **MUST NOT** 要求用户重新填写整张 CREATE 表单。
+- **MUST** 只关注本次要修改的字段是否「当前有效、当前可更新、当前依赖关系可解析」，判据是 `fieldUpdateable` / `layoutEditableForUpdate` 与字段自身类型。
+- 用户修改 controller 类字段可能导致其他 UI 字段显隐变化。当前 Runtime **无法预计算**这种 hypothetical UPDATE context；该能力边界**MUST** 如实承认。
+- 变更后真正生效的必填 / 校验 / 依赖结果由 Salesforce Validation、Flow、Trigger、Lookup Filter 与 DML Runtime 裁决。**MUST NOT** 用模型猜测补齐这个缺口，**MUST NOT** 为此新增一个 Form Engine。
+
+UPDATE 的完整 doctrine 见 [update-readiness.md](update-readiness.md)。

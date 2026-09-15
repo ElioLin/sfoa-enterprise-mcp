@@ -25,15 +25,27 @@ Development-client copies are not the business runtime allowlist: ordinary main
 must not expose `sfoa-mcp-maintainer`. Suite policy and runtime evidence live in
 `docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md` and `SFOA_CRM_CORE_SKILL.md` in the repo.
 
-`skills/sfoa-record-change` is the second business Skill (Skill-02A: readiness
-kernel + CREATE). Its runtime destination is
-`/data/openclaw/workspace/skills/sfoa-record-change`, and the ordinary main
-allowlist carries it alongside `sfoa-crm-core` only. Business Skills are guidance
-only: they carry no `scripts/` and no `agents/openai.yaml`, and they must never name
-`sfoa-mcp-maintainer`. `toolkit.test.mjs` enforces both, plus a label/content marker
-contract per readiness rule and a no-hardcoding guard, so a business Skill cannot
-silently inherit the maintainer toolkit or freeze Salesforce truth. Delivery report:
-`docs/sfoa/SFOA_RECORD_CHANGE_SKILL.md`.
+`skills/sfoa-record-change` is the second business Skill (Skill-02: readiness
+kernel + CREATE + UPDATE + batch mutation + outcome reconciliation). Its runtime
+destination is `/data/openclaw/workspace/skills/sfoa-record-change`, and the
+ordinary main allowlist carries it alongside `sfoa-crm-core` only. Business Skills
+are guidance only: they carry no `scripts/` and no `agents/openai.yaml`, and they
+must never name `sfoa-mcp-maintainer`. `toolkit.test.mjs` enforces both, plus a
+label/content marker contract per readiness rule and a no-hardcoding guard, so a
+business Skill cannot silently inherit the maintainer toolkit or freeze Salesforce
+truth. Delivery report: `docs/sfoa/SKILL_02B_IMPLEMENTATION_REPORT.md`; the earlier
+phase record is `docs/sfoa/SFOA_RECORD_CHANGE_SKILL.md`.
+
+`scripts/record-change-gates.mjs` is the executable decision model behind the
+Skill-02 machine gates. It exists so the gate asserts *behaviour* (target
+resolution, minimal patch, per-record readiness, bounded sequential batches,
+unknown-outcome reconciliation, CREATE regression) instead of only checking that
+doctrine text is present. Two rules keep it honest: it must contain no Salesforce
+truth (no object names, Record Type IDs, Picklist values or field API names — every
+such fact is an input), and it is a test oracle only, never a Runtime component. If
+the live runtime contract and the model disagree, the runtime wins and the model is
+what gets fixed. Adding a business-Skill behaviour rule without a gate case here
+leaves it unenforced.
 
 ## Update when durable facts change
 

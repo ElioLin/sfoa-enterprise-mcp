@@ -1,8 +1,8 @@
 # SFOA OpenClaw Skill Suite 长期基线
 
-Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-14
+Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-14 · Skill-02B 修订 2026-09-15
 
-本基线定义业务 Agent 的 Skill 职责与扩展顺序。Skill 是行为指导，不是 MCP Tool、权限系统、OpenClaw Core 补丁或固定 Workflow Engine。当前实现为 `sfoa-crm-core` 与 `sfoa-record-change`（Skill-02A：Readiness Kernel + CREATE）；`sfoa-record-change` 的 UPDATE 与完整 Batch Outcome 体系尚未实现。详见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md)。
+本基线定义业务 Agent 的 Skill 职责与扩展顺序。Skill 是行为指导，不是 MCP Tool、权限系统、OpenClaw Core 补丁或固定 Workflow Engine。当前实现为 `sfoa-crm-core` 与 `sfoa-record-change`（Skill-02B：Readiness Kernel + CREATE + UPDATE + Batch Mutation + Outcome Reconciliation，机器实现完成，待真人 UAT）。详见[Skill-02B 实施报告](SKILL_02B_IMPLEMENTATION_REPORT.md)与 [Skill-02 Integrated Human UAT](SKILL_02_INTEGRATED_HUMAN_UAT.md)。
 
 ## Git 与事实基线
 
@@ -24,7 +24,7 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 | Skill | 定位 / 使用者 | 职责 | 边界 / 当前状态 |
 | --- | --- | --- | --- |
 | Skill-01 `sfoa-crm-core` | 所有普通 SFOA / Salesforce CRM 业务请求的基础 | MCP 使用与选择、身份、权限、Tool Governance、Salesforce 权威、查询和变更边界、Playbook、失败、证据优先级、Web / Multimodal 组合、用户输出 | 本次实现；不做公司高级业务分析、开发运维或完整 CREATE 表单 |
-| Skill-02 `sfoa-record-change` | CREATE / UPDATE / Batch DML 专业指导 | Record Type、Page Layout、Dynamic Forms、Required / Conditional Required、Dependency、Defaults、Managed Lookup、Lookup Filter、Picklist、Validation、执行前 READY Gate | 02A 已实现：CHANGE_READY readiness gate + CREATE + 批量 CREATE 安全底线；UPDATE 就绪、完整 Batch grouping / allOrNone doctrine、PARTIAL_SUCCESS recovery、OUTCOME_UNKNOWN reconciliation 留给 02B |
+| Skill-02 `sfoa-record-change` | CREATE / UPDATE / Batch DML 专业指导 | Record Type、Page Layout、Dynamic Forms、Required / Conditional Required、Dependency、Defaults、Managed Lookup、Lookup Filter、Picklist、Validation、执行前 READY Gate | 02A + 02B 已实现：CHANGE_READY readiness gate + CREATE + UPDATE（Target Resolution / Minimal Patch）+ 批量 CREATE/UPDATE（逐条就绪、分组、>200 顺序分批、allOrNone）+ PARTIAL_SUCCESS / OUTCOME_UNKNOWN reconciliation；机器实现完成，待真人企微 UAT |
 | Skill-03 `sfoa-business-analysis` | 企业 Salesforce 业务分析专家 | 客户、商机、报价、订单、客户拜访、我方参与人、客户参与人、关键联系人、业务活动；客户 / 销售机会 / 风险 / 趋势分析、跟进建议、管理层洞察 | 后续；表达分析维度、方法与证据要求，不硬编码大量 API Field |
 | Skill-04 `sfoa-system-diagnosis` | 管理员 / 技术 / Support Agent | CRUD/FLS、Sharing、Record Type、Page Layout、Dynamic Forms、Validation Rule、Flow、Trigger、Lookup Filter、Metadata、Tool Governance、Identity Route、Salesforce API Error、P7 Audit Evidence、首因定位 | 后续；默认不暴露给普通业务 main，不提升 Salesforce 身份 |
 | Skill-05 `sfoa-reporting` | 数据与结论的交付 | 结构化业务 / 诊断报告、管理层摘要、HTML、PDF、表格、图表、企微文件交付 | 后续；消费 Analysis / Diagnosis 已有数据与结论，不重新查询业务数据；缺数据交回上游 |
@@ -68,7 +68,7 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 
 Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、查客户、我的商机、创建 / 修改、CRM 分析及 SFOA MCP；排除不涉及 CRM 的天气、数学、普通文本与一般网页搜索。自动 model invocation 保持默认开启，无 `disable-model-invocation: true`。
 
-`sfoa-record-change` 的 description 覆盖创建 / 新增记录、发起申请、创建拜访申请、创建客户、新增商机、新建业务单据、批量创建，以及必填字段、Record Type、Dynamic Forms 依赖、Lookup、Picklist、Owner 与 managed 字段就绪判断；明确排除纯查询、统计、分析与仓库开发运维，避免普通只读场景加载 Mutation Doctrine。
+`sfoa-record-change` 的 description 覆盖创建 / 新增 / 修改 / 更新记录、发起申请、创建拜访申请、创建客户、新增商机、新建业务单据、批量变更，以及必填字段、Record Type、Dynamic Forms 依赖、最小 Patch、Lookup、Picklist、Owner 与 managed 字段就绪判断；明确排除纯查询、统计、分析与仓库开发运维，避免普通只读场景加载 Mutation Doctrine。
 
 可在 main 简短 instruction 中加入：
 
@@ -101,9 +101,15 @@ yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 
 机器门禁通过不等于行为验收通过。真人企微 UAT 必须单独验证：模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」，是否对 VISIBLE + effectiveRequired 的缺失字段提问，是否先解决 PENDING 依赖再 refinement，是否遵守 explicit owner > fallback。Routing Smoke 本轮未执行，随真人 UAT 一并覆盖。
 
-### 02B：UPDATE + Batch + Outcome Hardening（未实现）
+### 02B：UPDATE + Batch + Outcome Hardening（机器实现完成，待真人 UAT）
 
-留给 02B：UPDATE readiness doctrine、UPDATE Record Type mutation、完整 Batch grouping、>200 策略、allOrNone doctrine、完整 PARTIAL_SUCCESS recovery 与 OUTCOME_UNKNOWN reconciliation。02A **MUST NOT** 被描述为已覆盖这些内容。
+交付内容见[Skill-02B 实施报告](SKILL_02B_IMPLEMENTATION_REPORT.md)。02B 补齐 UPDATE readiness doctrine（Target Resolution、Minimal Patch、Required/Defaults 语义分离、Owner 不注入 fallback、Record Type 不静默变更、Dynamic Forms UPDATE 能力边界）、完整 Batch doctrine（逐条就绪、同对象分组、1..200 上限、>200 顺序分批且 UNKNOWN 即停、allOrNone 策略、clientReferenceId 非幂等键）与 Outcome Reconciliation（FAILED != UNKNOWN、read-back 不等于事务成功、仅失败子集可重试）。
+
+02B 同样不新增 MCP Tool、不新增 DB 状态、不改 Runtime（`packages/` diff = 0）。Skill 结构从 7 文件扩展为 9 文件：`SKILL.md` + 8 个 references（`outcomes.md` 被职责扩展后的 `outcome-reconciliation.md` 取代）。机器门禁从 32 扩展到 63 个测试，并新增 `scripts/record-change-gates.mjs` 作为可执行的决策模型，使门禁验证**行为**而不只验证文案存在。CREATE regression PASS，`MCP Runtime changed: NO`。
+
+Runtime Copy 的发布机制未变（同一个 `BUSINESS_SKILL_ALLOWLIST` 与 `skill:runtime:sync/check`），02B 演练结果为 `sfoa-crm-core`(9) + `sfoa-record-change`(9) = 18 文件、两个 Skill 均 `drift: []`、maintainer 被显式拒绝。**服务器侧发布与 `openclaw skills check --agent main` 尚未执行**（本机无免密 SSH），属部署步骤；因此 02B 状态是 `IMPLEMENTATION COMPLETE — READY FOR INTEGRATED HUMAN UAT`，**不是** `Skill-02 COMPLETE`。
+
+> 上一条 02A 记录中的「16 个文件」是 02A 时刻的真实快照，本轮扩展后已变为 18 个文件；两处不矛盾，后者是前者的超集。
 
 ### 历史输入
 

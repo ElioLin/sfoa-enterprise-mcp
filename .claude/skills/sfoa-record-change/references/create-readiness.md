@@ -114,7 +114,9 @@ Default 必须有实时 Runtime / Salesforce evidence。`defaultValueTruncated=t
 
 每条 `create_records` item 携带自己的 `recordTypeId` 与最新 `uiContextResolutionId`（当 Runtime 提供时）。**MUST NOT** 把收集 Context 用的 Record Type 与实际提交的 `recordTypeId` 混用。
 
-范围边界：本节只负责**选择哪一个 Tool**。超过当前 200 上限的完整分批计划、`allOrNone` 业务策略与复杂 batch recovery 属于后续阶段；遇到时只要求如实说明边界，不自行设计编排方案。
+范围边界：本节只负责**选择哪一个 Tool**。批量分组、`>200` 的完整分批计划、`allOrNone` 业务策略与 batch recovery 见 [batch-mutations.md](batch-mutations.md) 与 [outcome-reconciliation.md](outcome-reconciliation.md)。
+
+UPDATE 的写入工具选择同理（singular `update_record` / plural `update_records`），但就绪判据是 [update-readiness.md](update-readiness.md) 的 Target Resolution 与 Minimal Patch，**MUST NOT** 套用本文件的 CREATE 就绪流程。
 
 ## 真人 UAT 回归案例（抽象表达，不绑定 org 数据）
 

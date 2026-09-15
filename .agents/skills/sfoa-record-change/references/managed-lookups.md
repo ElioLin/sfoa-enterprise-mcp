@@ -79,4 +79,24 @@ omit field
 
 **MUST NOT** 因为 Skill 自己认为「Owner 应该填」就扩大用户 Mutation Scope。用户没有要求修改或指定 Owner 时，不要为了「补全」而去找一个 Owner 写入。CREATE 真正必需的 Required / Default 除外，且必须来自 Runtime authority。
 
-UPDATE 场景：`PLATFORM_IDENTITY_FALLBACK` 是 CREATE 专用，**MUST NOT** 把它当成 UPDATE 的自动默认值。用户没有要求改动该字段时直接省略，不要询问 CREATE 式的必填问题。完整的 UPDATE doctrine 属于后续阶段，本 Skill 不做扩展。
+## UPDATE 场景
+
+`PLATFORM_IDENTITY_FALLBACK` 是 **CREATE 专用**的 omission 行为。UPDATE 时它的正确语义只有一条：
+
+```text
+用户没有要求改动该字段 → omit → preserve current value
+```
+
+**MUST NOT** 把它当成 UPDATE 的自动默认值，**MUST NOT** 注入当前平台用户，**MUST NOT** 询问 CREATE 式的必填问题，**MUST NOT** 以「字段存在 fallback attribute」为理由去解析 Owner。
+
+| 情况 | UPDATE 处理 |
+| --- | --- |
+| 用户没要求改 Owner | 不动该字段，不询问 |
+| 用户明确要求改 Owner | 走 Lookup 流程，用当前 `fieldUpdateable` / `layoutEditableForUpdate` 判断可写性，提交唯一证明的 Salesforce ID |
+| 0 match | block，`CHANGE_READY=false` |
+| multiple match | clarification，`CHANGE_READY=false` |
+| 显式 Owner 解析失败 | **MUST NOT** 自动 fallback 到当前用户或任何其他候选 |
+
+严格 managed 字段（`PLATFORM_IDENTITY`、`AI_CREATED_MARKER`）在 UPDATE 中同样不可修改、不可覆盖、不可自行生成值。用户明确要求修改时，按当前 Tool Governance / Runtime policy 返回真实限制，而不是绕过。
+
+完整 doctrine 见 [update-readiness.md](update-readiness.md)。
