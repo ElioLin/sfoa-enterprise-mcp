@@ -142,7 +142,7 @@ export class SalesforceAttachmentUploader {
       });
     } catch (error) {
       recordApiCall({
-        startedAt, httpMethod: 'GET', url, operationName: `${objectApiName}.readTarget`,
+        startedAt, httpMethod: 'GET', url,
         purpose: 'ATTACHMENT_TARGET_VALIDATION', httpStatus: null, result: 'FAILED',
         salesforceErrorCode: null, salesforceErrorMessage: safeMessage(error), responseSizeBytes: null,
         contentType: null, objectApiName, recordId,
@@ -154,7 +154,7 @@ export class SalesforceAttachmentUploader {
     }
     const body = await readBoundedText(response);
     recordApiCall({
-      startedAt, httpMethod: 'GET', url, operationName: `${objectApiName}.readTarget`,
+      startedAt, httpMethod: 'GET', url,
       purpose: 'ATTACHMENT_TARGET_VALIDATION', httpStatus: response.status,
       result: response.ok ? 'SUCCESS' : 'FAILED',
       salesforceErrorCode: parseSalesforceErrorCode(body),
@@ -234,7 +234,7 @@ export class SalesforceAttachmentUploader {
       // a reset after the server accepted the body is indistinguishable from one
       // before it — so this is reported as UNKNOWN and is never retried automatically.
       recordApiCall({
-        startedAt, httpMethod: 'POST', url, operationName: 'ContentVersion.create',
+        startedAt, httpMethod: 'POST', url,
         purpose: 'ATTACHMENT_UPLOAD', httpStatus: null, result: 'FAILED',
         salesforceErrorCode: null, salesforceErrorMessage: safeMessage(error), responseSizeBytes: null,
         contentType: multipart.contentType, requestSizeBytes: multipart.contentLength,
@@ -256,7 +256,7 @@ export class SalesforceAttachmentUploader {
     const succeeded = response.ok && parsed?.success === true;
 
     recordApiCall({
-      startedAt, httpMethod: 'POST', url, operationName: 'ContentVersion.create',
+      startedAt, httpMethod: 'POST', url,
       purpose: 'ATTACHMENT_UPLOAD', httpStatus: response.status,
       result: succeeded ? 'SUCCESS' : 'FAILED',
       salesforceErrorCode: parseSalesforceErrorCode(body),
@@ -319,7 +319,7 @@ export class SalesforceAttachmentUploader {
       const record = Array.isArray(parsed?.records) ? parsed.records[0] : undefined;
       const contentDocumentId = typeof record?.ContentDocumentId === 'string' ? record.ContentDocumentId : null;
       recordApiCall({
-        startedAt, httpMethod: 'GET', url, operationName: 'ContentVersion.readContentDocumentId',
+        startedAt, httpMethod: 'GET', url,
         purpose: 'ATTACHMENT_UPLOAD', httpStatus: response.status,
         result: response.ok ? 'SUCCESS' : 'FAILED',
         salesforceErrorCode: parseSalesforceErrorCode(body),
@@ -543,7 +543,6 @@ type ApiCallEvidence = Readonly<{
   startedAt: Date;
   httpMethod: string;
   url: string;
-  operationName: string;
   purpose: 'ATTACHMENT_TARGET_VALIDATION' | 'ATTACHMENT_UPLOAD';
   httpStatus: number | null;
   result: 'SUCCESS' | 'FAILED';
@@ -564,6 +563,14 @@ type ApiCallEvidence = Readonly<{
  * adapter does not observe, so the runtime records the call itself. Only metadata is
  * recorded: the request body is a multipart document containing the file's bytes, and
  * the file's bytes, its base64 form and the raw multipart body must never reach Audit.
+ *
+ * `operationName` is deliberately left null. Audit models two mutually exclusive
+ * evidence modes, and the sink refuses a call that claims both: EXACT_HTTP means the
+ * real wire facts were observed, while `operationName` is the OPERATION_ONLY label for
+ * a call whose HTTP facts are unavailable. This recorder always has the wire facts, so
+ * an operation label here would be a second, weaker claim about the same call — and the
+ * refusal is not retryable, so it would take the whole Audit snapshot down with it.
+ * Which operation a row is comes from `httpMethod`, `endpointPath` and `purpose`.
  */
 function recordApiCall(evidence: ApiCallEvidence): void {
   const controller = currentRequestAuditContext();
@@ -587,7 +594,7 @@ function recordApiCall(evidence: ApiCallEvidence): void {
       requestUrl: `${parsed.origin}${parsed.pathname}`,
       host: parsed.host,
       endpointPath: parsed.pathname,
-      operationName: evidence.operationName,
+      operationName: null,
       purpose: evidence.purpose,
       startedAt: evidence.startedAt.toISOString(),
       completedAt: completedAt.toISOString(),

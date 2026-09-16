@@ -77,7 +77,12 @@ async function persistSnapshots(
   if (new Set(publicIds).size !== publicIds.length) {
     throw new AuditBatchPersistenceError('An Audit batch contains duplicate public Audit IDs.', false);
   }
-  validatePayloadSnapshotBounds(snapshots);
+  // Every check that does not need the database runs before the transaction opens. A
+  // snapshot that can never be persisted is then rejected as a shape error rather than
+  // surfacing as a write failure, and a producer can be held to the same contract
+  // without a database of its own. The rejections below are deliberately not retryable:
+  // re-sending an impossible snapshot would only delay the loss.
+  for (const snapshot of snapshots) assertAuditSnapshotPersistable(snapshot);
 
   await database.insertInto('sfoa_audit_log').values(
     snapshots.map((snapshot) => callRow(snapshot)),
@@ -113,10 +118,6 @@ async function persistSnapshots(
       });
     }
     for (const apiCall of snapshot.salesforceApiCalls) {
-      if (parsePublicAuditId(apiCall.auditId) !== parsePublicAuditId(snapshot.auditCall.publicAuditId)) {
-        throw new AuditBatchPersistenceError('A Salesforce API call is bound to the wrong Audit ID.', false);
-      }
-      validateApiVisibility(apiCall);
       apiRows.push({
         public_api_call_id: parsePublicAuditId(apiCall.publicApiCallId),
         audit_id: auditId,
@@ -192,9 +193,6 @@ async function persistSnapshots(
     const auditId = ids.get(parsePublicAuditId(snapshot.auditCall.publicAuditId));
     if (!auditId) throw new AuditBatchPersistenceError('An inserted Audit master ID is missing for payload evidence.', true);
     for (const payload of snapshot.payloadEvidence) {
-      if (Buffer.byteLength(payload.safePayload, 'utf8') !== payload.storedSizeBytes) {
-        throw new AuditBatchPersistenceError('Payload snapshot storedSizeBytes does not match safePayload.', false);
-      }
       const eventId = payload.auditEventSequence === null
         ? null
         : eventIds.get(`${auditId}:${String(payload.auditEventSequence)}`);
@@ -227,6 +225,33 @@ async function persistSnapshots(
   }
   if (payloadRows.length > 0) {
     await database.insertInto('sfoa_audit_payload_evidence').values(payloadRows).executeTakeFirstOrThrow();
+  }
+}
+
+/**
+ * The checks a snapshot must satisfy to be persistable, expressed without a database.
+ *
+ * The sink runs this for every snapshot before it opens its transaction, which is what
+ * makes these failures non-retryable shape errors instead of transient write failures.
+ * Exporting it lets a Tool that records its own Salesforce calls be tested against the
+ * very contract the sink enforces, so a producer that emits evidence the sink refuses
+ * fails a machine gate instead of silently losing the whole Audit snapshot in
+ * production — where the only symptom is a dropped row.
+ */
+export function assertAuditSnapshotPersistable(snapshot: AuditSnapshot): void {
+  validatePayloadSnapshotBounds([snapshot]);
+  const auditId = parsePublicAuditId(snapshot.auditCall.publicAuditId);
+  for (const apiCall of snapshot.salesforceApiCalls) {
+    parsePublicAuditId(apiCall.publicApiCallId);
+    if (parsePublicAuditId(apiCall.auditId) !== auditId) {
+      throw new AuditBatchPersistenceError('A Salesforce API call is bound to the wrong Audit ID.', false);
+    }
+    validateApiVisibility(apiCall);
+  }
+  for (const payload of snapshot.payloadEvidence) {
+    if (Buffer.byteLength(payload.safePayload, 'utf8') !== payload.storedSizeBytes) {
+      throw new AuditBatchPersistenceError('Payload snapshot storedSizeBytes does not match safePayload.', false);
+    }
   }
 }
 

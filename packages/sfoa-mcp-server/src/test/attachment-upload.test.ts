@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { ReleaseState } from '@salesforce/mcp-provider-api';
+import { RequestAuditContextController, runWithRequestAuditContext } from '@sfoa/identity-runtime';
 import type {
   RequestContext,
   RuntimeLogger,
@@ -27,6 +28,7 @@ import type {
   SalesforceConnectionProvider,
 } from '@sfoa/identity-runtime';
 import type { Connection } from '@salesforce/core';
+import { assertAuditSnapshotPersistable } from '@sfoa/control-plane';
 import type {
   AttachmentStagingCreateInput,
   AttachmentStagingRecord,
@@ -1234,5 +1236,51 @@ describe('gate: audit', () => {
     assert.equal(files[1]?.status, 'FAILED');
     assert.equal(files[1]?.errorCode, 'MCP_ATTACHMENT_NOT_OWNED');
     assert.equal(files[1]?.fileName, null, 'an unresolved reference has no file name to report');
+  });
+
+  /**
+   * The P7 Audit sink refuses a snapshot that claims EXACT_HTTP wire facts and an
+   * OPERATION_ONLY operation name at the same time, and that refusal is not retryable:
+   * the whole snapshot is dropped. Because the drop is only visible as a missing row in
+   * `sfoa_audit_log`, a successful upload could be persisted in Salesforce and leave no
+   * Audit evidence at all while every RuntimeLogger assertion above still passed.
+   *
+   * So this gate holds the Salesforce evidence the upload records to the same contract
+   * the sink applies, which is the only place that contract can be checked without a
+   * live org.
+   */
+  test('the Salesforce calls the upload records satisfy the Audit snapshot contract the sink enforces', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'audit snapshot shape');
+    const controller = RequestAuditContextController.create({
+      channel: 'MCP_HTTP',
+      correlationId: 'corr-attachment-audit-gate',
+      clientId: 'fixture-client',
+      toolName: UPLOAD_FILES_TO_RECORD_TOOL_NAME,
+      operation: 'ATTACHMENT',
+      objectApiName: TARGET_OBJECT,
+      recordId: TARGET_ID,
+    });
+
+    await withSalesforce(successfulSalesforce(), async () => {
+      await runWithRequestAuditContext(controller, async () => {
+        const outcome = await uploader(harness, fixtureProvider()).upload({
+          objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref],
+        });
+        assert.equal(outcome.status, 'SUCCESS');
+      });
+    });
+
+    const snapshot = controller.collector().finalize();
+    assert.ok(snapshot, 'a request that reached Salesforce must produce an Audit snapshot');
+    assert.equal(snapshot.salesforceApiCalls.length, 3, 'target check, publish and document-id read');
+    for (const apiCall of snapshot.salesforceApiCalls) {
+      // Every one of these calls happened on the wire, so none may also carry the
+      // OPERATION_ONLY label the sink pairs with its absence.
+      assert.equal(apiCall.visibility, 'EXACT_HTTP');
+      assert.equal(apiCall.operationName, null);
+      assert.ok(apiCall.requestUrl && apiCall.host && apiCall.endpointPath && apiCall.httpMethod);
+    }
+    assert.doesNotThrow(() => assertAuditSnapshotPersistable(snapshot));
   });
 });
