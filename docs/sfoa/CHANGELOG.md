@@ -7,7 +7,10 @@ This changelog records SFoA baseline and architecture changes. Salesforce Upstre
 Attachment upload round. Branch `feature/sfoa-attachment-upload`, cut from the Skill-02B
 tip `ce800c2` (itself a descendant of `main` @ `3adae7b`; 02B changed no runtime code), with
 the three probe commits cherry-picked on top — verified byte-equivalent by `git patch-id`.
-Implementation `e685ba8`, fix `59cb040`. **Not** merged into `main` and **not** pushed.
+Implementation `e685ba8`, fix `59cb040`. Pushed to `origin` on 2026-09-16
+(`origin/feature/sfoa-attachment-upload` = `ed887c1`, documentation commits only above
+`59cb040`); **not** merged into `main`. The probe branch was fast-forwarded to `66a86c7`
+at the same time.
 
 - **Closed the Probe Verification Gate with real API evidence before writing any code.**
   Supplying a real business record (`a0fC5000000n9RxIAI`, `Account_Visit__c`) answered the

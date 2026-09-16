@@ -21,6 +21,7 @@
 | 机器门禁 | 全部 PASS（见 §8） |
 | 回归 | Skill-01 / Skill-02 CREATE・UPDATE・Batch・Outcome 全 PASS |
 | 测试服部署 | 已完成（`59cb040`），生产未触碰 |
+| Git | 分支 `feature/sfoa-attachment-upload` 已 push（`origin` = `ed887c1`）；**未**合入 `main` |
 
 ---
 
@@ -77,7 +78,7 @@
 | 02C branch | `feature/sfoa-attachment-upload` |
 | 功能 Final SHA | **`59cb040cb01c3ff8fcf7d08a2c81c64a9afcee43`**（功能实施 + Audit 缺陷修复的最后一个代码提交） |
 | 分支 tip | 承载**本报告**的文档提交（`59cb040` 之上仅有纯文档提交：本报告、UAT 清单、部署记录及其 SHA 说明；无任何代码改动）。不在此处钉死具体 SHA，理由同 `ce800c2`：钉死的 tip SHA 会被下一次文档提交立即作废 |
-| Push 状态 | **未 push**（整个 02C 分支只在本地检出） |
+| Push 状态 | **已 push 到 `origin`**（`2026-09-16`）：`origin/feature/sfoa-attachment-upload` = `ed887c1`。**未**合入 `main` |
 
 ### 2.1 Base 判定依据（§一「不要假定历史 Prompt 中的 commit 仍然最新」）
 
@@ -107,16 +108,16 @@ ce800c2 (02B tip, = origin)
 | `ad619d9` | `9953e1b0a0a9` | `6f6d8aa` | `9953e1b0a0a9` | ✔ |
 | `c0f0bfa` | `9508546099e3` | `66a86c7` | `9508546099e3` | ✔ |
 
-### 2.2 `feature/sfoa-attachment-capability-probe` 的分支状态（已核实，非分叉）
+### 2.2 `feature/sfoa-attachment-capability-probe` 的分支状态（已核实，非分叉；已推送）
 
-| 项 | 值 |
-| --- | --- |
-| 本地 | `66a86c7` |
-| `origin` | `6f6d8aa` |
-| `git log origin/…..本地` | `66a86c7`（仅 1 条） |
-| `git log 本地..origin/…..` | **空** |
+推送前核实：本地 `66a86c7`，`origin` `6f6d8aa`，`git log 本地..origin/…` 为**空** —— 即本地**严格领先 origin 一个提交**，是普通 fast-forward，**不是分叉**，不存在需要 reconcile 的冲突历史。该提交的内容已通过上述 cherry-pick 进入 02C 分支。
 
-即本地**严格领先 origin 一个提交**，是普通 fast-forward 场景，**不是分叉**，不存在需要 reconcile 的冲突历史。该提交的内容已通过上述 cherry-pick 进入 02C 分支。
+```text
+git push origin feature/sfoa-attachment-capability-probe
+  6f6d8aa..66a86c7  feature/sfoa-attachment-capability-probe -> (fast-forward)
+```
+
+现 `origin/feature/sfoa-attachment-capability-probe` = `66a86c7`。
 
 ---
 
@@ -730,7 +731,7 @@ UAT-06 的拒绝分支**不刻意上传超大文件**（§九十四）。只在�
 4. **`OUTCOME_UNKNOWN` 与 `PARTIAL_SUCCESS` 未用真实 Salesforce 故障复现。** 门禁通过**决策模型**验证语义；真实链路的故障注入属 UAT 范围。
 5. **`FirstPublishLocationId` 为「格式合法但不存在」时返回 HTTP 201 并创建未链接文件。** 这是 SFoA 行为差异，不是缺陷；UNKNOWN 对账路径因此是必需的（§1.1）。
 6. **`TEST_SERVER_DEPLOYMENT.md` 的既有记录需修正**：该文档把 02B 部署记为 `4b3b2ff`，但服务器 `app/` 的 mtime 与暂存目录名指向 `ce800c2`（`4b3b2ff` 的后代，含 6 个提交中的最后 4 个）。02C 部署轮已一并更正（§20）。
-7. **`feature/sfoa-attachment-upload` 未 push。** 功能最终 SHA `59cb040` 仅存在于本地检出；其上的提交均为纯文档。是否推送需用户确认。
+7. **02C 分支已 push，但未合入 `main`。** `origin/feature/sfoa-attachment-upload` = `ed887c1`；功能最终 SHA `59cb040` 之上均为纯文档提交。probe 分支 `origin/feature/sfoa-attachment-capability-probe` 亦已 fast-forward 到 `66a86c7`。**合入 `main` 仍需用户决定。**
 8. **本机 Windows 检出噪声**：`git status --porcelain` 在 Bash 工具下 120 s 超时（PowerShell 下正常）；`yarn`/`node` 前台调用偶发 `Permission denied`；`git` 偶发 shim 拒绝。均为执行环境噪声，命令经重试后成功且结果可复现。
 
 ---
@@ -747,6 +748,7 @@ OpenClaw tool discovery   : PASS (16 tools incl. upload_files_to_record on both 
                                   a WeCom-credential tools/call verified executing the Tool)
 Official WeCom Plugin     : NOT MODIFIED
 Found-and-fixed blocker   : 1 (silent loss of a successful upload's Audit snapshot; 59cb040)
+Git                       : PUSHED (origin/feature/sfoa-attachment-upload = ed887c1; NOT merged to main)
 ```
 
 **未主张**：真人附件 UAT 通过、`>10` 文件的链路验证、UNKNOWN 的真实故障复现。
