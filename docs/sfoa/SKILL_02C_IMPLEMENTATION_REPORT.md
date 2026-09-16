@@ -21,7 +21,7 @@
 | 机器门禁 | 全部 PASS（见 §8） |
 | 回归 | Skill-01 / Skill-02 CREATE・UPDATE・Batch・Outcome 全 PASS |
 | 测试服部署 | 已完成（`59cb040`），生产未触碰 |
-| Git | 分支 `feature/sfoa-attachment-upload` 已 push（`origin` = `ed887c1`）；**未**合入 `main` |
+| Git | 分支 `feature/sfoa-attachment-upload` **已 push**（tip 与 `origin` 一致）；**未**合入 `main` |
 
 ---
 
