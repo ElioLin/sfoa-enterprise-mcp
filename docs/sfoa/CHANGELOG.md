@@ -2,6 +2,64 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-16 — Skill-02C attachment upload: probe gate closed, Tool shipped, audit defect fixed, test server deployed
+
+Attachment upload round. Branch `feature/sfoa-attachment-upload`, cut from the Skill-02B
+tip `ce800c2` (itself a descendant of `main` @ `3adae7b`; 02B changed no runtime code), with
+the three probe commits cherry-picked on top — verified byte-equivalent by `git patch-id`.
+Implementation `e685ba8`, fix `59cb040`. **Not** merged into `main` and **not** pushed.
+
+- **Closed the Probe Verification Gate with real API evidence before writing any code.**
+  Supplying a real business record (`a0fC5000000n9RxIAI`, `Account_Visit__c`) answered the
+  three questions left pending and moved the verdict from `PARTIALLY VERIFIED` /
+  `MORE PROBE REQUIRED` to `FEASIBLE` / `READY FOR ATTACHMENT TOOL DESIGN`: 18 gates,
+  0 FAIL, 0 BLOCKED. Two SFoA behaviours it established shape the design — publishing with
+  `FirstPublishLocationId` creates **two** links (the business-record `ShareType=V` one plus
+  a `ShareType=I` self-link to the creator), which is why the Agent never needs
+  `ContentDocumentLink`; and a well-formed but non-existent target returns **HTTP 201 with an
+  unlinked file**, so a 201 alone never proves which record received the file and the
+  reconciliation path for unknown outcomes stays mandatory. The target record was verified
+  byte-identical before and after, by an independent read-only check rather than the probe's
+  own report, and had zero `ContentDocumentLink` rows on both sides.
+- **Shipped one new business Tool, `upload_files_to_record`, and no new Skill.** The input
+  schema has exactly three properties — `objectApiName`, `recordId`, `attachmentRefs` — and
+  deliberately no `content`, `base64`, `versionData`, `path`, `filePath` or `sourceUrl`, so
+  the model cannot name a file, a host path or a URL. Attachment enablement is an independent
+  policy channel and Tool inventory (`attachment_enabled`, migration `014`,
+  `NOT NULL DEFAULT false`) rather than a member of `MCP_DML_ALLOWLIST_JSON`, because
+  attaching a file is neither a CREATE nor a field UPDATE. The Files objects stay internal
+  technical objects, never Generic DML targets, and never appear as business objects in the
+  Admin Web policy list. No extension, MIME or size-limit mirror of Salesforce file rules
+  exists in configuration, database or UI.
+- **Completed the inbound half too.** The Attachment Bridge lives inside our own
+  `sfoa-wecom-mcp-adapter` plugin; the **official WeCom plugin is not modified** and OpenClaw
+  Core is not patched. The bridge forwards only media facts OpenClaw itself stamped below the
+  configured staging root, never reads bytes into a string or buffer, never derives a path
+  from model or user input and never fetches a media URL.
+- **Found and fixed a real defect that the machine gates had missed.** Every *successful*
+  upload published its file and then lost the entire P7 Audit snapshot — no master row, no
+  terminal event, no API-call row, hence no record of the `ContentVersionId` just created;
+  the only trace was `MCP_AUDIT_SNAPSHOT_REJECTED` in the server log. The recorder claimed
+  `EXACT_HTTP` evidence together with an `OPERATION_ONLY` label, which the sink refuses
+  non-retryably. Failures audited fine because they never reached Salesforce and so never
+  recorded an API call, and no test inspected the snapshot the sink persists or ran the
+  upload inside a request audit context. Fixed by removing the field from the evidence type
+  so the invariant is structural, extracting the sink's database-free checks into an exported
+  `assertAuditSnapshotPersistable` invoked before the transaction opens (same errors, order
+  and retryability, so no behaviour change), and adding a gate that drives the real upload
+  inside a request audit context and requires the finalised snapshot to satisfy that
+  contract. Reintroducing the old field was confirmed to make the new gate fail, so the gate
+  is real rather than vacuous.
+- **Deployed to the test server, and verified against the live channel.** `59cb040`, archive
+  sha256 `d2cc72d5…3ce06`, 1138/1138 files byte-verified after `rsync -a`. Four services
+  active; `tools/list` returns the same 16 Tools on both the internal and the WeCom channel
+  credential paths, and a **WeCom-credential `tools/call`** was verified executing the Tool
+  (`identity_source=WECOM_HEADER`, `execution_role=USER`). Three real `ContentVersion`s were
+  created on the test org: the pre-fix one has no audit row, both post-fix ones are audited.
+  Per §九十五 those files were **not** auto-deleted. Production was not touched.
+- Status and evidence: `docs/sfoa/SKILL_02C_IMPLEMENTATION_REPORT.md`; six operator-run UAT
+  cases are prepared but **not executed**: `docs/sfoa/SKILL_02C_ATTACHMENT_UAT.md`.
+
 ## 2026-09-15 — Skill-02B final review, cross-Skill fact fix, and OpenClaw test-env deployment closure
 
 Review + deployment round for Skill-02B; no new Skill capability. 02B branch is

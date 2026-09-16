@@ -4,11 +4,43 @@
 
 ---
 
-## 部署记录 · OpenClaw Skill-02B 交付 + Runtime Copy 发布（2026-09-15）
+## 部署记录 · Skill-02C 附件上传能力（2026-09-16）
 
 | 项 | 值 |
 | --- | --- |
-| 部署内容 | `feature/openclaw-sfoa-record-change-02b` @ `4b3b2ff`（Skill-02B `sfoa-record-change` UPDATE + Batch + Outcome 收口，以及 `sfoa-crm-core` 两处跨 Skill 事实修正），替换测试服务器上一版 `main` @ `3adae7b`（Skill-02A 交付） |
+| 部署内容 | `feature/sfoa-attachment-upload` @ `59cb040`（Skill-02C：`upload_files_to_record` + Attachment Ingress + Attachment Bridge + `attachment_enabled` 迁移 014），替换测试服务器上一版 02B 交付 |
+| 变更前版本识别 | 服务器无 `.git`。按**文件清单 + 暂存目录名**判定：`app/` 中含 02C 之前的 Skill-02B 收口内容，与 `ce800c2` 一致（见下方 02B 记录的更正说明）。`/data/openclaw/workspace/skills/sfoa-record-change` 为 02B 的 **9 文件**版本 |
+| **运行时代码差异 ≠ 0** | 与 02B 不同，本轮**改动运行时代码**：`packages/sfoa-mcp-server`（24 文件）、`packages/sfoa-control-plane`（13）、`integrations/openclaw`（6）、`packages/sfoa-agent-playbook`（5）、`packages/sfoa-admin-web`（5）、`packages/sfoa-admin-api`（2）、`packages/sfoa-identity-runtime`（1）。故本轮**重建并重启**了 MCP Runtime 与 Admin API |
+| 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-02c-59cb040.tar.gz`（**2,579,590 B**，sha256 `d2cc72d59e8298753b609ae2e8572dba8baf21bdad5fbcfc9c4f66ed57b3ce06`）。归档内文本文件**纯 LF**；唯一含 CR 的文件是 `docs/sfoa/evidence/p6-dml-01-admin-managed-fields.png`（二进制 PNG），不参与逐字节门禁 |
+| 上传/校验 | 上传到 `/data/sfoa-enterprise-mcp/incoming/`，服务器侧 `sha256sum` 与本地**一致** |
+| 落盘方式 | 先解到 `staging-02c-59cb040/`（1138 文件），再用 **`rsync -a`（不带 `--delete`）** 覆盖到 `app/`，服务器独有文件全部保留（`.env.local`、`.idea`、`projects`、`.temp`、`.workbuddy`、`node_modules`、各包 `dist`） |
+| 字节级验证 | `sha256sum -c` → **1138 OK / 0 FAILED / 0 MISSING** |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/sfoa-app-02c-pre-20260915-174626.tar.gz`（1,032,523,804 B） |
+| 依赖 | `yarn.lock` 依赖段无变化 → **未重装** `node_modules` |
+| **数据库迁移** | **有新迁移**：`packages/sfoa-control-plane/migrations/014_skill02c_attachment_upload.sql` — `ALTER TABLE sfoa_dml_policy ADD COLUMN attachment_enabled BOOLEAN NOT NULL DEFAULT FALSE`、新建 `sfoa_attachment_staging`、新建两个索引。**`DEFAULT FALSE` 保证既有对象升级后行为完全不变** |
+| 配置 | `config/.env.local` 新增 6 个 `MCP_ATTACHMENT_*` 变量（`INGRESS_ENABLED`、`PATH`、`STAGING_ROOT`、`TTL_MS`、`MAX_FILE_BYTES`、`MAX_FILES_PER_OWNER`）。暂存根 `/data/sfoa-enterprise-mcp/attachment-staging/`，`staged/` 权限 `0700`、root 属主 |
+| 构建 | 重建 `packages/sfoa-control-plane` 后重建 `packages/sfoa-mcp-server`；已在 `dist` 中确认修复存在，且 `assertAuditSnapshotPersistable` 运行时类型为 `function` |
+| 服务 | **已重启** `sfoa-mcp-server` 与 `sfoa-admin-api`；`openclaw-gateway` 与 `nginx` 未重启 |
+| 部署后状态 | `sfoa-mcp-server` active · `127.0.0.1:8080/health` → **200**；`sfoa-admin-api` active · `127.0.0.1:8081/admin/api/health` → **200**（经 nginx `:9000/admin/api/health` 亦 **200**）；`nginx :9000/`（Admin Web）→ **200**；`openclaw-gateway` active。Node `v22.23.1` |
+| Runtime Copy 发布 | 复用既有机制，未新建第二套：`yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` |
+| Skill 校验 | **在服务器上**运行 `yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills` → `sfoa-crm-core`、`sfoa-record-change` 均 `ok:true`、`drift: []` |
+| Agent 可见性 | 业务 Agent 仍**只有** `sfoa-crm-core` + `sfoa-record-change`；`sfoa-mcp-maintainer` 确认不可见 |
+| Tool 发现 | `tools/list` 在**两种凭据路径**（内部 `MCP_CLIENT_TOKEN` 与企微渠道 `MCP_WECOM_CLIENT_TOKEN` + `X-WeCom-User-Id`）均返回**同一份 16 个 Tool** 的列表，含 `upload_files_to_record` |
+| 真实链路验证 | 3 个真实 `ContentVersion` 在测试 org 上创建。**修复前**的 `068C5000000yWOPIA2` 无 audit 行；**修复后**的 `068C5000000yWg9IAE`（内部凭据）与 `068C5000000yWhlIAE`（**企微渠道凭据**）均已审计，后者 `identity_source=WECOM_HEADER`、`execution_role=USER`，证明真实入站渠道确实能执行该 Tool。**按 §九十五，这三个文件均未自动删除** |
+| 审计卫生 | 落库 payload 全量扫描：file bytes / base64 / raw multipart body / Bearer token / 暂存区绝对路径 **全部 absent**；重启后 audit writer 失败计数 = 0 |
+| 生产 | **未触碰** |
+
+> 逐字节门禁与 LF 纯净性见 [Skill-02C 实施报告](SKILL_02C_IMPLEMENTATION_REPORT.md) §17；真人 UAT 用例见 [Skill-02C 附件上传 UAT](SKILL_02C_ATTACHMENT_UAT.md)。
+
+---
+
+## 部署记录 · OpenClaw Skill-02B 交付 + Runtime Copy 发布（2026-09-15）
+
+> **更正（2026-09-16）**：本表原记部署版本为 `4b3b2ff`。实际服务器 `app/` 的内容与暂存目录名指向 **`ce800c2`** —— 它是 `4b3b2ff` 的后代，二者之间还有 `9f3167f`、`a00017f`、`ce800c2` 三个提交（`docs` 与 `skills` 内容，**运行时代码差异仍为 0**，故本表的「未重建、未重启」结论不受影响）。下文「部署内容」一行的 SHA 保留原值以维持记录原貌，**以 `ce800c2` 为准**。
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/openclaw-sfoa-record-change-02b` @ `4b3b2ff`（实际落盘 tip 为 `ce800c2`，见上方更正）（Skill-02B `sfoa-record-change` UPDATE + Batch + Outcome 收口，以及 `sfoa-crm-core` 两处跨 Skill 事实修正），替换测试服务器上一版 `main` @ `3adae7b`（Skill-02A 交付） |
 | 变更前版本识别 | 服务器无 `.git`，按**文件清单 + 内容特征**判定：`/data/openclaw/workspace/skills/sfoa-record-change` 与 `app/skills/sfoa-record-change` 均 **7 文件**、含 `references/outcomes.md`、`SKILL.md` 9576 B / sha256 `c7354635…`、不含 `UPDATE != CREATE` → 判定为 **Skill-02A**，与 `main` @ `3adae7b` 一致 |
 | **运行时代码差异 = 0** | `git diff 3adae7b..4b3b2ff -- packages yarn.lock packages/sfoa-control-plane/migrations .env.example config integrations` 为空。改动只落在 `skills/`（canonical + 三处生成副本）与 `docs/sfoa/`。**故未清增量标记、未重建 workspace、未 `systemctl restart`** 任一服务 |
 | 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-02b-final-4b3b2ff.tar.gz`（**2,446,821 B**，1344 个 tracked 条目，sha256 `9cde97603eed890573e391f6de7e06024345dc53a87721be1cc61c12176f17fc`）。实测归档内 `skills/sfoa-record-change/SKILL.md` **crlf=0 / loneLf=118**（纯 LF），避免 §3.1 的 CRLF 假漂移 |

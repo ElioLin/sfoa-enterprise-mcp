@@ -45,6 +45,21 @@
   reference, name, MIME type, size, digest, Salesforce API path, ContentVersionId,
   ContentDocumentId, status, HTTP status and duration — and never a file byte, its
   base64 form, the raw multipart body, a staged path or a Bearer token.
+- Fix a defect found while verifying the above: every *successful* upload
+  published its file to Salesforce and then lost the whole P7 Audit snapshot, so
+  the `ContentVersionId` it had just created was never recorded — and the only
+  symptom was a missing row. The recorder set `visibility: 'EXACT_HTTP'` together
+  with a non-null `operationName`, and the sink refuses that combination
+  non-retryably, because `EXACT_HTTP` means the real wire facts were observed
+  while `operationName` is the label for a call whose HTTP facts are unavailable.
+  The field is now absent from the evidence type, so the invariant is structural
+  rather than remembered; the sink's database-free checks are extracted into an
+  exported `assertAuditSnapshotPersistable` that runs before the transaction
+  opens (same errors, same order, same retryability, so no behaviour changes) and
+  lets a Tool that records its own Salesforce calls be held to that contract
+  without a database; and a gate now drives the real upload inside a request
+  audit context and requires the finalised snapshot to satisfy it. Reintroducing
+  the old field was confirmed to make that gate fail.
 - Extend the existing `sfoa-record-change` Skill rather than adding a new one: a
   single activation line in `SKILL.md` and a new `references/file-attachments.md`
   holding the attachment doctrine (only attachment-enabled objects; create first;
