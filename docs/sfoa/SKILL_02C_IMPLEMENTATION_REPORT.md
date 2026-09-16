@@ -753,4 +753,6 @@ Found-and-fixed blocker   : 1 (silent loss of a successful upload's Audit snapsh
 
 ---
 
-**SKILL-02C IMPLEMENTATION COMPLETE / READY FOR HUMAN ATTACHMENT UAT**
+```text
+SKILL-02C IMPLEMENTATION COMPLETE / READY FOR HUMAN ATTACHMENT UAT
+```
