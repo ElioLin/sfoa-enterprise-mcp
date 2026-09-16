@@ -75,7 +75,9 @@
 | Base SHA | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1`（`docs(sfoa): state that main and the test server share one commit`） |
 | 分支点 | Skill-02B tip `feature/openclaw-sfoa-record-change-02b` @ `ce800c20fc59a77f11778728073c1af2bf2cefa1`（本地 = `origin`，已 push） |
 | 02C branch | `feature/sfoa-attachment-upload` |
-| Final SHA | **`59cb040cb01c3ff8fcf7d08a2c81c64a9afcee43`**（本地，**未 push**） |
+| 功能 Final SHA | **`59cb040cb01c3ff8fcf7d08a2c81c64a9afcee43`**（功能实施 + Audit 缺陷修复的最后一个代码提交） |
+| 分支 tip | `741ef98`（在其之上追加本报告、UAT 清单与部署记录 —— 纯文档提交，不含代码） |
+| Push 状态 | **未 push**（整个 02C 分支只在本地检出） |
 
 ### 2.1 Base 判定依据（§一「不要假定历史 Prompt 中的 commit 仍然最新」）
 
@@ -728,7 +730,7 @@ UAT-06 的拒绝分支**不刻意上传超大文件**（§九十四）。只在�
 4. **`OUTCOME_UNKNOWN` 与 `PARTIAL_SUCCESS` 未用真实 Salesforce 故障复现。** 门禁通过**决策模型**验证语义；真实链路的故障注入属 UAT 范围。
 5. **`FirstPublishLocationId` 为「格式合法但不存在」时返回 HTTP 201 并创建未链接文件。** 这是 SFoA 行为差异，不是缺陷；UNKNOWN 对账路径因此是必需的（§1.1）。
 6. **`TEST_SERVER_DEPLOYMENT.md` 的既有记录需修正**：该文档把 02B 部署记为 `4b3b2ff`，但服务器 `app/` 的 mtime 与暂存目录名指向 `ce800c2`（`4b3b2ff` 的后代，含 6 个提交中的最后 4 个）。02C 部署轮已一并更正（§20）。
-7. **`feature/sfoa-attachment-upload` 未 push。** `59cb040` 仅存在于本地检出。是否推送需用户确认。
+7. **`feature/sfoa-attachment-upload` 未 push。** 功能最终 SHA `59cb040` 仅存在于本地检出（分支 tip `741ef98` 为纯文档提交）。是否推送需用户确认。
 8. **本机 Windows 检出噪声**：`git status --porcelain` 在 Bash 工具下 120 s 超时（PowerShell 下正常）；`yarn`/`node` 前台调用偶发 `Permission denied`；`git` 偶发 shim 拒绝。均为执行环境噪声，命令经重试后成功且结果可复现。
 
 ---
