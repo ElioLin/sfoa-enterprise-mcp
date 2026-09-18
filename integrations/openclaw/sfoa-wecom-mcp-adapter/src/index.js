@@ -22,8 +22,8 @@
  *     per-requester connection and the per-file ingress request built below.
  *   - No process-wide "current user". The credential is the only cached value.
  *   - No file byte, base64 blob, or filesystem path from the model: the staged
- *     path comes from OpenClaw's own media fact and must sit below the
- *     configured staging root.
+ *     path comes from OpenClaw's own media fact and must sit below one of the
+ *     configured staging roots.
  *
  * Deployment note: `before_prompt_build` receives the turn's conversation, so
  * an installed (non-bundled) plugin only runs it when the host grants
@@ -34,16 +34,18 @@
 
 import { constants as fsConstants } from "node:fs";
 import { open } from "node:fs/promises";
+import path from "node:path";
 import { Readable } from "node:stream";
 import { resolveConfiguredSecretInputString } from "openclaw/plugin-sdk/secret-input-runtime";
 import {
   ATTACHMENT_INGRESS_PATH,
   ATTACHMENT_REF_TTL_MS,
-  DEFAULT_STAGED_MEDIA_ROOT,
   DEFAULT_WORKSPACE_ROOT,
   buildIngressRequest,
   createStagedAttachmentRegistry,
+  normalizeStagedMediaRoots,
   renderAttachmentContext,
+  renderAttachmentFailureContext,
   resolveIngressUrl,
   selectInboundMedia,
 } from "./attachments.js";
@@ -113,6 +115,27 @@ function readConfigString(api, key, fallback) {
 }
 
 /**
+ * Reads one plugin config value as a list of non-blank strings, or `undefined`
+ * when it is absent, not an array, or holds nothing usable.
+ *
+ * An empty list is deliberately reported as `undefined` rather than `[]`: the
+ * caller treats "not configured" and "configured with no usable entries"
+ * differently from "configured to accept nothing".
+ *
+ * @param {object} api
+ * @param {string} key
+ * @returns {string[] | undefined}
+ */
+function readConfigStringArray(api, key) {
+  const value = api.pluginConfig?.[key];
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+    .map((entry) => entry.trim());
+  return entries.length > 0 ? entries : undefined;
+}
+
+/**
  * Opens a staged file for streaming, or `null` when it is not a readable
  * regular file.
  *
@@ -165,7 +188,7 @@ async function openStagedFile(filePath) {
  * @param {ReturnType<typeof createStagedAttachmentRegistry>} params.registry
  * @param {string} params.serverName
  * @param {string} params.workspaceRoot
- * @param {string} params.mediaRoot
+ * @param {readonly string[]} params.mediaRoots
  * @param {typeof fetch} [params.fetchImpl]
  */
 function createInboundAttachmentStager(params) {
@@ -174,27 +197,70 @@ function createInboundAttachmentStager(params) {
   return async function stageInbound(event, ctx) {
     // Only the WeCom channel can produce a WeCom requester identity, and only
     // that identity may own the staged file.
-    if (ctx?.channelId !== WECOM_CHANNEL_ID) return undefined;
+    //
+    // Every bail-out below is logged. The bridge fails closed, so a quiet
+    // refusal and a message that never carried a file look identical from the
+    // outside — which is precisely the state that made "the platform sent no
+    // reference" impossible to diagnose from a gateway log at default
+    // verbosity. Nothing here names a file or a reference; the identity is the
+    // one the host already logs at this level elsewhere.
+    if (ctx?.channelId !== WECOM_CHANNEL_ID) {
+      params.api.logger.debug?.(
+        `[${params.serverName}] attachment bridge skipped: channel=${String(ctx?.channelId)} is not ${WECOM_CHANNEL_ID}`,
+      );
+      return undefined;
+    }
 
     const requesterId = event?.senderId;
-    if (typeof requesterId !== "string" || requesterId.trim().length === 0) return undefined;
+    if (typeof requesterId !== "string" || requesterId.trim().length === 0) {
+      params.api.logger.debug?.(
+        `[${params.serverName}] attachment bridge skipped: the event carries no senderId, so no file could be attributed`,
+      );
+      return undefined;
+    }
 
     const sessionKey = resolveSessionKey(ctx, event);
-    if (sessionKey === undefined) return undefined;
+    if (sessionKey === undefined) {
+      params.api.logger.debug?.(
+        `[${params.serverName}] attachment bridge skipped: the event carries no session key, so there is no prompt to deliver a reference to`,
+      );
+      return undefined;
+    }
 
-    const { files, withheld } = selectInboundMedia(event, {
+    const { files, withheld, withheldDirectory } = selectInboundMedia(event, {
       workspaceRoot: params.workspaceRoot,
-      mediaRoot: params.mediaRoot,
+      mediaRoots: params.mediaRoots,
     });
     if (withheld !== undefined) {
-      params.api.logger.debug?.(
-        `[${params.serverName}] attachment bridge withheld media (${withheld})`,
+      // A file arrived and was refused. At default verbosity this is the line
+      // that separates "the user sent nothing" from "the bridge dropped it".
+      // The directory is host infrastructure; the file name never appears.
+      params.api.logger.warn(
+        `[${params.serverName}] attachment bridge refused the media sent with this message ` +
+          `(code=${withheld}${withheldDirectory === undefined ? "" : `, source=${withheldDirectory}`}); ` +
+          "it was not staged and the model will not receive a reference for it.",
       );
+      if (files.length === 0) {
+        params.registry.rememberFailure(sessionKey, withheld);
+        return undefined;
+      }
     }
     if (files.length === 0) {
       // A message with no usable file clears any earlier batch, so a reference
-      // can never outlive the message it came from.
+      // can never outlive the message it came from. Clearing is the one decision
+      // this bridge makes that destroys a reference another message produced, so
+      // it is the one silent exit that must not stay silent: if the host emits a
+      // second `message_received` for the same conversation in the same turn —
+      // a file message followed by its own envelope — this line is the only
+      // trace that the reference was taken away before the prompt was built.
+      const cleared = params.registry.read(sessionKey).length;
       params.registry.remember(sessionKey, []);
+      if (cleared > 0) {
+        params.api.logger.warn(
+          `[${params.serverName}] attachment bridge cleared ${cleared} staged reference(s) for ` +
+            `session=${describeSessionKey(sessionKey)}: this message carried no usable file.`,
+        );
+      }
       return undefined;
     }
 
@@ -203,15 +269,17 @@ function createInboundAttachmentStager(params) {
         `[${params.serverName}] attachment bridge is enabled but the ingress URL could not be derived ` +
           "from the MCP endpoint; the files sent with this message were not staged.",
       );
-      params.registry.remember(sessionKey, []);
+      params.registry.rememberFailure(sessionKey, "INGRESS_URL_UNAVAILABLE");
       return undefined;
     }
 
     const token = await params.resolveToken();
     /** @type {object[]} */
     const staged = [];
+    /** @type {string | undefined} */
+    let failureCode;
     for (const file of files) {
-      const stagedFile = await stageOne({
+      const result = await stageOne({
         api: params.api,
         fetchImpl,
         ingressUrl: params.ingressUrl,
@@ -221,32 +289,66 @@ function createInboundAttachmentStager(params) {
         file,
         serverName: params.serverName,
       });
-      if (stagedFile !== undefined) staged.push(stagedFile);
+      if (result.staged !== undefined) staged.push(result.staged);
+      else failureCode = failureCode ?? result.failure;
     }
 
     params.registry.remember(sessionKey, staged);
-    if (staged.length > 0) {
-      // Counts only: a file name or a reference in a default-verbosity log
-      // would put a user's document title in the gateway log.
-      params.api.logger.debug?.(
-        `[${params.serverName}] staged ${staged.length} of ${files.length} inbound attachment(s)`,
+    if (staged.length === 0) {
+      // Every file was refused after the bridge had accepted it. The specific
+      // code travels with it: the ingress' own error code is far more useful to
+      // quote back than a generic staging failure.
+      const code = failureCode ?? "STAGING_FAILED";
+      params.api.logger.warn(
+        `[${params.serverName}] attachment bridge staged 0 of ${files.length} inbound attachment(s) ` +
+          `(code=${code}); the model will not receive a reference for them.`,
+      );
+      params.registry.rememberFailure(sessionKey, code);
+      return undefined;
+    }
+    if (staged.length < files.length) {
+      // Some files are usable, so the model gets those references and this
+      // conversation's failure record stays cleared rather than competing with
+      // them. The refused file is named by code here, for the operator.
+      params.api.logger.warn(
+        `[${params.serverName}] attachment bridge staged only ${staged.length} of ${files.length} inbound ` +
+          `attachment(s) (code=${failureCode ?? withheld ?? "STAGING_FAILED"}); the model receives references ` +
+          "for the staged ones only.",
       );
     }
+    // Counts only: a file name or a reference in a default-verbosity log
+    // would put a user's document title in the gateway log. The conversation
+    // key is masked to its shape — enough to correlate this line with the
+    // injection that should carry the references into the prompt.
+    params.api.logger.info(
+      `[${params.serverName}] staged ${staged.length} of ${files.length} inbound attachment(s) ` +
+        `for session=${describeSessionKey(sessionKey)}`,
+    );
     return undefined;
   };
 }
 
 /**
- * Streams one file into the ingress and returns the metadata it echoed back.
+ * Streams one file into the ingress and returns either the metadata it echoed
+ * back or the stable code that explains why it did not.
  *
  * The body is the read stream itself: it is never buffered, decoded, or
  * inspected, so memory use does not scale with file size.
  *
- * @returns {Promise<{ attachmentRef: string, fileName?: string, mimeType?: string, byteSize?: number } | undefined>}
+ * @returns {Promise<{ staged: { attachmentRef: string, fileName?: string, mimeType?: string, byteSize?: number } } | { failure: string }>}
  */
 async function stageOne(params) {
   const opened = await openStagedFile(params.file.filePath);
-  if (opened === null) return undefined;
+  if (opened === null) {
+    // The fact pointed below a staging root but the file was not readable as a
+    // regular, non-empty file: it was removed between the fact and this call, or
+    // it is a device, a FIFO, or a symlink. The path itself is infrastructure.
+    params.api.logger.warn(
+      `[${params.serverName}] attachment bridge could not open a staged file ` +
+        `(code=STAGED_FILE_UNREADABLE, source=${path.dirname(params.file.filePath)}); it was not staged.`,
+    );
+    return { failure: "STAGED_FILE_UNREADABLE" };
+  }
 
   const request = buildIngressRequest({
     url: params.ingressUrl,
@@ -257,8 +359,16 @@ async function stageOne(params) {
     byteSize: opened.byteSize,
   });
   if (request === null) {
+    // Preconditions only: none of the values is logged, because the token is a
+    // credential and the rest are already covered by the caller's own warnings.
     opened.stream.destroy();
-    return undefined;
+    params.api.logger.warn(
+      `[${params.serverName}] attachment bridge withheld a staged file before the ingress call ` +
+        `(code=INGRESS_REQUEST_INCOMPLETE, url=${typeof params.ingressUrl === "string"}, ` +
+        `token=${typeof params.token === "string" && params.token.length > 0}, ` +
+        `requester=${typeof params.requesterId === "string" && params.requesterId.trim().length > 0}).`,
+    );
+    return { failure: "INGRESS_REQUEST_INCOMPLETE" };
   }
 
   const controller = new AbortController();
@@ -274,33 +384,47 @@ async function stageOne(params) {
     });
 
     if (!response.ok) {
-      // The ingress answers with a small JSON error object. Only the stable
-      // error code is logged; the message can carry a file name.
+      // The ingress answers with a small JSON error object. Its own stable code
+      // is preferred over a local one, because it is what the operator and the
+      // user can act on; only the code is kept, never the message, which can
+      // carry a file name.
       const errorCode = await readIngressErrorCode(response);
+      const code = errorCode ?? `INGRESS_HTTP_${response.status}`;
       params.api.logger.warn(
         `[${params.serverName}] SFOA Attachment Ingress refused a file (status=${response.status}` +
           (errorCode === undefined ? "" : ` code=${errorCode}`) +
           "); it was not staged and the model will not receive a reference for it.",
       );
-      return undefined;
+      return { failure: code };
     }
 
     const body = await response.json();
-    if (!body || typeof body.attachmentRef !== "string" || body.attachmentRef.length === 0) return undefined;
+    if (!body || typeof body.attachmentRef !== "string" || body.attachmentRef.length === 0) {
+      // A 2xx whose body carries no reference would otherwise be the quietest
+      // failure in the bridge: the bytes reached the runtime and nothing came
+      // back that the model could use.
+      params.api.logger.warn(
+        `[${params.serverName}] SFOA Attachment Ingress accepted a file but returned no attachment reference ` +
+          "(code=INGRESS_REF_MISSING); it was not staged and the model will not receive a reference for it.",
+      );
+      return { failure: "INGRESS_REF_MISSING" };
+    }
     return {
-      attachmentRef: body.attachmentRef,
-      fileName: typeof body.fileName === "string" ? body.fileName : params.file.fileName,
-      ...(typeof body.mimeType === "string" ? { mimeType: body.mimeType } : {}),
-      ...(Number.isInteger(body.byteSize) ? { byteSize: body.byteSize } : {}),
+      staged: {
+        attachmentRef: body.attachmentRef,
+        fileName: typeof body.fileName === "string" ? body.fileName : params.file.fileName,
+        ...(typeof body.mimeType === "string" ? { mimeType: body.mimeType } : {}),
+        ...(Number.isInteger(body.byteSize) ? { byteSize: body.byteSize } : {}),
+      },
     };
   } catch (error) {
     // A timeout, a refused connection, or a runtime that is not ready. The file
-    // stays stagged locally and nothing is remembered, so the model simply has
+    // stays staged locally and nothing is remembered, so the model simply has
     // no reference to offer — which is the safe outcome.
     params.api.logger.warn(
       `[${params.serverName}] SFOA Attachment Ingress call failed: ${describeError(error)}`,
     );
-    return undefined;
+    return { failure: "INGRESS_UNREACHABLE" };
   } finally {
     clearTimeout(timeout);
     opened.stream.destroy();
@@ -334,18 +458,48 @@ function describeError(error) {
  * is consumed here — the runtime consumes a reference exactly once, so a
  * re-offered reference is refused by the runtime rather than uploaded twice.
  *
+ * When the message carried a file that the bridge could not stage, the model
+ * gets the reason instead of silence. Without it the only honest answer left is
+ * "no reference arrived", which is indistinguishable from a message that never
+ * had a file — and that ambiguity is what made the original failure take a
+ * source-level investigation to locate.
+ *
  * @param {object} params
  * @param {ReturnType<typeof createStagedAttachmentRegistry>} params.registry
  * @param {string} params.serverName
+ * @param {{ logger: { info: Function, warn: Function } }} params.api
  */
 function createAttachmentContextInjector(params) {
   return function injectAttachmentContext(event, context) {
     const sessionKey = resolveSessionKey(context, { sessionKey: event?.sessionKey });
-    if (sessionKey === undefined) return undefined;
+    if (sessionKey === undefined) {
+      params.api.logger.warn(
+        `[${params.serverName}] attachment injector ran without a conversation key (result=none)`,
+      );
+      return undefined;
+    }
 
-    const text = renderAttachmentContext(params.registry.read(sessionKey));
-    if (text.length === 0) return undefined;
-    return { appendContext: text };
+    const refs = params.registry.read(sessionKey);
+    const text = renderAttachmentContext(refs);
+    const failure = params.registry.readFailure(sessionKey);
+    if (text.length > 0) {
+      // The references exist for this conversation and go into the prompt. Say
+      // so: the exchange is the one place in this bridge where a reference stops
+      // being an internal record and becomes something the model can act on, and
+      // when it does not happen the model reports a platform that never produced
+      // one. The count is enough — a reference or a file name in a
+      // default-verbosity log would put a user's document title in it.
+      params.api.logger.info(
+        `[${params.serverName}] attachment injector: injected ${refs.length} reference(s) into the ` +
+          `prompt for session=${describeSessionKey(sessionKey)}`,
+      );
+      return { appendContext: text };
+    }
+
+    // No reference for this turn. If the bridge refused a file, say so and say
+    // why, so the model reports a platform-side reason rather than guessing.
+    if (failure === undefined) return undefined;
+    return { appendContext: renderAttachmentFailureContext(failure) };
   };
 }
 
@@ -363,6 +517,54 @@ function resolveSessionKey(context, event) {
     if (typeof candidate === "string" && candidate.trim().length > 0) return candidate.trim();
   }
   return undefined;
+}
+
+/**
+ * Renders a conversation key for the log without putting the requester's
+ * channel identifier in it. Digits are masked, so the shape survives — which is
+ * what makes a mismatch between the two hooks visible — while the identifier
+ * itself does not.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+function describeSessionKey(value) {
+  if (typeof value !== "string" || value.trim().length === 0) return "(none)";
+  return value.trim().replace(/\d+/gu, "#");
+}
+
+/**
+ * The staged-reference registry, shared by every registration of this plugin in
+ * the process.
+ *
+ * The gateway calls `register()` twice on one process — once while loading
+ * plugins, once while starting channels — and it does not dispatch both
+ * registrations' hooks together: `message_received` is served by one and
+ * `before_prompt_build` by the other. A registry built inside `register()` is
+ * therefore built twice, and the staging hook writes references into one while
+ * the injection hook reads an empty other. Staging reports success, the model
+ * receives nothing, and no single line in the log looks wrong.
+ *
+ * Keyed by a process-global symbol for the same reason the host uses one for its
+ * own hook-runner state: it survives the plugin module being evaluated twice, so
+ * there is exactly one registry however the host chooses to load it.
+ *
+ * @param {() => ReturnType<typeof createStagedAttachmentRegistry>} create
+ * @returns {{ registry: ReturnType<typeof createStagedAttachmentRegistry>, shared: boolean }}
+ */
+function resolveSharedAttachmentRegistry(create) {
+  const key = Symbol.for("sfoa.enterprise.mcp.staged-attachment-registry");
+  const scope = /** @type {Record<symbol, unknown>} */ (globalThis);
+  const existing = scope[key];
+  if (existing !== undefined) {
+    return {
+      registry: /** @type {ReturnType<typeof createStagedAttachmentRegistry>} */ (existing),
+      shared: true,
+    };
+  }
+  const created = create();
+  scope[key] = created;
+  return { registry: created, shared: false };
 }
 
 /**
@@ -394,6 +596,7 @@ const plugin = {
       attachmentIngressPath: { type: "string" },
       attachmentWorkspaceRoot: { type: "string" },
       attachmentMediaRoot: { type: "string" },
+      attachmentMediaRoots: { type: "array", items: { type: "string" } },
       attachmentRefTtlMs: { type: "number" },
     },
   },
@@ -462,9 +665,31 @@ const plugin = {
         mcpUrl,
         readConfigString(api, "attachmentIngressPath", ATTACHMENT_INGRESS_PATH),
       );
-      const registry = createStagedAttachmentRegistry({
-        ttlMs: readConfigNumber(api, "attachmentRefTtlMs", ATTACHMENT_REF_TTL_MS),
+      const { registry, shared: registryShared } = resolveSharedAttachmentRegistry(() =>
+        createStagedAttachmentRegistry({
+          ttlMs: readConfigNumber(api, "attachmentRefTtlMs", ATTACHMENT_REF_TTL_MS),
+        }),
+      );
+      // Two roots, because two layers stage the same file: OpenClaw's sandbox
+      // copies it under the workspace (`staged-inputs-*`) while the WeCom
+      // channel plugin writes its own copy under the state directory and is
+      // what the hook context actually reports. Accepting only one root silently
+      // refused every WeCom file. `attachmentMediaRoots` (plural) replaces the
+      // defaults outright; the singular `attachmentMediaRoot` still narrows to
+      // one root and now also replaces them.
+      const mediaRoots = normalizeStagedMediaRoots({
+        mediaRoot: readConfigString(api, "attachmentMediaRoot", undefined),
+        mediaRoots: readConfigStringArray(api, "attachmentMediaRoots"),
       });
+      if (mediaRoots.length === 0) {
+        // Fail closed and loudly: with no acceptable root the bridge can never
+        // stage anything, so every file message would look like an empty one.
+        api.logger.warn(
+          `[${serverName}] attachment bridge has no usable staging root ` +
+            "(code=MEDIA_ROOTS_EMPTY); every inbound file will be refused. " +
+            "Check plugins.entries.sfoa-wecom-mcp-adapter.config.attachmentMediaRoots.",
+        );
+      }
       const stageInbound = createInboundAttachmentStager({
         api,
         ingressUrl,
@@ -472,9 +697,9 @@ const plugin = {
         registry,
         serverName,
         workspaceRoot: readConfigString(api, "attachmentWorkspaceRoot", DEFAULT_WORKSPACE_ROOT),
-        mediaRoot: readConfigString(api, "attachmentMediaRoot", DEFAULT_STAGED_MEDIA_ROOT),
+        mediaRoots,
       });
-      const injectAttachmentContext = createAttachmentContextInjector({ registry, serverName });
+      const injectAttachmentContext = createAttachmentContextInjector({ api, registry, serverName });
 
       // A hook that throws would disturb the turn it is attached to, so both
       // handlers absorb their own failures and log them instead.
@@ -493,7 +718,8 @@ const plugin = {
       });
 
       api.logger.info(
-        `[${serverName}] attachment bridge registered (ingress=${String(ingressUrl)})`,
+        `[${serverName}] attachment bridge registered ` +
+          `(ingress=${String(ingressUrl)}, registry=${registryShared ? "shared" : "new"})`,
       );
     } else {
       api.logger.info(

@@ -13,7 +13,7 @@
  *     body is a stream handed straight to `fetch`; the model never sees a file.
  *   - It never derives a path from anything the user, the model, or a tool
  *     argument said. The only accepted paths are the ones OpenClaw itself
- *     stamped into the media facts, and they must sit below the configured
+ *     stamped into the media facts, and they must sit below a configured
  *     staging root.
  *   - It never fetches a URL. A media fact that carries only a `url` describes
  *     bytes that are not on this host, and forwarding that URL would both turn
@@ -38,6 +38,30 @@ export const ATTACHMENT_INGRESS_PATH = "/attachments";
 /** OpenClaw's inbound media staging root, below the workspace. */
 export const DEFAULT_WORKSPACE_ROOT = "/data/openclaw/workspace";
 export const DEFAULT_STAGED_MEDIA_ROOT = "/data/openclaw/workspace/media/inbound";
+
+/**
+ * The channel's own inbound media directory, outside the workspace.
+ *
+ * There are two ways a file reaches the host, and they stage to different
+ * places. Media the host fetched from a provider URL is copied below the
+ * workspace (that is `DEFAULT_STAGED_MEDIA_ROOT`, and its files carry the
+ * `input-` prefix). A channel that has already downloaded the file itself —
+ * WeCom agent mode does, for every file and image the robot receives — reports
+ * the fact with the path in the channel's own media directory instead. The
+ * sandbox may still make its own workspace copy for the model to read; that copy
+ * is a different file at a different path, and it is not the one the
+ * `message_received` hook reports.
+ *
+ * Both are directories only OpenClaw writes to, and a fact path is still
+ * accepted only when it is strictly below one of them.
+ */
+export const DEFAULT_CHANNEL_MEDIA_ROOT = "/data/openclaw/state/media/inbound";
+
+/** Every directory a staged inbound media fact may sit below. */
+export const DEFAULT_STAGED_MEDIA_ROOTS = Object.freeze([
+  DEFAULT_STAGED_MEDIA_ROOT,
+  DEFAULT_CHANNEL_MEDIA_ROOT,
+]);
 
 /**
  * Matches `MAX_ATTACHMENTS_PER_CALL` in the SFOA runtime: staging more files
@@ -86,6 +110,20 @@ const MIME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}\/[A-Za-z0-9][A-Za-
 const SCHEME_PATTERN = /^(?:[A-Za-z][A-Za-z0-9+.-]*:\/\/|file:)/iu;
 
 /**
+ * The staging identity OpenClaw appends to a file it saved, as `---<identity>`.
+ *
+ * `staged-inputs` uses either a sha256 hex digest or a v4 UUID, lower-case, and
+ * always immediately before the extension (or at the end of the name). It names
+ * the staging slot, not the user's file, so it is dropped from the label the
+ * ingress records — otherwise every file in the CRM carries a UUID.
+ */
+const STAGED_IDENTITY_SUFFIX_PATTERN =
+  /---(?:[a-f0-9]{64}|[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})(?=\.[A-Za-z0-9]{1,16}$|$)/u;
+
+/** Longest rejected-path directory echoed into a log line. */
+const MAX_LOGGED_DIRECTORY_LENGTH = 200;
+
+/**
  * Derives the Attachment Ingress URL from the MCP endpoint the adapter already
  * trusts, so there is no second host to configure and no way for a deployment
  * to point uploads at an attacker-chosen origin.
@@ -113,14 +151,14 @@ export function resolveIngressUrl(mcpUrl, ingressPath = ATTACHMENT_INGRESS_PATH)
  * Resolves one staged media fact's path to an absolute path below the staging
  * root, or `undefined` when the path is unusable.
  *
- * An absolute path is accepted only when it sits below `mediaRoot`. A relative
- * path is resolved against `workspaceRoot` first, which is how OpenClaw itself
- * interprets a relative media path. `..` segments are normalized away before
- * the containment check, so a traversal attempt lands outside the root and is
- * refused rather than read.
+ * An absolute path is accepted only when it sits below one of the configured
+ * media roots. A relative path is resolved against `workspaceRoot` first, which
+ * is how OpenClaw itself interprets a relative media path. `..` segments are
+ * normalized away before the containment check, so a traversal attempt lands
+ * outside the roots and is refused rather than read.
  *
  * @param {unknown} rawPath
- * @param {{ workspaceRoot?: unknown, mediaRoot?: unknown }} [options]
+ * @param {{ workspaceRoot?: unknown, mediaRoot?: unknown, mediaRoots?: unknown }} [options]
  * @returns {string | undefined}
  */
 export function resolveStagedMediaPath(rawPath, options = {}) {
@@ -133,11 +171,54 @@ export function resolveStagedMediaPath(rawPath, options = {}) {
   if (SCHEME_PATTERN.test(trimmed)) return undefined;
 
   const workspaceRoot = normalizeRoot(options.workspaceRoot, DEFAULT_WORKSPACE_ROOT);
-  const mediaRoot = normalizeRoot(options.mediaRoot, DEFAULT_STAGED_MEDIA_ROOT);
-  if (workspaceRoot === undefined || mediaRoot === undefined) return undefined;
+  if (workspaceRoot === undefined) return undefined;
+  const mediaRoots = normalizeStagedMediaRoots(options);
+  if (mediaRoots.length === 0) return undefined;
 
   const candidate = path.resolve(workspaceRoot, trimmed);
-  return isBelow(candidate, mediaRoot) ? candidate : undefined;
+  return mediaRoots.some((mediaRoot) => isBelow(candidate, mediaRoot)) ? candidate : undefined;
+}
+
+/**
+ * Normalizes the configured staging roots into a deduplicated list of absolute
+ * directories.
+ *
+ * An explicit configuration replaces the defaults entirely — a deployment that
+ * names its own roots gets exactly those, so widening the defaults can never
+ * quietly widen a locked-down deployment. A configured entry that is not an
+ * absolute path (or names `/`) is dropped rather than silently replaced by a
+ * default: with every entry dropped the list is empty and nothing is forwarded,
+ * which is the fail-closed direction, and the adapter logs that state.
+ *
+ * "Configured" means the key was present, even when it contributed no usable
+ * root. Falling back to the defaults in that case would turn a deployment that
+ * locked its roots down to nothing into one that accepts the standard paths.
+ *
+ * @param {{ mediaRoot?: unknown, mediaRoots?: unknown }} [options]
+ *        `mediaRoot` is the pre-roots single-root spelling; it is still honored.
+ * @returns {ReadonlyArray<string>}
+ */
+export function normalizeStagedMediaRoots(options = {}) {
+  const configured = [];
+  let isConfigured = false;
+  if (options.mediaRoots !== undefined) {
+    isConfigured = true;
+    if (Array.isArray(options.mediaRoots)) configured.push(...options.mediaRoots);
+    else configured.push(options.mediaRoots);
+  }
+  if (options.mediaRoot !== undefined) {
+    isConfigured = true;
+    configured.push(options.mediaRoot);
+  }
+
+  const source = isConfigured ? configured : DEFAULT_STAGED_MEDIA_ROOTS;
+
+  const roots = [];
+  for (const value of source) {
+    const root = normalizeRoot(value, undefined);
+    if (root !== undefined && !roots.includes(root)) roots.push(root);
+  }
+  return Object.freeze(roots);
 }
 
 /**
@@ -149,8 +230,8 @@ export function resolveStagedMediaPath(rawPath, options = {}) {
  * would mean guessing at bytes this host does not have.
  *
  * @param {{ media?: unknown, mediaStagingPending?: unknown }} event
- * @param {{ workspaceRoot?: unknown, mediaRoot?: unknown, maxFiles?: number }} [options]
- * @returns {{ files: ReadonlyArray<{ filePath: string, fileName: string, mimeType?: string }>, withheld?: string }}
+ * @param {{ workspaceRoot?: unknown, mediaRoot?: unknown, mediaRoots?: unknown, maxFiles?: number }} [options]
+ * @returns {{ files: ReadonlyArray<{ filePath: string, fileName: string, mimeType?: string }>, withheld?: string, withheldDirectory?: string }}
  */
 export function selectInboundMedia(event, options = {}) {
   if (!event || typeof event !== "object") return { files: [] };
@@ -163,18 +244,32 @@ export function selectInboundMedia(event, options = {}) {
     ? options.maxFiles
     : MAX_INBOUND_ATTACHMENTS_PER_MESSAGE;
 
+  // Resolved once for the whole message so every fact is judged against the
+  // same roots, and so a misconfigured root list is visible to the caller.
+  const mediaRoots = normalizeStagedMediaRoots(options);
+
   const files = [];
   let withheld;
+  let withheldDirectory;
   for (const fact of facts) {
     if (files.length >= maxFiles) {
       withheld = withheld ?? "MEDIA_LIMIT_EXCEEDED";
       break;
     }
-    const filePath = resolveStagedMediaPath(fact?.path, options);
+    const filePath = resolveStagedMediaPath(fact?.path, { ...options, mediaRoots });
     if (filePath === undefined) {
       // Distinguish "not local" from "unusable path" for the operator, but treat
       // both the same way: the fact is not forwarded.
       withheld = withheld ?? (typeof fact?.path === "string" ? "MEDIA_PATH_REJECTED" : "MEDIA_NOT_LOCAL");
+      // Where the rejected path pointed, so an operator can see which staging
+      // root produced it. A directory is host infrastructure; the file name —
+      // the user's own document title — is deliberately not included.
+      if (withheldDirectory === undefined && typeof fact?.path === "string") {
+        const directory = path.dirname(fact.path.trim());
+        if (directory.length > 0 && directory !== ".") {
+          withheldDirectory = directory.slice(0, MAX_LOGGED_DIRECTORY_LENGTH);
+        }
+      }
       continue;
     }
     const fileName = stagedFileName(filePath);
@@ -186,16 +281,20 @@ export function selectInboundMedia(event, options = {}) {
     files.push(mimeType === undefined ? { filePath, fileName } : { filePath, fileName, mimeType });
   }
 
-  return withheld === undefined ? { files } : { files, withheld };
+  if (withheld === undefined) return { files };
+  return withheldDirectory === undefined
+    ? { files, withheld }
+    : { files, withheld, withheldDirectory };
 }
 
 /**
  * Recovers a display file name from a staged path.
  *
- * OpenClaw stages an inbound file as `input-<name>` inside a per-message
- * directory, so the owner-visible name is the basename with that prefix
- * removed. Nothing here is trusted for safety — the result is a label in a
- * header, never a path component.
+ * OpenClaw may stage an inbound file as `input-<name>` inside a per-message
+ * directory (the workspace convention) or save it under the channel's own media
+ * directory as `<name>---<identity>`; both the prefix and the identity suffix
+ * are staging artifacts, so both are removed. Nothing here is trusted for
+ * safety — the result is a label in a header, never a path component.
  *
  * @param {string} filePath
  * @returns {string | undefined}
@@ -203,8 +302,10 @@ export function selectInboundMedia(event, options = {}) {
 export function stagedFileName(filePath) {
   const base = path.basename(filePath);
   if (base.length === 0 || base === "." || base === "..") return undefined;
-  const stripped = base.startsWith("input-") ? base.slice("input-".length) : base;
-  const name = stripped.trim().length > 0 ? stripped : base;
+  let name = base.startsWith("input-") ? base.slice("input-".length).trim() : base;
+  if (name.length === 0) name = base;
+  const withoutIdentity = name.replace(STAGED_IDENTITY_SUFFIX_PATTERN, "").trim();
+  if (withoutIdentity.length > 0) name = withoutIdentity;
   return name.length > 0 ? name : undefined;
 }
 
@@ -324,14 +425,27 @@ function normalizeRunId(value) {
 
 /**
  * @param {unknown} value
- * @param {string} fallback
+ * @param {unknown} fallback
  * @returns {string | undefined} Absolute, normalized root, or `undefined`.
  */
 function normalizeRoot(value, fallback) {
-  const raw = typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
+  const raw = usableRootText(value) ?? usableRootText(fallback);
+  if (raw === undefined) return undefined;
   if (!path.isAbsolute(raw)) return undefined;
   const normalized = path.resolve(raw);
   return normalized === path.parse(normalized).root ? undefined : normalized;
+}
+
+/**
+ * The root's own text, or `undefined` when the value is not a non-blank string.
+ * Kept separate so a malformed entry is dropped rather than reaching
+ * `path.isAbsolute`, which throws on anything that is not a string.
+ *
+ * @param {unknown} value
+ * @returns {string | undefined}
+ */
+function usableRootText(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 /**
@@ -369,9 +483,26 @@ export function createStagedAttachmentRegistry(options = {}) {
   /** @type {Map<string, { refs: ReadonlyArray<object>, stagedAt: number, expiresAt: number }>} */
   const entries = new Map();
 
+  /**
+   * Why the last media-bearing message for a conversation produced no
+   * reference. Kept beside the references so the prompt that would have carried
+   * them can say what happened instead of staying silent — silence is what makes
+   * the model guess, and a guess is what the model must never act on.
+   *
+   * Only the stable code is stored. Where a rejected path pointed belongs in the
+   * gateway log, which the operator reads; the model is told the code and
+   * nothing about this host's filesystem.
+   *
+   * @type {Map<string, { code: string, expiresAt: number }>}
+   */
+  const failures = new Map();
+
   function prune(current) {
     for (const [key, entry] of entries) {
       if (entry.expiresAt <= current) entries.delete(key);
+    }
+    for (const [key, entry] of failures) {
+      if (entry.expiresAt <= current) failures.delete(key);
     }
   }
 
@@ -388,6 +519,10 @@ export function createStagedAttachmentRegistry(options = {}) {
       if (typeof key !== "string" || key.length === 0) return;
       const current = now();
       prune(current);
+      // Any decision about this conversation's files replaces the previous one,
+      // including its failure: a reference must never outlive the message it
+      // came from, and neither must an explanation of why one is missing.
+      failures.delete(key);
       const usable = (Array.isArray(refs) ? refs : []).filter(
         (ref) => ref && typeof ref.attachmentRef === "string" && ref.attachmentRef.length > 0,
       );
@@ -409,6 +544,36 @@ export function createStagedAttachmentRegistry(options = {}) {
     },
 
     /**
+     * Records that this conversation's message carried a file the bridge could
+     * not stage, dropping any references from an earlier message.
+     *
+     * @param {string} key Canonical session key.
+     * @param {string} code Stable failure code from {@link selectInboundMedia} or the stager.
+     */
+    rememberFailure(key, code) {
+      if (typeof key !== "string" || key.length === 0) return;
+      if (typeof code !== "string" || code.length === 0) return;
+      const current = now();
+      prune(current);
+      entries.delete(key);
+      if (!failures.has(key) && failures.size >= maxSessions) {
+        const oldest = failures.keys().next();
+        if (!oldest.done) failures.delete(oldest.value);
+      }
+      failures.set(key, { code, expiresAt: current + ttlMs });
+    },
+
+    /**
+     * @param {string} key Canonical session key.
+     * @returns {string | undefined} The failure code, or `undefined`.
+     */
+    readFailure(key) {
+      if (typeof key !== "string" || key.length === 0) return undefined;
+      prune(now());
+      return failures.get(key)?.code;
+    },
+
+    /**
      * @param {string} key Canonical session key.
      * @returns {ReadonlyArray<object>} The references, or an empty list.
      */
@@ -423,6 +588,7 @@ export function createStagedAttachmentRegistry(options = {}) {
     /** Drops every entry; used on plugin teardown and in tests. */
     clear() {
       entries.clear();
+      failures.clear();
     },
 
     /** Number of conversations currently holding references. */
@@ -431,6 +597,28 @@ export function createStagedAttachmentRegistry(options = {}) {
       return entries.size;
     },
   };
+}
+
+/**
+ * Renders the prompt context that explains a file the bridge could not stage.
+ *
+ * Without this the model sees a message that plainly carried a file, no
+ * reference, and no reason — which is exactly the state that invites it to
+ * guess, improvise a reference, or tell the user something untrue about the
+ * platform. The wording therefore gives it the fact and the prohibition, and
+ * nothing it could act on.
+ *
+ * @param {string | undefined} code Stable failure code.
+ * @returns {string} Context text, or an empty string when there is nothing to report.
+ */
+export function renderAttachmentFailureContext(code) {
+  const trimmed = typeof code === "string" ? code.trim() : "";
+  if (trimmed.length === 0) return "";
+
+  return [
+    `SFOA attachment bridge: this message carried a file, but the platform could not register it, so no \`att_…\` reference exists for it. Reason code: ${trimmed}.`,
+    "Do not call `upload_files_to_record` for this file, do not invent or reuse a reference, and do not read or fetch the file to work around it. Tell the user the file could not be staged and quote the reason code so the platform side can be checked.",
+  ].join("\n");
 }
 
 /**

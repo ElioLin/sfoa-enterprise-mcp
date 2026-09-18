@@ -249,6 +249,50 @@ test("a reference survives a second prompt build for the same turn", async () =>
   assert.match(second.appendContext, /att_aaaaaaaaaa/u);
 });
 
+test("two registrations of the plugin share one registry, so one stages what the other injects", async () => {
+  // The Gateway calls `register()` twice in a single process — once while
+  // loading plugins, once while starting channels — and it does not dispatch
+  // both registrations' hooks together: `message_received` is served by one and
+  // `before_prompt_build` by the other.
+  //
+  // A registry built inside `register()` is therefore built twice, and every
+  // file one registration stages is invisible to the injection the other
+  // serves. That failure is silent from every angle: the ingress call succeeds
+  // and is logged, the model receives no reference and truthfully reports that
+  // the platform produced none, and no line in the gateway log is wrong.
+  const content = Buffer.from("staged by one registration, injected by the other");
+  const workspace = await createWorkspace([{ name: "one.xlsx", content }]);
+  const sessionKey = "session-two-registrations";
+  let staging;
+
+  const calls = await withFetch(
+    async () => stagedResponse("att_tworegistrations", { fileName: "one.xlsx" }),
+    async () => {
+      staging = createHarness({ attachmentRoots: workspace });
+      await staging.emitMessageReceived({
+        senderId: "user-two-registrations",
+        sessionKey,
+        media: [
+          mediaFact(
+            workspace.files[0].path,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          ),
+        ],
+      });
+    },
+  );
+  assert.equal(calls.length, 1, "the first registration staged the file");
+
+  // The host's other half: an independent registration of the same shipped
+  // plugin, which is what actually serves the prompt build.
+  const injecting = createHarness({ attachmentRoots: workspace });
+  const result = injecting.emitBeforePromptBuild({ sessionKey });
+
+  assert.ok(result, "the second registration must see what the first staged");
+  assert.match(result.appendContext, /att_tworegistrations/u);
+  assert.match(result.appendContext, /one\.xlsx/u);
+});
+
 test("two users in two conversations never see each other's references", async () => {
   const workspace = await createWorkspace([
     { name: "a.pdf", content: Buffer.from("a") },
@@ -419,6 +463,87 @@ test("a path outside the staging root is refused before it is opened", async () 
   assert.equal(calls.length, 0);
 });
 
+test("a file the channel staged outside the workspace still reaches the ingress", async () => {
+  // The WeCom channel plugin downloads a file itself and reports a path below
+  // its own media directory, never below the workspace. The bridge once accepted
+  // only the workspace root, so every WeCom file was refused by a check that ran
+  // before the first log line — and the model was left to report "no reference
+  // arrived". This is that regression, pinned.
+  const workspace = await createWorkspace([]);
+  const channelRoot = path.join(workspace.root, "state-media", "inbound");
+  await mkdir(channelRoot, { recursive: true });
+  const channelFile = path.join(
+    channelRoot,
+    "订单行已抛SAP数量同步接口文档---4163435e-e2ed-4f17-a4da-166b614e07f8.md",
+  );
+  await writeFile(channelFile, "content");
+
+  let harness;
+  const calls = await withFetch(
+    async (call) =>
+      stagedResponse("att_".padEnd(14, "a"), {
+        fileName: decodeURIComponent(call.init.headers["x-sfoa-file-name"]),
+        mimeType: call.init.headers["x-sfoa-file-mime"],
+      }),
+    async () => {
+      harness = createHarness({
+        pluginConfig: {
+          attachmentBridgeEnabled: true,
+          attachmentWorkspaceRoot: workspace.root,
+          attachmentMediaRoots: [workspace.mediaRoot, channelRoot],
+        },
+      });
+      await harness.emitMessageReceived({
+        senderId: "user-a",
+        sessionKey: "session-1",
+        media: [mediaFact(channelFile, "text/markdown")],
+      });
+    },
+  );
+
+  assert.equal(calls.length, 1, "the channel's own staged file must reach the ingress");
+  assert.equal(
+    decodeURIComponent(calls[0].init.headers["x-sfoa-file-name"]),
+    "订单行已抛SAP数量同步接口文档.md",
+    "the staging identity suffix is not part of the user's file name",
+  );
+  assert.equal(harness.warnings().length, 0, "a staged file is not a warning");
+
+  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  assert.ok(context && context.appendContext.includes("att_"), "the reference reaches the model");
+});
+
+test("a file below no configured root reports why instead of staying silent", async () => {
+  // With nothing acceptable the bridge must fail closed, and the model must be
+  // told — silence here is what invites it to guess.
+  const workspace = await createWorkspace([{ name: "a.pdf", content: Buffer.from("a") }]);
+  const elsewhere = path.join(workspace.root, "not-a-staging-root");
+  await mkdir(elsewhere, { recursive: true });
+  const strayFile = path.join(elsewhere, "a.pdf");
+  await writeFile(strayFile, "a");
+
+  let harness;
+  const calls = await withFetch(
+    async () => stagedResponse("att_".padEnd(14, "a")),
+    async () => {
+      harness = createHarness({ attachmentRoots: workspace });
+      await harness.emitMessageReceived({
+        senderId: "user-a",
+        sessionKey: "session-1",
+        media: [mediaFact(strayFile, "application/pdf")],
+      });
+    },
+  );
+
+  assert.equal(calls.length, 0, "no ingress call for a path outside every root");
+  assert.match(harness.warnings().join("\n"), /MEDIA_PATH_REJECTED/u);
+
+  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  assert.ok(context && typeof context.appendContext === "string");
+  assert.match(context.appendContext, /MEDIA_PATH_REJECTED/u);
+  assert.equal(context.appendContext.includes("a.pdf"), false, "no file name in the prompt");
+});
+
 test("an ingress refusal leaves the model with no reference and the log with no file name", async () => {
   const workspace = await createWorkspace([
     { name: "confidential-restructuring.pdf", content: Buffer.from("a") },
@@ -441,7 +566,19 @@ test("an ingress refusal leaves the model with no reference and the log with no 
     },
   );
 
-  assert.equal(harness.emitBeforePromptBuild({ sessionKey: "session-1" }), undefined);
+  // The model gets the reason and the prohibition — never a reference it could
+  // act on, and never the user's own document title.
+  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  assert.ok(context && typeof context.appendContext === "string", "the refusal must reach the model");
+  assert.match(context.appendContext, /MCP_ATTACHMENT_TOO_LARGE/u);
+  assert.match(context.appendContext, /Do not call `upload_files_to_record`/u);
+  assert.equal(
+    context.appendContext.includes("confidential-restructuring.pdf"),
+    false,
+    "no file name in the prompt",
+  );
+  assert.equal(context.appendContext.includes(workspace.mediaRoot), false, "no staged path in the prompt");
+
   const warnings = harness.warnings().join("\n");
   assert.match(warnings, /MCP_ATTACHMENT_TOO_LARGE/u);
   assert.equal(warnings.includes("confidential-restructuring.pdf"), false, "no file name in the log");
@@ -467,8 +604,13 @@ test("a runtime that is not reachable costs the turn nothing", async () => {
   );
 
   assert.equal(calls.length, 1);
-  assert.equal(harness.emitBeforePromptBuild({ sessionKey: "session-1" }), undefined);
   assert.match(harness.warnings().join("\n"), /Attachment Ingress call failed/u);
+
+  // The turn still runs. The model is told the file could not be staged rather
+  // than being left to guess why a file message carried no reference.
+  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  assert.ok(context && typeof context.appendContext === "string");
+  assert.match(context.appendContext, /INGRESS_UNREACHABLE/u);
 });
 
 test("only the usable files of a multi-file message are staged", async () => {

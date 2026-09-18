@@ -34,7 +34,12 @@
       },
       "attachmentMediaRoot": {
         "type": "string",
-        "description": "Absolute staging root an inbound file must sit below to be forwarded. Defaults to <attachmentWorkspaceRoot>/media/inbound."
+        "description": "Absolute staging root an inbound file must sit below to be forwarded. Prefer attachmentMediaRoots; this single-root spelling replaces the defaults with exactly this one root."
+      },
+      "attachmentMediaRoots": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Absolute staging roots an inbound file may sit below. Setting this replaces the defaults entirely, so naming your own roots cannot be widened by a default. Defaults to [/data/openclaw/workspace/media/inbound, /data/openclaw/state/media/inbound]: the workspace copy OpenClaw's sandbox stages, and the copy the WeCom channel plugin downloads itself and reports in the hook context."
       },
       "attachmentRefTtlMs": {
         "type": "number",

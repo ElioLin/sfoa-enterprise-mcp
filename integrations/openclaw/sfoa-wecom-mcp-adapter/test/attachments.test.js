@@ -14,11 +14,16 @@ import { test } from "node:test";
 
 import {
   ATTACHMENT_INGRESS_PATH,
+  DEFAULT_CHANNEL_MEDIA_ROOT,
+  DEFAULT_STAGED_MEDIA_ROOT,
+  DEFAULT_STAGED_MEDIA_ROOTS,
   MAX_INBOUND_ATTACHMENTS_PER_MESSAGE,
   buildIngressRequest,
   createStagedAttachmentRegistry,
   normalizeMimeType,
+  normalizeStagedMediaRoots,
   renderAttachmentContext,
+  renderAttachmentFailureContext,
   resolveIngressUrl,
   resolveStagedMediaPath,
   selectInboundMedia,
@@ -30,6 +35,12 @@ import {
 const WORKSPACE_ROOT = path.resolve(path.sep, "data", "openclaw", "workspace");
 const MEDIA_ROOT = path.join(WORKSPACE_ROOT, "media", "inbound");
 const STAGED_FILE = path.join(MEDIA_ROOT, "openclaw-staged-abc", "input-invoice.pdf");
+// The channel plugin's own directory: outside the workspace, and the shape the
+// `message_received` hook actually reports for a WeCom file.
+const CHANNEL_STAGED_FILE = path.join(
+  path.resolve(DEFAULT_CHANNEL_MEDIA_ROOT),
+  "订单行已抛SAP数量同步接口文档---4163435e-e2ed-4f17-a4da-166b614e07f8.md",
+);
 
 test("the ingress URL is derived from the MCP endpoint origin", () => {
   assert.equal(
@@ -347,3 +358,136 @@ test("no staged reference renders no context at all", () => {
   assert.equal(renderAttachmentContext(undefined), "");
   assert.equal(renderAttachmentContext([{ attachmentRef: "" }]), "");
 });
+
+test("the default roots accept the channel's own media directory", () => {
+  // Two independent layers stage the same file: OpenClaw's sandbox copies it
+  // below the workspace, and the WeCom channel plugin — which downloads the file
+  // itself — writes it below its own state directory. The hook context reports
+  // the channel's copy. Accepting only the workspace root refused every WeCom
+  // file, and did so before the first log line.
+  assert.deepEqual([...DEFAULT_STAGED_MEDIA_ROOTS], [DEFAULT_STAGED_MEDIA_ROOT, DEFAULT_CHANNEL_MEDIA_ROOT]);
+  assert.equal(
+    resolveStagedMediaPath(CHANNEL_STAGED_FILE, { workspaceRoot: WORKSPACE_ROOT }),
+    CHANNEL_STAGED_FILE,
+  );
+});
+
+test("the channel's saved file is accepted and its staging identity is not its name", () => {
+  const selection = selectInboundMedia(
+    { media: [{ path: CHANNEL_STAGED_FILE, contentType: "text/markdown" }] },
+    { workspaceRoot: WORKSPACE_ROOT },
+  );
+  assert.deepEqual(selection.files, [
+    { filePath: CHANNEL_STAGED_FILE, fileName: "订单行已抛SAP数量同步接口文档.md", mimeType: "text/markdown" },
+  ]);
+  assert.equal(selection.withheld, undefined);
+});
+
+test("an explicit root list replaces the defaults rather than widening them", () => {
+  const roots = normalizeStagedMediaRoots({ mediaRoots: [MEDIA_ROOT] });
+  assert.deepEqual([...roots], [MEDIA_ROOT]);
+  // With the defaults replaced, the channel's directory is no longer accepted.
+  assert.equal(resolveStagedMediaPath(CHANNEL_STAGED_FILE, { workspaceRoot: WORKSPACE_ROOT, mediaRoots: roots }), undefined);
+
+  // The pre-roots single-root spelling still narrows to exactly one root.
+  assert.deepEqual([...normalizeStagedMediaRoots({ mediaRoot: MEDIA_ROOT })], [MEDIA_ROOT]);
+  // A single root alongside a list adds to it.
+  const mixed = normalizeStagedMediaRoots({ mediaRoot: MEDIA_ROOT, mediaRoots: [DEFAULT_CHANNEL_MEDIA_ROOT] });
+  assert.deepEqual([...mixed], [path.resolve(DEFAULT_CHANNEL_MEDIA_ROOT), MEDIA_ROOT]);
+});
+
+test("an unusable root entry is dropped, and dropping all of them fails closed", () => {
+  for (const value of ["", "   ", "relative/path", "/", null, 42]) {
+    assert.deepEqual([...normalizeStagedMediaRoots({ mediaRoots: [value] })], [], `expected no root for ${String(value)}`);
+  }
+  // Duplicates collapse, so a repeated root is not judged twice.
+  assert.deepEqual([...normalizeStagedMediaRoots({ mediaRoots: [MEDIA_ROOT, MEDIA_ROOT] })], [MEDIA_ROOT]);
+  // Nothing usable means nothing is forwarded — never a silent fallback.
+  assert.deepEqual(
+    selectInboundMedia(
+      { media: [{ path: STAGED_FILE, contentType: "application/pdf" }] },
+      { workspaceRoot: WORKSPACE_ROOT, mediaRoots: ["not-absolute"] },
+    ).files,
+    [],
+  );
+});
+
+test("a rejected path reports the directory it came from, never the file name", () => {
+  const selection = selectInboundMedia(
+    { media: [{ path: path.join(WORKSPACE_ROOT, "secrets", "merger-agreement.pdf") }] },
+    { workspaceRoot: WORKSPACE_ROOT, mediaRoots: [MEDIA_ROOT] },
+  );
+  assert.deepEqual(selection.files, []);
+  assert.equal(selection.withheld, "MEDIA_PATH_REJECTED");
+  assert.equal(selection.withheldDirectory, path.join(WORKSPACE_ROOT, "secrets"));
+  assert.equal(selection.withheldDirectory.includes("merger-agreement.pdf"), false);
+});
+
+test("the staging identity suffix is stripped from the display name", () => {
+  const names = [
+    ["报告---4163435e-e2ed-4f17-a4da-166b614e07f8.pdf", "报告.pdf"],
+    [`photo---${"a".repeat(64)}.png`, "photo.png"],
+    ["input-订单行---4163435e-e2ed-4f17-a4da-166b614e07f8.md", "订单行.md"],
+    // A suffix that is not the identity shape is part of the name.
+    ["report---final.pdf", "report---final.pdf"],
+    ["report---4163435E-E2ED-4F17-A4DA-166B614E07F8.pdf", "report---4163435E-E2ED-4F17-A4DA-166B614E07F8.pdf"],
+  ];
+  for (const [name, expected] of names) {
+    assert.equal(stagedFileName(path.join(MEDIA_ROOT, name)), expected, `for ${name}`);
+  }
+});
+
+test("a failure code is remembered for the conversation that produced it", () => {
+  const registry = createStagedAttachmentRegistry();
+  assert.equal(registry.readFailure("session-1"), undefined);
+
+  registry.rememberFailure("session-1", "MEDIA_PATH_REJECTED");
+  assert.equal(registry.readFailure("session-1"), "MEDIA_PATH_REJECTED");
+  assert.equal(registry.readFailure("session-2"), undefined);
+  // A failure is not a reference.
+  assert.deepEqual(registry.read("session-1"), []);
+  // Unusable inputs are ignored rather than recorded.
+  registry.rememberFailure("session-1", "");
+  assert.equal(registry.readFailure("session-1"), "MEDIA_PATH_REJECTED");
+});
+
+test("the newer of a reference and a failure replaces the other", () => {
+  const registry = createStagedAttachmentRegistry();
+  const ref = [{ attachmentRef: "att_aaaaaaaaa" }];
+
+  // A later message that staged nothing usable must not leave the earlier
+  // reference behind — nor must its explanation outlive a successful staging.
+  registry.rememberFailure("session-1", "STAGING_FAILED");
+  registry.remember("session-1", ref);
+  assert.equal(registry.readFailure("session-1"), undefined);
+  assert.deepEqual(registry.read("session-1"), ref);
+
+  registry.rememberFailure("session-1", "MEDIA_PATH_REJECTED");
+  assert.deepEqual(registry.read("session-1"), []);
+  assert.equal(registry.readFailure("session-1"), "MEDIA_PATH_REJECTED");
+
+  registry.remember("session-1", []);
+  assert.equal(registry.readFailure("session-1"), undefined);
+});
+
+test("a failure code expires like a reference does", () => {
+  let clock = 1_000;
+  const registry = createStagedAttachmentRegistry({ ttlMs: 100, now: () => clock });
+  registry.rememberFailure("session-1", "MEDIA_PATH_REJECTED");
+  clock += 101;
+  assert.equal(registry.readFailure("session-1"), undefined);
+});
+
+test("the failure context states the reason and forbids working around it", () => {
+  const text = renderAttachmentFailureContext("MEDIA_PATH_REJECTED");
+  assert.match(text, /MEDIA_PATH_REJECTED/u);
+  assert.match(text, /Do not call `upload_files_to_record`/u);
+  assert.match(text, /do not invent or reuse a reference/u);
+  assert.match(text, /do not read or fetch the file to work around it/u);
+  assert.equal(text.includes(MEDIA_ROOT), false, "the prompt must not carry a host path");
+
+  assert.equal(renderAttachmentFailureContext(undefined), "");
+  assert.equal(renderAttachmentFailureContext(""), "");
+  assert.equal(renderAttachmentFailureContext("   "), "");
+});
+
