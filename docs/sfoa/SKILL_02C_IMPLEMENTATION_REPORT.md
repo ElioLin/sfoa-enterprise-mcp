@@ -503,8 +503,15 @@ ContentDocument + ContentDocumentLink 自动生成 → 业务记录可见
 | `attachmentBridgeEnabled` | **`false`** | 开启后才会暂存并注入引用；运行时侧还需 `MCP_ATTACHMENT_INGRESS_ENABLED=true` |
 | `attachmentIngressPath` | `/attachments` | 相对于 `mcpUrl` 的 origin 解析 |
 | `attachmentWorkspaceRoot` | `/data/openclaw/workspace` | 媒体路径可被解析的绝对根 |
-| `attachmentMediaRoot` | `<workspaceRoot>/media/inbound` | 入站文件必须位于其下才可转发 |
+| `attachmentMediaRoot` | 见下 | 单数旧写法：把根列表替换为这一个根 |
+| `attachmentMediaRoots` | 见下 | 入站文件必须位于其中之一才可转发；**显式配置即整体替换默认** |
 | `attachmentRefTtlMs` | `300000` | 引用对模型可用的时长 |
+
+`attachmentMediaRoots` 的默认值是**两个**根：`/data/openclaw/workspace/media/inbound`
+（OpenClaw 沙箱抓取的副本）与 `/data/openclaw/state/media/inbound`
+（**企业微信渠道插件自己下载**的副本）。二者不可互相替代：企微 agent 模式从不设置
+`MediaRemoteHost`，`message_received` 报的永远是 state 目录，所以只接受 workspace 根
+会让**每个企微文件都在第一行日志之前被拒**。详见 §10.6。
 
 两侧**独立开关**是刻意的：只开一边不会产生任何可用能力，也不会产生半开状态下的静默行为。
 
@@ -514,6 +521,89 @@ ContentDocument + ContentDocumentLink 自动生成 → 业务记录可见
 
 **从不记录二进制。** `state ∈ STAGED | CONSUMED | EXPIRED | FAILED`。
 `content_sha256` 在暂存时记录并进入审计；**SHA-256 不是幂等键**（§五十二）。
+
+### 10.6 上线后发现并修复的真实缺陷：只接受一个暂存根
+
+**症状**（2026-09-17，测试环境）：企微机器人收到 Markdown 与 PNG 后，模型回答
+「图片收到了，但这条图片同样没有带附件引用」；SFOA 侧 `sfoa_audit_log` **一条
+`ATTACHMENT_INGRESS` 都没有**——Ingress 从未被调用，而 Gateway 日志里也**没有任何**
+警告或错误（`logging.level=info`，而拒绝只写在 `debug`）。
+
+**根因**（两条独立证据链）：
+
+1. `@wecom/wecom-openclaw-plugin` 的 agent 模式
+   （`dist/src/agent/handler.js`）只设置 `MediaPath`/`MediaType`/`MediaUrl`，且
+   `MediaPath` 指向 `/data/openclaw/**state**/media/inbound/<name>---<identity>.<ext>`
+   ——**从不**设置 `MediaRemoteHost`/`MediaWorkspaceDir`/`MediaStaged`。
+2. 因此 `finalizeInboundContext` 走 `resolveMediaFacts`（而非 `resolveStagedMediaFacts`），
+   `buildMessageReceivedHookContext()` 因 `!mediaRemoteHost` 提前返回，事件里带的
+   就是这个 state 路径；而 adapter 的 `DEFAULT_STAGED_MEDIA_ROOT` 只有
+   `<workspace>/media/inbound` → `isBelow` 失败 → `withheld=MEDIA_PATH_REJECTED`，
+   该行当时只在 `debug` 级别输出 → 完全静默。
+
+模型看到的 `/data/openclaw/workspace/media/inbound/openclaw-staged-<uuid>/input-<name>`
+是**另一层**（沙箱 `staged-inputs` 模块）的产物，与 Hook 上下文里的路径不是同一个文件。
+
+**修复**（本次）：
+
+- 默认根改为两个（workspace 副本 + 渠道自己的 state 副本）；显式配置 `attachmentMediaRoots`
+  或单数 `attachmentMediaRoot` **整体替换**默认，配空则**失败关闭**并打
+  `code=MEDIA_ROOTS_EMPTY` 警告。
+- 所有静默出口改为有级别：渠道/发送人/会话键不符是 `debug`，拒绝与失败是 `warn`
+  （`MEDIA_PATH_REJECTED`、`STAGED_FILE_UNREADABLE`、`INGRESS_REQUEST_INCOMPLETE`、
+  `INGRESS_REF_MISSING`、`INGRESS_HTTP_<status>`、`INGRESS_UNREACHABLE`、`STAGING_FAILED`），
+  成功是 `info`（`staged N of M`）。日志里只有**目录**，没有文件名。
+- 媒体到达但登记失败时，`before_prompt_build` 注入失败原因与禁令，模型必须报出
+  `Reason code`，不能再回答「没收到引用」。
+- 顺带修掉 `normalizeRoot` 对非字符串条目会 `path.isAbsolute` 抛异常的路径。
+
+判定顺序见 `OPENCLAW_WECOM_SFOA_INTEGRATION.md` §12.4。
+
+### 10.7 第二个缺陷（真正的拦路虎）：宿主在同一进程注册插件两次
+
+**症状**：§10.6 修完后 `staged 1 of 1` 已稳定成功（暂存确实发生了），但模型**依旧**
+拿不到引用，注入侧每轮都是 `refs=0 failure=none`。链路每一段单独看都是通的。
+
+**取证**（`reg` 探针，2026-09-18，真人真实文件）：
+
+```
+10:01:29.721 staged 1 of 1 inbound attachment(s) for session=…direct:# (reg=#1) (ctxKey=…, eventKey=…)
+10:01:30.239 attachment injector: session=…direct:# (reg=#2) (… eventKey=(none)) refs=0 failure=none result=none
+```
+
+会话键**一致**、暂存**早于**注入 0.5 秒、且没有任何 `cleared` 行——三个曾经的假设
+（键不匹配、竞态、第二条 `message_received` 清空）因此全部被排除，剩下唯一的差别是 `reg`。
+
+**根因**：OpenClaw 2026.9.3 在**同一个进程**里调用一个插件的 `register()` **两次**
+（加载插件一次、启动 channel 一次，间隔约 350 ms），而且**这两次注册的 hook 不被一起派发**：
+`message_received` 由 #1 服务，`before_prompt_build` 由 #2 服务。adapter 的引用注册表
+建在 `register()` 内部，于是被建了两份——#1 写、#2 读空。
+
+**判据**（可复用）：hook 注册表 `registry.typedHooks` 是**追加式**的
+（`getHooksForName` 用 `filter` 收集，不覆盖），所以「两个注册都活着」必然每轮打两行；
+**实测每轮只有一行 ⇒ 只有一个注册在派发**。
+
+> 计数陷阱：`grep -o 'reg=#[0-9]*' | sort | uniq -c` 会给出「2 个各 2 次」的假象——
+> 同一条 JSON 日志记录里 `"1"` 与 `"message"` 两个字段各匹配一次。要按解析后的记录
+> 逐条比对，不要用 `grep -o` 计数。
+
+**修复**：注册表改为进程级单例，挂在 `globalThis` 上、键用
+`Symbol.for("sfoa.enterprise.mcp.staged-attachment-registry")`（用 `Symbol.for`
+是因为它扛得住模块被求值两次；OpenClaw 自己的
+`resolveGlobalSingleton(Symbol.for("openclaw.plugins.hook-runner-global-state"), …)`
+就是这个写法）。启动日志新增 `registry=new|shared`，两次注册的事实一眼可见。
+回归测试 `test/bridge.test.js` 的 "two registrations of the plugin share one registry"：
+注册两次、第一次 staging、第二次 injection，断言第二次能读到引用——
+**去掉修复该测试即失败**。
+
+**部署验证**（2026-09-18，测试服 203）：启动日志 `registry=new` / `registry=shared` 各一条；
+`node --test` 64/64；真人复测通过，日志为
+`staged 1 of 1` → `attachment injector: injected 1 reference(s) into the prompt`。
+
+**通用教训**：**凡是「一个 hook 写、另一个 hook 读」的插件内状态，都不能建在
+`register()` 内部**，否则写入方报成功、读取方永远读到空，而且每一条日志单看都是对的。
+这个缺陷的症状（模型说「平台没生成引用」）会把排查者全部引向 Salesforce 侧或权限侧，
+而真实链路每一段都通。
 
 ---
 

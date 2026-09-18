@@ -540,6 +540,66 @@ Top RSS：`openclaw-gateway 521 MB`、`gnome-shell 336 MB`、`sfoa-mcp-server 23
    > 排查提示：用 `mysql2` 读这两列时务必显式设置 `timezone`，否则同一列在不同脚本里
    > 会相差 8 小时，容易误判成「审计时间不可信」。
 
+### 9.4 Sub-Agent 不直接拥有 SFOA MCP（双重闸门，刻意不解除）
+
+复杂任务会让主 Agent 派生子代理，而子代理**永远不会**拿到 `sfoa-enterprise-mcp` 工具。
+这是两道**互相独立**的闸门共同作用的结果，任何一道单独存在都足以阻断。
+
+**闸门 1：requester 身份不进入 spawn 上下文（我们这一侧无法修复）。**
+
+- 身份链为 `渠道入站 run.senderId → sessionCtx.SenderId → requesterSenderId → resolver`。
+- spawn 契约里**没有身份字段**：`sessionSpawnContextSchema` 的全部字段只有
+  `{ completionOwnerSessionKey?, inheritedToolPolicy{version, allow, deny} }`；
+  `sessions_spawn` 与 `acp-spawn` 对 `requesterSenderId` 的引用数**均为 0**。
+- 现场 spawn 记账同样如此：`subagent_runs.payload_json.requesterOrigin` 明确写着
+  `{"channel":"wecom","to":"wecom:60245","accountId":"default"}`，但整个 payload
+  **没有任何 sender / requester-id 字段**——即使它知道渠道是企微。
+- MCP 侧是硬门禁：`acquireRequesterScoped` 内 `if (!requester) return;`，requester-scoped
+  runtime 只在 `if (requester)` 分支内 materialize。没有 `requesterSenderId` 就**根本不会建立
+  连接**，不是「建立了又被过滤掉」。
+- resolver 的上下文只有 `{ requesterSenderId, agentAccountId?, messageChannel? }` ——
+  **没有 session key、没有血缘信息**，因此 adapter 无法识别「我是子代理、父会话是谁」，
+  这一侧不存在本地修法。
+
+**闸门 2：子代理继承的是一份严格白名单，其中不含 MCP 令牌。**
+
+- `createToolPolicyMatcher` 的语义是**非空 allow 即白名单**：`if (allow.length === 0) return true;`
+  否则逐项 glob 匹配，不中即 `false`。
+- 子代理信封的 `inheritedToolAllow` 是父会话当刻**有效具体工具名**的快照
+  （`replaceWithEffectiveToolAllowlist` 只写入 `normalizeToolPolicyName(tool.name)`），
+  实测 4 份信封**均不含** `bundle-mcp`、`group:plugins` 或任何带 `__` 的条目。
+- OpenClaw 自身的 doctor 文案即为这条规则：
+  > …does not include "bundle-mcp", "group:plugins", or a matching server-prefixed
+  > MCP tool name/glob such as `"<server>__*"`. Sandboxed agents will filter bundled
+  > MCP tools before provider requests.
+
+**关键澄清：这不是一条针对子代理的 MCP 规则。** MCP 各模块（`agent-bundle-mcp-*`、
+`mcp-connection-resolver`）**零 subagent 逻辑**；`SUBAGENT_TOOL_DENY_ALWAYS` /
+`SUBAGENT_TOOL_DENY_LEAF` 两份名单**没有任何 MCP 条目**；`agent-tools.policy` 全文无 `mcp` 字样。
+两道闸只是恰好同时落在子代理身上，排查时不要去找一条并不存在的「子代理 MCP 策略」。
+
+**为什么不解除：** 唯一能让子代理具备 CRM 能力的方式，是改 OpenClaw 把 requester 身份注入
+spawn 上下文。那等于把**某个真人的 Salesforce bearer token** 交给任意子代理——包括刚刚读过
+网页或附件、上下文已被 Untrusted Content 污染的子代理。对一个坚持请求级身份边界的系统，
+这是明确的注入放大面，因此**刻意不做**。
+
+**当前对策（三处已生效，本次未新增）：**
+
+| 层 | 位置 |
+|---|---|
+| Agent 工作区指令 | `/data/openclaw/workspace/AGENTS.md`：「**子代理没有 CRM 工具** —— Salesforce 查询永远由我（主 Agent）用当前用户的身份执行」 |
+| Skill 正文 | `skills/sfoa-crm-core/SKILL.md` Guidelines：「Main Agent 负责 requester-scoped SFOA MCP；当前 Sub-Agent 不直接访问 Salesforce」 |
+| Skill 参考 | `references/identity-and-governance.md`、`references/web-and-multimodal.md` |
+
+即：主 Agent 可以派子代理做并行的外部调研，**Salesforce 调用一律留在主会话**。这也是唯一能
+保证每条 CRM 调用可归因到真实发信人的形状。
+
+> 观测澄清：2026-09-15 那条「子代理没有 `sfoa-enterprise-mcp` 工具」的记录来自一次**刻意探测**
+> （`subagent_runs.payload_json.task` = `确认当前可用的 CRM 工具列表。返回所有可用的
+> sfoa-enterprise-mcp 工具名称。`），而非业务请求；子代理如实回答「没有该工具」正是上述设计的
+> 预期表现。注意子代理对该问题的自述工具清单**不可作为证据**——那是模型的概括而非忠实枚举，
+> 权威构件是信封的 `inheritedToolAllow`。
+
 ---
 
 ## 10. 运维手册
@@ -728,6 +788,11 @@ MIME 是否*格式合法*，不合法就**不发这个头**，由 Salesforce 判
    数量有上限；读取是**非消费性**的，因为真正「消费」引用的是运行时，不是这个缓存。
 7. **默认关闭**：`attachmentBridgeEnabled` 默认 `false`，与运行时侧
    `MCP_ATTACHMENT_INGRESS_ENABLED` 对称。两个开关一起开，在此之前企微文件不会被复制到任何地方。
+8. **跨 hook 状态是进程级单例**：宿主在**同一进程**里调用 `register()` **两次**，且
+   `message_received` 与 `before_prompt_build` **分属不同注册**。引用注册表因此挂在
+   `globalThis` 上（`Symbol.for`），**不在 `register()` 内部创建**；启动日志以
+   `registry=new|shared` 把这个事实暴露出来。写进 `register()` 内部的跨 hook 状态会让
+   写入方报成功、读取方永远读到空，且每条日志单看都是对的——详见报告 §10.7。
 
 ### 12.3 配置（测试服）
 
@@ -759,8 +824,20 @@ MIME 是否*格式合法*，不合法就**不发这个头**，由 Salesforce 判
 
 其余可选键：`attachmentIngressPath`（默认 `/attachments`）、
 `attachmentWorkspaceRoot`（默认 `/data/openclaw/workspace`）、
-`attachmentMediaRoot`（默认 `<workspace>/media/inbound`）、
+`attachmentMediaRoots`（默认见下）、`attachmentMediaRoot`（单数旧写法）、
 `attachmentRefTtlMs`（默认 `300000`）。**不需要改配置的地方就不要写配置。**
+
+**暂存根有两个，默认就带两个**（`attachmentMediaRoots` 一旦显式配置就**整体替换**默认，
+不会与默认合并）：
+
+| 默认根 | 谁写的 | 何时出现在 Hook 上下文里 |
+|---|---|---|
+| `/data/openclaw/workspace/media/inbound` | OpenClaw 沙箱把远端媒体抓下来后的副本（文件名带 `input-` 前缀） | 媒体是从 provider URL 抓取时 |
+| `/data/openclaw/state/media/inbound` | **企业微信渠道插件自己**下载后保存的副本（文件名带 `---<identity>` 后缀） | **WeCom agent 模式下每一次文件/图片消息都是这个** |
+
+只接受 workspace 根是一个真实发生过的缺陷：企微 agent 模式从不设置
+`MediaRemoteHost`，`message_received` 的 `media[].path` 报的永远是 state 目录，
+于是每个企微文件都在第一行日志之前被拒，模型只能回答「没收到引用」。
 
 运行时的对应开关（SFOA 侧，`.env.local` 或 systemd 环境）：
 
@@ -769,19 +846,66 @@ MCP_ATTACHMENT_INGRESS_ENABLED=true
 MCP_ATTACHMENT_STAGING_ROOT=/data/sfoa-enterprise-mcp/var/attachments   # 必须是绝对路径且不同于 MCP_PATH
 ```
 
+#### 入站文件大小：四道闸门（2026-09-18 放大到 50 MiB）
+
+一个企微文件走到 Salesforce `ContentVersion` 要依次过四道闸。任何一道没过，
+用户看到的都是「上传失败」，但原因完全不同——排查时先定位是哪一道：
+
+| # | 闸门 | 由谁控制 | 测试服取值 |
+|---|---|---|---|
+| 1 | 企微传输 | 企微自身 | 未知；**实测 ≥ 36.9 MiB 可完整送达** |
+| 2 | 渠道下载 | `agents.defaults.mediaMaxMb` | `50`（MiB） |
+| 3 | 暂存接口 | `MCP_ATTACHMENT_MAX_FILE_BYTES` | `52428800`（50 MiB） |
+| 4 | 上传 Tool 时限 | `MCP_TOOL_TIMEOUT_MS` / `MCP_REQUEST_TIMEOUT_MS` | `300000` / `360000` |
+
+**#2 只能配全局键。** WeCom 插件的下载校验（`media-handler.js`，图片与文件各一处）
+只读 `config.agents?.defaults?.mediaMaxMb`；core 里那个支持按渠道覆盖的
+`resolveChannelAccountMediaMaxMb` 读的是 `channels.wecom.mediaMaxMb`，**插件并不用它**。
+所以入站没有「只放宽企微」的写法，改 #2 就是改全渠道、全媒体类型（**含图片**）的上限。
+
+**只改 OpenClaw 不够。** #2 放宽后，超过 #3 的文件会在暂存接口被
+`MCP_ATTACHMENT_TOO_LARGE` 拒掉——两端必须一起改。#3 的代码默认是 25 MiB
+（`DEFAULT_ATTACHMENT_MAX_FILE_BYTES`），schema 硬上限 100 MiB。
+
+代价与注意：
+
+- WeCom 插件把整个文件**先读进内存**再判大小（`fileBuffer.length > maxBytes`），
+  被拒的文件带宽与内存已经付过；50 MiB 的峰值对测试服（约 12 GB 可用）不成问题。
+- adapter → 暂存接口与运行时 → Salesforce **两段都是流式**，内存不随文件大小增长；
+  上传用精确 `Content-Length` + `duplex: "half"`，不是 chunked。
+- **#4 是全局 Tool 超时**，放宽它对所有 Tool 生效。必须放宽的理由：
+  `attachment-upload.ts` 在 `fetch` 之前调用 `onUploadStarted`，此后若超时被 abort，
+  Salesforce 可能已经发布了 `ContentVersion` 而运行时不知情——这是「未知 mutation 结果」，
+  本项目**不自动重试**。大文件配过短的超时会直接制造这种不确定状态。
+- 层级不变式：`MCP_REQUEST_TIMEOUT_MS > MCP_TOOL_TIMEOUT_MS`，否则启动即
+  `MCP_RUNTIME_CONFIGURATION_INVALID`。
+
+**可复原的上限不是「合理」的上限。** 50 MiB 是按实测到的 36.9 MiB 真实文件加约 1.35×
+余量定的；在没有更大真实样本之前不要再往上调。
+
 ### 12.4 排查顺序
 
 现象：用户发了文件，Agent 却说没有附件。
 
 | 顺序 | 检查 | 期望 |
 |---|---|---|
-| 1 | `plugins.entries.sfoa-wecom-mcp-adapter.config.attachmentBridgeEnabled` | `true` |
-| 2 | `plugins.entries.sfoa-wecom-mcp-adapter.hooks.allowConversationAccess` | `true`（**最常见原因**，缺失时静默） |
-| 3 | 运行时 `MCP_ATTACHMENT_INGRESS_ENABLED` 与 `MCP_ATTACHMENT_STAGING_ROOT` | 已设且合法，否则启动时报错 |
-| 4 | adapter 日志是否有 `attachment bridge disabled` | 有 → 第 1 项没生效（需重启 Gateway） |
-| 5 | adapter 日志 `inbound attachment staging failed` / `Attachment Ingress call failed` | 有 → 看同一行的状态码与稳定错误码（**日志里不会有文件名或路径**） |
-| 6 | 文件是否真的落在暂存根下 | 在 `<attachmentMediaRoot>` 之下；只有 `url` 没有本地路径的媒体不会被转发（预期行为） |
-| 7 | 对象是否开了附件上传 | `attachmentEnabled=false` → Tool 返回稳定错误码，不是链路故障 |
+| 1 | adapter 日志是否有 `staged N of M inbound attachment(s)` | 有 → 链路正常，问题在 Tool 调用侧 |
+| 2 | 同一轮里 `staged N of M` 之后是否还有 `attachment injector: injected K reference(s)` | 只有前者没有后者 → 跨 hook 状态没共享。看启动日志 `registry=new` / `registry=shared` 是否各一条（报告 §10.7） |
+| 3 | adapter 日志 `attachment bridge refused the media sent with this message (code=…, source=…)` | 有 → `code` 就是原因；`source` 是被拒路径的目录（**日志里永远没有文件名**） |
+| 4 | `plugins.entries.sfoa-wecom-mcp-adapter.config.attachmentBridgeEnabled` | `true` |
+| 5 | `plugins.entries.sfoa-wecom-mcp-adapter.hooks.allowConversationAccess` | `true`（缺失时静默） |
+| 6 | 是否显式配了 `attachmentMediaRoots` / `attachmentMediaRoot` | 配了就是**替换**默认根；`code=MEDIA_PATH_REJECTED` 的 `source` 若不在你配的根下，就是这里错了 |
+| 7 | adapter 日志 `attachment bridge has no usable staging root (code=MEDIA_ROOTS_EMPTY)` | 有 → 根列表被配空，**每个文件都会被拒** |
+| 8 | 运行时 `MCP_ATTACHMENT_INGRESS_ENABLED` 与 `MCP_ATTACHMENT_STAGING_ROOT` | 已设且合法，否则启动时报错 |
+| 9 | adapter 日志是否有 `attachment bridge disabled` | 有 → 第 4 项没生效（需重启 Gateway） |
+| 10 | adapter 日志 `staged 0 of N` / `Attachment Ingress call failed` / `INGRESS_HTTP_…` | 有 → 看同一行的状态码与稳定错误码 |
+| 11 | 对象是否开了附件上传 | `attachmentEnabled=false` → Tool 返回稳定错误码，不是链路故障 |
+
+**模型侧应当同时收到原因。** 媒体到达但平台没能登记时，`before_prompt_build` 会注入
+`SFOA attachment bridge: this message carried a file, but the platform could not register it
+… Reason code: <CODE>`，并明确禁止模型调用 `upload_files_to_record`、编造/复用引用、
+或去读文件绕过。所以「Agent 说没收到引用」**不再是一个可接受的答复**：它必须报出
+`Reason code`。若它只说「没有引用」，先怀疑 adapter 版本落后于本节。
 
 ### 12.5 明确不做（v1）
 
