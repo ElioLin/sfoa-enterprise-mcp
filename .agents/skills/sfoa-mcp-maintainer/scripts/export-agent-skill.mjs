@@ -237,7 +237,7 @@ function renderReadme({ endpoint, serverName, outputDir, playbookVersion, toolCo
   return `# SFoA Agent Skill 导出包（${serverName}）
 
 自包含、零凭证的 AgentSkills 分发包：把支持 SKILL.md 的智能体宿主（OpenClaw 等）接到 SFoA 企业 MCP Runtime。
-「自包含」指包袱内容自足（入口 Skill + 连接描述符 + 安装说明），**不指开箱即连**：endpoint 仍需宿主侧登记，
+「自包含」指本包内容自足（入口 Skill + 连接描述符 + 安装说明），**不指开箱即连**：endpoint 仍需宿主侧登记，
 认证仍由服务端与企微适配器插件（SecretRef）承担；本包不含、也不生成任何凭据。
 
 - 生成命令：\`yarn skill:export --endpoint <url>\`（本包由 Agent Playbook ${playbookVersion} 工具面 ${toolCount} 个 Tool 生成）

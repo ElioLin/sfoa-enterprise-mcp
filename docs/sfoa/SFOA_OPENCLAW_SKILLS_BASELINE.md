@@ -56,7 +56,10 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 | Source of Truth | 仓库 `skills/*` 的直接子目录，每个目录必须包含有效 `SKILL.md` |
 | 开发客户端生成副本 | `.agents/skills/<name>`、`.claude/skills/<name>`、`.codebuddy/skills/<name>`；保持既有三个目标一致，脚本递归复制字节并检查漂移 |
 | OpenClaw Runtime Copy | `/data/openclaw/workspace/skills/sfoa-crm-core/`、`/data/openclaw/workspace/skills/sfoa-record-change/`；由 canonical 发布，不能在服务器独立手改后不回 Git |
+| 独立导出包（非 runtime:sync 链路） | `/data/openclaw/workspace/skills/sfoa/`：由 `yarn skill:export` 生成、手工装入的零凭证 AgentSkills 包（`SKILL.md` + `mcp.json`），**不受** `skill:runtime:sync/check` 管；装入/移除见 [SFOA_SKILL_EXPORT_PACKAGE.md](SFOA_SKILL_EXPORT_PACKAGE.md) §5.1 |
 | 普通 main Skill policy | 目标启用 SFOA `sfoa-crm-core` + `sfoa-record-change`；不暴露 maintainer 或未完成 Skill；与已有非 SFOA Skill 的关系以部署前真实配置审查为准 |
+
+> **Runtime Copy 现状（2026-09-23）**：`sfoa-crm-core` 与 `sfoa-record-change` 均为 **10 文件**（02B 时分别为 9 / 9；其后各增一个 reference：`sfoa-crm-core/references/summary-navigation.md` 与 `sfoa-record-change/references/file-attachments.md`）；服务器侧于 2026-09-23 09:43 重新发布，两目录文件集与 canonical 逐一相同。本节第 113 行「18 文件」是 2026-09-15 的历史快照，不是当前计数。另见 [SFOA_SKILL_EXPORT_PACKAGE.md §7](SFOA_SKILL_EXPORT_PACKAGE.md) 的 `Visible to model` 实测（2026-09-23 为 5，含 09-18 加入的 `wecom-send-media`、`wecom-send-template-card`）。
 
 现有 `skill:*` 原先硬编码 maintainer。现在保留入口与单 Skill 函数默认值，CLI 默认发现所有 canonical 目录；maintainer 仍运行原有专用结构与描述校验，其它 Skill 运行通用 name / description / 本地链接 / portable-files 校验。
 

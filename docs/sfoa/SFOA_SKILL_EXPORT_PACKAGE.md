@@ -65,15 +65,36 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 ```
 
 - 企微身份链:使用 `integrations/openclaw/sfoa-wecom-mcp-adapter` 插件(`mcpUrl` + `mcpWecomClientToken` 走 SecretRef),凭证不进本包。
-- **未执行项**:真机 OpenClaw 安装联通验证需要测试服务器环境,本轮仅完成包结构、幂等性与门禁验证;真机步骤见产物 README,验证后应在本文档补记 SHA 与 `openclaw gateway call skills.status --json` 证据(参照基线的验证纪律)。
+
+### 5.1 真机验证结果(2026-09-23,测试服务器 `crm-ex-test02`)
+
+已在测试服务器完成安装与验证(备份:`/data/openclaw/backups/20260923-094220-skill-export/`):
+
+| 检查 | 证据 | 结果 |
+| --- | --- | --- |
+| 包被宿主识别 | `openclaw skills check --agent main` 的 `Total` 76→77、`Eligible` 40→41,新条目 `sfoa (loaded, but this agent is not allowed to see/use it)` | ✅ SKILL.md frontmatter 被解析、依赖检查通过,包布局对 OpenClaw 合法 |
+| 未改动线上行为 | `Visible to model` 仍为 5(`browser-automation`、`sfoa-crm-core`、`sfoa-record-change`、`wecom-send-media`、`wecom-send-template-card`) | ✅ 安装后 main 可见集合不变,企微链路未受影响 |
+| 安装字节一致 | 装入 `skills/sfoa/` 的 `SKILL.md`/`mcp.json` 与 canonical 生成物 sha256 相同;`sfoa-crm-core` 10 文件全部一致 | ✅ |
+| endpoint 真实存在 | 本机 P5 栈:`/health`、`/ready` 均 `200` | ✅ |
+| 认证与身份归属 | 仅带 `Authorization: Bearer <客户端令牌>` 请求 `/mcp` 返回 **401 `MCP_PLATFORM_USER_REQUIRED`**(客户端凭证已通过,缺 `X-Platform-User-Id`/`X-WeCom-User-Id`);运行时启动横幅 `identitySources` = `USER_BOUND_TOKEN`、`INTERNAL_SERVICE_HEADER`、`BUNTU_TOKEN`、`WECOM_HEADER` | ✅ 实测印证「凭证与身份都由宿主/服务端提供,本包不含」 |
+
+**关键修正 —— 宿主不读 Skill 目录旁的 `mcp.json`。** 首次真机安装暴露出设计假设偏差:OpenClaw 只在 **`bundleFormat === "agent"` 的 agent bundle 根目录**(`bundle-mcp-*.mjs` 的 `resolveBundleMcpConfigPaths`,键集合 `type`/`url`/`headers`)读取 `mcp.json`,其它宿主侧 MCP 注册走 `mcp.servers`(`openclaw mcp add/set`)、项目级 `.mcp.json` 或企微适配器插件。因此:
+
+- 作为**普通 workspace Skill** 安装时,`sfoa/mcp.json` 被忽略 —— 连接必须由宿主侧登记(**README 第 2 步属实,但它是必需步骤而非可选步骤**);
+- 作为 **agent bundle** 安装时(以含 `mcp.json` 的目录为 bundle 根),该描述符才会被读取;
+- 本包零 `headers`,故即使描述符被读取,鉴权仍须宿主补齐 —— 与 §4 的零凭证设计一致,但意味着"自包含"仅指内容自足(README 已按此措辞)。
+
+**未执行项**:让 `sfoa` 对 `main` 可见(需把 `sfoa` 加入 `agents.entries.main.skills`)与真实 Run 读取 Skill 正文的双向 UAT——前者会改变线上企微 agent 的路由,属需人工确认的变更;安装当前刻意保持「已加载但对 main 不可见」。移除方式:删除 `/data/openclaw/workspace/skills/sfoa/`。
 
 ## 6. 可移除性
 
-将来替换或废弃时:删除 `skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`、`manage.mjs` 中的 `export` 分支、package.json 的 `skill:export` 行、`.gitignore` 的 `/out/` 条目,并下架各宿主 workspace 中的 `sfoa/` 包目录即可。canonical Skills、Runtime、数据库、治理配置零改动。
+将来替换或废弃时:删除 `skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`、`manage.mjs` 中的 `export` 分支、package.json 的 `skill:export` 行、`.gitignore` 的 `/out/` 条目、**以及 `references/testing.md` 中的 `skill:export` 说明段**,并下架各宿主 workspace 中的 `sfoa/` 包目录即可;`skills/sfoa-crm-core/references/summary-navigation.md` 属 P1 交付、**不随本功能移除**。删脚本后跑 `yarn skill:sync` 清掉三平台生成副本(否则 `skill:check` 会报副本多余),或直接删除对应的三个 `scripts/export-agent-skill.mjs` 副本。canonical Skills、Runtime、数据库、治理配置零改动。
 
 **必须先删测试再删脚本**:`toolkit.test.mjs` 顶部从 `./export-agent-skill.mjs` 导入(`assertSafeOutputRoot` / `exportAgentSkillPackage` / 常量),并在文件末尾有 3 个 `skill:export` 用例。只删脚本会让**整个测试文件 import 失败**——不是坏 3 个用例,而是 `skill:test` 与 `skill:smoke` **全量失败**。正确顺序:先移除该 import 块与 3 个用例,跑 `yarn skill:test` 确认 65→62 全绿,再删脚本本体与其余条目。
 
 ## 7. 门禁记录(2026-09-23 实测)
+
+首轮(分支 `feature/sfoa-skill-export-package` 提交 `65981a2` 状态):
 
 | 门禁 | 结果 |
 | --- | --- |
@@ -82,4 +103,47 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 | `manage.mjs export` 首跑 + 重跑 | ok,15 Tool,Playbook 1.9.0,3 文件逐字节一致 |
 | `agent:check` | PASS(5 files) |
 | `skill:smoke` | **PASS**,被测 SHA `d197c2112d70bf2c76794c1f576b679fb0a88b5c`,1149 个提交文件从 `git archive` 重建,全部门禁通过(含 65/65 测试;`ai:doctor (missing-env)` 的 FAIL 为预期诊断行为,smoke 只验证 doctor 正确报告该状态) |
-| 真机 OpenClaw 联通 | 未执行(需测试服务器,见 §5) |
+
+复查修正轮(提交 `6d84bd8`:输出根护栏 + `/out/` 锚定 + 链接来源修正 + README 措辞 + 可移除性清单):
+
+| 门禁 | 结果 |
+| --- | --- |
+| `skill:test` | **66/66 PASS**(新增 `refuses to clear an output root it is not allowed to delete`) |
+| `skill:sync` + `skill:check` | 三平台同步,drift: [] |
+| `skill:delivery` | 三个 Skill 全 `ok`,ignored/untracked 均为空,`packageCompleteness: true` |
+| `agent:check` | PASS(5 files) |
+| `manage.mjs export` 重跑 | ok,15 Tool,Playbook 1.9.0,逐字节一致 |
+| 护栏端到端 | `export --output .` / `--output ..` / `--output skills` 均**拒绝**且 checkout 完好(修复前 `--output .` 会递归删除整个仓库) |
+| `skill:smoke` | **PASS**,被测 SHA `6d84bd8b6ab360581f0000bb7ce25aafd1547f7c`,1149 文件重建,`skill:validate`/`sync`/`check`/`test`/`ai:snapshot` 全绿(`ai:doctor missing-env` 为预期) |
+| 本机运行时启动 | `node scripts/p5-dev.mjs` → `ready: MCP http://127.0.0.1:8080, Admin API :8081, Admin Web :5173`(其内部 `/health`、`/admin/api/ready`、`/login` 健康门禁通过);`/health`、`/ready` 直连 `200` |
+| 真机 OpenClaw 安装 | 已执行,见 §5.1 |
+
+> **上表 `skill:sync + skill:check drift: []` 一行当时记录有误,已在第三轮证伪并修复**(见下)。同一轮里 `skill:smoke` 报的 `skill:check` PASS 与之矛盾,复核后以 `manage.mjs check` 的**退出码**为准:`6d84bd8` 上该门禁实际 **exit 1**。保留此行不改写,以留存「同一轮内自相矛盾的证据必须复核到退出码」这一教训。
+
+## 8. 第三轮:生成副本漂移缺陷(2026-09-23 发现并修复)
+
+推送前的最终复核中,`yarn skill:check` 报 **exit 1**(`6d84bd8` 上可复现):
+
+```json
+{ "ok": false, "validation": { "ok": true, "fileCount": 25 },
+  "drift": [ ".agents/skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs: differs",
+             ".claude/skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs: differs",
+             ".codebuddy/skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs: differs" ] }
+```
+
+**成因**:第二轮修正 README 措辞时,先把 `包袱`(错字)改为 `本包` **写进了 canonical**,但三平台生成副本是在改错字**之前**同步的;随后提交把「已修正的 canonical + 未重新同步的副本」一并入库,于是三个副本里仍留着 `包袱`。canonical 与副本长度相同(16797 字节)、行数相同(275),仅第 240 行一字之差——这正是 `skill:check` 逐字节门禁存在的意义,也是「改完 canonical 必须重跑 `skill:sync` 再提交」这条纪律的反例。
+
+**修复**:`manage.mjs sync` 重新生成三副本 → `manage.mjs check` 全绿(drift 三处均为 `[]`,exit 0);`git status` 确认本次同步**只**改动那三个脚本副本,未波及其它 Skill 文件。
+
+**门禁记录(第三轮,修复后)**:
+
+| 门禁 | 结果 |
+| --- | --- |
+| `manage.mjs sync` + `check` | 三副本重生成,`drift: []` ×3,**exit 0** |
+| `node --test .../toolkit.test.mjs` | **66/66 PASS** |
+| `manage.mjs delivery` | 三个 Skill 全 `ok`,`packageCompleteness: true`,`ignored`/`untracked` 均为空 |
+| `agent:check` | PASS(5 files) |
+| `manage.mjs export` 重跑 | ok,15 Tool,Playbook 1.9.0,生成物含 `本包`、不含 `包袱` |
+| `skill:smoke` | 见下方提交后的实测记录 |
+
+> 本缺陷**不影响** `skill:export` 的产物正确性(`out/` 由 canonical 直接生成,不读副本),也不影响已部署到测试服务器的 runtime 副本(发布链路读 canonical)。它只说明三平台生成副本在 `6d84bd8` 上确实漂移,不修就会把红色门禁带进 `main`。
