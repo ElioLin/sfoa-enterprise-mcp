@@ -76,4 +76,6 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 | `node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs` | 65/65 PASS(含新增 2 个 skill:export 用例:解析器漂移检测、零凭证/幂等生成) |
 | `skill:sync` (crm-core + maintainer) | 三平台副本同步完成,drift: [] |
 | `manage.mjs export` 首跑 + 重跑 | ok,15 Tool,Playbook 1.9.0,3 文件逐字节一致 |
-| `agent:check` / 真机 OpenClaw 联通 | 未执行(agent:sync 产物本轮未触碰;真机见 §5) |
+| `agent:check` | PASS(5 files) |
+| `skill:smoke` | **PASS**,被测 SHA `d197c2112d70bf2c76794c1f576b679fb0a88b5c`,1149 个提交文件从 `git archive` 重建,全部门禁通过(含 65/65 测试;`ai:doctor (missing-env)` 的 FAIL 为预期诊断行为,smoke 只验证 doctor 正确报告该状态) |
+| 真机 OpenClaw 联通 | 未执行(需测试服务器,见 §5) |
