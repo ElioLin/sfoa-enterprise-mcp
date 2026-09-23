@@ -62,6 +62,9 @@ tmp
 # local agent/web research cache
 .firecrawl/
 
+# generated AgentSkills export packages (regenerate with: yarn skill:export)
+out/
+
 # local environment and credentials
 .env.local
 .env.*.local

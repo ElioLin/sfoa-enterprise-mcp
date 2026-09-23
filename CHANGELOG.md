@@ -1,3 +1,38 @@
+# SFoA Skill Export Package + Summary-Navigation Reference (2026-09-23)
+
+- Add the zero-credential AgentSkills export generator
+  (`skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`, exposed as the
+  repo-level `export` action and `yarn skill:export`). It renders
+  `out/sfoa-openclaw-package/` (`sfoa/SKILL.md` + `sfoa/mcp.json` + `README.md`)
+  purely from `packages/sfoa-agent-playbook/src/capabilities.ts`
+  (`AGENT_RECOGNIZED_TOOL_NAMES`), with a two-way drift check against the static
+  `TOOL_PRESENTATION` table so the advertised tool surface can never silently
+  diverge from the playbook. The generated `mcp.json` is URL-mode only — no
+  `command`, no `env`, no Salesforce credentials anywhere in the package;
+  identity resolution, Tool/DML governance and P7 audit remain server-side.
+  Output is timestamp-free and byte-identical across reruns; `out/` is
+  gitignored because the package is regenerable and must not become a second
+  source of truth. Runtime tools, governance and schemas are unchanged
+  (`MCP Runtime changed: NO`).
+- Add `skills/sfoa-crm-core/references/summary-navigation.md` (routed from the
+  Skill's reference list): the post-mutation summary and record-navigation
+  template absorbed from the evaluated MuleRun Salesforce skill, hardened to
+  this runtime — proven links only via `get_record_links` or tool-returned
+  URLs, no self-assembled Lightning URLs, and summaries that stay consistent
+  with per-item tool evidence (PARTIAL_SUCCESS / OUTCOME_UNKNOWN / deletions
+  are never dropped or polished).
+- Add `docs/sfoa/SFOA_SKILL_EXPORT_PACKAGE.md` recording the MuleRun evaluation
+  verdict (absorb the packaging methodology and template; do not import the
+  vendored `smn2gnt/MCP-Salesforce` server), the ownership finding that
+  `.codebuddy/skills/sfoa-salesforce-assistant` is an `agent:sync` generated
+  artifact and must not be canonicalized, the OpenClaw onboarding path that
+  supplements (not replaces) `skill:runtime:sync`, and the removal story.
+- Extend `skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs` with two
+  `skill:export` gates: live-source parser drift detection (failure modes fail
+  loudly) and package generation invariants (URL-mode-only mcp.json, no
+  credential variable names, hard-boundary markers, per-tool table rows,
+  deterministic rerun).
+
 # SFoA Skill-02C Attachment Upload (2026-09-15)
 
 - Add a governed `upload_files_to_record` Tool that publishes files an inbound

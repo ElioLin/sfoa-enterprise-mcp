@@ -26,6 +26,7 @@
     "skill:check": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs check",
     "skill:delivery": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs delivery",
     "skill:package": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs package",
+    "skill:export": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs export",
     "skill:test": "node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs",
     "skill:runtime:sync": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-sync",
     "skill:runtime:check": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-check",

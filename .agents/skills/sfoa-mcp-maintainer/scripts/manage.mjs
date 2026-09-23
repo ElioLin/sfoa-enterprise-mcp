@@ -315,6 +315,20 @@ async function main() {
   const arguments_ = parseCliArguments(process.argv.slice(2));
   const action = arguments_._[0] ?? 'validate';
   const projectRoot = arguments_['project-root'] ? path.resolve(String(arguments_['project-root'])) : await findProjectRoot();
+  // export is a repo-level action: it generates the zero-credential AgentSkills distribution
+  // package from the playbook tool surface, so it neither iterates canonical Skills nor uses
+  // the packaging --output semantics.
+  if (action === 'export') {
+    const { exportAgentSkillPackage } = await import('./export-agent-skill.mjs');
+    const result = await exportAgentSkillPackage({
+      projectRoot,
+      ...(arguments_.endpoint ? { endpoint: String(arguments_.endpoint) } : {}),
+      ...(arguments_.output ? { outputDir: String(arguments_.output) } : {}),
+      ...(arguments_['server-name'] ? { serverName: String(arguments_['server-name']) } : {}),
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
   const runtimeAction = action === 'runtime-sync' || action === 'runtime-check';
   const canonicalDirs = arguments_.canonical
     ? [path.resolve(String(arguments_.canonical))]

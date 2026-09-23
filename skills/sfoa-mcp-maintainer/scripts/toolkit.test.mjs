@@ -11,6 +11,11 @@ import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillP
   BUSINESS_SKILL_ALLOWLIST, assertBusinessSkillAllowed, checkRuntimeSkill, syncRuntimeSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 import {
+  CAPABILITIES_RELATIVE_PATH, PLAYBOOK_VERSION_RELATIVE_PATH, TOOL_PRESENTATION,
+  extractPlaybookVersion, extractSpreadArrays, extractStringArray, exportAgentSkillPackage,
+  resolveRecognizedTools,
+} from './export-agent-skill.mjs';
+import {
   BATCH_RECORD_LIMIT, BATCH_STATUS, FIELD_FACT, RECORD_STATUS, TARGET_RESOLUTION,
   assertMinimalPatch, buildMinimalPatch, canonicalRecordIdentity, classifyFieldFact,
   dispatchSequentialBatches, evaluateBatchReadiness, evaluateCreateReadiness, evaluateOwnerIntent,
@@ -1094,4 +1099,81 @@ test('CREATE regression — every routed reference resolves inside the Skill', a
   const present = files.filter((name) => name.endsWith('.md')).map((name) => name.replace(/\.md$/u, ''));
   assert.deepEqual([...routed].sort(), [...present].sort(),
     'every reference file must be routed from SKILL.md and every routed name must exist');
+});
+
+// --- skill:export — zero-credential AgentSkills distribution package ---
+
+test('skill:export — the parser resolves the live playbook tool surface and fails on drift', async () => {
+  const capabilitiesSource = await readFile(path.join(projectRoot, ...CAPABILITIES_RELATIVE_PATH.split(path.sep)), 'utf8');
+  const versionSource = await readFile(path.join(projectRoot, ...PLAYBOOK_VERSION_RELATIVE_PATH.split(path.sep)), 'utf8');
+
+  const { names, infrastructure } = resolveRecognizedTools(capabilitiesSource);
+  // The tool surface this package advertises is exactly what the playbook recognizes.
+  assert.ok(names.length >= 10, `the recognized tool surface shrank unexpectedly: ${names.join(', ')}`);
+  for (const expected of ['run_soql_query', 'create_record', 'update_records', 'get_record_action_context', 'get_record_links']) {
+    assert.ok(names.includes(expected), `the playbook no longer recognizes ${expected}`);
+  }
+  assert.ok(infrastructure.every((name) => names.includes(name)), 'infrastructure tools must be part of the recognized surface');
+  assert.deepEqual(Object.keys(TOOL_PRESENTATION).sort(), [...names].sort(),
+    'TOOL_PRESENTATION must stay in exact lockstep with AGENT_RECOGNIZED_TOOL_NAMES');
+
+  assert.match(extractPlaybookVersion(versionSource), /^\d+\.\d+\.\d+$/u);
+  // Parser failure modes: a changed source shape must fail loudly, never silently degrade.
+  assert.throws(() => extractStringArray('export const X = [ 1 ] as const;', 'X'), /Unsupported entry/);
+  assert.throws(() => extractStringArray('export const X = "not an array";', 'X'), /Could not locate/);
+  assert.throws(() => resolveRecognizedTools('export const AGENT_RECOGNIZED_TOOL_NAMES = [...SomethingElse] as const;\nexport const AGENT_INFRASTRUCTURE_TOOL_NAMES = [] as const;'),
+    /unexpected spreads/);
+});
+
+test('skill:export — generates a self-contained, zero-credential, idempotent package', async () => {
+  const outputDir = await mkdtemp(path.join(tmpdir(), 'sfoa-export-'));
+  try {
+    const first = await exportAgentSkillPackage({ projectRoot, outputDir, endpoint: 'http://127.0.0.1:8080/mcp' });
+    assert.equal(first.ok, true);
+    assert.deepEqual([...first.files].sort(), ['README.md', 'sfoa/SKILL.md', 'sfoa/mcp.json']);
+
+    const mcpConfig = JSON.parse(await readFile(path.join(outputDir, 'sfoa', 'mcp.json'), 'utf8'));
+    const server = mcpConfig.mcpServers.sfoa;
+    assert.equal(server.url, 'http://127.0.0.1:8080/mcp');
+    // URL mode only: no local command, no env block, no credential placeholders.
+    assert.equal('command' in server, false, 'the export package must never spawn a local MCP server');
+    assert.equal('env' in server, false, 'the export package must never carry credential env blocks');
+
+    const skillMarkdown = await readFile(path.join(outputDir, 'sfoa', 'SKILL.md'), 'utf8');
+    assert.match(skillMarkdown, /^name: sfoa$/mu, 'frontmatter name must match the server name');
+    assert.ok(skillMarkdown.includes('实际可用工具以当前连接的 tools/list 为准'),
+      'the tool table must state that server-side governance decides availability');
+    assert.ok(skillMarkdown.includes('MUST NOT** 从 Prompt、Tool argument 或本 Skill 选择 Salesforce 身份'),
+      'the identity hard boundary must survive into the exported skill');
+    const capabilitiesSource = await readFile(path.join(projectRoot, ...CAPABILITIES_RELATIVE_PATH.split(path.sep)), 'utf8');
+    for (const name of resolveRecognizedTools(capabilitiesSource).names) {
+      assert.ok(skillMarkdown.includes(`| ${name} |`), `the tool table lost ${name}`);
+    }
+
+    const readme = await readFile(path.join(outputDir, 'README.md'), 'utf8');
+    assert.ok(readme.includes('移除'), 'the README must document removal');
+    for (const generated of [skillMarkdown, readme, JSON.stringify(mcpConfig)]) {
+      assert.ok(!/SALESFORCE_(USERNAME|PASSWORD|SECURITY_TOKEN|ACCESS_TOKEN)/u.test(generated),
+        'the export package must not carry Salesforce credential variable names');
+    }
+
+    // Idempotency: a rerun must produce byte-identical output.
+    const digest = async () => {
+      const files = [];
+      const walk = async (dir) => {
+        for (const entry of await readdir(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) await walk(full);
+          else files.push([path.relative(outputDir, full), await readFile(full, 'utf8')]);
+        }
+      };
+      await walk(outputDir);
+      return files;
+    };
+    const before = await digest();
+    await exportAgentSkillPackage({ projectRoot, outputDir, endpoint: 'http://127.0.0.1:8080/mcp' });
+    assert.deepEqual(await digest(), before, 'rerun must be deterministic');
+  } finally {
+    await rm(outputDir, { recursive: true, force: true });
+  }
 });

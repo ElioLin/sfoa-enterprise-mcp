@@ -42,6 +42,7 @@ When an eligible specialized SFOA skill exists for the task, use it in addition 
 - 查询范围、Schema 与标签：[query-guidance.md](references/query-guidance.md)
 - 总量 / 分析范围 / 展示范围与完整性：[data-completeness.md](references/data-completeness.md)
 - 单条、批量或复杂变更：[mutation-boundaries.md](references/mutation-boundaries.md)
+- 变更后的操作总结与记录导航：[summary-navigation.md](references/summary-navigation.md)
 - 证据冲突、失败或未知结果：[evidence-and-errors.md](references/evidence-and-errors.md)
 - CRM 结合网页或附件：[web-and-multimodal.md](references/web-and-multimodal.md)
 
