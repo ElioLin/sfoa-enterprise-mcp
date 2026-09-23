@@ -144,6 +144,6 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 | `manage.mjs delivery` | 三个 Skill 全 `ok`,`packageCompleteness: true`,`ignored`/`untracked` 均为空 |
 | `agent:check` | PASS(5 files) |
 | `manage.mjs export` 重跑 | ok,15 Tool,Playbook 1.9.0,生成物含 `本包`、不含 `包袱` |
-| `skill:smoke` | 见下方提交后的实测记录 |
+| `skill:smoke` | **PASS**,被测 SHA `512b140685ae18400fe53b0c7e533c91a5c27b04`(即本轮修复提交本身),1149 个提交文件从 `git archive` 重建;`skill:validate` / `sync` / `check` / `test` / `ai:snapshot` 五个门禁全部 `exit 0`,其中 `skill:check` **exit 0** 才是漂移真正修复的证明(修复前该门禁在 `6d84bd8` 上 exit 1)。`ai:doctor (missing-env)` 仍为 `exit 1`,是预期的诊断行为:clean checkout 无 `.env.local`,doctor 应报告该状态,smoke 只断言它正确报告(`doctorMissingEnv.ok: true`) |
 
 > 本缺陷**不影响** `skill:export` 的产物正确性(`out/` 由 canonical 直接生成,不读副本),也不影响已部署到测试服务器的 runtime 副本(发布链路读 canonical)。它只说明三平台生成副本在 `6d84bd8` 上确实漂移,不修就会把红色门禁带进 `main`。

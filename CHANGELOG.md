@@ -27,11 +27,36 @@
   `.codebuddy/skills/sfoa-salesforce-assistant` is an `agent:sync` generated
   artifact and must not be canonicalized, the OpenClaw onboarding path that
   supplements (not replaces) `skill:runtime:sync`, and the removal story.
-- Extend `skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs` with two
+- Extend `skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs` with three
   `skill:export` gates: live-source parser drift detection (failure modes fail
-  loudly) and package generation invariants (URL-mode-only mcp.json, no
+  loudly), package generation invariants (URL-mode-only mcp.json, no
   credential variable names, hard-boundary markers, per-tool table rows,
-  deterministic rerun).
+  deterministic rerun), and output-root refusal paths.
+- Guard the generator's output root. `exportAgentSkillPackage` cleared its
+  target with `rm -rf` unguarded, so `--output .` deleted the entire checkout
+  and `--output ..` its parent. `assertSafeOutputRoot` now accepts only the two
+  Git-ignored regenerable roots (`out/<name>`, `.temp/<name>`) or a scratch
+  directory outside the checkout, and refuses the project root, its ancestors,
+  repository source directories, another Git working tree, the home directory
+  and filesystem roots. Verified end to end: the three destructive cases refuse
+  and leave the checkout intact.
+- Anchor the `.gitignore` entry to `/out/`. The unanchored `out/` also ignored
+  every nested `packages/*/out` build output — the same class of silent-ignore
+  defect ADR-0017 records for the bare `lib` pattern.
+- Name the trusted-link source explicitly (`TRUSTED_LINK_TOOL_NAMES`, pinned to
+  `get_record_links` and drift-checked like `TOOL_PRESENTATION`) instead of
+  deriving it from `AGENT_INFRASTRUCTURE_TOOL_NAMES`; the exported hard boundary
+  had claimed `get_agent_playbook` was a link source, but it returns a
+  capability snapshot. The generated README now also says plainly that
+  "self-contained" means the package's own contents, not out-of-the-box
+  connectivity — the endpoint still needs host-side registration.
+- Re-sync the three platform copies of the maintainer Skill. The README typo
+  fix was written into canonical after the copies had been synced, and the
+  commit took the corrected canonical together with the stale copies, leaving
+  `skill:check` failing at exit 1 (identical length, one character apart). Fixed
+  by re-running `skill:sync`; `skill:check` is green (drift `[]` x3). The
+  failure mode and its cause are recorded in
+  `docs/sfoa/SFOA_SKILL_EXPORT_PACKAGE.md` §8 rather than papered over.
 
 # SFoA Skill-02C Attachment Upload (2026-09-15)
 
