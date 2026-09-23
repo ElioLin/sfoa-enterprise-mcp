@@ -825,6 +825,23 @@ systemctl daemon-reload
 # rm -rf /data/openclaw
 ```
 
+### 15.7 回滚企微插件兼容补丁（见 §21）
+
+补丁改的是插件包内两个文件，原件已**就地备份**（同目录，时间戳 `20260920-083955`）：
+
+```bash
+PLG=/data/openclaw/state/npm/projects/wecom-wecom-openclaw-plugin-18f843d908__openclaw-generation__g-8f3a4349afa261a8/node_modules/@wecom/wecom-openclaw-plugin
+
+systemctl stop openclaw-gateway
+cp -a $PLG/dist/src/cli/tool.js.bak-compat-20260920-083955 $PLG/dist/src/cli/tool.js
+cp -a $PLG/dist/src/channel.js.bak-compat-20260920-083955  $PLG/dist/src/channel.js
+# 校验：应回到 tool=85a69c78… / channel=079f5c6c…
+sha256sum $PLG/dist/src/cli/tool.js $PLG/dist/src/channel.js
+systemctl start openclaw-gateway
+```
+
+> ⚠️ 回滚后 `wecom-cli` 会**立刻回到「插件运行时未初始化」**——本补丁修的正是这个，属预期结果，不是新故障。
+
 > 回滚**不涉及** SFOA：SFOA 服务、配置、Nginx 本次均未改动（§12.2）。
 
 ---
@@ -949,3 +966,114 @@ DeepSeek
 
 1. 在下一次维护窗口 `systemctl restart openclaw-gateway`，应用已下载的模型目录更新（§13.9，非阻塞）；
 2. 由网络管理员为管理端分配**固定 IP 或 DHCP 保留**，把 §5.6 的防火墙规则收窄为 `/32`，彻底消除源地址漂移风险。
+
+---
+
+## 21. 企微 `wecom-cli` 兼容补丁（2026-09-20）
+
+> 本节记录一次**对插件包的就地补丁**。它违反项目「不 Patch Core/Provider/node_modules」的默认约束，属**经用户明确授权的一次例外**；且**会被插件重装静默覆盖**——运维时必须知道这一点。回滚见 §15.7。
+
+### 21.1 症状
+
+企微文档能力全部不可用，`wecom-cli` 工具固定返回：
+
+```json
+{"error": "插件运行时未初始化，无法读取 openclaw 配置"}
+```
+
+### 21.2 根因
+
+**不是配置问题，也不是初始化问题**——插件注册成功、企微通道 WS 认证正常、消息收发正常。真实原因是**插件调了两个内核已从契约中删除的 API**，而它自己的 `catch {}`（不带参数、不留 `e.message`）把 `TypeError` 伪装成了「未初始化」。**该错误信息方向完全错误，是本问题排查耗时的主因。**
+
+内核给插件的运行时对象是**刻意收窄**的（`openclaw/dist/api-DArLOVCi.d.ts` 的 `PluginRuntimeCore`）：
+
+```ts
+type PluginRuntimeCore = { config: { current, mutateConfigFile, replaceConfigFile } }
+```
+
+**没有 `loadConfig`，也没有 `writeConfigFile`。** 宿主在 `openclaw/dist/loader-runtime-load-*.mjs` 以
+`{...config, current, mutateConfigFile, replaceConfigFile}` 构造该对象——`...config` 展开也带不出来，
+说明**底层对象本身就没有**。（内核内 `openclaw/dist/io.factory-*.mjs` 仍留有 `loadConfig`/`writeConfigFile`，
+但那是**内核自用 IO 工厂**，从不暴露给插件；插件作者很可能照着它写的。）
+
+断开的是**两处**，读路径与写路径各一：
+
+| 位置 | 原调用 | 影响 |
+| --- | --- | --- |
+| `dist/src/cli/tool.js:39` | `config.loadConfig()` | **读路径，挡住全部 `wecom-cli` 调用** |
+| `dist/src/cli/tool.js:70` | `config.loadConfig()` | 同上（`resolveBinPath`） |
+| `dist/src/channel.js:572` | `config.writeConfigFile(nextCfg)` | 登出动作，**潜伏**（未触发故未暴露） |
+
+### 21.3 配置因素排除（逐条）
+
+| 检查 | 结果 |
+| --- | --- |
+| 插件启用 | `plugins.entries["wecom-openclaw-plugin"].enabled = true` |
+| 是否需要插件配置 | manifest `configSchema` 为空对象 + `additionalProperties:false` —— **它不需要任何配置** |
+| 通道凭据 | `channels.wecom` 的 `botId` / `secret` 实测可读 |
+| 通道活性 | WS `connected` → `Authentication successful` → `Authenticated`，消息收发正常 |
+| 反证 | 若为配置问题，插件会报它自己那句「企业微信账号 … 未配置 botId / secret」，而非「未初始化」 |
+
+### 21.4 补丁内容
+
+补丁路径前缀：
+
+```text
+/data/openclaw/state/npm/projects/wecom-wecom-openclaw-plugin-18f843d908__openclaw-generation__g-8f3a4349afa261a8/node_modules/@wecom/wecom-openclaw-plugin/
+```
+
+| 文件 | 位置 | 改动 |
+| --- | --- | --- |
+| `dist/src/cli/tool.js` | import 区 | `+ import { loadConfig } from "openclaw/plugin-sdk/config-runtime"` |
+| `dist/src/cli/tool.js` | `:39`, `:70` | `getWeComRuntime().config.loadConfig()` → `loadConfig()` |
+| `dist/src/channel.js` | `:572` | `getWeComRuntime().config.writeConfigFile(nextCfg)` → `getWeComRuntime().config.replaceConfigFile({ nextConfig: nextCfg, afterWrite: { mode: "auto" } })` |
+
+**解析可行性依据**：该插件目录下存在符号链接
+`…/@wecom/wecom-openclaw-plugin/node_modules/openclaw → /data/openclaw/runtime/tools/node-v24.19.0/lib/node_modules/openclaw`，
+且 `openclaw` 的 `exports` 映射含 `./plugin-sdk/config-runtime`；插件本就在用同机制的
+`plugin-sdk/runtime-store` 与 `plugin-sdk/account-id`。
+
+**功能可行性依据**：补丁前离线实测 `loadConfig()` 返回真实配置，`channels.wecom` 存在且 `botId`/`secret` 均为字符串。
+
+### 21.5 验收证据（2026-09-20）
+
+| 检查 | 结果 |
+| --- | --- |
+| 补丁后 sha256 | `tool.js = 3982d4b4…` / `channel.js = 708fed82…` |
+| **扛过网关重启** | ✅ 重启后 sha256 不变，插件未被重新 stage |
+| 凭据解析 + 鉴权 | ✅ `[wecom-cli:tool] 授权成功 botId=… (215ms)` |
+| 真实调用 1 | ✅ `ok (1200ms, 757B) identity whoami` |
+| 真实调用 2 | ✅ `ok (1802ms, 4906B) doc search`，`errcode: 0, errmsg: "ok"` |
+| 错误计数 | 「插件运行时未初始化」= 0，「调用失败」= 0 |
+
+### 21.6 ⚠️ 运维必读：补丁会被静默覆盖
+
+插件安装在**代际目录**（目录名含 `__openclaw-generation__g-8f3a4349afa261a8`）。
+**插件一旦重装或重新生成代际目录，补丁被静默覆盖，症状原样复发，且无任何提示。**
+
+**故障复发时的第一步**——核对两个哈希：
+
+```bash
+PLG=/data/openclaw/state/npm/projects/wecom-wecom-openclaw-plugin-18f843d908__openclaw-generation__g-8f3a4349afa261a8/node_modules/@wecom/wecom-openclaw-plugin
+sha256sum $PLG/dist/src/cli/tool.js $PLG/dist/src/channel.js
+# 期望 tool.js    = 3982d4b4513bc7093133d8fa284dab3a4d7195cdbc81a51c607d943fa28f16cb
+# 期望 channel.js = 708fed823ed91d89bd9336c77c42e0018c0fc3243ad9f214872de19547162d04
+```
+
+不符即补丁已丢：按 §21.4 重打，或按 §15.7 回滚到基线。
+
+- 网关**重启不会**覆盖补丁（2026-09-20 已实测）；但内核升级时平行插件的代际目录曾被重新 stage，**规律不明**，故**升级内核后必须重新核对**。
+- 升级内核**不是**本问题的解药：内核 9.3 → 9.4 → 9.5 三级实测，错误一字未变。
+
+### 21.7 上游状态（截至 2026-09-20）
+
+| 项 | 状态 |
+| --- | --- |
+| 插件最新发布版 | `@wecom/wecom-openclaw-plugin@2026.9.15`（`latest` 与 `beta` 同指），**无修好的新版** |
+| 版本下限 | README / `peerDependencies` 仅 `openclaw >= 2026.3.28`，**抓不住「API 被删」** |
+| 引入时间 | `wecom-cli` 架构于 `2026.8.17` 引入（`2026.7.2` 依赖中无 `@wecom/cli`）⇒ **这段代码自发布起即不可用** |
+| 结论 | 只能等上游修，或维持本补丁；建议向上游报缺陷（含 `file:line`、真实 `TypeError`、正确 API、peer 下限失效） |
+
+**未验证项（如实标注）**：`dist/src/channel.js:572` 的登出一处已按类型契约等价改写，但**未实测**——
+测它需真的清除机器人凭据，具破坏性。`ConfigWriteAfterWrite` 仅有 `auto` / `restart` / `none` 三种取值。
+`dist/src/cli/tool.js` 中 `getWeComRuntime` 现为未使用的 import（刻意保留以缩小 diff），不影响运行。
