@@ -43,6 +43,8 @@ Baseline ID: SFOA-SKILL-EXPORT-1.0 · 2026-09-23 · 分支 `feature/sfoa-skill-e
 - **自包含**:按 maintainer toolkit 惯例直接解析 TypeScript 源码(严格正则,不认识的条目即抛错),不依赖 `yarn build` 产物,clean checkout 可跑。
 - **零凭证**:生成 `mcp.json` 只有 `url` 模式指向 SFoA Streamable HTTP 端点(默认 `http://127.0.0.1:8080/mcp`,与测试服务器部署一致),无 `command`、无 `env`;README 明确凭证归属服务端 / `sfoa-wecom-mcp-adapter` 插件(SecretRef)。
 - **幂等**:无时间戳,重跑逐字节一致(已实测);输出根 `out/`(已加入 `.gitignore`,产物可再生不入库)。
+- **输出根护栏**:生成器写前会**清空**输出根,因此 `--output` 只接受仓库内 `out/<name>`、`.temp/<name>` 两个可再生根,或 checkout 之外的独立暂存目录;项目根自身、其祖先目录、仓库源码目录、**另一个 Git 工作树**、家目录与文件系统根一律**拒绝**而非删除(实测 `--output .` 曾会递归删掉整个 checkout)。护栏与拒绝用例见 `assertSafeOutputRoot` 与 `skill:export — refuses to clear an output root it is not allowed to delete`。
+- **链接来源显式声明**:可信链接来源是独立常量 `TRUSTED_LINK_TOOL_NAMES`(`get_record_links`),**不**从 `AGENT_INFRASTRUCTURE_TOOL_NAMES` 推导——`get_agent_playbook` 返回能力快照而非记录链接,推导会把不能产链接的工具写进生成的硬边界。该常量同样纳入漂移检测。
 - **硬边界随包**:身份链、tools/list 权威、UNKNOWN 不自动重试、可信链接来源四条 MUST 写入生成的 SKILL.md。
 
 产物结构(3 文件,刻意最小以便将来整体移除):
@@ -67,7 +69,9 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 
 ## 6. 可移除性
 
-将来替换或废弃时:删除 `skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`、`manage.mjs` 中的 `export` 分支、package.json 的 `skill:export` 行、`.gitignore` 的 `out/` 条目,并下架各宿主 workspace 中的 `sfoa/` 包目录即可。canonical Skills、Runtime、数据库、治理配置零改动。
+将来替换或废弃时:删除 `skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`、`manage.mjs` 中的 `export` 分支、package.json 的 `skill:export` 行、`.gitignore` 的 `/out/` 条目,并下架各宿主 workspace 中的 `sfoa/` 包目录即可。canonical Skills、Runtime、数据库、治理配置零改动。
+
+**必须先删测试再删脚本**:`toolkit.test.mjs` 顶部从 `./export-agent-skill.mjs` 导入(`assertSafeOutputRoot` / `exportAgentSkillPackage` / 常量),并在文件末尾有 3 个 `skill:export` 用例。只删脚本会让**整个测试文件 import 失败**——不是坏 3 个用例,而是 `skill:test` 与 `skill:smoke` **全量失败**。正确顺序:先移除该 import 块与 3 个用例,跑 `yarn skill:test` 确认 65→62 全绿,再删脚本本体与其余条目。
 
 ## 7. 门禁记录(2026-09-23 实测)
 

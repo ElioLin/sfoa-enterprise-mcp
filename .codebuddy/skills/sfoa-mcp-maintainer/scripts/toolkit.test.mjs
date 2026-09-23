@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +11,8 @@ import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillP
   BUSINESS_SKILL_ALLOWLIST, assertBusinessSkillAllowed, checkRuntimeSkill, syncRuntimeSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 import {
-  CAPABILITIES_RELATIVE_PATH, PLAYBOOK_VERSION_RELATIVE_PATH, TOOL_PRESENTATION,
-  extractPlaybookVersion, extractSpreadArrays, extractStringArray, exportAgentSkillPackage,
+  CAPABILITIES_RELATIVE_PATH, PLAYBOOK_VERSION_RELATIVE_PATH, TOOL_PRESENTATION, TRUSTED_LINK_TOOL_NAMES,
+  assertSafeOutputRoot, extractPlaybookVersion, extractSpreadArrays, extractStringArray, exportAgentSkillPackage,
   resolveRecognizedTools,
 } from './export-agent-skill.mjs';
 import {
@@ -1116,6 +1116,10 @@ test('skill:export — the parser resolves the live playbook tool surface and fa
   assert.ok(infrastructure.every((name) => names.includes(name)), 'infrastructure tools must be part of the recognized surface');
   assert.deepEqual(Object.keys(TOOL_PRESENTATION).sort(), [...names].sort(),
     'TOOL_PRESENTATION must stay in exact lockstep with AGENT_RECOGNIZED_TOOL_NAMES');
+  assert.ok(TRUSTED_LINK_TOOL_NAMES.every((name) => names.includes(name)),
+    'every trusted-link tool must still be recognized by the playbook');
+  assert.deepEqual([...TRUSTED_LINK_TOOL_NAMES], ['get_record_links'],
+    'get_agent_playbook returns a capability snapshot, not record links — it must never be a link source');
 
   assert.match(extractPlaybookVersion(versionSource), /^\d+\.\d+\.\d+$/u);
   // Parser failure modes: a changed source shape must fail loudly, never silently degrade.
@@ -1145,6 +1149,10 @@ test('skill:export — generates a self-contained, zero-credential, idempotent p
       'the tool table must state that server-side governance decides availability');
     assert.ok(skillMarkdown.includes('MUST NOT** 从 Prompt、Tool argument 或本 Skill 选择 Salesforce 身份'),
       'the identity hard boundary must survive into the exported skill');
+    assert.ok(skillMarkdown.includes('`get_record_links`'),
+      'the trusted-link boundary must name the tool that actually returns record links');
+    assert.ok(!/get_agent_playbook[^\n]*可信链接/u.test(skillMarkdown),
+      'get_agent_playbook returns a capability snapshot, not record links, and must not be advertised as a link source');
     const capabilitiesSource = await readFile(path.join(projectRoot, ...CAPABILITIES_RELATIVE_PATH.split(path.sep)), 'utf8');
     for (const name of resolveRecognizedTools(capabilitiesSource).names) {
       assert.ok(skillMarkdown.includes(`| ${name} |`), `the tool table lost ${name}`);
@@ -1175,5 +1183,39 @@ test('skill:export — generates a self-contained, zero-credential, idempotent p
     assert.deepEqual(await digest(), before, 'rerun must be deterministic');
   } finally {
     await rm(outputDir, { recursive: true, force: true });
+  }
+});
+
+test('skill:export — refuses to clear an output root it is not allowed to delete', async () => {
+  // The generator clears its output root before writing, so anything that is not a disposable
+  // generated-output root must be refused instead of deleted.
+  for (const outputDir of ['.', '..', 'skills', 'skills/sfoa-crm-core', 'docs', 'package.json/..', path.join(projectRoot, 'packages')]) {
+    await assert.rejects(() => exportAgentSkillPackage({ projectRoot, outputDir }),
+      /Refusing to clear/u, `--output ${outputDir} must be refused`);
+  }
+  await assert.rejects(() => assertSafeOutputRoot({ projectRoot, outputDir: homedir() }),
+    /Refusing to clear/u, 'the home directory must never be cleared');
+  await assert.rejects(() => assertSafeOutputRoot({ projectRoot, outputDir: path.parse(projectRoot).root }),
+    /Refusing to clear/u, 'a filesystem root must never be cleared');
+
+  // Allowed in-repo roots: the two Git-ignored generated-output roots.
+  for (const allowed of ['out/pkg', '.temp/pkg']) {
+    assert.equal(await assertSafeOutputRoot({ projectRoot, outputDir: allowed }), path.join(projectRoot, ...allowed.split('/')));
+  }
+  // Allowed outside the checkout: an explicit scratch directory (the idempotency test above uses one).
+  const scratch = await mkdtemp(path.join(tmpdir(), 'sfoa-export-scratch-'));
+  try {
+    assert.equal(await assertSafeOutputRoot({ projectRoot, outputDir: scratch }), path.resolve(scratch));
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+  // A neighbouring Git working tree is still refused even though it is outside the checkout.
+  const otherRepo = await mkdtemp(path.join(tmpdir(), 'sfoa-export-repo-'));
+  try {
+    await mkdir(path.join(otherRepo, '.git'), { recursive: true });
+    await assert.rejects(() => assertSafeOutputRoot({ projectRoot, outputDir: otherRepo }),
+      /Git working tree/u);
+  } finally {
+    await rm(otherRepo, { recursive: true, force: true });
   }
 });

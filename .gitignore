@@ -63,7 +63,8 @@ tmp
 .firecrawl/
 
 # generated AgentSkills export packages (regenerate with: yarn skill:export)
-out/
+# anchored on purpose: a bare `out/` would also ignore any nested packages/*/out build output
+/out/
 
 # local environment and credentials
 .env.local

@@ -18,6 +18,7 @@
 //   node skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs --endpoint http://127.0.0.1:8080/mcp
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,17 @@ import { exists, findProjectRoot, parseCliArguments } from './shared/project.mjs
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8080/mcp';
 export const DEFAULT_OUTPUT_DIR = 'out/sfoa-openclaw-package';
 export const DEFAULT_SERVER_NAME = 'sfoa';
+
+// The export clears its output root before writing, so --output is only accepted under the
+// repository's two generated-output roots (both Git-ignored and disposable), or outside the
+// checkout entirely. See assertSafeOutputRoot.
+export const GENERATED_OUTPUT_ROOTS = Object.freeze(['out', '.temp']);
+
+// Tools whose results carry trusted record links. Deliberately NOT derived from
+// AGENT_INFRASTRUCTURE_TOOL_NAMES: get_agent_playbook returns a capability snapshot, not links, so
+// deriving the hard boundary from the infrastructure group would advertise a link source that
+// cannot produce one. resolveRecognizedTools still drift-checks this list against the playbook.
+export const TRUSTED_LINK_TOOL_NAMES = Object.freeze(['get_record_links']);
 export const CAPABILITIES_RELATIVE_PATH = path.join('packages', 'sfoa-agent-playbook', 'src', 'capabilities.ts');
 export const PLAYBOOK_VERSION_RELATIVE_PATH = path.join('packages', 'sfoa-agent-playbook', 'src', 'version.ts');
 
@@ -98,12 +110,44 @@ export function resolveRecognizedTools(capabilitiesSource) {
   if (names.length === 0) throw new Error('AGENT_RECOGNIZED_TOOL_NAMES resolved to an empty tool surface.');
   const missingPresentation = names.filter((name) => !(name in TOOL_PRESENTATION));
   const stalePresentation = Object.keys(TOOL_PRESENTATION).filter((name) => !names.includes(name));
+  const unknownLinkTools = TRUSTED_LINK_TOOL_NAMES.filter((name) => !names.includes(name));
   const drift = [
     ...missingPresentation.map((name) => `tool missing from TOOL_PRESENTATION: ${name}`),
     ...stalePresentation.map((name) => `TOOL_PRESENTATION entry no longer recognized by the playbook: ${name}`),
+    ...unknownLinkTools.map((name) => `TRUSTED_LINK_TOOL_NAMES entry no longer recognized by the playbook: ${name}`),
   ];
   if (drift.length > 0) throw new Error(`Tool presentation drift detected:\n${drift.map((line) => `- ${line}`).join('\n')}`);
   return Object.freeze({ names: Object.freeze(names), infrastructure: Object.freeze(infrastructure) });
+}
+
+// exportAgentSkillPackage clears its output root before writing, so the target has to be a path we
+// are allowed to delete: a generated-output root inside the checkout (out/ or .temp/), or a scratch
+// directory outside it. The checkout itself, an ancestor of it, a source directory, another Git
+// working tree, the home directory and filesystem roots are refused rather than cleared.
+export async function assertSafeOutputRoot({ projectRoot, outputDir }) {
+  const root = path.resolve(projectRoot);
+  const target = path.resolve(path.isAbsolute(outputDir) ? outputDir : path.join(root, outputDir));
+  const guidance = `Pass a generated-output directory (${GENERATED_OUTPUT_ROOTS.map((name) => `${name}/<name>`).join(' or ')} inside the checkout, or a scratch directory outside it).`;
+  const refuse = (reason) => {
+    throw new Error(`Refusing to clear ${target}: ${reason}. ${guidance}`);
+  };
+  const moveUp = (from, to) => {
+    const relative = path.relative(from, to);
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+  };
+  if (target === root) refuse('that is the project root itself');
+  if (!moveUp(root, target)) {
+    if (moveUp(target, root)) refuse('the project root lives inside that directory');
+    if (target === path.parse(target).root) refuse('that is a filesystem root');
+    if (target === path.resolve(os.homedir())) refuse('that is the home directory');
+    if (await exists(path.join(target, '.git'))) refuse('that directory is a Git working tree');
+    return target;
+  }
+  const [topLevel] = path.relative(root, target).split(path.sep);
+  if (!GENERATED_OUTPUT_ROOTS.includes(topLevel)) {
+    refuse(`"${topLevel}/" is repository source, not a generated-output root`);
+  }
+  return target;
 }
 
 export async function exportAgentSkillPackage({
@@ -121,15 +165,15 @@ export async function exportAgentSkillPackage({
   const root = projectRoot ?? await findProjectRoot();
   const capabilitiesSource = await readFile(path.join(root, ...CAPABILITIES_RELATIVE_PATH.split(path.sep)), 'utf8');
   const versionSource = await readFile(path.join(root, ...PLAYBOOK_VERSION_RELATIVE_PATH.split(path.sep)), 'utf8');
-  const { names, infrastructure } = resolveRecognizedTools(capabilitiesSource);
+  const { names } = resolveRecognizedTools(capabilitiesSource);
   const playbookVersion = extractPlaybookVersion(versionSource);
 
-  const packageRoot = path.isAbsolute(outputDir) ? outputDir : path.join(root, outputDir);
+  const packageRoot = await assertSafeOutputRoot({ projectRoot: root, outputDir });
   const skillDir = path.join(packageRoot, serverName);
   await rm(packageRoot, { recursive: true, force: true });
   await mkdir(skillDir, { recursive: true });
 
-  await writeFile(path.join(skillDir, 'SKILL.md'), renderSkillMarkdown({ names, infrastructure, playbookVersion, serverName }), 'utf8');
+  await writeFile(path.join(skillDir, 'SKILL.md'), renderSkillMarkdown({ names, playbookVersion, serverName }), 'utf8');
   await writeFile(path.join(skillDir, 'mcp.json'), `${JSON.stringify(renderMcpJson({ endpoint, serverName }), null, 2)}\n`, 'utf8');
   await writeFile(path.join(packageRoot, 'README.md'), renderReadme({ endpoint, serverName, outputDir, playbookVersion, toolCount: names.length }), 'utf8');
 
@@ -144,9 +188,9 @@ export async function exportAgentSkillPackage({
   });
 }
 
-function renderSkillMarkdown({ names, infrastructure, playbookVersion, serverName }) {
+function renderSkillMarkdown({ names, playbookVersion, serverName }) {
   const rows = names.map((name) => `| ${name} | ${TOOL_PRESENTATION[name].group} | ${TOOL_PRESENTATION[name].purpose} |`);
-  const infrastructureList = infrastructure.map((name) => `\`${name}\``).join('、');
+  const linkSources = TRUSTED_LINK_TOOL_NAMES.map((name) => `\`${name}\``).join('、');
   return `---
 name: ${serverName}
 description: 连接 SFoA MCP 服务完成 Salesforce CRM 查询与受治理变更的入口 Skill。用于查询公司 CRM 数据、创建或修改记录、获取字段与关系上下文、可信记录链接与附件上传；不用于无 CRM 意图的闲聊或一般网页任务，也不承担 SFoA 仓库开发运维。
@@ -162,7 +206,7 @@ description: 连接 SFoA MCP 服务完成 Salesforce CRM 查询与受治理变�
 - **MUST** 只使用当前 tools/list 实际暴露的 Tool；Tool 不可见即当前无权限或未启用，**MUST NOT** 绕过治理用其它通道。
 - Salesforce 对 CRUD、FLS、Sharing、Validation 的裁决最终权威。
 - 写入结果为 UNKNOWN / OUTCOME_UNKNOWN 时**MUST NOT** 自动重试；先独立读取确认。
-- 变更后的操作总结与记录导航：只使用 ${infrastructureList} 等来源的可信链接，**MUST NOT** 自行拼接 Salesforce URL。
+- 变更后的操作总结与记录导航：只使用 ${linkSources}（或变更 Tool 结果中直接返回）的可信链接，**MUST NOT** 自行拼接 Salesforce URL。
 
 ## 工具表（路由参考）
 
@@ -192,7 +236,9 @@ function renderMcpJson({ endpoint, serverName }) {
 function renderReadme({ endpoint, serverName, outputDir, playbookVersion, toolCount }) {
   return `# SFoA Agent Skill 导出包（${serverName}）
 
-自包含、零凭证的 AgentSkills 分发包：把任意支持 SKILL.md 的智能体宿主（OpenClaw 等）接到 SFoA 企业 MCP Runtime。
+自包含、零凭证的 AgentSkills 分发包：把支持 SKILL.md 的智能体宿主（OpenClaw 等）接到 SFoA 企业 MCP Runtime。
+「自包含」指包袱内容自足（入口 Skill + 连接描述符 + 安装说明），**不指开箱即连**：endpoint 仍需宿主侧登记，
+认证仍由服务端与企微适配器插件（SecretRef）承担；本包不含、也不生成任何凭据。
 
 - 生成命令：\`yarn skill:export --endpoint <url>\`（本包由 Agent Playbook ${playbookVersion} 工具面 ${toolCount} 个 Tool 生成）
 - 生成物：\`${serverName}/SKILL.md\`（入口与硬边界）、\`${serverName}/mcp.json\`（连接描述符，url 模式）、本 README

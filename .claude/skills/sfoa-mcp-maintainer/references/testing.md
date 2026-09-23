@@ -11,9 +11,18 @@ yarn skill:delivery
 yarn skill:test
 yarn skill:smoke
 yarn skill:package
+yarn skill:export
 yarn skill:runtime:sync  --runtime-root <openclaw workspace>/skills
 yarn skill:runtime:check --runtime-root <openclaw workspace>/skills
 ```
+
+`skill:export` is the one maintainer command here that is a **generator, not a gate**: it renders
+the zero-credential AgentSkills distribution package under `out/`, which is Git-ignored and never a
+source of truth. Its correctness is covered by `skill:test` (playbook-parser drift, zero-credential
+`mcp.json`, byte-identical reruns, and the refusal to clear an unsafe `--output`), so no separate
+gate command is needed. It does not touch the runtime, governance or schemas. Regenerate with
+`yarn skill:export --endpoint <url>`; full design, output-root guard and removal story live in
+`docs/sfoa/SFOA_SKILL_EXPORT_PACKAGE.md`.
 
 `skill:test` is the single entry point for both business Skills: it holds the
 `sfoa-crm-core` hard-boundary contract, the `sfoa-record-change` readiness
