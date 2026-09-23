@@ -89,6 +89,22 @@ ordinary business Agent needs `skills.entries.<name>.enabled = true` and its nam
 added to the non-empty `agents.entries.<agent>.skills` allowlist without dropping
 existing legitimate entries.
 
+## AgentSkills export package
+
+`yarn skill:export` (repo-level `export` action in `manage.mjs`) renders
+`out/sfoa-openclaw-package/` — `sfoa/SKILL.md`, `sfoa/mcp.json` and a README —
+as a self-contained, zero-credential AgentSkills distribution package for OpenClaw
+instances or other SKILL.md hosts outside the `skill:runtime:sync` path. The tool
+table is generated from `packages/sfoa-agent-playbook/src/capabilities.ts`
+(`AGENT_RECOGNIZED_TOOL_NAMES`) with a two-way drift check against the static
+`TOOL_PRESENTATION` map, so a playbook tool-surface change without a presentation
+update fails `skill:test`. The generated `mcp.json` is URL-mode only (no
+`command`, no `env`, no Salesforce credentials); identity, governance and audit
+stay server-side. Output is deterministic and `out/` is gitignored — the package
+is regenerable and never a source of truth. It supplements, not replaces,
+`skill:runtime:sync`. Evaluation verdict, OpenClaw onboarding and removal story:
+`docs/sfoa/SFOA_SKILL_EXPORT_PACKAGE.md`.
+
 Refresh semantics, corrected by measurement during the Skill-02B deployment (the
 earlier assumption was stricter than reality):
 
