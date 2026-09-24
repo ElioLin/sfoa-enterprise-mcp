@@ -797,3 +797,54 @@ discovery SDK server as well. All tools/call retain full identity resolution and
 route/governance. WeCom and Internal Headers are channel-bound;
 USER_BOUND/Buntu identity authority is unchanged. See
 [ADR-0020](adr/ADR-0020-wecom-channel-discovery.md).
+
+## P9 Data Completeness Boundary
+
+P9 adds a second SFoA-owned Provider, `@sfoa/mcp-provider-sfoa-data`, for the read
+capabilities the official `@salesforce/mcp-provider-dx-core@0.10.0` does not supply:
+
+```text
+Agent
+  -> authenticated Streamable HTTP request
+  -> X-Platform-User-Id / P1 IdentityResolver
+  -> fresh request-scoped Salesforce Connection
+  -> exact per-Tool governance (default-disabled)
+  -> @salesforce/core Connection (jsforce SDK)
+  -> official SDK read surface
+  -> bounded, truncation-explicit output
+```
+
+| Shipped | Tool | SDK surface |
+| --- | --- | --- |
+| P9-T1 | `list_sobjects`, `describe_sobject` | `describeGlobal()`, `describe()` |
+| planned | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` |
+| planned | `get_org_limits`, `search_records` | `limits()`, `search()` |
+| planned | `submit_bulk_query`, `get_bulk_query_results` | Bulk API 2.0 |
+
+Only the shipped row is advertised today; the planned rows are recorded in the gap analysis
+and ADR-0024 and are not part of the current tool surface.
+
+The Provider is composed through the same public `McpProvider`/`McpTool`/`Services` seam as
+P3, requires exactly one allowed username from the request `OrgService`, and takes the
+Connection from `getConnection()`. It never constructs a Connection, reads CLI Auth Cache,
+implements OAuth, or invokes raw REST. Every Tool is `READ`/`USER` and **absent from
+`DEFAULT_ENABLED_TOOLS`**: an Admin enables it through the control-plane `enabledTools`
+channel, and the Admin catalog lists every `SFOA_DATA_TOOL_NAMES` entry as enablable so a
+default-disabled Tool is reachable.
+
+Identity, username/alias, platform user, instance URL, token and API-version controls are
+absent from every schema; no Tool parameter can select a Salesforce identity, and the
+request identity stays fixed by the authenticated route. Each Tool is pinned to a
+`SalesforceApiPurpose` through a compile-enforced `Record<SfoaDataToolName,
+SalesforceApiPurpose>` in the host facade, so a new Data Tool cannot reach the P7 audit
+pipeline unclassified, and a Provider that redefines a Data Tool name aborts composition
+with `MCP_PROVIDER_INITIALIZATION_FAILED` instead of silently overriding it.
+
+Data Tools return **org facts, not normalised approximations**: labels and picklist text
+are reported verbatim including surrounding whitespace, while an identifier that is empty
+or whitespace-only is dropped rather than rewritten. Every list-shaped answer states
+`totalCount`/`returnedCount`/`truncated` so a truncated slice can never be mistaken for
+the whole, and every failure is a stable `MCP_*` code with a bounded safe Salesforce
+code/message. Official Salesforce TypeScript is unmodified; `run_soql_query` stays
+byte-identical because `run_diagnostic_tooling_query` depends on it. See
+[ADR-0024](adr/ADR-0024-p9-data-provider-over-official-sdk.md).

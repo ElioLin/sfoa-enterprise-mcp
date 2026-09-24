@@ -2,6 +2,113 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-24 — P9-T1: `@sfoa/mcp-provider-sfoa-data` skeleton with `list_sobjects` and `describe_sobject`
+
+Opened the P9 data-completeness phase on branch `feature/p9-data-completeness` (from `main`
+@ `d9f23a8`, the gap-analysis doc `903f0a3`) by shipping the new Provider package and its
+first two read Tools. This is the first SFoA Provider whose capabilities come from the
+**official jsforce SDK** rather than from a reused or wrapped upstream Tool; the upstream
+audit is [ADR-0024](adr/ADR-0024-p9-data-provider-over-official-sdk.md).
+
+- **The upstream-first obligation was discharged with a concrete inventory, not an
+  assumption.** The pinned `@salesforce/mcp-provider-dx-core@0.10.0` `provideTools()` returns
+  exactly 13 Tools, none of which is a describe, SObject-inventory, org-limit, SOSL or Bulk
+  capability; `list_all_orgs` is the nearest name and lists CLI auth-cache orgs, not
+  SObjects. The only official Provider packages installed anywhere in the workspace are
+  `mcp-provider-api` and `mcp-provider-dx-core`, so no second official Provider could supply
+  the gap either. Official Salesforce TypeScript is unmodified — in particular
+  `run_soql_query` stays intact, because `run_diagnostic_tooling_query` depends on it.
+- **Both Tools are default-disabled and Admin-enablable.** They are absent from
+  `DEFAULT_ENABLED_TOOLS`, so they are invisible in `tools/list` and unaddressable in
+  `tools/call` until an Admin enables them through the control-plane channel, after which
+  they execute through the P7 audit pipeline. A default-disabled Tool is only shippable if an
+  Admin can reach it, so `packages/sfoa-admin-api/src/tool-catalog.ts` now lists every
+  `SFOA_DATA_TOOL_NAMES` entry as `READ`/`USER`/`enableAllowed: true`.
+- **`list_sobjects` is a deliberate rename of the gap analysis' `describe_global`.** Naming
+  the Tool after the SDK method would read as a variant of `describe_sobject` to a model
+  choosing between them; `list_sobjects` returns an inventory, not a schema. Recorded in
+  ADR-0024.
+- **A finding about the official Provider API, recorded rather than papered over.**
+  `McpToolConfig.inputSchema` is a `z.ZodRawShape`, so the SDK registers `z.object(shape)`:
+  an unrecognised key is stripped, not rejected, and a provider-side `.strict()` never
+  reaches the wire. Field-level constraints do hold at the protocol boundary, and the
+  guarantee that matters is structural — the schema has no identity parameter at all, so a
+  caller-supplied `username`/`accessToken`/`instanceUrl` cannot select an identity. Protocol
+  tests assert both halves: an out-of-range limit or a relationship path is refused before any
+  Connection opens, while a call carrying credential keys returns byte-identical output to the
+  same call without them and still reads the request's single Salesforce user.
+- **Audit classification is compile-enforced.** The host facade pins each Tool to a
+  `SalesforceApiPurpose` through `Record<SfoaDataToolName, SalesforceApiPurpose>`
+  (`OBJECT_SCHEMA`), so a future P9 Tool cannot reach the audit pipeline unclassified. A
+  Provider that redefines a Data Tool name aborts composition with
+  `MCP_PROVIDER_INITIALIZATION_FAILED` instead of silently overriding it.
+- **Two defects found and fixed while writing the tests.** `mapDataFailure` re-classified the
+  identity-unavailable error raised *inside* the executor, replacing the actionable
+  `MCP_DATA_IDENTITY_UNAVAILABLE` code with a generic failure; it now short-circuits on an
+  existing `DataRuntimeError`. And the codeless-failure fallback echoed the thrown message, so
+  a socket error surfaced a `/services/data/v67.0/sobjects` path in the Agent-visible result;
+  the Salesforce message is now repeated only when Salesforce reported an error code.
+- **A third defect, found only by the live run: the reader trimmed org text.** The first
+  `readString` helper trimmed every string it read. A real `describe()` of Account returned the
+  picklist label `"Z1 不检查信用 "` (trailing space), and the Tool reported `"Z1 不检查信用"` —
+  a string the org never declared. Five picklist labels across `Check_Rule__c`,
+  `In_Approval_*__c` and `Risk_Level__c` were affected. No unit test could have caught this,
+  because every fixture was written with text that had no surrounding whitespace to lose. The
+  readers are now split by the role the text plays: **display facts** (object/field/picklist
+  labels) are returned verbatim, and **identifiers** (API names, `referenceTo` targets, `type`,
+  `keyPrefix`) are returned verbatim as well but with whitespace-only text treated as absent —
+  such an entry is *dropped* rather than rewritten, because `"   "` is not an object the Agent
+  can describe or query. A regression test asserts a whitespace-padded label and picklist value
+  survive the round trip. Recorded in ADR-0024.
+- **Live validation is a first-class gate, not a manual ritual.**
+  `packages/sfoa-mcp-server/src/validation/p9-live-validation.ts` (`yarn validate:p9`) starts
+  the **production** runtime against the local org — the real MySQL control plane, the real P7
+  audit stack (`DatabaseRuntimeLogger` + `MySqlAuditBatchSink` + `AsyncAuditPipeline`) and the
+  real identity runtime — then reads every returned fact back over the same request-scoped
+  Connection with independent queries and reports `PASS`/`FAIL`/`NOT TESTED` per gate. It never
+  writes to the Control Plane to make a gate pass: the Data Tools are granted by widening the
+  in-memory policy snapshot for that process only. The platform user is supplied as
+  `P9_LIVE_PLATFORM_USER` so no real employee ID enters the repository. Gates: `toolInventory`,
+  `requestIdentity`, `listSobjects`, `describeSobject`, `schemaSelfRepair`, `credentialSafety`,
+  `connections`.
+- **Live evidence, org `Account`, routed identity `cynthia.chen@ningborunner.com.uat`,
+  `overall: PASS`, 0 FAIL.** `list_sobjects`: 46 org objects match `Acc`; `limit=5` returned 5
+  with `truncated: true` and a hint, `limit=46` returned all 46 with `truncated: false`; every
+  `label`/`keyPrefix`/`custom`/`queryable`/`createable`/`updateable`/`searchable` fact matched
+  the org, `factMismatches: []`. `describe_sobject`: 237 org fields and 142 child relationships;
+  200 fields and 50 children returned, correctly flagged truncated; `fieldLimit=3` and
+  `includeFields: false` both behaved as declared; all header, field and child facts matched
+  (`fieldMismatches`, `childMismatches`, `headerMismatches` all empty). Self-repair: a
+  nonexistent object returns `isError: true`, `errorCode: MCP_SOBJECT_NOT_FOUND`,
+  `salesforceErrorCode: NOT_FOUND`, and a suggestion naming `list_sobjects`. Credential safety:
+  6 results / 355 657 bytes scanned, no session-id, bearer, JWT, private-key, credential-field
+  or stack-frame pattern matched. Connections: 6 Connections for 6 Tool calls, all through the
+  single routed Salesforce user, `executionRole: USER` throughout.
+- **The P7 audit chain was verified from MySQL, not assumed.** `yarn ai:audit --user … --latest
+  12 --since 1h` reconstructs
+  `REQUEST → IDENTITY_PROVIDER → PLATFORM_USER → IDENTITY_ROUTE → SALESFORCE_USER → TOOLS_CALL
+  → SALESFORCE_API → RESULT` for all 12 calls of the two live runs, with `toolName`
+  `list_sobjects`/`describe_sobject`, `executionRole: USER`,
+  `identitySource: INTERNAL_SERVICE_HEADER`, and the expected `errorCode` on the negative case.
+  `auditIntegrityStatus: PARTIAL` and `salesforceApiCaptureFailureCount: 2` are **baseline, not
+  a P9 regression**: `run_soql_query`, `create_record`, `get_record_display_context` and
+  `run_diagnostic_tooling_query` rows carry the identical counters, and `PARTIAL` is the
+  dominant status for every Tool in this environment.
+- **Architecture baseline updated.** `docs/sfoa/ARCHITECTURE.md` gains a
+  `P9 Data Completeness Boundary` section: the request path, the shipped-versus-planned Tool
+  table (only `list_sobjects`/`describe_sobject` are advertised today), the default-disabled
+  governance and Admin-catalog requirement, the compile-enforced audit classification, and the
+  org-fidelity rule for labels versus identifiers.
+- **Regression set green.** `mcp-provider-sfoa-data` 49/49, `sfoa-admin-api` 26/26,
+  `sfoa-mcp-server` 211/211 plus `test:p3` 25/25, `test:p4` 8/8, `test:p5` 6/6, `test:p7` 6/6.
+  `validate:upstream` reports no drift.
+- **Known environment debt, unchanged and not introduced here:** `yarn install` fails with
+  `ENOENT … @typescript-eslint/eslint-plugin/node_modules/ignore` in the vendored
+  `mcp-provider-api` tree. It does not block this work — the new workspace's `node_modules`
+  and its `@sfoa/` junction are created before the failing point, and every SFoA script calls
+  `node ./node_modules/typescript/bin/tsc` by explicit path, so the missing `.bin` shims that
+  fail the vendored packages are not on the SFoA gate path.
+
 ## 2026-09-16 — Skill-02C attachment upload: probe gate closed, Tool shipped, audit defect fixed, test server deployed
 
 Attachment upload round. Branch `feature/sfoa-attachment-upload`, cut from the Skill-02B
