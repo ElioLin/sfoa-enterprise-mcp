@@ -24,6 +24,7 @@
     "@sfoa/control-plane": "0.1.0-p5",
     "@sfoa/identity-runtime": "0.1.0-p4",
     "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",
+    "@sfoa/mcp-provider-sfoa-data": "0.1.0-p9",
     "@sfoa/mcp-provider-sfoa-dml": "0.1.0-p3",
     "@sfoa/mcp-server": "0.1.0-p5",
     "zod": "3.25.76"

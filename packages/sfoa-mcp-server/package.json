@@ -26,6 +26,7 @@
     "validate:p2": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/main.js",
     "validate:p3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p3-main.js",
     "validate:p4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p4-main.js",
+    "validate:p9": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p9-main.js",
     "validate:inspector": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/inspector-gate.js"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "@sfoa/agent-playbook": "0.1.0-p6-agent",
     "@sfoa/identity-runtime": "0.1.0-p4",
     "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",
+    "@sfoa/mcp-provider-sfoa-data": "0.1.0-p9",
     "@sfoa/mcp-provider-sfoa-dml": "0.1.0-p3",
     "zod": "3.25.76"
   },

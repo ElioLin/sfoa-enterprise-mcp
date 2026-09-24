@@ -59,8 +59,12 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly dmlCalls: DmlCall[] = [];
   public readonly apiRequests: string[] = [];
   public readonly queryCalls: string[] = [];
+  /** SObject schema reads, in order: `describeGlobal` or `describe:<objectApiName>`. */
+  public readonly schemaCalls: string[] = [];
   public instanceUrlForRoute = (route: SalesforceIdentityRoute): string =>
     `https://${route.platformUserId}.my.salesforce.com`;
+
+  public constructor(private readonly schema: RecordingSchemaOptions = {}) {}
 
   public async create(route: SalesforceIdentityRoute): Promise<Connection> {
     const sequence = this.creations.length + 1;
@@ -73,6 +77,16 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
     const connection = {
       instanceUrl: this.instanceUrlForRoute(route),
       getApiVersion: () => '65.0',
+      describeGlobal: async () => {
+        this.schemaCalls.push('describeGlobal');
+        if (this.schema.describeGlobalError) throw this.schema.describeGlobalError;
+        return (this.schema.describeGlobal ?? defaultDescribeGlobal)();
+      },
+      describe: async (objectApiName: string) => {
+        this.schemaCalls.push(`describe:${objectApiName}`);
+        if (this.schema.describeError) throw this.schema.describeError;
+        return (this.schema.describe ?? defaultDescribe)(objectApiName);
+      },
       identity: async () => ({
         username: route.salesforceUsername,
         user_id: `005-${route.platformUserId}`,
@@ -131,6 +145,60 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
 }
 
 const TEST_RECORD_TYPE_ID = '012000000000000AAA';
+
+/**
+ * SObject schema answers for the P9 Data Tools. They are deliberately small but shaped
+ * like the jsforce payloads, so a test can assert exactly which facts the Tools surfaced
+ * and which Salesforce surface they read.
+ */
+export type RecordingSchemaOptions = Readonly<{
+  describeGlobal?: () => unknown;
+  describe?: (objectApiName: string) => unknown;
+  describeGlobalError?: unknown;
+  describeError?: unknown;
+}>;
+
+function defaultDescribeGlobal(): unknown {
+  return {
+    encoding: 'UTF-8',
+    maxBatchSize: 200,
+    sobjects: [
+      { name: 'Account', label: 'Account', labelPlural: 'Accounts', keyPrefix: '001',
+        custom: false, queryable: true, createable: true, updateable: true, searchable: true },
+      { name: 'AccountCleanInfo', label: 'Account Clean Info', labelPlural: 'Account Clean Info',
+        keyPrefix: '0CJ', custom: false, queryable: true, createable: true, updateable: true, searchable: false },
+      { name: 'Lead', label: 'Lead', labelPlural: 'Leads', keyPrefix: '00Q',
+        custom: false, queryable: true, createable: true, updateable: true, searchable: true },
+    ],
+  };
+}
+
+function defaultDescribe(objectApiName: string): unknown {
+  return {
+    name: objectApiName,
+    label: objectApiName,
+    labelPlural: `${objectApiName}s`,
+    keyPrefix: '001',
+    custom: objectApiName.endsWith('__c'),
+    queryable: true,
+    createable: true,
+    updateable: true,
+    searchable: true,
+    fields: [
+      { name: 'Id', label: 'Account ID', type: 'id', nillable: false, createable: false,
+        updateable: false, filterable: true, sortable: true, custom: false, deprecatedAndHidden: false,
+        referenceTo: [], relationshipName: null, picklistValues: [] },
+      { name: 'Name', label: 'Account Name', type: 'string', nillable: false, createable: true,
+        updateable: true, filterable: true, sortable: true, custom: false, deprecatedAndHidden: false,
+        referenceTo: [], relationshipName: null, picklistValues: [] },
+    ],
+    childRelationships: [
+      { childSObject: 'Contact', field: 'AccountId', relationshipName: 'Contacts',
+        cascadeDelete: false, restrictedDelete: false, deprecatedAndHidden: false },
+    ],
+  };
+}
+
 
 function uiApiResponse(url: string): unknown {
   if (/\/ui-api\/object-info\/Lead\/picklist-values\//u.test(url)) {

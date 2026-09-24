@@ -9,6 +9,7 @@ import {
   adminToolControlUpdateSchema,
 } from '@sfoa/control-plane/admin-contracts';
 import type { ToolControlRecord } from '@sfoa/control-plane';
+import { SFOA_DATA_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-data';
 import type { UpstreamInventoryComparison } from '@sfoa/mcp-server';
 import { buildAdminToolCatalog, canEnableAdminTool } from '../tool-catalog.js';
 
@@ -107,4 +108,41 @@ test('SFoA Agent infrastructure Tools are explicit read-only governed catalog en
     assert.equal(record?.enableAllowed, true, `${toolName} is SFoA-owned and independent of official Provider drift`);
     assert.equal(canEnableAdminTool(toolName, upstreamDrift).allowed, true);
   }
+});
+
+test('every P9 Data Tool is enablable by an Admin even though it ships default-disabled', () => {
+  // The P9 Data Tools are absent from DEFAULT_ENABLED_TOOLS on purpose. That is only
+  // shippable if an Admin can find them here: a Data Tool missing from this catalog would be
+  // advertised nowhere and permanently unenableable. Like the Agent infrastructure Tools they
+  // are SFoA-owned, so official Provider drift must not block enabling them.
+  assert.ok(SFOA_DATA_TOOL_NAMES.length > 0);
+  const catalog = buildAdminToolCatalog([], upstreamDrift);
+  for (const toolName of SFOA_DATA_TOOL_NAMES) {
+    const record = catalog.find((item) => item.toolName === toolName);
+    assert.ok(record !== undefined, `${toolName} must appear in the Admin catalog`);
+    assert.equal(record.classification, 'READ');
+    assert.equal(record.executionRole, 'USER');
+    assert.equal(record.remoteCompatible, true);
+    assert.equal(record.releaseState, 'GA');
+    assert.equal(record.status, 'DISABLED', `${toolName} must ship disabled until an Admin enables it`);
+    assert.equal(record.enableAllowed, true, `${toolName} is SFoA-owned and independent of official Provider drift`);
+    assert.equal(record.disabledReason, null);
+    assert.equal(canEnableAdminTool(toolName, upstreamDrift).allowed, true);
+  }
+
+  // A database row for a Data Tool is what makes it enabled; the catalog must reflect it
+  // rather than overriding the stored state.
+  const stored: ToolControlRecord = Object.freeze({
+    id: '1',
+    toolName: SFOA_DATA_TOOL_NAMES[0] as string,
+    enabled: true,
+    remark: null,
+    rowVersion: '2',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  const enabledRecord = buildAdminToolCatalog([stored], upstreamPass)
+    .find((item) => item.toolName === stored.toolName);
+  assert.equal(enabledRecord?.enabled, true);
+  assert.equal(enabledRecord?.status, 'AVAILABLE');
 });

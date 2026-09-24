@@ -22,6 +22,11 @@ import {
   type EffectiveUiOptions,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
+  SfoaDataMcpProvider,
+  isSfoaDataToolName,
+  type SfoaDataToolName,
+} from '@sfoa/mcp-provider-sfoa-data';
+import {
   NoopRuntimeLogger,
   OfficialDxCoreToolSource,
   RequestAuditContextController,
@@ -47,6 +52,7 @@ import { isSfoaAttachmentToolName, parseAttachmentPolicyJson, type AttachmentPol
 import type { AttachmentIngress } from './attachment-ingress.js';
 import { createUploadFilesToRecordTool } from './attachment-tool.js';
 import { ContextToolFacade } from './context-tool-facade.js';
+import { DataToolFacade } from './data-tool-facade.js';
 import {
   OfficialDiagnosticToolingQueryExecutor,
   OfficialMetadataComponentContextExecutor,
@@ -195,6 +201,7 @@ export function configureProviderRuntime(
   const officialEnabledTools = enabledTools.filter(
     (name) => !isSfoaDmlToolName(name)
       && !isSfoaContextToolName(name)
+      && !isSfoaDataToolName(name)
       && !isSfoaAttachmentToolName(name)
       && !isAgentInfrastructureToolName(name),
   );
@@ -373,6 +380,23 @@ export async function createGovernedMcpServer(
       }
     }
 
+    const dataToolNames = options.initializedProvider.enabledTools.filter(isSfoaDataToolName);
+    if (dataToolNames.length > 0) {
+      const dataTools = await new SfoaDataMcpProvider({
+        toolNames: dataToolNames as readonly SfoaDataToolName[],
+      }).provideTools(options.scope.services);
+      for (const tool of dataTools) {
+        if (tool.getReleaseState() !== ReleaseState.GA) continue;
+        if (toolsByName.has(tool.getName())) {
+          throw new RemoteRuntimeError(
+            'MCP_PROVIDER_INITIALIZATION_FAILED',
+            `The composed Providers returned duplicate Tool ${tool.getName()}.`,
+          );
+        }
+        toolsByName.set(tool.getName(), tool);
+      }
+    }
+
     for (const name of options.initializedProvider.enabledTools) {
       if (isAgentInfrastructureToolName(name)) continue;
       const tool = toolsByName.get(name);
@@ -451,6 +475,22 @@ export async function createGovernedMcpServer(
           connectionProvider: options.scope.salesforce,
           redactionSecrets: options.redactionSecrets,
           managedDmlFieldRules: options.managedDmlFieldRules ?? [],
+        });
+        server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
+          runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));
+        registered.push(name);
+        continue;
+      }
+      if (isSfoaDataToolName(name)) {
+        const facade = new DataToolFacade({
+          tool,
+          context: options.scope.context,
+          route: options.scope.route,
+          toolTimeoutMs: options.toolTimeoutMs,
+          logger: options.logger,
+          clientId: options.clientId,
+          connectionProvider: options.scope.salesforce,
+          redactionSecrets: options.redactionSecrets,
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
           runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));

@@ -20,6 +20,7 @@ import {
 import { ReleaseState } from '@salesforce/mcp-provider-api';
 import { SfoaDmlMcpProvider, isSfoaDmlToolName } from '@sfoa/mcp-provider-sfoa-dml';
 import { SfoaContextMcpProvider, isSfoaContextToolName } from '@sfoa/mcp-provider-sfoa-context';
+import { SfoaDataMcpProvider, isSfoaDataToolName } from '@sfoa/mcp-provider-sfoa-data';
 import {
   createRuntimeAgentCapabilities,
   serverInstructions,
@@ -167,6 +168,12 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
         diagnosticQueryExecutor: { execute: forbidden },
         metadataContextExecutor: { execute: forbidden },
       }).provideTools(services),
+      // Data Tools read schema through the request-scoped USER Connection, which discovery
+      // does not have. Only their descriptors are built here so that an enabled Data Tool is
+      // advertised consistently; discovery denies every `tools/call` regardless.
+      ...await new SfoaDataMcpProvider({
+        toolNames: runtime.enabledTools.filter(isSfoaDataToolName),
+      }).provideTools(services),
       // Host-native, like the governed runtime: `upload_files_to_record` has no Provider
       // behind it, so discovery has to be given its descriptor explicitly. Discovery
       // registers a Tool only after resolving it in this inventory, so omitting it would
@@ -196,7 +203,7 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
         server.registerTool(name, tool.getConfig(), forbidden);
         continue;
       }
-      const config = isSfoaDmlToolName(name) ? tool.getConfig()
+      const config = isSfoaDmlToolName(name) || isSfoaDataToolName(name) ? tool.getConfig()
         : isSfoaContextToolName(name) ? contextToolConfig(tool) : remoteToolConfig(tool, runtime.policy.getRecord(name));
       server.registerTool(name, config, forbidden);
     }

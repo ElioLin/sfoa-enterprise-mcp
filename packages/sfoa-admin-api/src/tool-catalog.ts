@@ -1,6 +1,7 @@
 import type { ToolControlRecord } from '@sfoa/control-plane';
 import { AGENT_INFRASTRUCTURE_TOOL_NAMES } from '@sfoa/agent-playbook';
 import { SFOA_CONTEXT_TOOL_NAMES, SFOA_CONTEXT_TOOL_ROLES } from '@sfoa/mcp-provider-sfoa-context';
+import { SFOA_DATA_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-data';
 import { SFOA_DML_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-dml';
 import {
   OFFICIAL_TOOL_CATALOG,
@@ -131,6 +132,26 @@ export function buildAdminToolCatalog(
       dependencies: diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'],
       enableAllowed,
       disabledReason: enableAllowed ? null : 'Upstream contract drift requires Maintainer review.',
+    }));
+  }
+
+  for (const toolName of SFOA_DATA_TOOL_NAMES) {
+    const control = byName.get(toolName);
+    byName.delete(toolName);
+    records.push(toolRecord({
+      toolName,
+      // Every P9 Data Tool reads Salesforce schema through the request USER identity and
+      // never mutates business data. They ship default-disabled, so an Admin has to find
+      // them here to turn them on — a Data Tool missing from this catalog would be
+      // advertised nowhere and permanently unenableable.
+      classification: 'READ',
+      executionRole: 'USER',
+      remoteCompatible: true,
+      releaseState: 'GA',
+      control,
+      dependencies: ['USER identity route'],
+      enableAllowed: true,
+      disabledReason: null,
     }));
   }
 
