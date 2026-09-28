@@ -561,9 +561,11 @@ async function runDescribeSobject(
  *
  * The Tool's whole reason to exist is that the official `run_soql_query` cannot say whether an
  * answer is the whole answer, so the only meaningful test is a count the Tool did not produce:
- * the org's own `COUNT()` read over the same live Connection. Three probes follow — an
- * uncapped walk that must declare itself complete, a 500-row cap that must declare exactly why
- * it is not, and an aggregate that must come back bounded and complete.
+ * the org's own `COUNT()` read over the same live Connection. Three probes follow — a walk with
+ * the row budget set above the org's size, which must report a result consistent with the org's
+ * count (complete when every row fits the payload, and a declared RESPONSE_BUDGET cut when it
+ * does not); a 500-row cap, which must declare exactly why it is not complete; and a scalar
+ * aggregate, which must come back bounded and complete.
  */
 async function runQueryRecords(
   client: Client,
@@ -572,9 +574,13 @@ async function runQueryRecords(
   connection: Connection,
   advertisedNames: readonly string[],
 ): Promise<P9LiveGate> {
-  const realTotal = await readCount(connection, objectApiName);
+  const reading = await readCount(connection, objectApiName);
+  const realTotal = reading.count;
   if (realTotal === null) {
-    return notTested(`COUNT() of ${objectApiName} returned no row count, so a completeness claim cannot be cross-checked.`);
+    return notTested(
+      `COUNT() of ${objectApiName} returned no row count — ${reading.observed} — `
+      + 'so a completeness claim cannot be cross-checked against the org.',
+    );
   }
   if (realTotal <= SINGLE_BATCH_ROWS) {
     return notTested(
@@ -607,12 +613,14 @@ async function runQueryRecords(
 
   const fetched = integerOf(probeOutput.fetched);
   const returnedCount = integerOf(probeOutput.returnedCount);
-  // The byte budget may legitimately shorten the returned slice, but only as a declared,
-  // named cut — a silent one is exactly the failure this Tool exists to prevent.
+  // A response budget may legitimately shorten the returned slice, but only as a declared, named
+  // cut — a silent one is exactly the failure this Tool exists to prevent. Which of the two
+  // budgets binds depends on the record width, so the gate asserts the declaration, not the count.
   const budgetCut = returnedCount < fetched;
   const probeFacts = probeOutput.executionRole === 'USER'
     && probeOutput.totalSize === realTotal
     && fetched === realTotal
+    && returnedCount >= 0
     && probeOutput.done === true
     && probeOutput.truncated === budgetCut
     && probeOutput.complete === !budgetCut
@@ -625,17 +633,33 @@ async function runQueryRecords(
   const cappedOutput = outputOf(capped);
   const cappedHint = typeof cappedOutput?.hint === 'string' ? cappedOutput.hint : '';
   const namedTools = HINT_TOOL_CANDIDATES.filter((name) => cappedHint.includes(name));
+  // The row cap binds *fetching*; the response budget can bind the returned slice on top of it,
+  // and the enum then names that second cut, because it is what an Agent holding these records
+  // has to work around — raising maxRows would not return more. Both shapes are contract-correct,
+  // so what is asserted is the contract rather than a row count: the cap is what stopped the
+  // walk, and whatever shortened the slice is declared. Measured live on a record this wide, the
+  // 500-row cap fetches 500 and the payload budget returns 392 of them, so the "returnedCount
+  // equals the cap" form of this assertion is only true for records narrow enough to fit.
+  const cappedFetched = integerOf(cappedOutput?.fetched);
+  const cappedReturned = integerOf(cappedOutput?.returnedCount);
+  const cappedBudgetCut = cappedReturned >= 0 && cappedReturned < cappedFetched;
   const capFacts = cappedOutput?.success === true
     && cappedOutput.executionRole === 'USER'
     && cappedOutput.totalSize === realTotal
-    && cappedOutput.fetched === QUERY_RECORDS_TRUNCATION_MAX_ROWS
-    && cappedOutput.returnedCount === QUERY_RECORDS_TRUNCATION_MAX_ROWS
+    && cappedFetched === QUERY_RECORDS_TRUNCATION_MAX_ROWS
+    && cappedReturned >= 0
+    && cappedReturned <= QUERY_RECORDS_TRUNCATION_MAX_ROWS
     && cappedOutput.complete === false
     && cappedOutput.truncated === true
-    && cappedOutput.truncatedReason === 'MAX_ROWS'
+    && cappedOutput.truncatedReason === (cappedBudgetCut ? 'RESPONSE_BUDGET' : 'MAX_ROWS')
+    && (cappedBudgetCut === false || cappedHint.includes('MAX_ROWS + RESPONSE_BUDGET'))
     && cappedHint.length > 0
     && namedTools.every((name) => advertisedNames.includes(name));
 
+  // The scraped shape of the org's own reading of a scalar aggregate: Salesforce answers a bare
+  // COUNT() with the value in `totalSize` and no records, so the Tool must move that value into
+  // `aggregateValue` and leave `totalSize` null rather than report a correct count as truncated.
+  const orgScalarAggregate = await readScalarAggregate(connection, objectApiName);
   const aggregate = await call(client, results, 'query_records', {
     query: `SELECT COUNT() FROM ${objectApiName}`,
   });
@@ -644,7 +668,10 @@ async function runQueryRecords(
     && aggregateOutput.aggregate === true
     && aggregateOutput.complete === true
     && aggregateOutput.truncated === false
-    && firstInteger(aggregateOutput.records) === realTotal;
+    && aggregateOutput.totalSize === null
+    && aggregateOutput.aggregateValue === realTotal
+    && readArray(aggregateOutput.records).length === 0
+    && orgScalarAggregate === realTotal;
 
   return gate(probeFacts && capFacts && aggregateFacts, {
     objectApiName,
@@ -666,6 +693,7 @@ async function runQueryRecords(
       maxRows: QUERY_RECORDS_TRUNCATION_MAX_ROWS,
       fetched: cappedOutput?.fetched,
       returnedCount: cappedOutput?.returnedCount,
+      payloadCutTheSlice: cappedBudgetCut,
       complete: cappedOutput?.complete,
       truncated: cappedOutput?.truncated,
       truncatedReason: cappedOutput?.truncatedReason,
@@ -677,27 +705,83 @@ async function runQueryRecords(
       declared: aggregateOutput?.aggregate,
       complete: aggregateOutput?.complete,
       truncated: aggregateOutput?.truncated,
-      returnedCount: firstInteger(aggregateOutput?.records),
+      totalSize: aggregateOutput?.totalSize,
+      aggregateValue: aggregateOutput?.aggregateValue,
+      returnedCount: readArray(aggregateOutput?.records).length,
+      orgScalarAggregate,
     },
   }, 'query_records completeness, truncation or aggregate declaration disagreed with the org.');
 }
 
-async function readCount(connection: Connection, objectApiName: string): Promise<number | null> {
-  const payload = await connection.query(`SELECT COUNT() FROM ${objectApiName}`) as unknown as Readonly<Record<string, unknown>>;
-  const first = readArray(payload.records)[0];
-  if (first === undefined) return null;
-  const values = Object.values(first).filter((entry): entry is number =>
-    typeof entry === 'number' && Number.isInteger(entry) && entry >= 0);
-  return values[0] ?? null;
+type CountReading = Readonly<{ count: number | null; observed: string }>;
+
+/**
+ * Reads the org's own row count, and reports **what the org actually answered** when it cannot.
+ *
+ * A bare `SELECT COUNT()` cannot serve here: Salesforce answers it with the count in
+ * `totalSize` and **no records at all** (verified live — `SELECT COUNT() FROM Account` came
+ * back `totalSize: 797, records: []`), so it is not a shape this reader can treat as a row
+ * count without already knowing the answer it is trying to establish. `COUNT(Id) <alias>`
+ * names its field and comes back as an ordinary `AggregateResult` row, which is what an
+ * independent cross-check needs. The scalar-aggregate shape is exercised separately, by the
+ * aggregate probe, where the Tool's own reading of it is what is under test.
+ *
+ * A bare `null` would also leave the operator unable to tell an org condition (the object is
+ * not queryable by this identity, the statement was refused) from a defect in this reader, and
+ * the difference decides whether the gate is honestly untestable or silently broken. The
+ * observed shape is therefore carried out with the count. Only the Salesforce error *code* is
+ * reported, never its message, so no org text reaches the report.
+ */
+async function readCount(connection: Connection, objectApiName: string): Promise<CountReading> {
+  try {
+    const payload = await connection.query(
+      `SELECT COUNT(Id) total FROM ${objectApiName}`,
+    ) as unknown as Readonly<Record<string, unknown>>;
+    const records = readArray(payload.records);
+    const first = records[0];
+    const values = first === undefined ? [] : Object.values(first).filter(isNonNegativeInteger);
+    return Object.freeze({
+      count: values[0] ?? null,
+      observed: first === undefined
+        ? `the org returned ${records.length} records for COUNT(Id)`
+        : `the count record carried the fields ${Object.keys(first).join(', ') || 'none'}`,
+    });
+  } catch (error) {
+    return Object.freeze({
+      count: null,
+      observed: `the COUNT(Id) query was refused with ${salesforceErrorCodeOf(error) ?? 'no Salesforce error code'}`,
+    });
+  }
 }
 
-/** The first non-negative integer in a record list, or -1 when there is none. */
-function firstInteger(value: unknown): number {
-  const first = readArray(value)[0];
-  if (first === undefined) return -1;
-  const found = Object.values(first).find((entry): entry is number =>
-    typeof entry === 'number' && Number.isInteger(entry) && entry >= 0);
-  return found ?? -1;
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0;
+
+function salesforceErrorCodeOf(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const code = (error as Readonly<Record<string, unknown>>).errorCode;
+  return typeof code === 'string' && code.length > 0 ? code : null;
+}
+
+/**
+ * Reads the org's own answer to a bare `COUNT()`, which is the shape the Tool has to special-case.
+ *
+ * The value is in `totalSize` with no records — that is the fact the Tool's scalar-aggregate
+ * branch exists for — so this reads it the same way to confirm the org really does answer that
+ * way, rather than the Tool having invented the interpretation. Returns `-1` when the shape is
+ * not what the Tool assumes, which fails the gate instead of passing it vacuously.
+ */
+async function readScalarAggregate(connection: Connection, objectApiName: string): Promise<number> {
+  try {
+    const payload = await connection.query(
+      `SELECT COUNT() FROM ${objectApiName}`,
+    ) as unknown as Readonly<Record<string, unknown>>;
+    if (readArray(payload.records).length > 0) return -1;
+    const reported = payload.totalSize;
+    return typeof reported === 'number' && Number.isInteger(reported) && reported >= 0 ? reported : -1;
+  } catch {
+    return -1;
+  }
 }
 
 function integerOf(value: unknown): number {

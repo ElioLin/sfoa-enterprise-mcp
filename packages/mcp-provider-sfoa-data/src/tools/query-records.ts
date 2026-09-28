@@ -52,7 +52,10 @@ export class QueryRecordsMcpTool extends McpTool<InputShape, OutputShape> {
         + 'Every result reports totalSize (rows that match), fetched (rows read), returnedCount (rows included '
         + 'here), pages, done and complete — and when the answer is not the whole result it also reports '
         + 'truncatedReason (MAX_ROWS, TIME_BUDGET, RESPONSE_BUDGET or PAGINATION_UNAVAILABLE) together with an '
-        + 'actionable next step. Where a total or a breakdown answers the question, a COUNT() or GROUP BY query '
+        + 'actionable next step. A scalar aggregate with no GROUP BY is the one exception to reading the answer '
+        + 'out of records: Salesforce returns a bare COUNT() with no rows at all and its value in totalSize, so '
+        + 'this Tool reports that value as aggregateValue and leaves totalSize null. Where a total or a '
+        + 'breakdown answers the question, a COUNT() or GROUP BY query '
         + 'is cheaper and always bounded; page a large detail set with a WHERE clause on an indexed field, since '
         + 'OFFSET does not scale. '
         + 'Failures come back as structured errors carrying errorCode, message and suggestion: an INVALID_FIELD '
@@ -103,7 +106,8 @@ export function renderQueryRecordsText(output: Readonly<Record<string, unknown>>
       + `totalSize=${format(output.totalSize)} pages=${format(output.pages)} `
       + `done=${format(output.done)} complete=${format(output.complete)} `
       + `truncated=${format(output.truncated)} truncatedReason=${format(output.truncatedReason)} `
-      + `api=${output.useToolingApi === true ? 'tooling' : 'data'} aggregate=${format(output.aggregate)}`,
+      + `api=${output.useToolingApi === true ? 'tooling' : 'data'} aggregate=${format(output.aggregate)} `
+      + `aggregateValue=${format(output.aggregateValue)}`,
   ];
   if (typeof output.hint === 'string' && output.hint.length > 0) {
     lines.push(`Next: ${output.hint}`);

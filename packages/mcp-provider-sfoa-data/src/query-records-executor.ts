@@ -79,7 +79,12 @@ export class QueryRecordsExecutor {
         : readBatch(await connection.queryMore(cursor)));
 
       const collected = await this.collect(fetch, fetchMore, input.query, maxRows);
-      return this.render({ collected, useToolingApi, aggregate: inspection.aggregate });
+      return this.render({
+        collected,
+        useToolingApi,
+        aggregate: inspection.aggregate,
+        grouped: inspection.grouped,
+      });
     } catch (error) {
       throw mapDataFailure(error, queryFailureMapping(useToolingApi, this.hasTool(ORG_LIMITS_TOOL_NAME)));
     }
@@ -172,16 +177,25 @@ export class QueryRecordsExecutor {
     state: RenderState,
     records: readonly Readonly<Record<string, unknown>>[],
   ): QueryRecordsOutput {
-    const { collected, useToolingApi, aggregate } = state;
+    const { collected, useToolingApi, aggregate, grouped } = state;
     const fetched = collected.records.length;
     const returned = records.length;
     // A shorter returned slice can only mean the response budget cut it: fetching never
     // returns fewer rows than it collected.
     const budgetCut = returned < fetched;
+    // A scalar aggregate — no GROUP BY — has no row set of its own. Salesforce answers a bare
+    // `COUNT()` by putting the value in `totalSize` and returning no records, so `totalSize`
+    // there is the aggregate's **value**, and comparing it to `fetched` would report a correct
+    // count as an incomplete result. Verified live: `SELECT COUNT() FROM Account` came back
+    // `totalSize: 797, records: []`. A grouped aggregate is unaffected: it returns one row per
+    // group, so its `totalSize` really does count rows.
+    const valueCarrier = aggregate && !grouped && fetched === 0 && collected.totalSize !== null;
+    const aggregateValue = valueCarrier ? collected.totalSize : null;
+    const totalSize = valueCarrier ? null : collected.totalSize;
     // A platform that reports `done` while handing back fewer rows than its own `totalSize`
     // has declared the result incomplete with no cursor to finish it. Reading that as a
     // complete answer would be the exact failure this Tool exists to prevent.
-    const declaredShort = collected.done && collected.totalSize !== null && fetched < collected.totalSize;
+    const declaredShort = collected.done && totalSize !== null && fetched < totalSize;
     const fetchReason = collected.reason ?? (declaredShort ? 'PAGINATION_UNAVAILABLE' : null);
     const bindings = [
       ...(fetchReason === null ? [] : [fetchReason]),
@@ -192,10 +206,12 @@ export class QueryRecordsExecutor {
     // budget cut is what an Agent holding these records has to work around. The hint still
     // names every binding, so nothing about why fetching stopped is lost.
     const truncatedReason: QueryTruncationReason | null = budgetCut ? 'RESPONSE_BUDGET' : fetchReason;
-    const complete = collected.done && collected.totalSize !== null
-      && fetched === collected.totalSize && !budgetCut;
+    // A scalar aggregate is complete once the platform says it is done: there is no row set to
+    // page through, and the value it reported is the whole answer.
+    const complete = collected.done && !budgetCut
+      && (valueCarrier || (totalSize !== null && fetched === totalSize));
     const hint = queryHint(
-      { ...state, fetched, returned, bindings, complete, truncated, truncatedReason },
+      { ...state, fetched, returned, bindings, complete, truncated, truncatedReason, aggregateValue, totalSize },
       this.enabledToolNames,
     );
     return {
@@ -204,8 +220,9 @@ export class QueryRecordsExecutor {
       api: 'REST',
       useToolingApi,
       aggregate,
+      aggregateValue,
       records: [...records],
-      totalSize: collected.totalSize,
+      totalSize,
       fetched,
       returnedCount: returned,
       pages: collected.pages,
@@ -252,7 +269,15 @@ function readCursor(value: unknown): string | null {
  * continuation cursors is not the caller's to fix at all.
  */
 function queryHint(state: RenderInput, enabledToolNames: readonly string[]): string | null {
-  const total = state.collected.totalSize;
+  const total = state.totalSize;
+  // A scalar aggregate is the one shape an Agent cannot read off `records`, so the hint is
+  // where the value has to be named: `records` is legitimately empty and the number lives in
+  // `aggregateValue`. Leaving it unsaid would put back exactly the ambiguity this Tool removes.
+  if (state.aggregateValue !== null) {
+    return `Complete: this is a scalar aggregate over the whole result, and Salesforce reported its value as `
+      + `${state.aggregateValue} in aggregateValue. A COUNT() with no GROUP BY has no rows of its own, `
+      + 'so records is empty and the number is the value itself rather than a row count.';
+  }
   if (!state.truncated) {
     if (state.complete) return `Complete result: all ${total} matching rows are included.`;
     return state.collected.done && total === null
@@ -289,6 +314,8 @@ type RenderState = Readonly<{
   collected: CollectedQuery;
   useToolingApi: boolean;
   aggregate: boolean;
+  /** True when the aggregate is over groups, so one row per group rather than one value. */
+  grouped: boolean;
 }>;
 
 type RenderInput = RenderState & Readonly<{
@@ -299,6 +326,10 @@ type RenderInput = RenderState & Readonly<{
   complete: boolean;
   truncated: boolean;
   truncatedReason: QueryTruncationReason | null;
+  /** Set only for a scalar aggregate, which is the shape whose value `totalSize` carried. */
+  aggregateValue: number | null;
+  /** The row count, with the scalar-aggregate case resolved to `null` rather than reused. */
+  totalSize: number | null;
 }>;
 
 /**

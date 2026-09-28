@@ -249,8 +249,18 @@ export const queryRecordsOutputSchema = z
     api: z.literal('REST').optional(),
     useToolingApi: z.boolean().optional(),
     aggregate: z.boolean().optional(),
+    /**
+     * The value of a **scalar** aggregate: an aggregate with no `GROUP BY`, whose whole result
+     * is one number. Salesforce reports a bare `COUNT()` by putting that number in `totalSize`
+     * and returning no records at all, so the two fields cannot both be row counts — the value
+     * is reported here, and `totalSize` is `null` because no row set was ever described.
+     */
+    aggregateValue: z.number().int().nonnegative().nullable().optional(),
     records: z.array(z.record(z.unknown())).readonly().optional(),
-    /** The platform's count of matching rows, or null when it did not report one. */
+    /**
+     * The platform's count of matching rows, or null when it did not report one — which
+     * includes the scalar-aggregate case, where its `totalSize` carried a value instead.
+     */
     totalSize: z.number().int().nonnegative().nullable().optional(),
     /** Rows read from Salesforce, before the response budget was applied. */
     fetched: z.number().int().nonnegative().optional(),

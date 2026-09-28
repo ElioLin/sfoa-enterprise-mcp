@@ -161,6 +161,58 @@ test('a GROUP BY aggregate that fits is complete without a truncation reason', a
   assert.equal(output.truncated, false);
 });
 
+test('a bare COUNT() is complete with its value in aggregateValue, not a false truncation', async () => {
+  // Salesforce answers a bare COUNT() with the value in `totalSize` and `records: []`. Comparing
+  // that value to the row count reported a correct count as truncated by PAGINATION_UNAVAILABLE.
+  for (const count of [0, 4449]) {
+    const { run } = executor(() => queryBatch([], { totalSize: count }));
+    const output = await run({ query: 'SELECT COUNT() FROM IntermediateTable__c' });
+
+    assert.equal(output.aggregate, true, `for a count of ${count}`);
+    assert.equal(output.aggregateValue, count, `for a count of ${count}`);
+    assert.equal(output.totalSize, null, `for a count of ${count}`);
+    assert.equal(output.fetched, 0, `for a count of ${count}`);
+    assert.equal(output.done, true, `for a count of ${count}`);
+    assert.equal(output.complete, true, `for a count of ${count}`);
+    assert.equal(output.truncated, false, `for a count of ${count}`);
+    assert.equal(output.truncatedReason, null, `for a count of ${count}`);
+    assert.match(output.hint ?? '', new RegExp(`reported its value as ${count} in aggregateValue`, 'u'));
+    // A zero count is a value, not a missing one: the hint must still be the aggregate one
+    // rather than the "no total size reported" branch, which would read as an unknown answer.
+    assert.doesNotMatch(output.hint ?? '', /did not report a total size/u);
+  }
+});
+
+test('a named aggregate returns a row and keeps its own totalSize', async () => {
+  // `COUNT(Id) total` is one AggregateResult row, so this is the shape where totalSize really
+  // is the row count and the value lives in the record — the carve-out must not capture it.
+  const { run } = executor(() => queryBatch([{ total: 4449 }]));
+  const output = await run({ query: 'SELECT COUNT(Id) total FROM IntermediateTable__c' });
+
+  assert.equal(output.aggregate, true);
+  assert.equal(output.aggregateValue, null);
+  assert.equal(output.totalSize, 1);
+  assert.equal(output.fetched, 1);
+  assert.equal(output.complete, true);
+  assert.equal(output.truncated, false);
+  assert.equal(output.records?.[0]?.total, 4449);
+});
+
+test('a grouped aggregate short of its own totalSize is still reported as truncated', async () => {
+  // The scalar carve-out keys on there being no rows at all. A grouped aggregate does have a
+  // row set, so it keeps the declared-short reading — otherwise the fix would have traded one
+  // false completeness claim for another.
+  const { run } = executor(() => queryBatch([{ Name: 'A', expr0: 1 }], { totalSize: 40 }));
+  const output = await run({ query: 'SELECT Name, COUNT(Id) FROM Account GROUP BY Name' });
+
+  assert.equal(output.aggregate, true);
+  assert.equal(output.aggregateValue, null);
+  assert.equal(output.totalSize, 40);
+  assert.equal(output.complete, false);
+  assert.equal(output.truncated, true);
+  assert.equal(output.truncatedReason, 'PAGINATION_UNAVAILABLE');
+});
+
 test('the bulk-export hint names submit_bulk_query only when that Tool is advertised', async () => {
   const truncating = () => queryBatch(rows(10), { done: false, totalSize: 100, nextRecordsUrl: '/next' });
   const disabled = await executor(truncating).run({ maxRows: 10 });

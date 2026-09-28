@@ -273,12 +273,38 @@ test('a successful query_records result satisfies its own declared output schema
   // The text is a fact line plus exactly the records structuredContent carries, so an Agent
   // reading only the text cannot be told something the structured payload does not say.
   const text = textOf(result);
-  assert.match(text, /^query_records: returnedCount=3 fetched=3 totalSize=3 pages=1 done=true complete=true truncated=false truncatedReason=null api=data aggregate=false$/mu);
+  assert.match(text, /^query_records: returnedCount=3 fetched=3 totalSize=3 pages=1 done=true complete=true truncated=false truncatedReason=null api=data aggregate=false aggregateValue=null$/mu);
   assert.match(text, /Next: Complete result: all 3 matching rows are included\./u);
   assert.match(text, /Records \(3\):/u);
   for (const record of output.records as readonly Record<string, unknown>[]) {
     assert.ok(text.includes(JSON.stringify(record)), 'every returned record appears in the text');
   }
+});
+
+test('a bare COUNT() is reported as a complete scalar aggregate, with its value in aggregateValue', async () => {
+  // The shape Salesforce actually returns, reproduced from the live org: a bare COUNT() comes
+  // back with the value in totalSize and no rows at all. Reading that as a row count made a
+  // correct count look truncated, which is the opposite of what this Tool exists to do.
+  const tool = queryTool(() => queryBatch([], { totalSize: 4449 }));
+  const result = await tool.exec({ query: 'SELECT COUNT() FROM IntermediateTable__c' });
+
+  assert.equal(result.isError, undefined);
+  const output = structured(result);
+  assert.deepEqual(queryRecordsOutputSchema.parse(output), output);
+  assert.equal(output.aggregate, true);
+  assert.equal(output.aggregateValue, 4449);
+  assert.equal(output.totalSize, null, 'the value is not also reported as a row count');
+  assert.equal(output.complete, true);
+  assert.equal(output.truncated, false);
+  assert.equal(output.truncatedReason, null);
+  assert.deepEqual(output.records, []);
+
+  // The empty `records` is exactly why the text has to name the value: an Agent reading only
+  // the text would otherwise see no records and no total, and conclude the answer was lost.
+  const text = textOf(result);
+  assert.match(text, /totalSize=null pages=1 done=true complete=true truncated=false truncatedReason=null api=data aggregate=true aggregateValue=4449/u);
+  assert.match(text, /^Next: Complete: this is a scalar aggregate over the whole result, and Salesforce reported its value as 4449 in aggregateValue\./mu);
+  assert.match(text, /Records: none\./u);
 });
 
 test('a truncated query_records result declares the reason in the text and in structuredContent', async () => {
