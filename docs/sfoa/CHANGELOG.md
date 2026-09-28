@@ -2,6 +2,70 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-28 — P9-T2 fix: a bare `COUNT()` is a value, not a row count — and the live gate now passes
+
+Follow-up to the P9-T2 commit, and the resolution of the sentence that entry ends on. Running
+the `queryRecords` live gate for the first time found a **real defect that every unit test had
+agreed with**, plus a second defect in the gate itself. Both are fixed, and `yarn validate:p9`
+now reports `overall: PASS`.
+
+- **The defect: the Tool contradicted the advice it gives.** Salesforce answers a bare
+  `SELECT COUNT()` with the value in `totalSize` and **no records at all** — verified live,
+  `COUNT()` came back as `totalSize: 797, records: []` on `Account`, `4449` on
+  `IntermediateTable__c` and `349` on `User`, so it is the response shape rather than a property
+  of one count. The completeness rule read that value as a row count, so `fetched (0)`
+  disagreed with `totalSize (4449)` and a **correct** count was reported as
+  `complete: false, truncated: true, truncatedReason: PAGINATION_UNAVAILABLE`. That told the
+  Agent that `COUNT()` — the one query ADR-0025 recommends as *the* fix for a truncated result —
+  was itself truncated. The fix distinguishes a **scalar** aggregate (no `GROUP BY`) from a
+  grouped one: `inspectSoqlQuery` now returns `grouped` alongside `aggregate`, the value is
+  reported as a new `aggregateValue` field with `totalSize: null`, `complete` for that shape is
+  `done` alone, and the hint names the value because `records` is legitimately empty.
+  The carve-out is `aggregate && !grouped && fetched === 0 && totalSize !== null`: requiring
+  `fetched === 0` keeps it off `SELECT COUNT(Id) total FROM X`, which returns one
+  `AggregateResult` row and a `totalSize` of 1, and requiring `!grouped` keeps it off a grouped
+  aggregate, which does have a row set and keeps the ordinary declared-short reading.
+- **Why the unit tests missed it.** The stub Connection returned the shape the code assumed — an
+  aggregate with a row and a matching `totalSize` — so every assertion held while the Tool was
+  wrong against the org. A stub can only confirm that the code agrees with itself; a claim about
+  *Salesforce's* response shape has to come from Salesforce. The unit suite now pins the live
+  shape (`queryBatch([], { totalSize: 4449 })`), and the live gate cross-checks the scalar
+  aggregate against the org's own bare `COUNT()` as well as against `COUNT(Id) total`.
+- **The second defect was in the gate.** Its 500-row-cap assertion required exactly 500 rows
+  back, which is true only for records narrow enough to fit the character budget. On
+  `IntermediateTable__c` the cap fetches 500 and the payload budget returns 392, so the gate
+  read correct behaviour as a failure. It now asserts the contract instead of a measurement —
+  the cap bound fetching, the returned slice is declared, and the declared reason matches
+  whether the payload cut it — and asserts that when the payload did cut it the hint names both
+  bindings (`Truncated by MAX_ROWS + RESPONSE_BUDGET`). A gate that hard-codes a measurement
+  becomes a false negative the moment the input object changes.
+- **The live result** (route selected from the MySQL Control Plane and injected in-process, so
+  the platform user id never reaches a command line or the transcript; `IntermediateTable__c`,
+  org total 4449): `overall: PASS`, exit 0, with `toolInventory`, `requestIdentity`,
+  `listSobjects`, `describeSobject`, `queryRecords`, `schemaSelfRepair` and `credentialSafety`
+  all PASS over **9** request-scoped Connections, one Salesforce username, and 525 052 bytes of
+  result scanned for token material with no match. `queryRecords` facts: the row budget set
+  above the org's size fetched all 4449 rows over 3 pages with `done: true` and a declared
+  `RESPONSE_BUDGET` cut to 392 (the character budget is the binding one for rows carrying an
+  `attributes` block); the 500-row cap fetched 500 and declared `RESPONSE_BUDGET` with a hint
+  naming no unadvertised Tool; and `SELECT COUNT()` returned `aggregate: true`, `complete: true`,
+  `truncated: false`, `totalSize: null`, `aggregateValue: 4449` with no records — matching the
+  org's independently-read bare `COUNT()` of 4449.
+- **A documented deviation from the plan's wording.** `P9_EXECUTION_PROMPTS.md` asks the live
+  check to confirm `fetched == COUNT()` **and** `truncated == false`; on this object the first
+  holds and the second cannot, because 4449 rows cannot fit a bounded payload. That is the Tool
+  working as designed and saying so, not a shortfall, and ADR-0025 now records the general rule
+  — a gate asserts the contract, and completeness is `complete` when the answer *is* the result,
+  which for a large detail set it is not.
+- **Regression set green after the fix.** `mcp-provider-sfoa-data` 79/79 (+4: the live
+  scalar-aggregate shape, the sibling `COUNT(Id) total` shape, a grouped aggregate that must
+  still report `PAGINATION_UNAVAILABLE`, and a protocol test asserting the scalar aggregate in
+  both the text and `structuredContent`), `sfoa-mcp-server` 216/216, `test:p3` 25/25,
+  `test:p4` 8/8, `test:p5` 6/6, `test:p7` 6/6, `validate:p4` PASS, `validate:upstream` PASS with
+  no drift, `skill:check` no drift.
+- **ADR-0025 and ARCHITECTURE.md updated** with the scalar-aggregate shape, the two budget
+  passes bounding the same `records` array and why, and the two findings above.
+
 ## 2026-09-28 — P9-T2: `query_records`, a SOQL Tool that consumes the continuation cursor and declares its own completeness
 
 Closed GAP-D1 on `feature/p9-data-completeness` with the second Tool of
@@ -84,8 +148,9 @@ about 2 000 rows as though it were a conclusion about the object. The design rec
   hint naming no unadvertised Tool; `SELECT COUNT()` must come back `aggregate: true`, complete
   and untruncated against the same count. An object holding ≤2000 rows would exercise no
   continuation at all, so the gate reports **`NOT TESTED` with the reason** rather than a
-  vacuous PASS — which is where it stands today, because `P9_LIVE_PLATFORM_USER` is not present
-  in `.env.local` and no live run has been made.
+  vacuous PASS — which is where it stood at this commit, because `P9_LIVE_PLATFORM_USER` is not
+  present in `.env.local` and no live run had been made. The live run followed, and is recorded
+  in the entry above it; it found a defect in this Tool and one in this gate, both now fixed.
 - **Regression set green.** `mcp-provider-sfoa-data` 75/75 (+26: 20 executor tests, a
   continuation walk through the protocol, input-boundary and audit-trail protocol tests in
   `sfoa-mcp-server`), `sfoa-mcp-server` 216/216 (+5), `test:p3` 25/25, `test:p4` 8/8,

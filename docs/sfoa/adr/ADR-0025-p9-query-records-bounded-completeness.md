@@ -61,8 +61,11 @@ response summary carries `totalSize`, `fetched`, `pages`, `complete`, `truncated
 ### Completeness is derived, and withheld when it cannot be established
 
 ```text
-complete = done && totalSize !== null && fetched === totalSize && !budgetCut
+complete = done && !budgetCut && (scalarAggregate || (totalSize !== null && fetched === totalSize))
 ```
+
+The first clause is the ordinary one; `scalarAggregate` is the exception the live run forced,
+and it is described under "A scalar aggregate's value arrives in `totalSize`" below.
 
 A result that cannot establish this says so instead of implying it. Two cases matter:
 
@@ -78,6 +81,10 @@ that bound the **returned slice**, because that is what the reader has to work a
 response-budget cut follows a row-budget or time-budget stop, `truncatedReason` is
 `RESPONSE_BUDGET` while the hint names every binding
 (`Truncated by MAX_ROWS + RESPONSE_BUDGET`), so nothing about why fetching stopped is lost.
+This is not a hypothetical ordering: measured live on `IntermediateTable__c`, whose rows are
+wide enough that the character budget admits about 392 of them, a 500-row request fetches 500
+and returns 392, and `RESPONSE_BUDGET` is the honest reason to report — raising `maxRows` would
+not return a single row more.
 
 ### The truncation reason is a closed enum
 
@@ -102,6 +109,39 @@ remaining branch, for a bounded aggregate, is that `COUNT()` or `GROUP BY` is th
 answer whenever a total or a breakdown answers the question, and that a large detail set is
 paged with a `WHERE` clause on an indexed field, because `OFFSET` does not scale.
 
+### A scalar aggregate's value arrives in `totalSize`, and is not a row count
+
+The aggregate branch above is about **grouped** aggregates, which return one row per group and
+whose `totalSize` therefore really does count rows. A **scalar** aggregate — an aggregate with
+no `GROUP BY`, whose whole result is one number — is a different shape, and it is the shape
+`COUNT()` takes, which is exactly what this ADR recommends to an Agent as the cheap bounded
+answer.
+
+Salesforce answers a bare `COUNT()` with the value in `totalSize` and **no records at all**.
+Verified live: `SELECT COUNT() FROM Account` returned `totalSize: 797, records: []`, and the
+same shape came back for `COUNT()` on two other objects (4449, 349), so it is the response
+shape rather than a property of a particular count. Reading `totalSize` as a row count there
+made `fetched (0)` disagree with `totalSize (4449)`, and the Tool reported a **correct** count
+as `complete: false, truncated: true, truncatedReason: PAGINATION_UNAVAILABLE` — telling the
+Agent that the one query this ADR recommends as the fix for truncation was itself truncated.
+That contradiction is what the live gate caught and what these two fields exist to remove:
+
+- `aggregateValue` carries the scalar aggregate's value, and is `null` for every other shape.
+- `totalSize` is `null` whenever the platform's number was a value rather than a row set, and
+  is never asked to be both. The two fields cannot both be row counts, so the schema says so.
+
+The distinction is `aggregate && !grouped && fetched === 0 && totalSize !== null`. Requiring
+`fetched === 0` is what keeps the carve-out off the sibling shape `SELECT COUNT(Id) total FROM
+X`, which returns one `AggregateResult` row and a `totalSize` of 1 — there the value really is
+in the record and `totalSize` really is the row count. Requiring `!grouped` keeps it off a
+grouped aggregate, which does have a row set and keeps the ordinary declared-short reading; a
+grouped aggregate that stops short of its own `totalSize` is still `PAGINATION_UNAVAILABLE`.
+
+`complete` for a scalar aggregate is therefore `done && !budgetCut` alone: there is no row set
+to page through, and the value the platform reported is the whole answer. The hint states the
+value explicitly, because `records` is legitimately empty and an Agent reading only the text
+would otherwise see neither records nor a total and conclude the answer had been lost.
+
 ### Two budgets, each measured in the unit it is consumed in
 
 The structured payload is bounded in **bytes** (262 144) because that is what the transport
@@ -112,6 +152,16 @@ budget by its own explanation of why it is short. Composing is pure, so measurin
 prefix and returning the final prefix are the same operation applied twice, and the
 character-budget pass is applied to the byte-budget result, which is sound because both
 measurements grow with the prefix.
+
+Both passes bound the **same** `records` array, so the tighter one wins and the effective
+payload limit is the smaller of the two for the rows in question. That is deliberate: the text
+is a mirror of `records`, and a client that renders `structuredContent` into a context window
+pays the character cost whether or not it reads the text, so bounding the array by characters
+is what actually protects the consumer. The consequence is measured rather than theoretical —
+`SELECT Id FROM IntermediateTable__c` carries a per-row `attributes` block, so the character
+budget admits about 392 rows and the 262 144-byte budget is never reached on that object. An
+Agent is told which budget bound it (`RESPONSE_BUDGET`) and what to do instead, which is the
+guarantee this ADR is about; the byte budget remains the binding one for narrower rows.
 
 ### A hint may only name a Tool the session advertises
 
@@ -182,6 +232,24 @@ and `maxRows: 2000` are the same request by construction rather than by coincide
 (`useToolingApi=true` for a Tooling object, `false` for a business object), so a second attempt
 is informed rather than a repeat of the first.
 
+**The scalar-aggregate defect was found by the live gate, not by the unit tests** (see "A
+scalar aggregate's value arrives in `totalSize`"). The stub Connection in the unit suite
+returned the shape the code assumed — an aggregate with a row and a matching `totalSize` — so
+every unit assertion held while the Tool contradicted its own advice against the real org. The
+unit suite now pins the live shape (`queryBatch([], { totalSize: 4449 })`), and the live gate
+cross-checks the scalar aggregate against the org's own bare `COUNT()` as well as against
+`COUNT(Id) total`. The general lesson is the one the P9 plan already states: a stub can only
+confirm that the code agrees with itself, so a claim about *Salesforce's* response shape has to
+come from Salesforce.
+
+**A gate must assert the contract, not a measured number.** The first version of the live gate
+required the 500-row cap to return exactly 500 rows, which is true only for records narrow
+enough to fit the character budget. On `IntermediateTable__c` it fetches 500 and returns 392,
+which is the Tool behaving correctly. The gate now asserts what the contract actually
+guarantees — the cap bound fetching, the returned slice is declared, and the declared reason
+matches whether the payload cut it — because a gate that hard-codes a measurement becomes a
+false negative the moment the input object changes.
+
 ## Consequences
 
 ### Positive
@@ -233,6 +301,18 @@ is informed rather than a repeat of the first.
 8. **Patch the official Tool's description to explain the coexistence.** Rejected: it makes the
    new Tool's justification an edit to an upstream file, which ADR-0001 and the P9 task both
    forbid.
+9. **Read `totalSize` as a row count for every query, aggregate or not.** This is what the first
+   implementation did, and the live run showed it reports a correct `COUNT()` as an incomplete
+   result — the Tool contradicting the very advice it gives. Detecting "the number in `totalSize`
+   is a value, not a count" needs the statement, so the inspection carries `grouped` alongside
+   `aggregate` and the completeness rule branches on it.
+10. **Withhold a scalar aggregate's value and tell the Agent to read `records`.** `records` is
+    empty by the platform's design there, so this reports a successful query as a missing answer.
+    The value is reported where it actually is, and named in the text as well.
+11. **Relax the live gate's row-cap assertion to "fewer than 500 rows".** Rejected: it would pass
+    for a Tool that returned one row, which is not a weaker claim but a different one. The gate
+    asserts the contract — the cap bound fetching, the cut is declared, and the declared reason
+    matches the measured cut — so it stays meaningful whatever the record width turns out to be.
 
 ## Gate
 
@@ -247,14 +327,19 @@ the Tool's whole purpose is a completeness claim the official Tool cannot make, 
 is checked against is **the org's own `COUNT()`**, read over the same request-scoped
 Connection and never produced by the Tool:
 
-- an uncapped walk must report `totalSize` equal to `COUNT()`, `fetched` equal to that total,
-  `done: true`, and `complete` consistent with whether the response budget shortened the
-  returned slice;
-- a 500-row cap must report `fetched: 500`, `complete: false`, `truncatedReason: MAX_ROWS`, a
-  non-empty hint, and a hint that names no unadvertised Tool;
-- `SELECT COUNT()` must come back `aggregate: true`, complete and untruncated, and agree with
-  the same count.
+- a walk with the row budget set above the org's size must report `totalSize` equal to
+  `COUNT()`, `fetched` equal to that total, `done: true`, and `complete` consistent with whether
+  the response budget shortened the returned slice;
+- a 500-row cap must report `fetched: 500`, `complete: false`, `truncated: true`, a
+  `truncatedReason` of `MAX_ROWS` or — when the payload budget also cut the slice —
+  `RESPONSE_BUDGET` with a hint naming both, a non-empty hint, and a hint that names no
+  unadvertised Tool;
+- `SELECT COUNT()` must come back `aggregate: true`, complete and untruncated, with its value in
+  `aggregateValue`, `totalSize: null`, no records, and the same value the org's own bare
+  `COUNT()` reports independently.
 
 The gate requires an object holding more than one 2000-row batch and no more than the Tool's
 50 000-row ceiling; outside that range it reports `NOT TESTED` with the reason, because a
-one-batch object would exercise no continuation at all.
+one-batch object would exercise no continuation at all. A result that cannot be cross-checked —
+an object the org will not `COUNT()` at all — is `NOT TESTED` with the org's error code rather
+than a failed gate, because the alternative is to score a missing input as a defect in the Tool.

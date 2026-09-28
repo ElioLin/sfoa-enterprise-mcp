@@ -832,6 +832,11 @@ caller's row budget is reached, or the continuation budget expires, and every an
 evidence — `done && totalSize !== null && fetched === totalSize` and no response-budget cut —
 and is **withheld** rather than assumed: a platform that reports `done` while handing back
 fewer rows than its own `totalSize` and no cursor is reported as `PAGINATION_UNAVAILABLE`.
+The one shape that rule cannot be applied to is a **scalar aggregate**: Salesforce answers a
+bare `COUNT()` with the value in `totalSize` and no records at all (verified live), so that
+value is reported as `aggregateValue`, `totalSize` is `null`, and completeness is `done` alone —
+otherwise the Tool would report the very `COUNT()` it recommends as the fix for truncation as
+itself truncated. A grouped aggregate keeps the ordinary rule, because it does have a row set.
 Every shortened answer names its binding constraint from a closed enum
 (`MAX_ROWS` | `TIME_BUDGET` | `RESPONSE_BUDGET` | `PAGINATION_UNAVAILABLE`), and the hint
 recommends a Tool only when the session actually advertises it. The official Tool is
