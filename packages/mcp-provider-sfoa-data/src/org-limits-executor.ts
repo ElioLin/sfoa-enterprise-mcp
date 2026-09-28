@@ -216,9 +216,13 @@ function orgLimitsFailureMapping(): DataFailureMapping {
         ],
         code: 'MCP_LIMITS_ACCESS_DENIED',
         message: 'Salesforce refused to report the org\'s governor limits to this request\'s identity.',
-        suggestion: 'Either the identity lacks View Setup and Configuration, or the org does not expose the limits resource to '
-          + 'any identity. Report it rather than retrying, and read the allowances from Salesforce Setup. This affects quota '
-          + 'visibility only: other Salesforce Tools are unaffected.',
+        // The remedy is named because the caller cannot act on "it failed": this refusal is an org
+        // configuration fact. It stays a second person's decision, so the Tool reports and stops.
+        suggestion: 'The usual cause is that the Salesforce user this route maps to lacks the View Setup and Configuration '
+          + 'permission, which is read-only and grants no change: granting it, or routing a user that has it, makes this Tool '
+          + 'work with no code change. A restricted user licence type can make that permission ungrantable, and an org can '
+          + 'withhold the limits resource outright. Read the allowances from Salesforce Setup rather than retrying. This '
+          + 'affects quota visibility only: other Salesforce Tools are unaffected.',
       },
     ],
   };

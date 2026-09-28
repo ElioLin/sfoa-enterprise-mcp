@@ -538,7 +538,7 @@ test('an enabled get_org_limits call reads the org limits through the request US
 
 test('an org that refuses the limits resource is reported as a denial and audited as a failure', async () => {
   const factory = new RecordingConnectionFactory({
-    // Reproduces the live org: `limits()` answers API_DISABLED_FOR_ORG for every identity.
+    // Reproduces the live org: `limits()` answers API_DISABLED_FOR_ORG for every identity tried.
     limitsError: Object.assign(new Error('limits resource is not enabled'), { errorCode: 'API_DISABLED_FOR_ORG' }),
   });
   const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'get_org_limits'], factory });

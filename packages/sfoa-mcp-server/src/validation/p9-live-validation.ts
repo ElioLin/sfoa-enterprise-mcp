@@ -813,11 +813,14 @@ function integerOf(value: unknown): number {
  *
  * The org is asked first, over the same request-scoped Connection the Tool will use, so the
  * comparison is between two readings of one live org rather than between the Tool and a fixture.
- * This org refuses the limits resource org-wide — `API_DISABLED_FOR_ORG`, at every API version and
- * for every identity tried (see `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §1) — and a refusal is
- * reported as NOT TESTED naming the Salesforce code. That is not a lenient outcome: the Tool's
- * behaviour for a refusal is the structured denial the unit and protocol layers pin, and calling
- * this gate PASS would claim a successful read that never happened.
+ * None of the identities this deployment routes is allowed to read the limits resource —
+ * `API_DISABLED_FOR_ORG` at every API version and for every identity tried (see
+ * `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §1) — and a refusal is reported as NOT TESTED naming
+ * the Salesforce code. That is not a lenient outcome: the Tool's behaviour for a refusal is the
+ * structured denial the unit and protocol layers pin, and calling this gate PASS would claim a
+ * successful read that never happened. This says nothing about the org: the leading cause is a
+ * missing `View Setup and Configuration` permission on the routed identities, and routing one
+ * that has it turns this gate into a real PASS with no code change.
  */
 async function runOrgLimits(
   client: Client,
@@ -844,12 +847,12 @@ async function runOrgLimits(
     });
     if (!denied) {
       return failGate(
-        `The org refused the limits read with ${reading.observed}, but get_org_limits answered `
+        `The limits read was refused with ${reading.observed}, but get_org_limits answered `
         + `${String(denialOutput?.errorCode ?? 'no error code')} instead of a structured MCP_LIMITS_ACCESS_DENIED.`,
       );
     }
     return notTested(
-      `The org refused the limits resource with ${reading.observed}, so no successful read can be cross-checked and this gate `
+      `The limits read was refused with ${reading.observed}, so no successful read can be cross-checked and this gate `
       + 'is not a PASS. The refusal path was exercised instead and behaved as contracted: the Tool returned a structured '
       + 'MCP_LIMITS_ACCESS_DENIED.',
       evidence,
