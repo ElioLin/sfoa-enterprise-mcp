@@ -966,7 +966,9 @@ done
 | Admin catalog `/admin/api/tools` | 104 rows; all three P9 Tools present as READ / USER / GA / `enableAllowed: true` / `enabled: false`; no `UNKNOWN` rows |
 | playbook version | 1.9.0 (1.10.0 belongs to T5) |
 
-**Known limitation — the P9 live gate cannot run on this server.** `yarn workspace
+**Known limitation — the P9 live gate cannot run on this server.**
+_(Resolved by the 2026-09-28 `a9d0f13` deployment recorded below: the harness now composes the
+Attachment Ingress. Kept as written because it describes the state at `dbdaf67`.)_ `yarn workspace
 @sfoa/mcp-server validate:p9` refuses with `MCP_ATTACHMENT_CONFIGURATION_INVALID`:
 
 > Enabled Tool upload_files_to_record requires the SFOA Attachment Ingress, which is not
@@ -990,3 +992,105 @@ The refusal never reaches the `sfoa-mcp-server` service journal (0 occurrences i
 so it cannot be found by reading logs — the visible symptom is only the gate's HTTP 500.
 Fixing it means composing the ingress in the harness the way `runtime.ts` does; that is a
 code change rather than a deployment step, and was left for a separate decision.
+
+## P9-T3 `get_org_limits` identity move deployment (2026-09-28)
+
+Deployed the branch tip `a9d0f13` of `feature/p9-data-completeness` on 2026-09-28, directly from
+the feature branch and **not** merged to `main` first — the same shape as the T1+T2 deployment
+above.
+
+| | |
+|---|---|
+| source ref | `feature/p9-data-completeness` @ `a9d0f13` (not in `main`) |
+| archive | `sfoa-p9-a9d0f13-20260928-172335.tar.gz` |
+| size / sha256 | 2,864,097 bytes / `ef7ebc75c7dd4de5d1322ce1b7532949a21cb2cb164b27de663b515ca837796f` |
+| contents | 1197 manifest entries; no `dist/`, no `.env.local`, no `.git` |
+| pre-deploy backup | `backup/sfoa-app-pre-a9d0f13-20260928-172335.tar.gz` (10,115,216 bytes, source only) |
+| staging | `staging-p9-a9d0f13-20260928-172335` |
+| manifest | `p9-a9d0f13-expected-manifest.txt` (1197 lines) |
+
+**What shipped.** Four workspaces changed; no migration, no lockfile and no manifest change.
+`@sfoa/identity-runtime` gains two `SalesforceApiPurpose` members (`ORG_LIMITS`, `SOSL_SEARCH`),
+`@sfoa/mcp-provider-sfoa-context` gains the Tool, `@sfoa/mcp-provider-sfoa-data` loses it, and
+`sfoa-mcp-server` gains `org-limits-context-executor.ts` with the audit-purpose wiring. See
+[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) and the 2026-09-28 CHANGELOG entry.
+
+**Rebuilt in dependency order.** `sfoa-admin-api` was deliberately not rebuilt: it is `tsc`
+output that resolves `SFOA_CONTEXT_TOOL_NAMES` from the context package's `dist` at runtime, so it
+picks up the new role map without one.
+
+```bash
+yarn workspace @sfoa/identity-runtime run build
+yarn workspace @sfoa/mcp-provider-sfoa-context run build
+yarn workspace @sfoa/mcp-provider-sfoa-data run build
+yarn workspace @sfoa/mcp-server run build
+```
+
+**Verification — all green.**
+
+| check | result |
+|---|---|
+| app tree vs archive | `BYTE_VERIFY_OK` — 1197 OK, 0 NOT OK |
+| symlink | `packages/mcp/README.md` is still a symlink, not a regular file |
+| server-only files | preserved (`rsync -a` without `--delete`) |
+| dist markers | context `dist/tools/get-org-limits.js` + `dist/org-limits.js` present; data `dist/tools/get-org-limits.js` + `dist/org-limits-executor.js` **gone**; server `dist/org-limits-context-executor.js` present |
+| services | `sfoa-mcp-server` 17:26:34, `sfoa-admin-api` 17:26:38, both `active`, `NRestarts=0` |
+| `/health`, `/admin/api/ready` | 200; `auditPersistence UP`, `failureCount 0`, `databaseVersion 8.4.5` |
+| nginx | `:9000/` 200, `:9000/admin/api/ready` 200, domain `:9000/admin/api/ready` 200, `:80` 301 |
+| service journal | 0 errors since restart |
+| Admin catalog | `get_org_limits` = READ / **DIAGNOSTIC** / GA, `search_records` = READ / USER / GA, both `enableAllowed: true` |
+
+`validate:p9` was **not** re-run on this server, so no live gate result is claimed here.
+
+**Two facts the T1+T2 section above cannot show.**
+
+*Tool Governance moved on after that record was written.* Its row "16 Tools, exactly the 16
+enabled `sfoa_tool_control` rows" was true at 12:50 and is rows 1–16. Rows 17–21 were enabled
+afterwards, each with `row_version = 1` — an insert, never an update:
+
+| id | Tool | Enabled (application clock) | Source of the time |
+|---|---|---|---|
+| 17–19 | `describe_sobject`, `list_sobjects`, `query_records` | ≈ 13:02:46–13:02:59 | derived: database stamp + the measured 366 s skew |
+| 20 | `get_org_limits` | 17:31:17 | `UPDATE_TOOL_CONTROL`, `result = PASS` |
+| 21 | `search_records` | 17:31:26 | `UPDATE_TOOL_CONTROL`, `result = PASS` |
+
+Rows 20–21 were enabled during the verification of this very deployment, which is why the live
+`tools/list` read 19 Tools at 17:30:47 and 21 at 17:31:44 with `NRestarts=0` in between. The
+Control Plane's enabled set is read per request — `loadMySqlDiscoveryPolicySnapshot` opens a new
+`repeatable read` transaction on every load and caches nothing — so a Tool Governance change takes
+effect on the next request, with no restart. Rows 12 and 15 (`create_records`, `update_records`)
+date from the 2026-09-10 P8-07 deployment, not from any later drift.
+
+*The shared database host's clock is about six minutes behind the application host.* Measured on
+2026-09-28: application host `09:36:34Z` against `UTC_TIMESTAMP()` `09:30:28Z` on
+`isd-dev-db` (192.168.156.127), with `@@system_time_zone = CST`. Consequences for anyone reading
+this file's evidence:
+
+- Every `created_at` / `updated_at` in the Control Plane schema is stamped by the **database**
+  host, so it reads ~6 minutes earlier than the application-clock event it belongs to. That is why
+  rows 20–21 show `17:25:11` / `17:25:20` while the audit records the same two enables at
+  `17:31:17` / `17:31:26`.
+- `NOW()` returns CST wall-clock time, and the Skill's `db.mjs` parses with `timezone: 'Z'`, so a
+  database-stamped value is returned with a `Z` suffix that is **not** UTC. Only `occurred_at`,
+  written by the application, is true UTC.
+
+When establishing when a Control Plane change took effect, use `sfoa_audit_log.occurred_at`.
+
+**The `validate:p9` limitation recorded above no longer applies.** That section deferred "a code
+change rather than a deployment step" — composing the ingress in the harness the way `runtime.ts`
+does. This delta is that change: `createAttachmentIngress` is exported from
+`packages/sfoa-mcp-server/src/runtime.ts`, and `validation/p9-live-validation.ts` now calls it and
+passes the result as `attachmentIngress`. It first appeared in `ea3d29c` and is therefore present
+at `a9d0f13`, but absent at `dbdaf67` — the deployed harness had no ingress, this one does. The
+gate should now reach the Tools instead of being refused before any of them run; that expectation
+is unverified until the gate is actually run against this server.
+
+**Archive and extract note.** `git archive` was taken with `-c core.autocrlf=false -c core.eol=lf`
+(§3.1). The archive holds 1197 regular files while the extracted tree holds 1196 files plus one
+symlink: on Windows `tar` materialised `packages/mcp/README.md` (a symlink in the repository,
+`120000` in `git ls-tree`) as a regular file with the target's contents, while on Linux it stayed a
+symlink and `find -type f` skipped it. No file was missing — a locale-independent set comparison
+returned `onlyLocal: [packages/mcp/README.md]`, `onlyServer: []` — and `sha256sum -c`, which
+follows symlinks, verified that entry as OK. The same trap makes the local `tar -tzf` count one
+higher than the server-side `find -type f` count.
+
