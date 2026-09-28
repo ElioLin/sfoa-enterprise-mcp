@@ -817,12 +817,27 @@ Agent
 | Shipped | Tool | SDK surface |
 | --- | --- | --- |
 | P9-T1 | `list_sobjects`, `describe_sobject` | `describeGlobal()`, `describe()` |
-| planned | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` |
+| P9-T2 | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` |
 | planned | `get_org_limits`, `search_records` | `limits()`, `search()` |
 | planned | `submit_bulk_query`, `get_bulk_query_results` | Bulk API 2.0 |
 
-Only the shipped row is advertised today; the planned rows are recorded in the gap analysis
+Only the shipped rows are advertised today; the planned rows are recorded in the gap analysis
 and ADR-0024 and are not part of the current tool surface.
+
+`query_records` exists because the official `run_soql_query` makes exactly one request and
+never consumes `nextRecordsUrl`, so a result larger than one batch is returned as though it
+were the answer (GAP-D1). It follows the continuation cursor until the result is done, the
+caller's row budget is reached, or the continuation budget expires, and every answer states
+`totalSize`/`fetched`/`returnedCount`/`pages`/`done`/`complete`. `complete` is derived from
+evidence — `done && totalSize !== null && fetched === totalSize` and no response-budget cut —
+and is **withheld** rather than assumed: a platform that reports `done` while handing back
+fewer rows than its own `totalSize` and no cursor is reported as `PAGINATION_UNAVAILABLE`.
+Every shortened answer names its binding constraint from a closed enum
+(`MAX_ROWS` | `TIME_BUDGET` | `RESPONSE_BUDGET` | `PAGINATION_UNAVAILABLE`), and the hint
+recommends a Tool only when the session actually advertises it. The official Tool is
+unchanged and remains the recommended path for a quick single-batch look; the two share the
+org object-usage guard, the `USER_QUERY` audit purpose and the request-scoped Connection.
+See [ADR-0025](adr/ADR-0025-p9-query-records-bounded-completeness.md).
 
 The Provider is composed through the same public `McpProvider`/`McpTool`/`Services` seam as
 P3, requires exactly one allowed username from the request `OrgService`, and takes the

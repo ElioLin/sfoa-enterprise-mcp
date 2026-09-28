@@ -2,6 +2,109 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-28 — P9-T2: `query_records`, a SOQL Tool that consumes the continuation cursor and declares its own completeness
+
+Closed GAP-D1 on `feature/p9-data-completeness` with the second Tool of
+`@sfoa/mcp-provider-sfoa-data`. The defect it fixes is a silent one: the official
+`run_soql_query` performs exactly one `connection.query(...)` and never reads `nextRecordsUrl`,
+has no row budget, and the platform refuses `OFFSET > 2000`, so a result larger than one
+batch comes back as the **first batch with nothing in the payload distinguishing it from a
+complete answer**. An Agent that counts 2 000 rows out of 46 000 then reports a conclusion
+about 2 000 rows as though it were a conclusion about the object. The design record is
+[ADR-0025](adr/ADR-0025-p9-query-records-bounded-completeness.md).
+
+- **The official Tool is byte-identical.** `query_records` is not a rename, an alias or a
+  same-name replacement — it is a separate Tool with its own name, its own default-disabled
+  grant and its own audit classification, so `run_diagnostic_tooling_query` (which depends on
+  `run_soql_query`) and `validate:upstream` are unaffected. The tie-break an Agent needs lives
+  in the **new** Tool's description, because it is the new Tool that has to justify itself.
+- **Completeness is derived from evidence and withheld when the evidence is missing:**
+  `complete = done && totalSize !== null && fetched === totalSize && !budgetCut`. A platform
+  that reports `done: true` while handing back fewer rows than its own `totalSize` and no
+  continuation cursor has declared the result incomplete; that is `PAGINATION_UNAVAILABLE` and
+  the Tool must **not** report `complete`. A `totalSize` the platform never reported leaves
+  completeness unconfirmable, and the hint says so and suggests re-running as `COUNT()`.
+- **Every short answer names why, from a closed enum.** `MAX_ROWS` (the caller's budget — re-query
+  higher or aggregate), `TIME_BUDGET` (the 60 s continuation-loop budget, which bounds the
+  *continuation*, not the first batch the host already bounds), `RESPONSE_BUDGET` (the byte or
+  character budget cut the returned slice), `PAGINATION_UNAVAILABLE` (nobody's to fix). When a
+  response-budget cut follows a row- or time-budget stop, `truncatedReason` is `RESPONSE_BUDGET`
+  because that is what the reader has to work around, while the hint names every binding
+  (`Truncated by MAX_ROWS + RESPONSE_BUDGET`) so nothing about why fetching stopped is lost.
+- **A hint may only name a Tool the session advertises.** The Provider passes the session's
+  enabled Tool names into the executor, so `submit_bulk_query` (P9-T4) is recommended by name
+  only when it is actually in `tools/list`; otherwise the hint says to ask an administrator.
+  Naming a Tool the caller cannot see costs it a turn to discover that, which is worse than a
+  hint naming no Tool at all. The same rule governs `get_org_limits` (P9-T3) in the
+  quota error. A protocol test asserts the truncation hint matches neither name.
+- **Two budgets, each measured in the unit it is consumed in.** The structured payload is
+  bounded in bytes (262 144) because that is what the transport carries, the text the Agent
+  reads in characters (60 000) because that is what the context window consumes, and both
+  measure the **fully composed** output — including the hint and the truncation flags that
+  make the result honest — so a payload can never be pushed over budget by its own explanation
+  of why it is short. `trimToByteBudget`/`trimToCharacterBudget` now share one prefix search;
+  the character pass is applied to the byte pass result, which is sound because both
+  measurements grow with the prefix.
+- **A finding about the enforcement split, asserted from both sides** (extends ADR-0024).
+  `queryRecordsInputShape` is the raw `.shape` of a non-strict Zod object, so the **field-level**
+  bounds do reach the wire — `maxRows: 0`, `maxRows: 50001`, a non-integer `maxRows` and an
+  empty `query` are refused as invalid arguments and **no Connection is opened** — while the
+  **statement rules** (no unterminated literal, no semicolon outside a literal, must begin with
+  `SELECT`, no `FOR UPDATE`) need literal-aware scanning that a JSON Schema `pattern` cannot
+  express, so they live in `superRefine` **and** are re-inspected by the executor, so a caller
+  reaching the executor without the Tool's parse still cannot spend a Salesforce round trip on
+  a statement the Tool refuses. Unknown keys stay inert: the schema has no identity parameter,
+  so no credential key can select an identity. The default row budget is applied by the
+  **executor**, not the schema, so `maxRows` omitted and `maxRows: 2000` are the same request by
+  construction rather than by coincidence.
+- **`INVALID_TYPE` is usually a data/Tooling split, not a typo.** The `INVALID_TYPE` /
+  `INVALID_FIELD` mapping therefore names the **opposite** API in its suggestion
+  (`useToolingApi=true` for a Tooling object, `false` for a business object), so a second
+  attempt is informed instead of a repeat of the first. Five new structured codes carry the
+  classes an Agent acts on differently: `MCP_QUERY_RECORDS_FAILED`, `MCP_QUERY_FIELD_INVALID`,
+  `MCP_QUERY_MALFORMED`, `MCP_QUERY_LIMIT_EXCEEDED`, `MCP_QUERY_ACCESS_DENIED`.
+- **Audit wiring reuses the official SOQL path rather than inventing a second one.**
+  `DATA_TOOL_PURPOSES.query_records` is `USER_QUERY` under the same compile-enforced
+  `Record<SfoaDataToolName, SalesforceApiPurpose>` map, and the host facade binds
+  `runWithSalesforceQuerySemantic({queryType: 'DATA_SOQL'|'TOOLING_SOQL', soqlStatement})`
+  around the **whole** Tool call, so a multi-page continuation is one audited query rather than
+  unattributed API traffic. The statement is therefore recorded **once**, by that collector; the
+  request summary carries only what it cannot show (`useToolingApi`, `maxRows`) and the response
+  summary carries `totalSize`/`fetched`/`pages`/`complete`/`truncated`/`truncatedReason`.
+  `query_records` runs the **same** org object-usage guard as the official path, so the two SOQL
+  Tools cannot disagree about which objects are in use; a blocked query opens no Connection and
+  is audited as a `GOVERNANCE`-sourced `BLOCKED`/`DENIED` event.
+- **Live validation is a gate, not a ritual — and the gate reads the count from the org.**
+  `packages/sfoa-mcp-server/src/validation/p9-live-validation.ts` gains a `queryRecords` gate
+  (the report's `task` is now `T1+T2`) that checks the Tool's whole purpose against **the org's
+  own `COUNT()`**, read over the same request-scoped Connection and never produced by the Tool:
+  an uncapped walk must report `totalSize`/`fetched` equal to that count, `done: true` and a
+  `complete` consistent with whether the response budget shortened the slice; a 500-row cap must
+  report `fetched: 500`, `complete: false`, `truncatedReason: MAX_ROWS`, a non-empty hint and a
+  hint naming no unadvertised Tool; `SELECT COUNT()` must come back `aggregate: true`, complete
+  and untruncated against the same count. An object holding ≤2000 rows would exercise no
+  continuation at all, so the gate reports **`NOT TESTED` with the reason** rather than a
+  vacuous PASS — which is where it stands today, because `P9_LIVE_PLATFORM_USER` is not present
+  in `.env.local` and no live run has been made.
+- **Regression set green.** `mcp-provider-sfoa-data` 75/75 (+26: 20 executor tests, a
+  continuation walk through the protocol, input-boundary and audit-trail protocol tests in
+  `sfoa-mcp-server`), `sfoa-mcp-server` 216/216 (+5), `test:p3` 25/25, `test:p4` 8/8,
+  `test:p5` 6/6, `test:p7` 6/6, `validate:p4` PASS, `validate:upstream` no drift. Every other
+  SFoA workspace suite is green: `agent-playbook` 35/35, `identity-runtime` 75/75,
+  `control-plane` 38/38, `mcp-provider-sfoa-dml` 46/46, `mcp-provider-sfoa-context` 83/83,
+  `admin-api` 26/26. Build and lint clean across all nine workspaces.
+- **Two live-input gates are `PARTIAL`/`FAIL` for an environment reason, recorded rather than
+  papered over.** `validate:p2` reports `PARTIAL` and `validate:p3` reports `FAIL`, both with
+  `Missing Live Inputs SECOND_TEST_USER`: each gate refuses at `main.ts` **before** any runtime
+  code runs, so the result is a missing `.env.local` input and not a P9 behaviour. The same
+  pre-existing environment debt noted in T1 is unchanged (`yarn install`'s `ENOENT … ignore`
+  in the vendored `mcp-provider-api` tree; every SFoA script calls
+  `node ./node_modules/typescript/bin/tsc` by explicit path, so it is off the gate path).
+- **Architecture baseline updated.** `docs/sfoa/ARCHITECTURE.md` moves the `query_records` row
+  from `planned` to `P9-T2` and records the completeness contract, the `PAGINATION_UNAVAILABLE`
+  case, the closed truncation enum, the hint discipline and the shared guard / `USER_QUERY`
+  purpose / request-scoped Connection, citing ADR-0025.
+
 ## 2026-09-24 — P9-T1: `@sfoa/mcp-provider-sfoa-data` skeleton with `list_sobjects` and `describe_sobject`
 
 Opened the P9 data-completeness phase on branch `feature/p9-data-completeness` (from `main`
