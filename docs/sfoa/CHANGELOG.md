@@ -2,7 +2,101 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-28 — P9-T3 follow-up: `get_org_limits` moves to the DIAGNOSTIC identity
+
+`get_org_limits` is no longer a Data Tool. It moves from
+`@sfoa/mcp-provider-sfoa-data` to `@sfoa/mcp-provider-sfoa-context` and from `READ`/`USER` to
+`READ`/**`DIAGNOSTIC`**, because the limits resource is an org configuration read that no
+business identity in this deployment is granted, and the DIAGNOSTIC role exists exactly for that
+class of read. `search_records`, the official `run_soql_query` and every
+`packages/mcp-provider-dx-core` file are untouched. See
+[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md), which revises the parts of
+ADR-0026 recorded in the T3 entry below.
+
+- **The alternative was rejected on purpose.** ADR-0026 named two ways out — grant a routed
+  identity `View Setup and Configuration`, or route one that has it. Both widen a **business**
+  identity into org configuration, which inverts the reason the diagnostic scope is siloed from
+  the business roles (ADR-0009). `limits()` returns org-level quota counters and no business
+  records, so it belongs on the server-owned identity instead.
+- **The T3 entry below overstated two things, and this corrects them.** Its claim that "granting
+  the routed user that permission, or routing one that has it, turns the gate into a real `PASS`
+  with no code change" is wrong on both halves: the code did change, and that permission grant is
+  the specific widening this decision rejects. The remedy is now "configure and verify a
+  Diagnostic identity", which is a Control Plane action. The refusal itself is still described
+  correctly there: what was measured is that no identity SFOA could route was allowed the read,
+  not that the org forbids it.
+- **This is the first time the diagnostic-identity question is answerable.** ADR-0026 could only
+  defer it to "one administrator request to `GET /services/data/v68.0/limits`". The Tool is now
+  that request, on that identity, under the audit pipeline, and the live gate measures the answer
+  rather than assuming it.
+- **Three DIAGNOSTIC gates were inherited, and the inheritance is now pinned.** Routing, the
+  startup check and the per-request preflight all derive from `SFOA_CONTEXT_TOOL_ROLES`, so no
+  config or HTTP-layer code changed. Because nothing in `config.ts` names the Tool, the existing
+  boot-check test now iterates all three diagnostic Tool names instead of two.
+- **The executor stayed in the host, and the role guard is why.** A provider-side executor is
+  handed a connection it cannot attribute — `RequestScopedOrgService` carries no connection role
+  and the context package does not depend on `@sfoa/identity-runtime` — so it could never prove
+  its scope is DIAGNOSTIC. All three diagnostic executors now share one exported
+  `assertDiagnosticScope`, so the refusal wording cannot drift.
+- **A remedy that would have silently disappeared.** `query_records` and `search_records` name
+  `get_org_limits` in their exhausted-allowance hint only when `hasTool(...)`, and that set was
+  the **Data subset** — which the Tool can no longer be in, making the check permanently false
+  with no error and no failing test. The provider now takes `advertisedToolNames` from the
+  session's `enabledTools`, which is also what ADR-0025 and ADR-0026 said the rule was all along.
+- **The context error surface gained two optional fields.** `ContextRuntimeError` takes an
+  optional `suggestion`, and the context error result emits `suggestion`/`salesforceErrorCode`
+  only when set. Every existing context output schema is `.strict()` and only the limits schema
+  declares them, so the six pre-existing Tools' outputs are byte-identical — pinned by test.
+- **The live gate reads the Tool first and the reference second, both on the diagnostic
+  Connection**, and asserts the Connection's username normalises to the configured diagnostic
+  identity — which is what proves routing really produced a diagnostic scope. It is enabled only
+  when the Control Plane carries an enabled, verification-passed diagnostic row: appending the
+  Tool unconditionally would have made *every* `tools/call` in the run fail the preflight, taking
+  all nine gates down instead of this one. `NOT TESTED` still never becomes `PASS`; what changed
+  is that the gate can now tell "the org refuses its limits resource" apart from "this deployment
+  has not configured the identity that could try".
+- **The first live run of that gate found two comparison rules that were wrong, and both are
+  fixed.** They are recorded here rather than in ADR-0027 because neither is a product decision:
+  they are defects in the instrument, and the second one is not related to this move at all.
+  - `get_org_limits` was compared to its reference reading **number-for-number**. The Tool's read
+    and the reference read are two live reads of a counter the gate's own traffic consumes, so
+    `DailyApiRequests.remaining` cannot be equal in both: the first run failed with `used` off by
+    3. The comparison is now split by what may move — `max` is a quota ceiling and is compared
+    strictly, the Tool's `used` is checked against its own `max - remaining` (time-independent, so
+    an operand-order bug is still caught on a moving counter), and a `remaining`/`used`
+    disagreement is re-read once and waived **only** where the org's own value moved between the
+    two readings. What was waived is reported as `toleratedMoves`, so the tolerance is evidence
+    rather than silence. The next two runs exercised both paths: one needed no re-read, the next
+    waived three moving values, and `orgLimits` passed in both.
+  - `describe_sobject`'s `truncated` was read as a statement about the field list alone. It is a
+    document-level declaration covering fields, child relationships and picklists, so the gate
+    failed any object whose fields fit while its children did not — `Lead` holds 101 fields under
+    the 200-field default but 72 child relationships against a cap of 50. **Pre-existing and
+    unrelated to this move**: the executor and its constants are untouched by it, and no earlier
+    run recorded a `PASS` on an object of that shape. The gate now derives the expected value from
+    the org's own counts.
+- **The gate run itself.** Against a Control Plane holding an enabled, verification-passed
+  diagnostic row: eight gates `PASS`, `orgLimits` `PASS` — the diagnostic identity read all 73
+  limits on `GET /services/data/v68.0/limits` where every business identity this deployment can
+  route was refused — and `queryRecords` `NOT TESTED` because the configured live object holds 3
+  rows and cannot exercise the continuation walk. `overall` = `PARTIAL`. The P7 chain for the row
+  is complete, carries `purpose = ORG_LIMITS` and `execution_role = DIAGNOSTIC`, holds no token or
+  query text, and shows the same `IDENTITY_AUTHENTICATION`/`INVALID_TYPE` and `PARTIAL` capture
+  status as every other Tool in the run — that status is this environment's normal state, not an
+  effect of the move.
+- **Recorded, not fixed:** enabling the Tool without a diagnostic identity makes every
+  `tools/call` fail (`enableAllowed` keys off upstream drift, not diagnostic verification — a
+  pre-existing hazard for the other two diagnostic Tools); `diagnosticReady` still names only the
+  original two; and a context Tool now reads a constant named `DATA_MAX_RESPONSE_BYTES`. T4 must
+  also change its plan rather than its wording — a USER-side quota pre-flight cannot work, and
+  ADR-0027 recommends reporting the quota facts a Bulk job response carries instead.
+
 ## 2026-09-28 — P9-T3: `get_org_limits` and `search_records`, and an org that refuses its own limits
+
+> **Revised by the entry above.** `get_org_limits` is no longer `READ`/`USER` and no longer in
+> the data provider — see [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md). The
+> refusal this entry measures is described correctly; the remedies it names are not, and its
+> "both `READ`/`USER`" wording applies to `search_records` alone now.
 
 P9-T3 adds the last two read capabilities the official `@salesforce/mcp-provider-dx-core` does
 not supply, both `READ`/`USER` and default-disabled: `get_org_limits` (GAP-D7, the prerequisite

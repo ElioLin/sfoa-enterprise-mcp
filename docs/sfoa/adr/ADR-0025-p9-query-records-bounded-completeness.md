@@ -172,6 +172,14 @@ to ask an administrator to enable the bulk capability. The same rule governs
 contain costs the Agent a turn to discover that, which is worse than a hint that names no Tool
 at all.
 
+**"The session's enabled Tool names" means the whole session set, not this Provider's subset.**
+The executor option is still called `enabledToolNames`, but the Host supplies it from the
+session's `enabledTools` via `SfoaDataProviderOptions.advertisedToolNames`. This was clarified
+when `get_org_limits` became a context Tool (ADR-0027): gating the remedy on the Data subset
+would have made it permanently unreachable — `get_org_limits` can never be a Data Tool name —
+with no error and no failing test. A Data Tool may therefore name a Tool from another Provider,
+provided the session advertises it.
+
 ### The continuation cursor is consumed inside the Tool, not handed out
 
 `MCP_ENGINEERING_RULES.md` asks a list/query Tool to "return count plus `has_more` and a next

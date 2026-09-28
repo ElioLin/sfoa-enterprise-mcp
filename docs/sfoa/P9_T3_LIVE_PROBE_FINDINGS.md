@@ -41,16 +41,24 @@ reprovisioning the user. Our own result is weak evidence that something here is 
 since several sources state that current API versions no longer produce this error and we
 reproduce it on `v68.0`.
 
-**Settled in one request.** As an administrator, `GET /services/data/v68.0/limits`. A JSON body
-means the permission is the whole story; the same 403 means it is not. Nothing else in this
-document or in ADR-0026 depends on which.
+**Settled by one request — and `get_org_limits` is now that request.** As an administrator,
+`GET /services/data/v68.0/limits` settles it: a JSON body means the permission is the whole story,
+the same 403 means it is not. **The Tool now runs on exactly that identity class.** After this
+finding was recorded, `get_org_limits` was moved to the server-owned DIAGNOSTIC identity (the
+deployment's fixed administrator identity) and to the context Provider, so the administrator
+request this section asks for is the Tool's own execution path, under the P7 audit pipeline — see
+[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md). The answer is therefore no longer
+deferred to an off-platform check: the `orgLimits` live gate measures it. It still cannot assume
+it, and the gate still refuses to report `PASS` unless the read actually succeeds.
 
-Consequence: `get_org_limits` is correctly implemented but cannot return data through any
-identity SFOA can currently route. Its live gate reports `NOT TESTED` with the Salesforce code
-and must never report `PASS` — a refusal is not a successful read. It becomes a real `PASS` as
-soon as an identity permitted to read the resource is routed, with no code change. Until then
-the P9-3 → P9-4 dependency recorded in the gap analysis (Bulk pre-flight reads the quota) cannot
-be satisfied here, so T4 must treat a quota pre-flight as best-effort.
+Consequence: `get_org_limits` is correctly implemented but cannot return data through any identity
+SFOA routed at the time of this probe. Its live gate reported `NOT TESTED` with the Salesforce code
+rather than `PASS`, because a refusal is not a successful read. With the Tool on the diagnostic
+identity the gate is enabled whenever the Control Plane carries an enabled, verification-passed
+diagnostic row, and it becomes a real `PASS` only if that identity can read the resource. Until
+then the P9-3 → P9-4 dependency recorded in the gap analysis (Bulk pre-flight reads the quota)
+cannot be satisfied here, so T4 must treat a quota pre-flight as best-effort — and, per ADR-0027,
+cannot implement it as a USER-side `limits()` call at all.
 
 ## 2. `Connection.search()` returns records and nothing else
 

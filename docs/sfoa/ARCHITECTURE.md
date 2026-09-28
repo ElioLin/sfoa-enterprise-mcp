@@ -512,17 +512,24 @@ flowchart TD
 
 The client cannot submit a role, username, credential, token, instance URL, directory, manifest, arbitrary URL, or API-route switch. A single enabled diagnostic Tool name selects only the fixed diagnostic scope. Non-Tool calls and JSON-RPC batches remain USER-scoped; wrong-role facades reject execution before invoking an official Tool or SDK mutation.
 
-`SFOA_DIAGNOSTIC_USERNAME` is optional while diagnostic Tools are disabled. Enabling `run_diagnostic_tooling_query` or `get_metadata_component_context` without it fails startup with `MCP_DIAGNOSTIC_CONFIGURATION_INVALID`. P4 reuses the existing Connected App/JWT configuration and creates a new Connection per request. It adds no second OAuth scheme, global admin Connection, token cache, Connection pool, database, or Redis.
+`SFOA_DIAGNOSTIC_USERNAME` is optional while diagnostic Tools are disabled. Enabling `run_diagnostic_tooling_query`, `get_metadata_component_context` or `get_org_limits` without it fails startup with `MCP_DIAGNOSTIC_CONFIGURATION_INVALID`. P4 reuses the existing Connected App/JWT configuration and creates a new Connection per request. It adds no second OAuth scheme, global admin Connection, token cache, Connection pool, database, or Redis.
 
 ### P4 Context Provider
 
-`@sfoa/mcp-provider-sfoa-context` is an SFoA-owned public-Provider-API extension with exactly three GA read-only Tools:
+`@sfoa/mcp-provider-sfoa-context` is an SFoA-owned public-Provider-API extension with four GA read-only Tools:
 
 | Tool | Role | Execution surface |
 | --- | --- | --- |
 | `get_record_action_context` | USER | Direct verified REST UI API through the request Connection |
 | `run_diagnostic_tooling_query` | DIAGNOSTIC | Unchanged official `run_soql_query` with server-forced `useToolingApi=true` |
 | `get_metadata_component_context` | DIAGNOSTIC | Unchanged official `retrieve_metadata` plus same-request bounded file reading |
+| `get_org_limits` | DIAGNOSTIC | `limits()` through the fixed server-owned diagnostic Connection (P9-T3) |
+
+The fourth arrived in P9-T3 and moved here rather than staying in the P9 data Provider, because
+the limits resource is an org configuration read that no business identity in this deployment is
+granted: it belongs to the same class as the Tooling and Metadata reads above, and the diagnostic
+scope is siloed from the business roles precisely so those reads do not require widening a
+business identity into org setup. The role map is what routes it — see below.
 
 The actual dx-core audit found 13 Tools and nine GA Tools. `run_soql_query` and `retrieve_metadata` are reused as internal primitives, not copied. The actual Code Analyzer Provider returned six Tools, but its Agent-selected absolute local targets, durable project requirement, and global-temp result file are incompatible with the request-owned remote workspace. Code Analyzer remains unavailable; no replacement analyzer or durable filesystem service was added.
 
@@ -814,16 +821,19 @@ Agent
   -> bounded, truncation-explicit output
 ```
 
-| Shipped | Tool | SDK surface |
-| --- | --- | --- |
-| P9-T1 | `list_sobjects`, `describe_sobject` | `describeGlobal()`, `describe()` |
-| P9-T2 | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` |
-| P9-T3 | `get_org_limits` | `limits()` |
-| P9-T3 | `search_records` | `search()` (SOSL) |
-| planned | `submit_bulk_query`, `get_bulk_query_results` | Bulk API 2.0 |
+| Shipped | Tool | Provider | SDK surface |
+| --- | --- | --- | --- |
+| P9-T1 | `list_sobjects`, `describe_sobject` | `sfoa-data` | `describeGlobal()`, `describe()` |
+| P9-T2 | `query_records` | `sfoa-data` | `query()` + `nextRecordsUrl` / `queryMore()` |
+| P9-T3 | `get_org_limits` | `sfoa-context` (DIAGNOSTIC) | `limits()` |
+| P9-T3 | `search_records` | `sfoa-data` | `search()` (SOSL) |
+| planned | `submit_bulk_query`, `get_bulk_query_results` | `sfoa-data` | Bulk API 2.0 |
 
 Only the shipped rows are advertised today; the planned row is recorded in the gap analysis
-and ADR-0024 and is not part of the current tool surface.
+and ADR-0024 and is not part of the current tool surface. `get_org_limits` is the one P9 Tool
+that is not a data Provider Tool — it moved to the context Provider and to the `DIAGNOSTIC`
+role in P9-T3, and the role map below is what routes it. See
+[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md).
 
 `query_records` exists because the official `run_soql_query` makes exactly one request and
 never consumes `nextRecordsUrl`, so a result larger than one batch is returned as though it
@@ -859,15 +869,28 @@ that filled it, since the Bulk allowance is `DailyBulkApiRequests` under Bulk AP
 consistent (`max >= remaining`) and is `null` otherwise; a numeric string is not coerced,
 because guessing at a shape the limits resource does not produce would put an invented quota
 in front of a job-sizing decision. A payload with no readable entry is a failure, not an empty
-success, and a refusal by the org is one `MCP_LIMITS_ACCESS_DENIED` whose suggestion confines
-the failure to quota visibility. `verbose` changes the **text only** — `structuredContent.limits`
-is identical either way. No identity SFOA can currently route is allowed to read this resource:
-`Connection.limits()` answers `API_DISABLED_FOR_ORG` for the four integration identities the
-Control Plane routes, at every API version from v50.0 to v68.0. The leading cause is a missing
-`View Setup and Configuration` permission on those identities rather than an org-wide switch —
-`API Enabled` is provably present, since the same identities run `query`/`describeGlobal`/
-`search`, and a missing `API Enabled` reports a different error code. The Tool is correct and
-becomes readable the moment an identity permitted to read it is routed; see ADR-0026.
+success, and a refusal by the org is one `MCP_LIMITS_ACCESS_DENIED` whose suggestion names the
+server-owned diagnostic identity this Tool runs on and states that granting a business
+integration identity Setup visibility is **not** the remedy. `verbose` changes the **text
+only** — `structuredContent.limits` is identical either way.
+
+The Tool executes on the fixed server-owned `DIAGNOSTIC` identity rather than the caller's. Its
+`SFOA_CONTEXT_TOOL_ROLES` entry is what routes the call, so a forged `connectionRole` or
+`username` argument cannot select the scope, enabling it without a configured diagnostic identity
+fails startup (and, on a Control Plane whose diagnostic row is absent, disabled or not
+verification-passed, the per-request preflight) with `MCP_DIAGNOSTIC_CONFIGURATION_INVALID`, and
+the audit row carries `execution_role = DIAGNOSTIC`. That placement is what makes the read
+attemptable at all: `Connection.limits()` answers `API_DISABLED_FOR_ORG` for the four business
+integration identities the Control Plane routes, at every API version from v50.0 to v68.0, and
+the missing `View Setup and Configuration` permission those identities share is the leading
+hypothesis rather than a measured fact — `API Enabled` is provably present, since the same
+identities run `query`/`describeGlobal`/`search`, and a missing `API Enabled` reports a different
+code. Whether the org grants even a diagnostic administrator the resource is the open question
+the `orgLimits` live gate now **measures** instead of asserting: it reports `NOT TESTED`, never
+`PASS`, unless the Control Plane carries an enabled, verification-passed diagnostic identity
+**and** the read succeeds, and it takes its independent reference over that same diagnostic
+Connection. See [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md), which revises
+this paragraph's predecessor in ADR-0026.
 
 `search_records` exists because `query_records` needs an object and a field list up front, so
 "which record anywhere mentions this term" has no SOQL equivalent at all (GAP-D5). A bare
@@ -901,7 +924,10 @@ trace's SOQL count is unaffected — reusing `USER_QUERY` would file a quota rea
 search as SOQL queries, and the SOSL row would carry `query_type = NULL`, which the trace reads
 as a failed semantic capture. The union is free-form at the storage layer
 (`sfoa_salesforce_api_call.purpose` is `VARCHAR(256)`), so both values are additive with no
-migration and no Control Plane change.
+migration and no Control Plane change. `SOSL_SEARCH` is emitted by the data facade's saturated
+`DATA_TOOL_PURPOSES` map and `ORG_LIMITS` by the context facade's `CONTEXT_TOOL_PURPOSES` map;
+the context map is saturated over `SfoaContextToolName` and asserted total over the role map, so
+a Tool that moves between providers cannot be audited as `UNKNOWN`.
 
 The Provider is composed through the same public `McpProvider`/`McpTool`/`Services` seam as
 P3, requires exactly one allowed username from the request `OrgService`, and takes the

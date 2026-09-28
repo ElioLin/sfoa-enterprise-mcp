@@ -3,6 +3,7 @@
 - Status: Accepted for P9
 - Date: 2026-09-28
 - Supersedes: none
+- Superseded by: ADR-0027 only where it fixed `get_org_limits` to `READ`/`USER` in the data provider, where it named the remedies available when the org refuses the limits resource, and where it fixed the `orgLimits` live gate's reading order and its inference about what the org refuses. `search_records` and the SOSL decisions below stand unchanged.
 - Extends: ADR-0024 P9 data provider over the official SDK, ADR-0025 bounded query completeness, ADR-0001 upstream extension boundary, ADR-0005 remote Tool governance, ADR-0015 P7 end-to-end audit data model
 
 ## Context

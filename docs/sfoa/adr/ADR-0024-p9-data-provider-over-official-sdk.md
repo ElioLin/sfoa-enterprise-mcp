@@ -95,6 +95,13 @@ so identity cannot be requested even by a malformed call.
 | T3 | `get_org_limits`, `search_records` | `limits()`, `search()` |
 | T4 | `submit_bulk_query`, `get_bulk_query_results` | Bulk API 2.0 |
 
+> `get_org_limits` no longer lives in this Provider: it moved to
+> `@sfoa/mcp-provider-sfoa-context` and to the server-owned `DIAGNOSTIC` role, because the
+> `limits` resource is org configuration that no business identity is granted. The table above
+> records this ADR's original scope; see
+> [ADR-0027](ADR-0027-p9-org-limits-diagnostic-identity.md) for the revision. `search_records`
+> and T4 are unaffected.
+
 `list_sobjects` is a deliberate rename of the gap analysis' `describe_global`. The analysis
 named the capability after the SDK method; the Tool is named after what the Agent gets
 back. "describe global" is Salesforce-internal vocabulary that reads as a variant of

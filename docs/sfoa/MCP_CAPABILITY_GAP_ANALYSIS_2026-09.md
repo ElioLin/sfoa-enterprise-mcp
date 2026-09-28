@@ -79,7 +79,7 @@ Standard 服务器固定工具集：
 | GAP-D4 | 聚合查询无显式支持与引导 | 聚合是大数据分析的合规路径（结果行少），但工具描述与 skill 均未引导，agent 常拉明细进上下文导致 token 爆炸与截断 | P0（skill+描述层）/P1 |
 | GAP-D5 | 无 SOSL | 跨对象关键词检索（客户名模糊查找等）无法完成 | P1 |
 | GAP-D6 | 无 Report/Dashboard 读取 | 组织沉淀的分析资产（报表）agent 用不上；官方 Headless 360 已含 execute saved reports | P2 |
-| GAP-D7 | 无 `get_org_limits` | 大数据作业前无法预判 governor 约束（Bulk API 日配额、并发限制） | P1 |
+| GAP-D7 | 无 `get_org_limits` | 大数据作业前无法预判 governor 约束（Bulk API 日配额、并发限制）。**已交付**（P9-T3），且因 `limits` 资源属 org 配置读、业务身份读不到，改由服务器自有的 DIAGNOSTIC 身份执行——见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | P1 |
 | GAP-D8 | 无记录附件/长文本读取 | Case EmailMessage、Attachment/ContentVersion 正文不可读，文本类分析不完整 | P2 |
 | GAP-D9 | 查询错误非结构化 | `run_soql_query` 失败只回错误文本，agent 难以程序化重试修正（DML 已结构化，query 没有） | P1 |
 
@@ -94,7 +94,7 @@ Standard 服务器固定工具集：
 | GAP-M5 | 无平台状态/变更溯源聚合 | SetupAuditTrail（谁改了什么配置）、AsyncApexJob（失败 batch/queueable）、CronTrigger（调度卡死）、最近部署记录——**根因定位的黄金证据**（异常时间点 × 变更记录对齐）无工具支撑 | P0（诊断向） |
 | GAP-M6 | 无诊断方法学 skill | 工具即使补齐，agent 仍需要"症状分类 → 证据路径 → 假设树 → 引用证据的结论"的可复用方法论；`sfoa-crm-core` 只有数据完整性规则，无诊断决策树 | P0（skill 向） |
 | GAP-M7 | 诊断账号能力前提未定义 | ApexLog 仅 owner 与持 View All Data 者可见；为他人设 TraceFlag 需要额外权限。DIAGNOSTIC 固定账号的最小权限清单需要扩展并文档化 | P0（前置） |
-| GAP-M8 | 无 `get_org_limits` | 诊断"作业卡住/被跳过"时需要 governor 证据 | P1 |
+| GAP-M8 | 无 `get_org_limits` | 诊断"作业卡住/被跳过"时需要 governor 证据。**已交付**（P9-T3）——与 GAP-D7 是同一个工具，且它本就属于本条所描述的诊断类读：已改由服务器自有的 DIAGNOSTIC 身份执行，业务身份不参与，见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | P1 |
 
 ### 4.3 结构与方法论层面（对标 Headless 360 的启发）
 1. **Discover/Describe/Dispatch 模式**：官方用"4 个稳定工具 + 语义可发现的 operations 库"解决能力增长与上下文膨胀的矛盾。我们已有同构雏形（catalog + governance + playbook），**不必照搬**；但新工具设计应遵循"每个工具覆盖一类确定性操作，输出带完整性声明（truncated/coverage）"的既有契约风格。
@@ -118,7 +118,7 @@ Standard 服务器固定工具集：
 | P9-1 | `run_soql_query` SFOA 增强（wrapper） | 有界自动翻页（默认 maxRows=2000，Admin 可配置上限，建议 50k）；输出结构化 `{records, totalSize, fetched, done, truncated, truncationHint}`；超限时返回前 N 行 + 统计摘要 + "用 bulk query / 聚合"指引；查询错误结构化（errorCode + 修正建议）；检测聚合查询（GROUP BY/HAVING/COUNT）并放宽翻页 | READ / USER | EXTEND（SFOA wrapper，官方文件零改动） |
 | P9-2 | `describe_sobject` + `describe_global` | jsforce `describe()/describeGlobal()`；对象模式输出字段（类型/label/nillable/createable/updateable/picklist/referenceTo/relationshipName）+ childRelationships；全局模式输出对象清单；有界截断 | READ / USER | 官方 SDK |
 | P9-3 | `submit_bulk_query` + `get_bulk_query_results` | Bulk API 2.0：提交异步查询作业 → 轮询/取结果；默认只回样本 + totalSize，可选分页取全量；PK chunking 支持；作业配额不足时报结构化错误（配合 P9-4） | READ / USER | 官方 SDK（jsforce bulk） |
-| P9-4 | `get_org_limits` | `Connection.limits()` 全量快照；重点标注 API/bulk 并发与日配额 | READ / USER | 官方 SDK |
+| P9-4 | `get_org_limits` | `Connection.limits()` 全量快照；重点标注 API/bulk 并发与日配额。**角色为 READ / DIAGNOSTIC**（原计划为 READ / USER）：`limits` 资源不含业务记录，属 org 配置读，业务身份读不到，故落在服务器自有的诊断身份上，工具也随之移入 `@sfoa/mcp-provider-sfoa-context`——见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | READ / DIAGNOSTIC | 官方 SDK |
 | P9-5 | 聚合引导（skill + 工具描述） | 在 `sfoa-data-analysis` skill（见 P11-1）与工具描述中固化："先 COUNT/GROUP BY 估量，再决定明细路径"；声明聚合天然防截断 | — | — |
 | P9-6 | `search_records`（SOSL） | `Connection.search()`；跨对象 FIND 子句；结果有界 | READ / USER | 官方 SDK |
 

@@ -17,7 +17,7 @@ P9 六项能力共享同一个新 Provider 包，但复杂度差异大、可独�
 | --- | --- | --- | --- |
 | T1 | 分支 + `@sfoa/mcp-provider-sfoa-data` 骨架 + `list_sobjects` / `describe_sobject` | 中 | 无 |
 | T2 | `query_records`（有界自动翻页 + 结构化输出 + 错误结构化） | 高 | T1（同包） |
-| T3 | `get_org_limits` + `search_records`（SOSL） | 低 | T1 |
+| T3 | `get_org_limits` + `search_records`（SOSL） | 低 | T1（`get_org_limits` 现落在 context 包，见 ADR-0027） |
 | T4 | `submit_bulk_query` + `get_bulk_query_results`（Bulk API 2.0） | 高 | T1；建议 T3 之后（配额联动） |
 | T5 | Playbook 1.10.0 + 小犇指令 + `sfoa-data-analysis` skill + 文档收口 | 中 | T1–T4 |
 
@@ -175,6 +175,21 @@ feat(provider-sfoa-data): add query_records with bounded auto-fetch and structur
 
 ## 任务 T3 — get_org_limits + search_records
 
+> **修订注记（2026-09-28，[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md)）**：本
+> Prompt 按原样保留，不予改写；实际交付与下列各点不同，以 ADR-0027 为准。
+> - `:189` 的 `get_org_limits（READ, USER…）` → **`READ` / `DIAGNOSTIC`**，且工具落在
+>   `@sfoa/mcp-provider-sfoa-context` 而非 `sfoa-data` 包。原因：真机探针显示本部署能路由的业务
+>   身份全部读不到 `limits` 资源，而该资源只含 org 级配额计数器、不含业务记录，正属于诊断角色
+>   存在的那一类读。
+> - `:199` 的 `SFOA_DATA_TOOL_ROLES` 登记 → 该工具登记在 **`SFOA_CONTEXT_TOOL_ROLES`**；
+>   角色由该表驱动路由，因此 `config.ts` / HTTP 层零改动即继承了启动校验与请求前预检。
+> - `:192` 的输出契约另有几处细节偏差（`measured` 字段、`present/key` 槽位语义、`MCP_LIMITS_ACCESS_DENIED`
+>   的 `suggestion` 措辞），已在 ADR-0026 的「Deviations」逐条记录。
+> - `:197` 的 `resultsByObject: Record<string, records[]>` → 实际为对象**分组**数组，见 ADR-0026。
+> - `:204` 的 live 验证在当时的身份下只能得到 `NOT TESTED`；搬运后由诊断身份实测，判定矩阵见
+>   ADR-0027。
+> - `search_records` 不受本注记影响。
+
 ```
 你是本仓库（D:\GitProject\sfoa-enterprise-mcp）的维护工程师，执行 P9 数据完备性计划的第三个任务。
 前置：T1 已完成（sfoa-data 包存在）。T2 建议已完成但不是硬性前置。分支 feature/p9-data-completeness。
@@ -217,6 +232,16 @@ feat(provider-sfoa-data): add get_org_limits and search_records
 ---
 
 ## 任务 T4 — Bulk Query 2.0 双工具
+
+> **修订注记（2026-09-28，[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md)）**：本
+> Prompt 按原样保留，但 `:253` 的配额保护**不能按原文实现**。`get_org_limits` 已改由服务器自有的
+> DIAGNOSTIC 身份执行，业务身份的 `Connection.limits()` 在真机上仍是 `API_DISABLED_FOR_ORG`；同时
+> DATA 工具禁止在内部另开 DIAGNOSTIC 连接（`SfoaDataProviderOptions` 无 scope，`DataToolFacade`
+> 把路由钉死为 USER）。T4 只有两条路：(a) 把配额预检做成一次独立的 `get_org_limits` 调用（路由按调用
+> 判定，无需会话级改动）；(b) 放弃「预检」这一说法，改为报告 Bulk 作业响应自带的可观测配额，并在配额
+> 耗尽的结构化失败里点名 `get_org_limits`。ADR-0027 推荐 **(b)**，实现留待 T4 确认。
+> `:254` 的「前后差值」跨身份后不再是干净测量，同样需要改写。
+> `:291(e)` / `:310(d)` 的 UAT 口径随之改为「经诊断身份读取」。
 
 ```
 你是本仓库（D:\GitProject\sfoa-enterprise-mcp）的维护工程师，执行 P9 数据完备性计划的第四个任务，也是技术复杂度最高的一个。
