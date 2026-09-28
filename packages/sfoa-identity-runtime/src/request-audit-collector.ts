@@ -116,6 +116,15 @@ export type SalesforceApiPurpose =
   | 'DIAGNOSTIC_TOOLING'
   | 'METADATA_RETRIEVE'
   | 'OBJECT_SCHEMA'
+  /**
+   * `ORG_LIMITS` and `SOSL_SEARCH` are capability-named for the same reason the other specific
+   * purposes are: a row that says which Salesforce surface was read is self-explaining, and
+   * neither call is a SOQL query — a limits read carries no statement, and a search carries
+   * SOSL. Folding either into `USER_QUERY` would put rows in the trail that look like a
+   * semantic capture failure, because a query row is expected to carry a `queryType`.
+   */
+  | 'ORG_LIMITS'
+  | 'SOSL_SEARCH'
   | 'UNKNOWN';
 export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
 export type SalesforceQueryType = 'DATA_SOQL' | 'TOOLING_SOQL';

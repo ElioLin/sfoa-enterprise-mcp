@@ -61,6 +61,10 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly queryCalls: string[] = [];
   /** SObject schema reads, in order: `describeGlobal` or `describe:<objectApiName>`. */
   public readonly schemaCalls: string[] = [];
+  /** Governor-limit reads, one entry per `limits()` call. */
+  public readonly limitsCalls: string[] = [];
+  /** SOSL statements sent through `search()`, in order. */
+  public readonly searchCalls: string[] = [];
   public instanceUrlForRoute = (route: SalesforceIdentityRoute): string =>
     `https://${route.platformUserId}.my.salesforce.com`;
 
@@ -113,6 +117,16 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
           if (batch === undefined) throw new Error(`Unexpected Tooling continuation cursor ${cursor}`);
           return batch;
         },
+      },
+      limits: async () => {
+        this.limitsCalls.push(route.platformUserId);
+        if (this.schema.limitsError) throw this.schema.limitsError;
+        return (this.schema.limits ?? defaultLimits)();
+      },
+      search: async (statement: string) => {
+        this.searchCalls.push(statement);
+        if (this.schema.searchError) throw this.schema.searchError;
+        return (this.schema.search ?? defaultSearch)(statement);
       },
       request: async (request: string | Readonly<{ url?: string }>) => {
         const url = typeof request === 'string' ? request : request.url ?? '';
@@ -178,6 +192,12 @@ export type RecordingSchemaOptions = Readonly<{
   query?: (query: string, operation: 'query' | 'toolingQuery') => unknown;
   recordedQueryPages?: ReadonlyMap<string, unknown>;
   queryError?: unknown;
+  /** Governor limits, as the org reports them: a flat map of key to `{ Max, Remaining }`. */
+  limits?: () => unknown;
+  limitsError?: unknown;
+  /** Answers a SOSL call. The default returns one Account record per statement. */
+  search?: (statement: string) => unknown;
+  searchError?: unknown;
 }>;
 
 function defaultDescribeGlobal(): unknown {
@@ -195,8 +215,7 @@ function defaultDescribeGlobal(): unknown {
   };
 }
 
-function defaultDescribe(objectApiName: string): unknown {
-  return {
+function defaultDescribe(objectApiName: string): unknown {  return {
     name: objectApiName,
     label: objectApiName,
     labelPlural: `${objectApiName}s`,
@@ -221,6 +240,28 @@ function defaultDescribe(objectApiName: string): unknown {
   };
 }
 
+
+/** The org's own key names and `{ Max, Remaining }` pairs, shaped as `limits()` returns them. */
+function defaultLimits(): unknown {
+  return {
+    DailyApiRequests: { Max: 100_000, Remaining: 99_000 },
+    DailyBulkV2QueryJobs: { Max: 10_000, Remaining: 9_500 },
+    DataStorageMB: { Max: 1_024, Remaining: 512 },
+    FileStorageMB: { Max: 2_048, Remaining: 2_000 },
+  };
+}
+
+function defaultSearch(statement: string): unknown {
+  return {
+    searchRecords: [
+      {
+        attributes: { type: 'Account', url: '/services/data/v65.0/sobjects/Account/001000000000001' },
+        Id: '001000000000001',
+        Name: `Match for ${statement}`,
+      },
+    ],
+  };
+}
 
 function uiApiResponse(url: string): unknown {
   if (/\/ui-api\/object-info\/Lead\/picklist-values\//u.test(url)) {

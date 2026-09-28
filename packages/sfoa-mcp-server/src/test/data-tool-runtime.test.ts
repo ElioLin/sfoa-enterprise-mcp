@@ -483,6 +483,227 @@ test('a query_records call against an org-declared-unused standard object is blo
   }
 });
 
+test('an enabled get_org_limits call reads the org limits through the request USER identity and audits as ORG_LIMITS', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'get_org_limits'] });
+  try {
+    const listed = await harness.client.listTools();
+    const tool = listed.tools.find((candidate) => candidate.name === 'get_org_limits');
+    assert.ok(tool !== undefined, 'get_org_limits must be advertised once an Admin enables it');
+    assert.equal(tool.annotations?.readOnlyHint, true);
+    assert.equal(tool.annotations?.destructiveHint, false);
+    assert.deepEqual(Object.keys(tool.inputSchema.properties ?? {}), ['verbose']);
+    assert.ok(tool.outputSchema !== undefined);
+
+    const result = await harness.client.callTool({ name: 'get_org_limits', arguments: { verbose: true } });
+    assert.equal(result.isError === true, false);
+    const output = structured(result);
+    assert.equal(output.executionRole, 'USER');
+    assert.equal(output.api, 'REST');
+    assert.equal(output.verbose, true);
+    assert.equal(output.totalLimits, 4);
+    assert.equal(output.returnedLimits, 4);
+    assert.equal(output.unreadableLimits, 0);
+    assert.equal(output.truncated, false);
+    assert.deepEqual(Object.keys(output.highlights as object), [
+      'dailyApiRequests', 'dailyBulkApiRequests', 'dailyAsyncApexExecutions', 'dataStorageMB', 'fileStorageMB',
+    ]);
+    assert.deepEqual((output.highlights as Record<string, unknown>).dailyApiRequests, {
+      key: 'DailyApiRequests', present: true, max: 100_000, remaining: 99_000, used: 1_000,
+    });
+    // The org reports the Bulk API 2.0 key, so the slot reports which name actually filled it rather
+    // than silently assuming the Bulk API 1.0 one.
+    assert.deepEqual((output.highlights as Record<string, unknown>).dailyBulkApiRequests, {
+      key: 'DailyBulkV2QueryJobs', present: true, max: 10_000, remaining: 9_500, used: 500,
+    });
+    assert.deepEqual((output.highlights as Record<string, unknown>).fileStorageMB, {
+      key: 'FileStorageMB', present: true, max: 2_048, remaining: 2_000, used: 48,
+    });
+
+    assert.deepEqual(harness.factory.limitsCalls, [TEST_PLATFORM_USER_A]);
+    assert.deepEqual([...new Set(harness.factory.creations.map((entry) => entry.platformUserId))], [TEST_PLATFORM_USER_A]);
+
+    const terminal = harness.logger.forTool('get_org_limits')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined, 'get_org_limits must emit a TOOL_TERMINAL audit event');
+    assert.equal(terminal.result, 'PASS');
+    assert.equal(terminal.executionRole, 'USER');
+    assert.deepEqual(terminal.requestSummary, { objectApiName: null, filter: null, verbose: true });
+    assert.deepEqual(terminal.responseSummary, {
+      isError: false, totalLimits: 4, returnedLimits: 4, unreadableLimits: 0, truncated: false,
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
+test('an org that refuses the limits resource is reported as a denial and audited as a failure', async () => {
+  const factory = new RecordingConnectionFactory({
+    // Reproduces the live org: `limits()` answers API_DISABLED_FOR_ORG for every identity.
+    limitsError: Object.assign(new Error('limits resource is not enabled'), { errorCode: 'API_DISABLED_FOR_ORG' }),
+  });
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'get_org_limits'], factory });
+  try {
+    const result = await harness.client.callTool({ name: 'get_org_limits', arguments: {} });
+    assert.equal(result.isError, true);
+    const output = structured(result);
+    assert.equal(output.errorCode, 'MCP_LIMITS_ACCESS_DENIED');
+    assert.equal(output.salesforceErrorCode, 'API_DISABLED_FOR_ORG');
+    assert.doesNotMatch(JSON.stringify(result.content), /at .*\.ts:\d+/u);
+
+    const terminal = harness.logger.forTool('get_org_limits')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined);
+    assert.equal(terminal.result, 'ERROR');
+    assert.equal(terminal.outcome, 'FAILED');
+    assert.equal(terminal.errorCode, 'MCP_LIMITS_ACCESS_DENIED');
+  } finally {
+    await harness.close();
+  }
+});
+
+test('an enabled search_records call composes the SOSL, groups the records, and audits as SOSL_SEARCH', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'search_records'] });
+  try {
+    const listed = await harness.client.listTools();
+    const tool = listed.tools.find((candidate) => candidate.name === 'search_records');
+    assert.ok(tool !== undefined, 'search_records must be advertised once an Admin enables it');
+    assert.equal(tool.annotations?.readOnlyHint, true);
+    assert.equal(tool.annotations?.destructiveHint, false);
+    assert.deepEqual(Object.keys(tool.inputSchema.properties ?? {}).sort(), ['fields', 'limit', 'objects', 'search']);
+    assert.ok(tool.outputSchema !== undefined);
+
+    const result = await harness.client.callTool({
+      name: 'search_records',
+      arguments: { search: 'acme', objects: ['Account'], fields: ['Id', 'Name'], limit: 5 },
+    });
+    assert.equal(result.isError === true, false);
+    const output = structured(result);
+    assert.equal(output.executionRole, 'USER');
+    assert.equal(output.api, 'REST');
+    assert.equal(output.mode, 'KEYWORD');
+    assert.equal(output.statement, 'FIND {acme} IN ALL FIELDS RETURNING Account(Id, Name) LIMIT 5');
+    assert.equal(output.limitSource, 'REQUEST');
+    assert.equal(output.effectiveLimit, 5);
+    assert.equal(output.totalReturned, 1);
+    assert.equal(output.objectsReturned, 1);
+    assert.equal(output.truncated, false);
+    assert.equal(output.complete, true);
+    const groups = output.resultsByObject as Record<string, { count: number; returnedCount: number; records: unknown[] }>;
+    assert.deepEqual(Object.keys(groups), ['Account']);
+    const account = groups.Account;
+    assert.ok(account !== undefined, 'the Account group must be present');
+    assert.equal(account.count, 1);
+    assert.equal(account.returnedCount, 1);
+
+    assert.deepEqual(harness.factory.searchCalls, ['FIND {acme} IN ALL FIELDS RETURNING Account(Id, Name) LIMIT 5']);
+    assert.deepEqual([...new Set(harness.factory.creations.map((entry) => entry.platformUserId))], [TEST_PLATFORM_USER_A]);
+
+    const terminal = harness.logger.forTool('search_records')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined, 'search_records must emit a TOOL_TERMINAL audit event');
+    assert.equal(terminal.result, 'PASS');
+    assert.equal(terminal.executionRole, 'USER');
+    // SOSL has no semantic audit channel, so the search text has to be captured here or not at all —
+    // bounded, and recorded alongside the scope that narrowed it.
+    assert.deepEqual(terminal.requestSummary, {
+      objectApiName: null,
+      filter: null,
+      search: 'acme',
+      objects: ['Account'],
+      fields: ['Id', 'Name'],
+      limit: 5,
+    });
+    assert.deepEqual(terminal.responseSummary, {
+      isError: false,
+      returnedCount: 1,
+      totalReturned: 1,
+      objectsReturned: 1,
+      unreadableRecords: 0,
+      limitSource: 'REQUEST',
+      complete: true,
+      truncated: false,
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a search_records input outside the declared bounds is refused at the protocol boundary', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'search_records'] });
+  try {
+    for (const arguments_ of [
+      { search: 'a'.repeat(2_001) },
+      { search: 'acme', limit: 0 },
+      { search: 'acme', limit: 201 },
+      { search: 'acme', limit: 1.5 },
+      { search: 'acme', objects: [] },
+      { search: 'acme', objects: ['1Account'] },
+      { search: 'acme', objects: ['Account.Name'] },
+      { search: 'acme', objects: Array.from({ length: 21 }, (_, index) => `O${index}__c`) },
+    ]) {
+      await assert.rejects(
+        harness.client.callTool({ name: 'search_records', arguments: arguments_ }),
+        (error: unknown) => /invalid arguments|search_records/iu.test(String(error)),
+        `${JSON.stringify(arguments_).slice(0, 80)} must be refused`,
+      );
+    }
+    assert.deepEqual(harness.factory.searchCalls, []);
+    assert.deepEqual(harness.factory.creations, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a multi-statement search is refused by the Tool rather than at the wire, and never reaches Salesforce', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'search_records'] });
+  try {
+    // The single-statement rule needs literal-aware scanning, so it lives in the Provider's
+    // refinement and the wire schema cannot carry it (ADR-0024). The host has already lazily opened
+    // the request Connection by the time the Tool body runs, so a Connection existing proves nothing;
+    // what must hold is that no SOSL statement is ever sent.
+    for (const search of ['acme; DROP', 'FIND {acme} IN ALL FIELDS; FIND {b}', 'acme}']) {
+      const result = await harness.client.callTool({ name: 'search_records', arguments: { search } });
+      assert.equal(result.isError, true, `${search} must be refused`);
+      const output = structured(result);
+      assert.equal(output.errorCode, 'MCP_DATA_INVALID_INPUT');
+      assert.equal(output.success, false);
+    }
+    assert.deepEqual(harness.factory.searchCalls, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('an exhausted-allowance failure names get_org_limits only when this session advertises it', async () => {
+  const factory = () => new RecordingConnectionFactory({
+    searchError: Object.assign(new Error('Request limit exceeded'), { errorCode: 'REQUEST_LIMIT_EXCEEDED' }),
+  });
+
+  const without = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'search_records'], factory: factory() });
+  try {
+    const result = await without.client.callTool({ name: 'search_records', arguments: { search: 'acme' } });
+    const output = structured(result);
+    assert.equal(output.errorCode, 'MCP_SEARCH_LIMIT_EXCEEDED');
+    assert.doesNotMatch(String(output.message), /get_org_limits/u);
+    assert.doesNotMatch(String(output.suggestion), /get_org_limits/u);
+  } finally {
+    await without.close();
+  }
+
+  const with_ = await startHarness({
+    enabledTools: [...DEFAULT_ENABLED_TOOLS, 'search_records', 'get_org_limits'],
+    factory: factory(),
+  });
+  try {
+    const result = await with_.client.callTool({ name: 'search_records', arguments: { search: 'acme' } });
+    const output = structured(result);
+    assert.equal(output.errorCode, 'MCP_SEARCH_LIMIT_EXCEEDED');
+    assert.match(String(output.message), /Call get_org_limits/u);
+  } finally {
+    await with_.close();
+  }
+});
+
 async function clientToolNames(client: Client): Promise<string[]> {
   const listed = await client.listTools();
   return listed.tools.map((tool) => tool.name);

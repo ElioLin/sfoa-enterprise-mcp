@@ -7,7 +7,9 @@ export type ConnectionOperation =
   | 'query'
   | 'queryMore'
   | 'toolingQuery'
-  | 'toolingQueryMore';
+  | 'toolingQueryMore'
+  | 'limits'
+  | 'search';
 
 export type ConnectionCall = Readonly<{ operation: ConnectionOperation; argument?: string }>;
 
@@ -60,6 +62,14 @@ export function createFixture(options: DataFixtureOptions = {}): DataFixture {
         calls.push({ operation: 'toolingQueryMore', argument: cursor });
         return handler('toolingQueryMore', cursor);
       },
+    },
+    limits: async () => {
+      calls.push({ operation: 'limits' });
+      return handler('limits');
+    },
+    search: async (statement: string) => {
+      calls.push({ operation: 'search', argument: statement });
+      return handler('search', statement);
     },
   } as unknown as Connection;
   const orgService = {
@@ -177,4 +187,35 @@ export function rows(count: number, prefix = 'r'): Record<string, unknown>[] {
  */
 export function idRows(count: number, prefix = 'r'): Record<string, unknown>[] {
   return Array.from({ length: count }, (_, index) => ({ Id: `${prefix}${index}` }));
+}
+
+/** A limits payload: the org's own keys, each a `{ Max, Remaining }` pair. */
+export function limitsPayload(
+  entries: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return { ...entries };
+}
+
+/**
+ * A jsforce-shaped search result. The real payload carries `searchRecords` and nothing else —
+ * no total, no cursor (verified live) — so a fixture that added one would let a test pass
+ * against a shape Salesforce does not produce.
+ */
+export function searchPayload(records: readonly unknown[]): Record<string, unknown> {
+  return { searchRecords: records };
+}
+
+/**
+ * A search result row. The object is identified by `attributes.type`, which is where the live
+ * org puts it, and `fields` are merged in beside it as the platform returns them.
+ */
+export function searchRecord(
+  objectApiName: string,
+  fields: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return {
+    attributes: { type: objectApiName, url: `/services/data/v68.0/sobjects/${objectApiName}/001000000000001` },
+    Id: '001000000000001',
+    ...fields,
+  };
 }

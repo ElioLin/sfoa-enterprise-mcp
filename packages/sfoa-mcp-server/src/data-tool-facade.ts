@@ -42,10 +42,19 @@ const DATA_TOOL_PURPOSES: Readonly<Record<SfoaDataToolName, SalesforceApiPurpose
   list_sobjects: 'OBJECT_SCHEMA',
   describe_sobject: 'OBJECT_SCHEMA',
   query_records: 'USER_QUERY',
+  get_org_limits: 'ORG_LIMITS',
+  search_records: 'SOSL_SEARCH',
 });
 
 /** Object API names and name prefixes are schema identifiers, not business data. */
 const MAX_SUMMARY_TOKEN_LENGTH = 64;
+
+/**
+ * How many entries of a requested identifier list the audit keeps. The Tool already bounds each
+ * list it accepts, so this only guards the trail against input that never reached the Tool's own
+ * schema — the same reason `MAX_SUMMARY_TOKEN_LENGTH` exists.
+ */
+const MAX_SUMMARY_LIST_LENGTH = 20;
 
 export type DataToolFacadeOptions = Readonly<{
   tool: McpTool;
@@ -226,6 +235,20 @@ function safeDataRequestSummary(input: ToolInput): unknown {
     ...(typeof input.query === 'string'
       ? { useToolingApi: input.useToolingApi === true, maxRows: boundedInteger(input.maxRows) }
       : {}),
+    // SOSL has no semantic channel: a search is not a SOQL query, so the Salesforce call records
+    // an empty semantic and the text has to be captured here or not at all. The term is business
+    // data rather than a schema identifier, so it is bounded far harder than the 2000 characters
+    // the Tool accepts — the trail keeps enough to recognise the request, not all of it. The
+    // object and field lists are the same identifiers `describe_sobject` already records.
+    ...(typeof input.search === 'string'
+      ? {
+          search: boundedToken(input.search),
+          objects: boundedTokens(input.objects),
+          fields: boundedTokens(input.fields),
+          limit: boundedInteger(input.limit),
+        }
+      : {}),
+    ...(typeof input.verbose === 'boolean' ? { verbose: input.verbose } : {}),
   };
 }
 
@@ -241,6 +264,13 @@ function safeDataResponseSummary(response: CallToolResult | undefined, errorCode
     ...(typeof content.totalSize === 'number' ? { totalSize: content.totalSize } : {}),
     ...(typeof content.fetched === 'number' ? { fetched: content.fetched } : {}),
     ...(typeof content.pages === 'number' ? { pages: content.pages } : {}),
+    ...(typeof content.totalReturned === 'number' ? { totalReturned: content.totalReturned } : {}),
+    ...(typeof content.objectsReturned === 'number' ? { objectsReturned: content.objectsReturned } : {}),
+    ...(typeof content.unreadableRecords === 'number' ? { unreadableRecords: content.unreadableRecords } : {}),
+    ...(typeof content.limitSource === 'string' ? { limitSource: content.limitSource } : {}),
+    ...(typeof content.totalLimits === 'number' ? { totalLimits: content.totalLimits } : {}),
+    ...(typeof content.returnedLimits === 'number' ? { returnedLimits: content.returnedLimits } : {}),
+    ...(typeof content.unreadableLimits === 'number' ? { unreadableLimits: content.unreadableLimits } : {}),
     ...(typeof content.complete === 'boolean' ? { complete: content.complete } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
     ...(typeof content.truncatedReason === 'string' ? { truncatedReason: content.truncatedReason } : {}),
@@ -255,6 +285,13 @@ function safeDataResponseSummary(response: CallToolResult | undefined, errorCode
  */
 function boundedToken(value: unknown): string | null {
   return typeof value === 'string' ? value.slice(0, MAX_SUMMARY_TOKEN_LENGTH) : null;
+}
+
+/** The same bound applied to a requested identifier list, which is also bounded in how many entries it keeps. */
+function boundedTokens(value: unknown): readonly (string | null)[] | null {
+  return Array.isArray(value)
+    ? value.slice(0, MAX_SUMMARY_LIST_LENGTH).map((entry) => boundedToken(entry))
+    : null;
 }
 
 function boundedInteger(value: unknown): number | null {

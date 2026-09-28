@@ -29,11 +29,15 @@ import {
   DESCRIBE_SOBJECT_MAX_CHILD_RELATIONSHIPS,
   DESCRIBE_SOBJECT_MAX_PICKLIST_VALUES,
   LIST_SOBJECTS_MAX_LIMIT,
+  ORG_LIMIT_HIGHLIGHT_ALIASES,
+  ORG_LIMIT_HIGHLIGHT_SLOTS,
   QUERY_RECORDS_MAX_MAX_ROWS,
+  SEARCH_RECORDS_MAX_LIMIT,
   SFOA_DATA_TOOL_NAMES,
 } from '@sfoa/mcp-provider-sfoa-data';
 import { loadRemoteRuntimeConfig } from '../config.js';
 import { startRemoteMcpServer } from '../http-server.js';
+import { createAttachmentIngress } from '../runtime.js';
 import {
   MySqlRuntimeDiscoveryPolicySnapshotSource,
   MySqlRuntimePolicySnapshotSource,
@@ -49,7 +53,7 @@ export type P9LiveGate = Readonly<{
 
 export type P9LiveValidationReport = Readonly<{
   phase: 'P9';
-  task: 'T1+T2';
+  task: 'T1+T2+T3';
   generatedAt: string;
   objectApiName: string;
   filter: string;
@@ -64,6 +68,8 @@ export type P9LiveValidationReport = Readonly<{
   listSobjects: P9LiveGate;
   describeSobject: P9LiveGate;
   queryRecords: P9LiveGate;
+  orgLimits: P9LiveGate;
+  searchRecords: P9LiveGate;
   schemaSelfRepair: P9LiveGate;
   credentialSafety: P9LiveGate;
   connections: Readonly<{
@@ -245,7 +251,7 @@ export async function runP9LiveValidation(
     const reason = `Identity route ${platformUserId} is ${route === null ? 'absent' : 'disabled'} in this Control Plane.`;
     return Object.freeze({
       phase: 'P9',
-      task: 'T1+T2',
+      task: 'T1+T2+T3',
       generatedAt,
       objectApiName,
       filter,
@@ -255,6 +261,8 @@ export async function runP9LiveValidation(
       listSobjects: notTested(reason),
       describeSobject: notTested(reason),
       queryRecords: notTested(reason),
+      orgLimits: notTested(reason),
+      searchRecords: notTested(reason),
       schemaSelfRepair: notTested(reason),
       credentialSafety: notTested('No Tool call was made.'),
       connections: Object.freeze({ total: 0, distinctSalesforceUsernames: Object.freeze([]) }),
@@ -263,6 +271,12 @@ export async function runP9LiveValidation(
   }
 
   await assertAllMigrationsApplied(database);
+  // The harness starts its own in-process server, so it has to bind the same attachment ingress the
+  // deployed runtime binds. A Control Plane that enables an attachment Tool refuses every request
+  // when no ingress is bound — before any Tool runs — so without this the gates could only ever run
+  // against a Control Plane that has the capability switched off, and would fail with
+  // MCP_ATTACHMENT_CONFIGURATION_INVALID everywhere else.
+  const attachmentIngress = createAttachmentIngress(config, store);
   const server = await startRemoteMcpServer({
     // The live harness binds an ephemeral loopback port, so it accepts the loopback Host and
     // Origin values rather than the deployed allowlist.
@@ -278,6 +292,7 @@ export async function runP9LiveValidation(
     identityRuntime,
     policySnapshotSource: new AdditiveDataToolsPolicySnapshotSource(policySnapshotSource, dataToolNames),
     discoveryPolicySnapshotSource: new MySqlRuntimeDiscoveryPolicySnapshotSource(database),
+    ...(attachmentIngress === undefined ? {} : { attachmentIngress }),
   });
   const expectedNames = [...new Set([...snapshot.enabledTools, ...dataToolNames])].sort();
   const results: CallToolResult[] = [];
@@ -317,13 +332,15 @@ export async function runP9LiveValidation(
       const listSobjects = await runListSobjects(client, results, bounded, filter, realEntries);
       const describeSobject = await runDescribeSobject(client, results, objectApiName, connection);
       const queryRecords = await runQueryRecords(client, results, objectApiName, connection, expectedNames);
+      const orgLimits = await runOrgLimits(client, results, connection);
+      const searchRecords = await runSearchRecords(client, results, connection, objectApiName, expectedNames);
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
       const usernames = [...new Set(measuringFactory.measurements.map((entry) => entry.salesforceUsername))];
 
       return Object.freeze({
         phase: 'P9',
-        task: 'T1+T2',
+        task: 'T1+T2+T3',
         generatedAt,
         objectApiName,
         filter,
@@ -333,6 +350,8 @@ export async function runP9LiveValidation(
         listSobjects,
         describeSobject,
         queryRecords,
+        orgLimits,
+        searchRecords,
         schemaSelfRepair,
         credentialSafety,
         connections: Object.freeze({
@@ -341,7 +360,7 @@ export async function runP9LiveValidation(
         }),
         overall: combine([
           toolInventory, requestIdentity, listSobjects, describeSobject,
-          queryRecords, schemaSelfRepair, credentialSafety,
+          queryRecords, orgLimits, searchRecords, schemaSelfRepair, credentialSafety,
         ]),
       });
     } finally {
@@ -788,6 +807,479 @@ function integerOf(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) ? value : -1;
 }
 
+/**
+ * Cross-checks `get_org_limits` against the org's own answer, or reports why the read cannot be
+ * exercised here at all.
+ *
+ * The org is asked first, over the same request-scoped Connection the Tool will use, so the
+ * comparison is between two readings of one live org rather than between the Tool and a fixture.
+ * This org refuses the limits resource org-wide — `API_DISABLED_FOR_ORG`, at every API version and
+ * for every identity tried (see `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §1) — and a refusal is
+ * reported as NOT TESTED naming the Salesforce code. That is not a lenient outcome: the Tool's
+ * behaviour for a refusal is the structured denial the unit and protocol layers pin, and calling
+ * this gate PASS would claim a successful read that never happened.
+ */
+async function runOrgLimits(
+  client: Client,
+  results: CallToolResult[],
+  connection: Connection,
+): Promise<P9LiveGate> {
+  const reading = await readOrgLimits(connection);
+  if (reading.entries === null || reading.entries.size === 0) {
+    // The successful-read contract cannot be exercised here, but the refusal path can — and it is
+    // the path this org actually takes, so it is checked rather than skipped: the Tool must answer
+    // with the same refusal as a structured denial, never as a success and never as a crash. The
+    // gate still reports NOT TESTED, because a denial proves nothing about the read it could not do.
+    const denial = await call(client, results, 'get_org_limits', {});
+    const denialOutput = outputOf(denial);
+    const denied = denial.isError === true
+      && denialOutput?.success === false
+      && denialOutput.errorCode === 'MCP_LIMITS_ACCESS_DENIED'
+      && typeof denialOutput.suggestion === 'string';
+    const evidence = Object.freeze({
+      orgAnswer: reading.observed,
+      toolErrorCode: denialOutput?.errorCode,
+      toolSalesforceErrorCode: denialOutput?.salesforceErrorCode,
+      denialIsStructured: denied,
+    });
+    if (!denied) {
+      return failGate(
+        `The org refused the limits read with ${reading.observed}, but get_org_limits answered `
+        + `${String(denialOutput?.errorCode ?? 'no error code')} instead of a structured MCP_LIMITS_ACCESS_DENIED.`,
+      );
+    }
+    return notTested(
+      `The org refused the limits resource with ${reading.observed}, so no successful read can be cross-checked and this gate `
+      + 'is not a PASS. The refusal path was exercised instead and behaved as contracted: the Tool returned a structured '
+      + 'MCP_LIMITS_ACCESS_DENIED.',
+      evidence,
+    );
+  }
+  const orgEntries = reading.entries;
+  const result = await call(client, results, 'get_org_limits', {});
+  const output = outputOf(result);
+  if (output === undefined) return failGate('get_org_limits returned no structured content.');
+  if (output.success !== true) {
+    return failGate(
+      `get_org_limits failed live with ${String(output.errorCode ?? 'no error code')} while the org answered the same read.`,
+    );
+  }
+  const limits = recordOf(output.limits);
+  const highlights = recordOf(output.highlights);
+  if (limits === undefined) return failGate('get_org_limits returned no limits map.');
+  if (highlights === undefined) return failGate('get_org_limits returned no highlights.');
+
+  const entryMismatches = Object.entries(limits).flatMap(([key, value]) => {
+    const org = orgEntries.get(key);
+    if (org === undefined) return [`${key} is not a key the org reported`];
+    const entry = recordOf(value);
+    if (entry === undefined) return [`${key} is not an object`];
+    // `used` is re-derived here from the org's own two numbers rather than compared to itself, which
+    // is the only way the gate can catch a subtraction done with the operands the wrong way round.
+    const expectedUsed = org.max !== null && org.remaining !== null && org.max >= org.remaining
+      ? org.max - org.remaining
+      : null;
+    return (['max', 'remaining', 'used'] as const).flatMap((bound) => {
+      const expected: number | null = bound === 'used' ? expectedUsed : bound === 'max' ? org.max : org.remaining;
+      return entry[bound] === expected
+        ? []
+        : [`${key}.${bound}: tool=${JSON.stringify(entry[bound])} org=${JSON.stringify(expected)}`];
+    });
+  });
+
+  // A slot the Tool reports as absent is a claim about the org, so it is checked the same way a
+  // number is: `present: false` is only honest when no key this Tool would have read is there.
+  const highlightMismatches = ORG_LIMIT_HIGHLIGHT_SLOTS.flatMap((slot) => {
+    const highlight = recordOf(highlights[slot]);
+    if (highlight === undefined) return [`${slot} is missing from highlights`];
+    const key = typeof highlight.key === 'string' && highlight.key.length > 0 ? highlight.key : null;
+    if (highlight.present !== true) {
+      const orgAliasKeys = ORG_LIMIT_HIGHLIGHT_ALIASES[slot].filter((candidate) => orgEntries.has(candidate));
+      return key === null && highlight.max === null && highlight.remaining === null && orgAliasKeys.length === 0
+        ? []
+        : [`${slot}: reported absent, but the org reports ${orgAliasKeys.join(', ') || String(key)}`];
+    }
+    if (key === null) return [`${slot}: present without naming the key that filled it`];
+    const org = orgEntries.get(key);
+    if (org === undefined) return [`${slot}: key ${key} is not a key the org reported`];
+    return highlight.max === org.max && highlight.remaining === org.remaining
+      ? []
+      : [`${slot} (${key}): tool max/remaining=${String(highlight.max)}/${String(highlight.remaining)} `
+        + `org=${String(org.max)}/${String(org.remaining)}`];
+  });
+
+  const returnedLimits = Object.keys(limits).length;
+  const orgMeasured = [...orgEntries.values()].filter((entry) => entry.max !== null || entry.remaining !== null).length;
+  const facts = output.executionRole === 'USER'
+    && output.totalLimits === orgEntries.size
+    && output.returnedLimits === returnedLimits
+    && output.unreadableLimits === orgEntries.size - orgMeasured
+    && output.truncated === (returnedLimits < orgEntries.size)
+    && (output.truncated !== true || typeof output.hint === 'string')
+    && sameArray(Object.keys(highlights), [...ORG_LIMIT_HIGHLIGHT_SLOTS]);
+
+  // `verbose` may change what the text says, never which limits come back — but the second call is
+  // a second live read, so a *value* may legitimately move between them (an API allowance ticking
+  // down). What the contract fixes is the key set, and that is what is compared.
+  const verboseResult = await call(client, results, 'get_org_limits', { verbose: true });
+  const verboseOutput = outputOf(verboseResult);
+  const verboseLimits = recordOf(verboseOutput?.limits);
+  const verboseFacts = verboseOutput?.success === true
+    && verboseOutput.verbose === true
+    && output.verbose === false
+    && verboseLimits !== undefined
+    && sameArray(Object.keys(verboseLimits).sort(), Object.keys(limits).sort());
+
+  return gate(
+    entryMismatches.length === 0 && highlightMismatches.length === 0 && facts && verboseFacts,
+    {
+      orgLimitCount: orgEntries.size,
+      orgMeasuredCount: orgMeasured,
+      // The org's own key names are org configuration, not credentials, and naming them is what
+      // makes this gate's evidence checkable.
+      orgKeys: [...orgEntries.keys()].slice(0, 20),
+      returnedLimits,
+      unreadableLimits: output.unreadableLimits,
+      truncated: output.truncated,
+      highlightSlots: Object.keys(highlights),
+      presentSlots: ORG_LIMIT_HIGHLIGHT_SLOTS.filter((slot) => recordOf(highlights[slot])?.present === true),
+      verbose: { reported: verboseOutput?.verbose, defaultReported: output.verbose, keySetUnchanged: verboseFacts },
+      entryMismatches: entryMismatches.slice(0, 10),
+      highlightMismatches: highlightMismatches.slice(0, 10),
+    },
+    'get_org_limits disagreed with the org\'s own limits reading.',
+  );
+}
+
+type OrgLimitsReading = Readonly<{
+  entries: ReadonlyMap<string, Readonly<{ max: number | null; remaining: number | null }>> | null;
+  observed: string;
+}>;
+
+/**
+ * Reads the org's own limits through the live Connection, keeping only what an independent check
+ * needs: the key set and the two numbers.
+ *
+ * Only the Salesforce error *code* is carried out on a refusal, never its message, so no org text
+ * reaches the report — the same rule `readCount` follows.
+ */
+async function readOrgLimits(connection: Connection): Promise<OrgLimitsReading> {
+  try {
+    const payload = await connection.limits() as unknown;
+    const record = recordOf(payload);
+    if (record === undefined) return Object.freeze({ entries: null, observed: 'a payload that is not a limit map' });
+    const entries = new Map<string, Readonly<{ max: number | null; remaining: number | null }>>();
+    for (const [key, value] of Object.entries(record)) {
+      if (key.length === 0) continue;
+      const entry = recordOf(value);
+      entries.set(key, Object.freeze({
+        max: numberOrNull(entry?.Max),
+        remaining: numberOrNull(entry?.Remaining),
+      }));
+    }
+    return Object.freeze({ entries, observed: `a map of ${entries.size} limits` });
+  } catch (error) {
+    return Object.freeze({
+      entries: null,
+      observed: `${salesforceErrorCodeOf(error) ?? 'no Salesforce error code'}`,
+    });
+  }
+}
+
+/**
+ * Cross-checks `search_records` against the org's own answer to the same statement.
+ *
+ * SOSL reports no total and hands out no cursor (findings §2), so nothing in the payload can be
+ * compared to itself: the only independent reference is the org's own record list for the exact
+ * statement the Tool reported sending. Two probes follow — an unscoped keyword search held to the
+ * Tool's maximum limit, and the same term scoped to one object — and each is judged against the
+ * org's count, not the Tool's.
+ *
+ * The term itself never reaches the report. It is read from a real record of the org, and an org's
+ * customer data is not this gate's to publish: only its length, the field it came from and the
+ * counts are recorded, which is what keeps the evidence checkable without carrying the data.
+ */
+async function runSearchRecords(
+  client: Client,
+  results: CallToolResult[],
+  connection: Connection,
+  objectApiName: string,
+  advertisedNames: readonly string[],
+): Promise<P9LiveGate> {
+  const term = await readSearchTerm(connection, objectApiName);
+  if (term === null) {
+    return notTested(
+      `No search term of at least two characters could be read from a ${objectApiName} record's `
+      + `${SEARCH_TERM_FIELDS.join(' or ')} field, so a live SOSL search cannot be derived for this object.`,
+    );
+  }
+  const scopedFields = ['Id', term.field];
+  const probes: readonly SearchProbeRequest[] = [
+    {
+      label: 'unscoped',
+      statement: expectedKeywordStatement(term.value, [], [], SEARCH_RECORDS_MAX_LIMIT),
+      limit: SEARCH_RECORDS_MAX_LIMIT,
+      argumentsValue: { search: term.value, limit: SEARCH_RECORDS_MAX_LIMIT },
+      scopedTo: null,
+    },
+    {
+      label: 'scoped',
+      statement: expectedKeywordStatement(term.value, [objectApiName], scopedFields, SEARCH_RECORDS_MAX_LIMIT),
+      limit: SEARCH_RECORDS_MAX_LIMIT,
+      argumentsValue: {
+        search: term.value,
+        objects: [objectApiName],
+        fields: scopedFields,
+        limit: SEARCH_RECORDS_MAX_LIMIT,
+      },
+      scopedTo: objectApiName,
+    },
+  ];
+
+  const probeDetails: Readonly<Record<string, unknown>>[] = [];
+  const mismatches: string[] = [];
+  for (const probe of probes) {
+    const reading = await readSearchCount(connection, probe.statement);
+    if (reading.count === null) {
+      return notTested(
+        `${probe.label}: the org refused the same SOSL statement with ${reading.observed}, so this probe is not a PASS.`,
+      );
+    }
+    const probeResult = await call(client, results, 'search_records', probe.argumentsValue);
+    const output = outputOf(probeResult);
+    if (output === undefined) return failGate(`search_records returned no structured content (${probe.label}).`);
+    if (output.success !== true) {
+      const code = String(output.errorCode ?? 'no error code');
+      // A transient platform fault is a real SOSL outcome (findings §7) and not a defect in the
+      // Tool, so it makes the probe untestable rather than failed.
+      if (code === 'MCP_SEARCH_RECORDS_FAILED' && output.salesforceErrorCode === 'SERVER_UNAVAILABLE') {
+        return notTested(
+          `${probe.label}: Salesforce answered the search with SERVER_UNAVAILABLE, which the findings record as transient.`,
+        );
+      }
+      return failGate(`search_records failed live (${probe.label}): ${code}.`);
+    }
+    const check = crossCheckSearchOutput(output, probe, reading.count, advertisedNames);
+    probeDetails.push(check.detail);
+    mismatches.push(...check.mismatches.map((entry) => `${probe.label}.${entry}`));
+  }
+
+  return gate(
+    mismatches.length === 0,
+    {
+      objectApiName,
+      termLength: term.value.length,
+      termField: term.field,
+      probes: probeDetails,
+      mismatches: mismatches.slice(0, 10),
+    },
+    'search_records completeness, grouping or truncation declaration disagreed with the org.',
+  );
+}
+
+type SearchTerm = Readonly<{ value: string; field: string }>;
+
+/** Record text fields a search term can be read from, in the order they are tried. */
+const SEARCH_TERM_FIELDS: readonly string[] = Object.freeze(['Name', 'Subject']);
+
+/**
+ * The live search term: the longest run of letters and digits in one record's own text field.
+ *
+ * Reducing a field value to a single alphanumeric token keeps the gate's prediction of the composed
+ * statement exact — such a term can never need escaping, so a difference between the statement the
+ * Tool reported and the one predicted here is a defect rather than a difference of opinion about
+ * SOSL's reserved characters. The escaping table itself is pinned byte for byte by the unit layer,
+ * which is where it belongs.
+ */
+async function readSearchTerm(connection: Connection, objectApiName: string): Promise<SearchTerm | null> {
+  for (const field of SEARCH_TERM_FIELDS) {
+    let payload: Readonly<Record<string, unknown>>;
+    try {
+      payload = await connection.query(
+        `SELECT Id, ${field} FROM ${objectApiName} LIMIT 1`,
+      ) as unknown as Readonly<Record<string, unknown>>;
+    } catch {
+      // The object may not have this field at all (Case and Task have no Name), which is a fact
+      // about the object rather than a gate failure: try the next one.
+      continue;
+    }
+    const first = readArray(payload.records)[0];
+    const raw = first === undefined ? undefined : first[field];
+    if (typeof raw !== 'string') continue;
+    const token = longestAlphanumericToken(raw);
+    if (token === null) continue;
+    return Object.freeze({ value: token, field });
+  }
+  return null;
+}
+
+function longestAlphanumericToken(value: string): string | null {
+  const tokens = value.split(/\s+/u)
+    .map((entry) => entry.replace(/[^\p{L}\p{N}]+/gu, ''))
+    .filter((entry) => entry.length >= 2);
+  return tokens.length === 0
+    ? null
+    : tokens.reduce((left, right) => (right.length > left.length ? right : left));
+}
+
+/** The statement `search_records` composes for a bare keyword, as its own contract documents it. */
+function expectedKeywordStatement(
+  term: string,
+  objects: readonly string[],
+  fields: readonly string[],
+  limit: number,
+): string {
+  const scope = objects.length === 0
+    ? ''
+    : ` RETURNING ${objects.map((name) => `${name}(${fields.join(', ')})`).join(', ')}`;
+  return `FIND {${term}} IN ALL FIELDS${scope} LIMIT ${limit}`;
+}
+
+type SearchProbeRequest = Readonly<{
+  label: string;
+  statement: string;
+  limit: number;
+  argumentsValue: Readonly<Record<string, unknown>>;
+  /** The one object this probe was scoped to, or null when it was unscoped. */
+  scopedTo: string | null;
+}>;
+
+type SearchReading = Readonly<{ count: number | null; observed: string }>;
+
+/**
+ * The org's own count for one SOSL statement, read over the live Connection.
+ *
+ * SOSL answers with records and nothing else, so the count *is* the whole of what can be compared.
+ * A refusal carries only its Salesforce code, never its message.
+ */
+async function readSearchCount(connection: Connection, statement: string): Promise<SearchReading> {
+  try {
+    const payload = await connection.search(statement) as unknown as Readonly<Record<string, unknown>>;
+    const records = readArray(payload.searchRecords);
+    return Object.freeze({ count: records.length, observed: `the org returned ${records.length} records` });
+  } catch (error) {
+    return Object.freeze({
+      count: null,
+      observed: `${salesforceErrorCodeOf(error) ?? 'no Salesforce error code'}`,
+    });
+  }
+}
+
+/**
+ * Everything the Tool's own contract commits it to, checked against the org's count.
+ *
+ * The truncation declaration is re-derived here rather than read back: a result is truncated exactly
+ * when the cap was reached, a readable per-object cap was reached, or the response budget cut the
+ * payload — and the reason names the constraint that bound the *returned* slice, in that precedence.
+ * `complete` is then re-derived from the same facts, so a Tool that claimed more than its own
+ * numbers support fails rather than passes.
+ */
+function crossCheckSearchOutput(
+  output: Readonly<Record<string, unknown>>,
+  probe: SearchProbeRequest,
+  orgCount: number,
+  advertisedNames: readonly string[],
+): Readonly<{ detail: Readonly<Record<string, unknown>>; mismatches: readonly string[] }> {
+  const mismatches: string[] = [];
+  const groups = recordOf(output.resultsByObject) ?? {};
+  const groupNames = Object.keys(groups);
+  const groupOf = (name: string): Readonly<Record<string, unknown>> => recordOf(groups[name]) ?? {};
+  const counts = groupNames.map((name) => numberOrNull(groupOf(name).count) ?? -1);
+  const returnedCounts = groupNames.map((name) => numberOrNull(groupOf(name).returnedCount) ?? -1);
+  const sumCounts = counts.reduce((total, value) => total + value, 0);
+  const sumReturned = returnedCounts.reduce((total, value) => total + value, 0);
+  const anyAtLimit = groupNames.some((name) => groupOf(name).atLimit === true);
+  // The budget cut is measured against what Salesforce returned, not against `totalReturned`: a
+  // record whose object type could not be read is counted in `totalReturned` and listed nowhere, so
+  // the two only coincide when every record was classifiable.
+  const budgetCut = sumReturned < sumCounts;
+  const effectiveLimit = numberOrNull(output.effectiveLimit);
+  const totalReturned = numberOrNull(output.totalReturned) ?? -1;
+  const limitReached = effectiveLimit !== null && totalReturned >= effectiveLimit;
+  const expectedTruncated = limitReached || anyAtLimit || budgetCut;
+  const expectedReason = budgetCut
+    ? 'RESPONSE_BUDGET'
+    : limitReached
+      ? 'LIMIT_REACHED'
+      : anyAtLimit
+        ? 'PER_OBJECT_LIMIT'
+        : null;
+  const unreadable = numberOrNull(output.unreadableRecords) ?? -1;
+  const expectedComplete = !expectedTruncated && unreadable === 0 && effectiveLimit !== null
+    && totalReturned < effectiveLimit;
+  const hint = typeof output.hint === 'string' ? output.hint : '';
+  const namedTools = HINT_TOOL_CANDIDATES.filter((name) => hint.includes(name));
+  const misfiled = groupNames.flatMap((name) => readArray(groupOf(name).records)
+    .filter((record) => readRecordObjectType(record) !== name)
+    .map(() => name));
+
+  const check = (condition: boolean, message: string): void => {
+    if (!condition) mismatches.push(message);
+  };
+  check(output.executionRole === 'USER', `executionRole=${String(output.executionRole)}`);
+  check(output.mode === 'KEYWORD', `mode=${String(output.mode)}`);
+  check(output.statement === probe.statement, 'the statement sent is not the one this gate predicted for the input');
+  check(output.limitSource === 'REQUEST', `limitSource=${String(output.limitSource)}`);
+  check(effectiveLimit === probe.limit, `effectiveLimit=${String(output.effectiveLimit)} for limit=${probe.limit}`);
+  check(totalReturned === orgCount, `totalReturned=${totalReturned} but the org returned ${orgCount} for the same statement`);
+  check(output.returnedCount === sumReturned, `returnedCount=${String(output.returnedCount)} but the groups hold ${sumReturned}`);
+  check(output.objectsReturned === groupNames.length, `objectsReturned=${String(output.objectsReturned)} for ${groupNames.length} groups`);
+  check(output.truncated === expectedTruncated, `truncated=${String(output.truncated)} but the facts imply ${expectedTruncated}`);
+  check(output.truncatedReason === expectedReason, `truncatedReason=${String(output.truncatedReason)} but the facts imply ${String(expectedReason)}`);
+  check(output.complete === expectedComplete, `complete=${String(output.complete)} but the facts imply ${expectedComplete}`);
+  check(output.truncated !== true || hint.length > 0, 'a truncated result carried no hint');
+  check(namedTools.every((name) => advertisedNames.includes(name)), `the hint names unadvertised Tools: ${namedTools.filter((name) => !advertisedNames.includes(name)).join(', ')}`);
+  check(misfiled.length === 0, `records filed under an object their own attributes.type does not name: ${misfiled.slice(0, 5).join(', ')}`);
+  if (probe.scopedTo !== null) {
+    check(
+      groupNames.length === 1 && groupNames[0] === probe.scopedTo,
+      `a search scoped to ${probe.scopedTo} returned ${groupNames.join(', ') || 'no'} groups`,
+    );
+  }
+
+  return Object.freeze({
+    detail: Object.freeze({
+      limit: probe.limit,
+      orgCount,
+      mode: output.mode,
+      statementMatchesPrediction: output.statement === probe.statement,
+      groups: groupNames,
+      totalReturned,
+      returnedCount: output.returnedCount,
+      unreadableRecords: output.unreadableRecords,
+      objectsReturned: output.objectsReturned,
+      effectiveLimit,
+      limitSource: output.limitSource,
+      truncated: output.truncated,
+      truncatedReason: output.truncatedReason,
+      complete: output.complete,
+      budgetCut,
+      limitReached,
+      anyAtLimit,
+      hintPresent: hint.length > 0,
+      toolNamesInHint: namedTools,
+    }),
+    mismatches: Object.freeze(mismatches),
+  });
+}
+
+/** The object a record was filed under, as Salesforce labelled it on the record itself. */
+function readRecordObjectType(record: Readonly<Record<string, unknown>>): string | null {
+  const attributes = recordOf(record.attributes);
+  const type = attributes?.type ?? attributes?.sobjectType;
+  return typeof type === 'string' && type.length > 0 ? type : null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function recordOf(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+}
+
 async function runSchemaSelfRepair(
   client: Client,
   results: CallToolResult[],
@@ -1034,8 +1526,8 @@ function failGate(failure: string): P9LiveGate {
   return Object.freeze({ status: 'FAIL', detail: Object.freeze({ failure }) });
 }
 
-function notTested(reason: string): P9LiveGate {
-  return Object.freeze({ status: 'NOT TESTED', detail: Object.freeze({ reason }) });
+function notTested(reason: string, detail: Readonly<Record<string, unknown>> = {}): P9LiveGate {
+  return Object.freeze({ status: 'NOT TESTED', detail: Object.freeze({ reason, ...detail }) });
 }
 
 function combine(gates: readonly P9LiveGate[]): 'PASS' | 'PARTIAL' | 'FAIL' {

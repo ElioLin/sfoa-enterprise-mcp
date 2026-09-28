@@ -250,7 +250,12 @@ export function readBatch(value: unknown): QueryBatch {
   });
 }
 
-function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+/**
+ * A Salesforce row is a plain object; anything else (a scalar, a nested array) cannot be one. Shared
+ * with `search_records`, which drops the same shape for the same reason rather than reporting a
+ * record an Agent would then try to read a field out of.
+ */
+export function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 

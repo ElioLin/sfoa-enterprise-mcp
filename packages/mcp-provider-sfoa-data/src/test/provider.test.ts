@@ -15,10 +15,19 @@ function services(): Services {
 }
 
 test('every P9 Data Tool is a READ capability executed as the request USER', () => {
-  assert.deepEqual([...SFOA_DATA_TOOL_NAMES].sort(), ['describe_sobject', 'list_sobjects', 'query_records']);
+  assert.deepEqual(
+    [...SFOA_DATA_TOOL_NAMES].sort(),
+    ['describe_sobject', 'get_org_limits', 'list_sobjects', 'query_records', 'search_records'],
+  );
   assert.deepEqual(
     { ...SFOA_DATA_TOOL_ROLES },
-    { list_sobjects: 'USER', describe_sobject: 'USER', query_records: 'USER' },
+    {
+      list_sobjects: 'USER',
+      describe_sobject: 'USER',
+      query_records: 'USER',
+      get_org_limits: 'USER',
+      search_records: 'USER',
+    },
   );
 });
 
@@ -38,7 +47,7 @@ test('the provider is named and provides every Data Tool when no subset is reque
   const tools = await provider.provideTools(services());
   assert.deepEqual(
     tools.map((tool) => tool.getName()).sort(),
-    ['describe_sobject', 'list_sobjects', 'query_records'],
+    ['describe_sobject', 'get_org_limits', 'list_sobjects', 'query_records', 'search_records'],
   );
   for (const tool of tools) {
     assert.deepEqual(tool.getToolsets(), ['data']);

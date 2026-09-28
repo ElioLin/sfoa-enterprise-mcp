@@ -4,26 +4,37 @@ import { ReleaseState, Toolset } from '@salesforce/mcp-provider-api';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { DescribeSobjectExecutor } from '../describe-sobject-executor.js';
 import { ListSobjectsExecutor } from '../list-sobjects-executor.js';
+import { OrgLimitsExecutor } from '../org-limits-executor.js';
 import { QueryRecordsExecutor } from '../query-records-executor.js';
+import { SearchRecordsExecutor } from '../search-records-executor.js';
 import {
   describeSobjectOutputSchema,
   listSobjectsOutputSchema,
+  orgLimitsOutputSchema,
   queryRecordsOutputSchema,
+  searchRecordsOutputSchema,
   type DescribeSobjectInput,
   type ListSobjectsInput,
+  type OrgLimitsInput,
   type QueryRecordsInput,
+  type SearchRecordsInput,
 } from '../schemas.js';
 import { DescribeSobjectMcpTool } from '../tools/describe-sobject.js';
+import { GetOrgLimitsMcpTool } from '../tools/get-org-limits.js';
 import { ListSobjectsMcpTool } from '../tools/list-sobjects.js';
 import { QueryRecordsMcpTool } from '../tools/query-records.js';
+import { SearchRecordsMcpTool } from '../tools/search-records.js';
 import {
   createFixture,
   describeGlobalPayload,
   describePayload,
   fieldEntry,
+  limitsPayload,
   queryBatch,
   rows,
   salesforceError,
+  searchPayload,
+  searchRecord,
   sobjectEntry,
 } from './data-fixtures.js';
 
@@ -44,6 +55,26 @@ function queryTool(
   );
 }
 
+function limitsTool(handler: (operation: string, argument?: string) => unknown): GetOrgLimitsMcpTool {
+  return new GetOrgLimitsMcpTool(new OrgLimitsExecutor(createFixture({ handler }).orgService));
+}
+
+function searchTool(
+  handler: (operation: string, argument?: string) => unknown,
+  enabledToolNames?: readonly string[],
+): SearchRecordsMcpTool {
+  return new SearchRecordsMcpTool(
+    new SearchRecordsExecutor(createFixture({ handler }).orgService, { enabledToolNames }),
+  );
+}
+
+type DataTool =
+  | ListSobjectsMcpTool
+  | DescribeSobjectMcpTool
+  | QueryRecordsMcpTool
+  | GetOrgLimitsMcpTool
+  | SearchRecordsMcpTool;
+
 function structured(result: CallToolResult): Record<string, unknown> {
   assert.ok(result.structuredContent !== undefined, 'every Data Tool result carries structuredContent');
   return result.structuredContent;
@@ -55,13 +86,13 @@ function textOf(result: CallToolResult): string {
   return first.text;
 }
 
-function annotationsOf(tool: ListSobjectsMcpTool | DescribeSobjectMcpTool | QueryRecordsMcpTool): Record<string, unknown> {
+function annotationsOf(tool: DataTool): Record<string, unknown> {
   const annotations = tool.getConfig().annotations;
   assert.ok(annotations !== undefined, 'every Data Tool declares annotations');
   return annotations;
 }
 
-function descriptionOf(tool: ListSobjectsMcpTool | DescribeSobjectMcpTool | QueryRecordsMcpTool): string {
+function descriptionOf(tool: DataTool): string {
   const description = tool.getConfig().description;
   assert.ok(description !== undefined, 'every Data Tool describes itself to the Agent');
   return description;
@@ -362,4 +393,253 @@ test('a query_records result never names a Tool this session does not advertise'
   const text = textOf(result);
   assert.doesNotMatch(text, /submit_bulk_query|get_org_limits/u);
   assert.match(text, /ask an administrator to enable the bulk query capability/u);
+});
+
+test('get_org_limits declares a GA, DATA, read-only contract and says when to call it', () => {
+  const tool = limitsTool(() => limitsPayload({ DailyApiRequests: { Max: 100, Remaining: 40 } }));
+
+  assert.equal(tool.getName(), 'get_org_limits');
+  assert.equal(tool.getReleaseState(), ReleaseState.GA);
+  assert.deepEqual(tool.getToolsets(), [Toolset.DATA]);
+
+  const annotations = annotationsOf(tool);
+  assert.equal(annotations.readOnlyHint, true);
+  assert.equal(annotations.destructiveHint, false);
+  assert.ok(tool.getConfig().inputSchema !== undefined);
+  assert.ok(tool.getConfig().outputSchema !== undefined);
+
+  // The whole point of the Tool is to be called *before* the expensive thing, so the description
+  // has to say so: an Agent that only finds it after a failure has already spent the allowance.
+  const description = descriptionOf(tool);
+  assert.match(description, /before a bulk or otherwise large query/u);
+  for (const slot of ['DailyApiRequests', 'DailyBulkApiRequests', 'DailyAsyncApexExecutions', 'DataStorageMB', 'FileStorageMB']) {
+    assert.ok(description.includes(slot), `${slot} must be named in the description`);
+  }
+  assert.match(description, /never modifies data/u);
+});
+
+test('a successful get_org_limits result satisfies its own declared output schema and prints the five slots', async () => {
+  const tool = limitsTool(() => limitsPayload({
+    DailyApiRequests: { Max: 100, Remaining: 40 },
+    DailyBulkV2QueryJobs: { Max: 10_000, Remaining: 9_999 },
+    ConcurrentAsyncGetReportInstances: { Max: 200 },
+  }));
+  const result = await tool.exec({});
+
+  assert.equal(result.isError, undefined);
+  const output = structured(result);
+  assert.deepEqual(orgLimitsOutputSchema.parse(output), output);
+  assert.equal(output.success, true);
+  assert.equal(output.executionRole, 'USER');
+  assert.equal(output.api, 'REST');
+  assert.equal(output.totalLimits, 3);
+  assert.equal(output.truncated, false);
+
+  const text = textOf(result);
+  assert.match(text, /^get_org_limits: totalLimits=3 returnedLimits=3 unreadableLimits=0 truncated=false verbose=false$/mu);
+  assert.match(text, /^  DailyApiRequests: max=100 remaining=40 used=60 \(key=DailyApiRequests\)$/mu);
+  // The org reported the Bulk API 2.0 key, so the slot line keeps the documented Bulk API 1.0 title
+  // and states which key actually filled it. A caller comparing against Setup needs the real name.
+  assert.match(text, /^  DailyBulkApiRequests: max=10000 remaining=9999 used=1 \(key=DailyBulkV2QueryJobs\)$/mu);
+  assert.match(text, /^  DailyAsyncApexExecutions: not reported by this org \(present=false, key=null\)$/mu);
+  assert.match(text, /^  DataStorageMB: not reported by this org \(present=false, key=null\)$/mu);
+  assert.match(text, /^  FileStorageMB: not reported by this org \(present=false, key=null\)$/mu);
+});
+
+test('a get_org_limits text answer mirrors the structured table, and verbose changes only the text', async () => {
+  const payload = () => limitsPayload({
+    DailyApiRequests: { Max: 100, Remaining: 40 },
+    ConcurrentAsyncGetReportInstances: { Max: 200 },
+  });
+
+  const terse = await limitsTool(payload).exec({});
+  const verbose = await limitsTool(payload).exec({ verbose: true });
+
+  // `limits` is the full table either way: a field named `limits` must never be a subset of itself
+  // depending on a formatting switch, or a client cannot cache or compare two answers.
+  assert.deepEqual(structured(verbose).limits, structured(terse).limits);
+  assert.deepEqual(structured(verbose).highlights, structured(terse).highlights);
+  assert.equal(structured(terse).verbose, false);
+  assert.equal(structured(verbose).verbose, true);
+
+  assert.doesNotMatch(textOf(terse), /Limits \(2 entries\):/u);
+  assert.match(textOf(verbose), /^Limits \(2 entries\):$/mu);
+  assert.match(textOf(verbose), /^  ConcurrentAsyncGetReportInstances: \{"max":200,"remaining":null,"used":null,"measured":true\}$/mu);
+});
+
+test('an org that refuses the limits resource is reported as an access denial, not as an empty org', async () => {
+  const tool = limitsTool(() => {
+    throw salesforceError('API_DISABLED_FOR_ORG', 'limits resource is not enabled');
+  });
+  const result = await tool.exec({});
+
+  assert.equal(result.isError, true);
+  const output = structured(result);
+  assert.equal(output.success, false);
+  assert.equal(output.errorCode, 'MCP_LIMITS_ACCESS_DENIED');
+  assert.equal(output.salesforceErrorCode, 'API_DISABLED_FOR_ORG');
+  // One Salesforce code covers two different causes, so the message names both rather than guessing.
+  assert.match(String(output.message), /refused to report/u);
+  assert.match(String(output.suggestion), /View Setup and Configuration/u);
+  assert.match(String(output.suggestion), /other Salesforce Tools are unaffected/u);
+  assert.doesNotMatch(textOf(result), /\bstack\b/iu);
+  assert.deepEqual(orgLimitsOutputSchema.parse(output), output);
+});
+
+test('a limits payload with nothing readable fails rather than reporting an org without limits', async () => {
+  const tool = limitsTool(() => limitsPayload({ DailyApiRequests: { Max: '100' } }));
+  const result = await tool.exec({});
+
+  assert.equal(result.isError, true);
+  const output = structured(result);
+  assert.equal(output.errorCode, 'MCP_LIMITS_READ_FAILED');
+  assert.equal(output.limits, undefined, 'an empty table would read as "this org has no limits"');
+  assert.deepEqual(orgLimitsOutputSchema.parse(output), output);
+});
+
+test('search_records declares a GA, DATA, read-only contract and states what SOSL cannot do', () => {
+  const tool = searchTool(() => searchPayload([]));
+
+  assert.equal(tool.getName(), 'search_records');
+  assert.equal(tool.getReleaseState(), ReleaseState.GA);
+  assert.deepEqual(tool.getToolsets(), [Toolset.DATA]);
+
+  const annotations = annotationsOf(tool);
+  assert.equal(annotations.readOnlyHint, true);
+  assert.equal(annotations.destructiveHint, false);
+  assert.ok(tool.getConfig().inputSchema !== undefined);
+  assert.ok(tool.getConfig().outputSchema !== undefined);
+
+  const description = descriptionOf(tool);
+  // The Agent picks between this and query_records, so the difference has to be in the description:
+  // SOSL is the cross-object lookup SOQL structurally cannot express.
+  assert.match(description, /the lookup SOQL cannot do/u);
+  assert.match(description, /query_records once you know the object/u);
+  assert.match(description, /One search per call/u);
+  assert.match(description, /no continuation cursor/u);
+  assert.match(description, /never modifies data or locks rows/u);
+});
+
+test('a bare keyword is composed into SOSL byte for byte, and the result satisfies its own schema', async () => {
+  const tool = searchTool(() => searchPayload([searchRecord('Account', { Name: 'Acme' })]));
+  const result = await tool.exec({ search: 'acme', objects: ['Account'], limit: 5 });
+
+  assert.equal(result.isError, undefined);
+  const output = structured(result);
+  assert.deepEqual(searchRecordsOutputSchema.parse(output), output);
+  assert.equal(output.mode, 'KEYWORD');
+  assert.equal(output.statement, 'FIND {acme} IN ALL FIELDS RETURNING Account(Id, Name) LIMIT 5');
+  assert.equal(output.limitSource, 'REQUEST');
+  assert.equal(output.effectiveLimit, 5);
+  assert.equal(output.totalReturned, 1);
+
+  const text = textOf(result);
+  assert.match(text, /^SOSL: FIND \{acme\} IN ALL FIELDS RETURNING Account\(Id, Name\) LIMIT 5$/mu);
+  assert.match(text, /^Account: count=1 returnedCount=1 atLimit=false$/mu);
+});
+
+test('a complete FIND clause is passed through unchanged, with its own limit as the effective cap', async () => {
+  const clause = 'FIND {acme} IN ALL FIELDS RETURNING Account(Id, Name), Contact(Id, Name) LIMIT 7';
+  const tool = searchTool(() => searchPayload([searchRecord('Contact', { Name: 'Acme Ltd' })]));
+  const result = await tool.exec({ search: clause });
+
+  const output = structured(result);
+  assert.deepEqual(searchRecordsOutputSchema.parse(output), output);
+  assert.equal(output.mode, 'STATEMENT');
+  assert.equal(output.statement, clause, 'the caller\'s own clause is never rewritten');
+  assert.equal(output.limitSource, 'STATEMENT');
+  assert.equal(output.effectiveLimit, 7);
+  assert.equal(output.complete, true);
+});
+
+test('a clause with no LIMIT is reported as unprovable rather than as a complete slice', async () => {
+  const tool = searchTool(() => searchPayload([searchRecord('Account', { Name: 'Acme' })]));
+  const result = await tool.exec({ search: 'FIND {acme} IN ALL FIELDS RETURNING Account(Id, Name)' });
+
+  const output = structured(result);
+  assert.equal(output.limitSource, 'UNSPECIFIED');
+  assert.equal(output.effectiveLimit, null);
+  assert.equal(output.complete, false);
+  assert.equal(output.truncated, false);
+  // Not truncated and not complete is the one combination a naive reading would collapse, so the
+  // hint has to explain why: SOSL reports no total, so nothing here can prove the set is whole.
+  assert.match(String(output.hint), /no total match count/u);
+  assert.match(String(output.hint), /Add a LIMIT to the clause/u);
+});
+
+test('an illegal search is rejected before any Salesforce call', async () => {
+  const rejected: ReadonlyArray<Readonly<{ label: string; input: Readonly<Record<string, unknown>> }>> = [
+    { label: 'semicolon in keyword', input: { search: 'acme; LIMIT 5' } },
+    { label: 'semicolon in clause', input: { search: 'FIND {acme} IN ALL FIELDS; FIND {other}' } },
+    { label: 'brace in keyword', input: { search: '{acme}' } },
+    { label: 'over-long search', input: { search: 'a'.repeat(2_001) } },
+    { label: 'objects with a complete clause', input: { search: 'FIND {acme} IN ALL FIELDS', objects: ['Account'] } },
+    { label: 'limit with a complete clause', input: { search: 'FIND {acme} IN ALL FIELDS', limit: 5 } },
+    { label: 'fields without objects', input: { search: 'acme', fields: ['Id'] } },
+    { label: 'limit above the cap', input: { search: 'acme', limit: 201 } },
+    { label: 'limit of zero', input: { search: 'acme', limit: 0 } },
+    { label: 'non-integer limit', input: { search: 'acme', limit: 1.5 } },
+    { label: 'too many objects', input: { search: 'acme', objects: Array.from({ length: 21 }, (_, index) => `Object${index}__c`) } },
+    { label: 'object with a relationship path', input: { search: 'acme', objects: ['Account.Name'] } },
+    { label: 'object beginning with a digit', input: { search: 'acme', objects: ['1Account'] } },
+    { label: 'empty search', input: { search: '   ' } },
+  ];
+  for (const { label, input } of rejected) {
+    let called = false;
+    const tool = searchTool(() => {
+      called = true;
+      return searchPayload([]);
+    });
+    const result = await tool.exec(input as unknown as SearchRecordsInput);
+
+    assert.equal(result.isError, true, `${label} must be rejected`);
+    const output = structured(result);
+    assert.equal(output.errorCode, 'MCP_DATA_INVALID_INPUT', `${label} must be an input rejection`);
+    assert.deepEqual(searchRecordsOutputSchema.parse(output), output);
+    assert.equal(called, false, `${label} must not reach Salesforce`);
+  }
+});
+
+test('a search_records failure stays an isError result with an example and no stack trace', async () => {
+  const tool = searchTool(() => { throw salesforceError('MALFORMED_SEARCH', 'unexpected token: RETRNING'); });
+  const result = await tool.exec({ search: 'acme' });
+
+  assert.equal(result.isError, true);
+  const output = structured(result);
+  assert.equal(output.errorCode, 'MCP_SEARCH_MALFORMED');
+  assert.equal(output.salesforceErrorCode, 'MALFORMED_SEARCH');
+  assert.match(String(output.suggestion), /FIND \{term\} IN ALL FIELDS RETURNING Account\(Id, Name\) LIMIT 20/u);
+  assert.doesNotMatch(textOf(result), /at .*\.(ts|js):\d+/u);
+  assert.doesNotMatch(textOf(result), /\bstack\b/iu);
+  assert.deepEqual(searchRecordsOutputSchema.parse(output), output);
+});
+
+test('the search limit hint names get_org_limits only when this session advertises it', async () => {
+  const exhausted = () => { throw salesforceError('REQUEST_LIMIT_EXCEEDED', 'Request limit exceeded'); };
+
+  const withLimits = await searchTool(exhausted, ['search_records', 'get_org_limits']).exec({ search: 'acme' });
+  assert.equal(structured(withLimits).errorCode, 'MCP_SEARCH_LIMIT_EXCEEDED');
+  assert.match(textOf(withLimits), /get_org_limits/u);
+
+  const withoutLimits = await searchTool(exhausted, ['search_records']).exec({ search: 'acme' });
+  assert.equal(structured(withoutLimits).errorCode, 'MCP_SEARCH_LIMIT_EXCEEDED');
+  assert.doesNotMatch(textOf(withoutLimits), /get_org_limits/u);
+  assert.match(textOf(withoutLimits), /24-hour rolling allowance/u);
+});
+
+test('a search hint never names a Tool this session does not advertise', async () => {
+  const tool = searchTool(() => searchPayload([searchRecord('Account', { Name: 'Acme' })]), ['search_records']);
+  const result = await tool.exec({ search: 'acme' });
+
+  // With no objects named every row is an opaque id, so the hint wants to recommend query_records by
+  // name — which it may only do when this session actually advertises it.
+  const without = textOf(result);
+  assert.doesNotMatch(without, /query_records/u);
+  assert.match(without, /Name objects and fields for readable rows\./u);
+
+  const withQuery = searchTool(
+    () => searchPayload([searchRecord('Account', { Name: 'Acme' })]),
+    ['search_records', 'query_records'],
+  );
+  assert.match(textOf(await withQuery.exec({ search: 'acme' })), /read these Ids with query_records/u);
 });

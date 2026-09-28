@@ -125,7 +125,14 @@ async function closeAuditDatabaseBounded(database: ControlPlaneDatabaseClient): 
  * The staging store is the Control Plane, so an enabled ingress without MySQL has
  * nowhere to record a reference and is refused rather than started half-wired.
  */
-function createAttachmentIngress(
+/**
+ * Builds the attachment ingress, or nothing when the capability is switched off.
+ *
+ * Exported because a validation harness that starts its own in-process server must bind the same
+ * ingress the deployed runtime binds: an enabled attachment Tool with no ingress bound is refused
+ * outright, so without this the gates could not run against any Control Plane that enables one.
+ */
+export function createAttachmentIngress(
   config: Awaited<ReturnType<typeof loadRemoteRuntimeConfig>>,
   store: MySqlControlPlaneStore,
 ): AttachmentIngress | undefined {
