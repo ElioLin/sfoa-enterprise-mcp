@@ -16,16 +16,27 @@ T4 depends on) and `search_records` (GAP-D5). The official `run_soql_query` and 
   (default `Id, Name`) and takes an optional `fields` input; and `attributes.sobjectType` is
   **absent**, so records are grouped by `attributes.type`. Both findings are in
   `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §4 and §3.
-- **The org refuses the limits resource org-wide.** `Connection.limits()` fails with
-  `API_DISABLED_FOR_ORG "limits resource is not enabled"`, identically for four enabled identity
-  routes and for the raw REST path at API v68.0/v62.0/v58.0/v50.0, with `limits` absent from the
-  ~50 root resources the org advertises. `get_org_limits` is therefore correct and **cannot
-  return data in this org**: its live gate is `NOT TESTED` and must never be `PASS`, because
-  calling a refusal a pass would claim a read that never happened. The consequence reaches past
-  T3 — the P9-3 → P9-4 dependency recorded in the gap analysis cannot be satisfied here, so T4's
-  quota pre-flight can only be best-effort. The gate does not skip the path: it calls the Tool
+- **The limits resource is refused to every identity SFOA can currently route.** `Connection.limits()`
+  fails with `API_DISABLED_FOR_ORG "limits resource is not enabled"`, identically for four enabled
+  identity routes and for the raw REST path at API v68.0/v62.0/v58.0/v50.0, with `limits` absent
+  from the ~50 root resources the org advertises. All four are integration identities of this one
+  deployment sharing a profile shape, and **no administrator identity was tested** — so what is
+  measured is that no identity SFOA can route is allowed the read, not that the org forbids it.
+  The leading cause is a **missing permission rather than an org-wide switch**: `API Enabled` is
+  provably present (the same identities run `query`/`describeGlobal`/`search`, and a missing
+  `API Enabled` reports a different code, `API_CURRENTLY_DISABLED`), while `limits resource is not
+  enabled` is what Salesforce returns when the connecting user lacks **View Setup and
+  Configuration** — a read-only permission that would also explain the uniformity across four
+  identities, since they share a profile. One administrator request to
+  `GET /services/data/v68.0/limits` settles it. `get_org_limits` is therefore correct but
+  **cannot return data through the identities this deployment routes**: its live gate is
+  `NOT TESTED` and must never be `PASS`, because calling a refusal a pass would claim a read that
+  never happened. Granting the routed user that permission, or routing one that has it, turns the
+  gate into a real `PASS` with no code change. The gate does not skip the path: it calls the Tool
   once anyway and requires a structured `MCP_LIMITS_ACCESS_DENIED` with a suggestion, failing if
-  anything else comes back.
+  anything else comes back. Until the permission question is settled the P9-3 → P9-4 dependency
+  recorded in the gap analysis cannot be satisfied, so T4's quota pre-flight can only be
+  best-effort.
 - **A quota slot that is absent is reported as absent.** `highlights` carries exactly five slots
   (`dailyApiRequests`, `dailyBulkApiRequests`, `dailyAsyncApexExecutions`, `dataStorageMB`,
   `fileStorageMB`), written out in full in the schema so dropping one is a compile error, and

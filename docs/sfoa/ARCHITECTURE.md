@@ -861,8 +861,13 @@ because guessing at a shape the limits resource does not produce would put an in
 in front of a job-sizing decision. A payload with no readable entry is a failure, not an empty
 success, and a refusal by the org is one `MCP_LIMITS_ACCESS_DENIED` whose suggestion confines
 the failure to quota visibility. `verbose` changes the **text only** — `structuredContent.limits`
-is identical either way. This org refuses the limits resource org-wide
-(`API_DISABLED_FOR_ORG`), so the Tool is correct but cannot return data here; see ADR-0026.
+is identical either way. No identity SFOA can currently route is allowed to read this resource:
+`Connection.limits()` answers `API_DISABLED_FOR_ORG` for the four integration identities the
+Control Plane routes, at every API version from v50.0 to v68.0. The leading cause is a missing
+`View Setup and Configuration` permission on those identities rather than an org-wide switch —
+`API Enabled` is provably present, since the same identities run `query`/`describeGlobal`/
+`search`, and a missing `API Enabled` reports a different error code. The Tool is correct and
+becomes readable the moment an identity permitted to read it is routed; see ADR-0026.
 
 `search_records` exists because `query_records` needs an object and a field list up front, so
 "which record anywhere mentions this term" has no SOQL equivalent at all (GAP-D5). A bare

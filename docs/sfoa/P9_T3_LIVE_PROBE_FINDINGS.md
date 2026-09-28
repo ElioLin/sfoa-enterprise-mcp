@@ -5,7 +5,7 @@ Throwaway probe run against the live org through the harness's own request-scope
 The probe code was deleted after the run; these are its recorded facts, the same way ADR-0024
 records its findings.
 
-## 1. The org does not expose the governor-limits resource at all
+## 1. The limits resource is refused to every identity SFOA can currently route
 
 `Connection.limits()` fails with:
 
@@ -13,7 +13,7 @@ records its findings.
 API_DISABLED_FOR_ORG  "limits resource is not enabled"
 ```
 
-Established as **org-level, not jsforce, not the identity, not the API version**:
+Established by measurement:
 
 - Identical for 4 distinct enabled identity routes.
 - Identical for the raw REST path `/services/data/<version>/limits` at `v68.0`, `v62.0`,
@@ -21,10 +21,36 @@ Established as **org-level, not jsforce, not the identity, not the API version**
 - `GET /services/data/v68.0/` lists ~50 root resources — `metadata`, `query`, `search`,
   `tooling`, `sobjects`, … — and **`limits` is absent**.
 
-Consequence: `get_org_limits` can be implemented and is correct, but it cannot return data in
-this org. Its live gate must report `NOT TESTED` with this reason and must never report `PASS`.
-This also means the P9-3 → P9-4 dependency recorded in the gap analysis (Bulk pre-flight reads
-the quota) cannot be satisfied in this org, so T4 must treat a quota pre-flight as best-effort.
+**What this does not establish.** All four routes are integration identities of this one
+deployment sharing a profile shape, and **no administrator identity was ever tested**. So "the
+org does not expose the resource" is an inference, not a measurement; what is measured is that
+no identity SFOA can currently route is allowed to read it. An earlier draft of this document
+and of ADR-0026 called it org-wide, which claimed more than the probe showed.
+
+**The likely cause is a missing permission, not an org-wide switch.** Two facts point the same
+way. `API Enabled` is provably present — the same identities run `query`, `describeGlobal` and
+`search` successfully, and a missing `API Enabled` reports a different code
+(`API_CURRENTLY_DISABLED`, "API is disabled for this User"). And `limits resource is not
+enabled` is the code Salesforce returns when the connecting user lacks **View Setup and
+Configuration**, a read-only permission about org setup that grants no change. It would also
+explain the uniformity across four identities, since they share a profile.
+
+A second candidate is the identity's **user licence type**: some restricted licences cannot be
+granted `View Setup and Configuration` at all, which would make it unfixable without
+reprovisioning the user. Our own result is weak evidence that something here is non-standard,
+since several sources state that current API versions no longer produce this error and we
+reproduce it on `v68.0`.
+
+**Settled in one request.** As an administrator, `GET /services/data/v68.0/limits`. A JSON body
+means the permission is the whole story; the same 403 means it is not. Nothing else in this
+document or in ADR-0026 depends on which.
+
+Consequence: `get_org_limits` is correctly implemented but cannot return data through any
+identity SFOA can currently route. Its live gate reports `NOT TESTED` with the Salesforce code
+and must never report `PASS` — a refusal is not a successful read. It becomes a real `PASS` as
+soon as an identity permitted to read the resource is routed, with no code change. Until then
+the P9-3 → P9-4 dependency recorded in the gap analysis (Bulk pre-flight reads the quota) cannot
+be satisfied here, so T4 must treat a quota pre-flight as best-effort.
 
 ## 2. `Connection.search()` returns records and nothing else
 

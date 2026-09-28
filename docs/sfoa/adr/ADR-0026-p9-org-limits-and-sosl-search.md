@@ -99,10 +99,10 @@ that matters, namely that every slot is present. Dropping one is a compile error
 test pins the key set to the slot list so the two cannot drift.
 
 `ORG_LIMIT_HIGHLIGHT_ALIASES` is **not verified against a live org**: the limits resource was
-refused org-wide at every API version and for four distinct identities (findings §1), so the
-non-Bulk names come from Salesforce's documentation rather than from an observed payload. A miss
-is not a failure — the slot reports `present: false`, which is the answer to whether this org
-meters the resource.
+refused at every API version and for all four identities this deployment could route (findings
+§1), so the non-Bulk names come from Salesforce's documentation rather than from an observed
+payload. A miss is not a failure — the slot reports `present: false`, which is the answer to
+whether this org meters the resource.
 
 ### A number is reported, coerced or invented — and the Tool picks "reported"
 
@@ -250,14 +250,32 @@ appear in an ADR and in the changelog:
 
 ## Findings recorded from this task
 
-**The org refuses the limits resource org-wide.** `Connection.limits()` fails with
-`API_DISABLED_FOR_ORG "limits resource is not enabled"`, identically for four enabled identity
-routes and for the raw REST path at API v68.0/v62.0/v58.0/v50.0, with `limits` absent from the
-~50 root resources the org advertises. `get_org_limits` is correct and cannot return data in
-this org. Its live gate is therefore `NOT TESTED` and **must never be `PASS`** — calling a
-refusal a pass would claim a successful read that never happened. The consequence reaches
-beyond T3: the P9-3 → P9-4 dependency recorded in the gap analysis cannot be satisfied in this
-org, so T4 must treat a quota pre-flight as best-effort.
+**The limits resource is refused to every identity SFOA can currently route.** `Connection.limits()`
+fails with `API_DISABLED_FOR_ORG "limits resource is not enabled"`, identically for four enabled
+identity routes and for the raw REST path at API v68.0/v62.0/v58.0/v50.0, with `limits` absent
+from the ~50 root resources the org advertises. All four are integration identities of this one
+deployment sharing a profile shape, and **no administrator identity was tested**, so this is a
+statement about the identities SFOA can route rather than about the org: an earlier draft called
+it org-wide and claimed more than the probe showed.
+
+The leading cause is a **missing permission, not an org-wide switch**. `API Enabled` is provably
+present, since the same identities run `query`, `describeGlobal` and `search`, and a missing
+`API Enabled` reports a different code (`API_CURRENTLY_DISABLED`); `limits resource is not
+enabled` is what Salesforce returns when the connecting user lacks **View Setup and
+Configuration**, a read-only permission over org setup that grants no change — which also
+explains the uniformity across four identities, since they share a profile. A second candidate is
+the identity's **user licence type**, some of which cannot be granted that permission at all; our
+reproduction of the error on v68.0, where several sources say it no longer occurs, is weak
+evidence that something here is non-standard. **One administrator request to
+`GET /services/data/v68.0/limits` settles which**, and nothing else in this ADR depends on the
+answer.
+
+`get_org_limits` is correct and cannot return data through any identity SFOA can currently route.
+Its live gate is therefore `NOT TESTED` and **must never be `PASS`** — calling a refusal a pass
+would claim a successful read that never happened. It becomes a real `PASS` as soon as an identity
+permitted to read the resource is routed, with no code change. Until then the P9-3 → P9-4
+dependency recorded in the gap analysis cannot be satisfied here, so T4 must treat a quota
+pre-flight as best-effort.
 
 **The live gate still exercises the refusal path.** When the org refuses, the gate calls the
 Tool once anyway and requires `isError: true` with `MCP_LIMITS_ACCESS_DENIED` and a suggestion
@@ -313,8 +331,11 @@ trace's SOQL count is unaffected, which was decision 1's whole point.
   and the hint says so rather than approximating.
 - A default `Id, Name` field list means an object without a `Name` needs an explicit list. The
   failure is loud and actionable, but it is a second call.
-- `get_org_limits` is untestable for its own success path in this org. Its contract is pinned by
-  the unit and protocol layers, and the live gate reports `NOT TESTED` with the Salesforce code.
+- `get_org_limits` is untestable for its own success path through the identities this deployment
+  currently routes. Its contract is pinned by the unit and protocol layers, and the live gate
+  reports `NOT TESTED` with the Salesforce code — but that is a statement about the identities,
+  not about the org: granting the routed user `View Setup and Configuration`, or routing one that
+  has it, turns the gate into a real `PASS` with no code change.
 - The alias table for the non-Bulk slots is documentation-derived, not observed.
 
 ## Rejected alternatives
@@ -351,9 +372,9 @@ The live gates are `orgLimits` and `searchRecords` in
 
 - **`orgLimits`** reads the org's own `limits()` over the same request-scoped Connection first.
   A refusal is `NOT TESTED` naming the Salesforce code, after checking that the Tool answers
-  with a structured `MCP_LIMITS_ACCESS_DENIED`; anything else is a `FAIL`. When the org does
-  answer, every key, `max`, `remaining` and re-derived `used` is compared against the org's own
-  numbers, `unreadableLimits` against the entries the org reported no number for, and each
+  with a structured `MCP_LIMITS_ACCESS_DENIED`; anything else is a `FAIL`. When the connection
+  does answer, every key, `max`, `remaining` and re-derived `used` is compared against the org's
+  own numbers, `unreadableLimits` against the entries the org reported no number for, and each
   highlight slot against the org's key set — a slot reported absent fails unless no key this
   Tool would have read is present, because `present: false` is a claim about the org. A second
   call with `verbose: true` must return the same key set, value movement between two live reads
@@ -367,7 +388,8 @@ The live gates are `orgLimits` and `searchRecords` in
   makes the probe `NOT TESTED` rather than failed, and an object with no usable text field makes
   it `NOT TESTED` with the reason. No term text reaches the report.
 
-The `orgLimits` gate requires an org that answers the limits resource; in this org it reports
-`NOT TESTED` with `API_DISABLED_FOR_ORG`, and the report's `overall` is `PARTIAL` for that
-reason alone. The `searchRecords` gate requires an object with at least one record carrying a
-searchable text value; it is `NOT TESTED` with the reason otherwise.
+The `orgLimits` gate requires an identity permitted to read the limits resource; through the four
+integration identities this deployment routes it reports `NOT TESTED` with
+`API_DISABLED_FOR_ORG`, and the report's `overall` is `PARTIAL` for that reason alone. The
+`searchRecords` gate requires an object with at least one record carrying a searchable text
+value; it is `NOT TESTED` with the reason otherwise.
