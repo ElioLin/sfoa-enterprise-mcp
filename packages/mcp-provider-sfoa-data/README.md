@@ -9,11 +9,17 @@ Tool parameter can name a username, platform user, instance URL, token or API ve
 | --- | --- | --- |
 | `list_sobjects` | `describeGlobal()` | SObject inventory with a prefix filter and a bounded page |
 | `describe_sobject` | `describe()` | Field, picklist and child-relationship schema for self-repair |
+| `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` | Bounded SOQL whose answer always states whether it is complete |
+| `get_org_limits` | `limits()` | Org quota pre-flight before a large data job |
+| `search_records` | `search()` (SOSL) | Cross-object keyword lookup with a stated cap |
 
-T2–T4 add `query_records`, `get_org_limits`, `search_records` and the Bulk API 2.0 pair to
-this same Provider. See [ADR-0024](../../docs/sfoa/adr/ADR-0024-p9-data-provider-over-official-sdk.md)
+T4 adds the Bulk API 2.0 pair to this same Provider. See
+[ADR-0024](../../docs/sfoa/adr/ADR-0024-p9-data-provider-over-official-sdk.md)
 for the upstream audit that put these on the official jsforce SDK instead of a reused or
-wrapped upstream Tool.
+wrapped upstream Tool, [ADR-0025](../../docs/sfoa/adr/ADR-0025-p9-query-records-bounded-completeness.md)
+for the bounded-completeness contract, and
+[ADR-0026](../../docs/sfoa/adr/ADR-0026-p9-org-limits-and-sosl-search.md)
+for the quotas and SOSL decisions.
 
 ## Contract rules these Tools follow
 

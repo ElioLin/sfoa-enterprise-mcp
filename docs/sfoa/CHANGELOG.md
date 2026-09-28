@@ -2,6 +2,102 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-28 — P9-T3: `get_org_limits` and `search_records`, and an org that refuses its own limits
+
+P9-T3 adds the last two read capabilities the official `@salesforce/mcp-provider-dx-core` does
+not supply, both `READ`/`USER` and default-disabled: `get_org_limits` (GAP-D7, the prerequisite
+T4 depends on) and `search_records` (GAP-D5). The official `run_soql_query` and every
+`packages/mcp-provider-dx-core` file are byte-identical.
+
+- **Probe first, then freeze.** ADR-0025's lesson — a claim about Salesforce's response shape can
+  only come from Salesforce — was applied before the executors were frozen, and it paid for
+  itself twice. `RETURNING Account` with no field list is legal but returns each record with
+  nothing but `attributes` and `Id`, so `search_records` now always writes a field list
+  (default `Id, Name`) and takes an optional `fields` input; and `attributes.sobjectType` is
+  **absent**, so records are grouped by `attributes.type`. Both findings are in
+  `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §4 and §3.
+- **The org refuses the limits resource org-wide.** `Connection.limits()` fails with
+  `API_DISABLED_FOR_ORG "limits resource is not enabled"`, identically for four enabled identity
+  routes and for the raw REST path at API v68.0/v62.0/v58.0/v50.0, with `limits` absent from the
+  ~50 root resources the org advertises. `get_org_limits` is therefore correct and **cannot
+  return data in this org**: its live gate is `NOT TESTED` and must never be `PASS`, because
+  calling a refusal a pass would claim a read that never happened. The consequence reaches past
+  T3 — the P9-3 → P9-4 dependency recorded in the gap analysis cannot be satisfied here, so T4's
+  quota pre-flight can only be best-effort. The gate does not skip the path: it calls the Tool
+  once anyway and requires a structured `MCP_LIMITS_ACCESS_DENIED` with a suggestion, failing if
+  anything else comes back.
+- **A quota slot that is absent is reported as absent.** `highlights` carries exactly five slots
+  (`dailyApiRequests`, `dailyBulkApiRequests`, `dailyAsyncApexExecutions`, `dataStorageMB`,
+  `fileStorageMB`), written out in full in the schema so dropping one is a compile error, and
+  all five are **always present**: an unmetered resource is `present: false, key: null` with null
+  numbers — never omitted, never zeroed, because a missing slot and a zero allowance are
+  indistinguishable to a reader of the other. `key` names the org key that actually filled the
+  slot, since the Bulk allowance is `DailyBulkApiRequests` under Bulk API 1.0 and
+  `DailyBulkV2QueryJobs` under 2.0. A numeric string is **not** coerced: the limits resource
+  reports numbers, so a string means the payload is not the shape the Tool was written against,
+  and coercing it would put an invented quota in front of a job-sizing decision. No readable
+  entry at all is `MCP_LIMITS_READ_FAILED`, not `{limits: {}}` — an empty success invites "this
+  org has no quota", the opposite of what the Tool exists to prevent.
+- **SOSL completeness is withheld when it cannot be shown.** `SearchResult` carries only
+  `searchRecords` — no `totalSize`, no `done`, no cursor (findings §2) — so `truncated` and
+  `truncatedReason` are derived from whichever explicit cap the statement carried
+  (`LIMIT_REACHED` | `PER_OBJECT_LIMIT` | `RESPONSE_BUDGET`) and `complete` is claimed only
+  against an explicit cap that was not reached. `limitSource: 'UNSPECIFIED'` always reports
+  `complete: false` with the reason and the fix. `MCP_ENGINEERING_RULES.md` §Pagination's
+  `has_more`/cursor requirement cannot be met by SOSL and is satisfied the way `list_sobjects`
+  satisfies it.
+- **Refuse rather than silently rewrite.** `objects`/`fields`/`limit` alongside a complete
+  `FIND` clause are refused, not ignored — the clause is the caller's own text, and a recognised
+  parameter that does nothing leaves the caller unable to tell which applied. `{` and `}` are
+  refused in a bare keyword rather than escaped, being the only characters that could terminate
+  the brace group the Tool writes, and a bare keyword whose first word is `find` is read as a
+  clause and refused, with the refusal naming the way out.
+- **Two new audit purposes.** `SalesforceApiPurpose` gains `ORG_LIMITS` and `SOSL_SEARCH`
+  instead of reusing `USER_QUERY`. The union is free-form at the storage layer
+  (`sfoa_salesforce_api_call.purpose` is `VARCHAR(256)`), so both are additive with no migration
+  and no Control Plane change. Neither sets `queryType`, so the Admin audit trace's SOQL count is
+  unaffected — reusing `USER_QUERY` would file a quota read and a keyword search as SOQL queries,
+  and the SOSL row would carry `query_type = NULL`, which the trace reads as a failed semantic
+  capture. `jsforce-audit-adapter` is **not** touched: `/search` already lands as a clean,
+  complete row, because the adapter's `emptySemanticEvidence()` returns before
+  `recordSalesforceApiCaptureFailure()`.
+- **The live run.** Route selected from the MySQL Control Plane and injected in-process, so the
+  platform user id never reaches a command line or the transcript (`IntermediateTable__c`, org
+  total 4449): **`overall: PARTIAL`**, with `toolInventory`, `requestIdentity`, `listSobjects`,
+  `describeSobject`, `queryRecords`, `searchRecords`, `schemaSelfRepair` and `credentialSafety`
+  all **PASS** over **12** request-scoped Connections and one Salesforce username. `orgLimits` is
+  `NOT TESTED` with `{orgAnswer: 'API_DISABLED_FOR_ORG', toolErrorCode: 'MCP_LIMITS_ACCESS_DENIED',
+  toolSalesforceErrorCode: 'API_DISABLED_FOR_ORG', denialIsStructured: true}` — `PARTIAL` for that
+  reason alone. `searchRecords` PASSed both probes (`mode: KEYWORD`,
+  `statementMatchesPrediction: true`, org count 1, `totalReturned` 1, `truncated: false`,
+  `complete: true`, no mismatch): the unscoped probe at the Tool's maximum limit and the same term
+  scoped to one object, each cross-checked against the org's own count for **the statement the
+  Tool reported sending**, read over the same request-scoped Connection.
+- **Audit evidence.** The live run produced an `ORG_LIMITS` row (`REST_API`, `FAILED`) and four
+  `SOSL_SEARCH` rows (`REST_API`, `SUCCESS`), all with `query_type: NULL`, with the
+  `search_records` rows carrying `requestSummary.summary = {search, objects, fields, limit}` and
+  a chain of REQUEST → IDENTITY_PROVIDER → PLATFORM_USER → IDENTITY_ROUTE → SALESFORCE_USER →
+  TOOLS_CALL → SALESFORCE_API → RESULT and no capture failure. No search term text is recorded —
+  the summary carries the bounded token, not the value.
+- **The harness needed the attachment ingress enabled to start at all.** A Control Plane that
+  enables an attachment Tool and a runtime whose config has the ingress switched off refuse every
+  request with `MCP_ATTACHMENT_CONFIGURATION_INVALID` before any Tool runs. The live driver bound
+  the same ingress a deployment granting that Tool would. This is a **test-harness gap, not a
+  product defect**, and it is recorded rather than fixed here so the P9-T3 diff stays scoped.
+- **Regression set green.** `mcp-provider-sfoa-data` 131/131, `sfoa-mcp-server` 222/222,
+  `test:p3` 25/25, `test:p4` 8/8, `test:p5` 6/6, `test:p7` 6/6, `validate:p4` PASS,
+  `validate:upstream` `drift: []`, `skill:check` `drift: []`, `admin-api` 26/26,
+  `identity-runtime` 75/75, `control-plane` 38/38, `mcp-provider-sfoa-dml` 46/46,
+  `mcp-provider-sfoa-context` 83/83, `agent-playbook` 35/35, and all five touched SFoA
+  workspaces lint clean. Root `yarn lint` / `yarn build` still fail inside the vendored
+  `mcp-provider-code-analyzer` (`'eslint' is not recognized`), which this change does not touch.
+- **Deviations from the plan's wording** (twelve, all recorded in ADR-0026): the added `fields`
+  input and `mode`/`statement` outputs, `get_org_limits` needing no `enabledToolNames`,
+  `fields` in the audit summary, `SOSL_MAX_STATEMENT_LENGTH`, the unverified alias table,
+  §Pagination satisfied by cap-plus-counts, `resultsByObject` upgraded from bare arrays to object
+  groups, the omitted per-object `label`, the two new purposes with the reasoning for leaving the
+  query semantic channel alone, `measured`'s exact definition, and the leading-`find` refusal.
+
 ## 2026-09-28 — P9-T2 fix: a bare `COUNT()` is a value, not a row count — and the live gate now passes
 
 Follow-up to the P9-T2 commit, and the resolution of the sentence that entry ends on. Running

@@ -818,11 +818,12 @@ Agent
 | --- | --- | --- |
 | P9-T1 | `list_sobjects`, `describe_sobject` | `describeGlobal()`, `describe()` |
 | P9-T2 | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` |
-| planned | `get_org_limits`, `search_records` | `limits()`, `search()` |
+| P9-T3 | `get_org_limits` | `limits()` |
+| P9-T3 | `search_records` | `search()` (SOSL) |
 | planned | `submit_bulk_query`, `get_bulk_query_results` | Bulk API 2.0 |
 
-Only the shipped rows are advertised today; the planned rows are recorded in the gap analysis
-and ADR-0024 and are not part of the current tool surface.
+Only the shipped rows are advertised today; the planned row is recorded in the gap analysis
+and ADR-0024 and is not part of the current tool surface.
 
 `query_records` exists because the official `run_soql_query` makes exactly one request and
 never consumes `nextRecordsUrl`, so a result larger than one batch is returned as though it
@@ -843,6 +844,59 @@ recommends a Tool only when the session actually advertises it. The official Too
 unchanged and remains the recommended path for a quick single-batch look; the two share the
 org object-usage guard, the `USER_QUERY` audit purpose and the request-scoped Connection.
 See [ADR-0025](adr/ADR-0025-p9-query-records-bounded-completeness.md).
+
+`get_org_limits` exists because a large data job cannot be sized before it is launched
+(GAP-D7), and **P9-3 (Bulk API 2.0) depends on P9-4 (limits visible)**, so it is T4's
+prerequisite. It returns the org's own key/value map verbatim as `limits` — each entry
+carrying `max`/`remaining`/a derived `used`/`measured` — beside a `highlights` object with
+exactly five slots (`dailyApiRequests`, `dailyBulkApiRequests`, `dailyAsyncApexExecutions`,
+`dataStorageMB`, `fileStorageMB`). The five slots are written out in full in the schema, so
+dropping one is a compile error, and they are **always present**: an unmetered resource is
+`present: false, key: null` with null numbers, never omitted and never zeroed, because a
+missing slot cannot be told apart from a zero allowance. The slot's `key` names the org key
+that filled it, since the Bulk allowance is `DailyBulkApiRequests` under Bulk API 1.0 and
+`DailyBulkV2QueryJobs` under 2.0. `used` is computed only when both ends are known and
+consistent (`max >= remaining`) and is `null` otherwise; a numeric string is not coerced,
+because guessing at a shape the limits resource does not produce would put an invented quota
+in front of a job-sizing decision. A payload with no readable entry is a failure, not an empty
+success, and a refusal by the org is one `MCP_LIMITS_ACCESS_DENIED` whose suggestion confines
+the failure to quota visibility. `verbose` changes the **text only** — `structuredContent.limits`
+is identical either way. This org refuses the limits resource org-wide
+(`API_DISABLED_FOR_ORG`), so the Tool is correct but cannot return data here; see ADR-0026.
+
+`search_records` exists because `query_records` needs an object and a field list up front, so
+"which record anywhere mentions this term" has no SOQL equivalent at all (GAP-D5). A bare
+keyword is composed by the server — `FIND {<escaped term>} IN ALL FIELDS [RETURNING …] LIMIT …`
+— while a complete `FIND` clause is passed through unchanged; `objects`/`fields`/`limit`
+alongside a clause are **refused, not ignored**, because a recognised parameter that does
+nothing leaves the caller unable to tell which applied. `{` and `}` are refused in a bare
+keyword rather than escaped, since they are the only characters that could terminate the brace
+group the Tool writes; the rest of SOSL's reserved set is escaped from a frozen table. A field
+list is always written (the caller's, or `Id, Name`), because `RETURNING Account` alone is
+legal but returns each record with nothing but `Id`. The contract the caller can rely on is
+that **completeness is withheld when it cannot be shown**: SOSL reports no total, no `done` and
+no cursor, so `truncated`/`truncatedReason` are derived from whichever explicit cap the
+statement carried — `LIMIT_REACHED`, `PER_OBJECT_LIMIT` or `RESPONSE_BUDGET` — and `complete`
+is claimed only against an explicit cap that was not reached. `limitSource: 'UNSPECIFIED'` (a
+caller's clause with no global `LIMIT`) therefore always reports `complete: false`, with the
+reason and the fix. Results are object **groups** (`objectApiName`/`count`/`returnedCount`/
+`atLimit`/`records`) rather than bare arrays, so truncation is actionable per object, and a
+record's object comes from `attributes.type` with `attributes.sobjectType` as the only
+fallback — a record-level `Type` field is an ordinary picklist on Case and Account and reading
+it as an object name would invent an object. `MCP_ENGINEERING_RULES.md` §Pagination's
+`has_more`/cursor requirement cannot be met by SOSL and is satisfied the way `list_sobjects`
+satisfies it: an explicit cap, per-object counts and a `truncated` declaration. Both Tools
+record through SFoA's own request summary; the shared `jsforce-audit-adapter` is untouched,
+because `/search` already lands as a clean, complete audit row rather than a degraded one. See
+[ADR-0026](adr/ADR-0026-p9-org-limits-and-sosl-search.md).
+
+The two Tools are pinned to two further `SalesforceApiPurpose` values, `ORG_LIMITS` and
+`SOSL_SEARCH`, rather than reusing `USER_QUERY`. Neither sets `queryType`, so the Admin audit
+trace's SOQL count is unaffected — reusing `USER_QUERY` would file a quota read and a keyword
+search as SOQL queries, and the SOSL row would carry `query_type = NULL`, which the trace reads
+as a failed semantic capture. The union is free-form at the storage layer
+(`sfoa_salesforce_api_call.purpose` is `VARCHAR(256)`), so both values are additive with no
+migration and no Control Plane change.
 
 The Provider is composed through the same public `McpProvider`/`McpTool`/`Services` seam as
 P3, requires exactly one allowed username from the request `OrgService`, and takes the
