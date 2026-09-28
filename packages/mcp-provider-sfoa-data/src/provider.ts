@@ -1,8 +1,10 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
 import { DescribeSobjectExecutor } from './describe-sobject-executor.js';
 import { ListSobjectsExecutor } from './list-sobjects-executor.js';
+import { QueryRecordsExecutor } from './query-records-executor.js';
 import { DescribeSobjectMcpTool } from './tools/describe-sobject.js';
 import { ListSobjectsMcpTool } from './tools/list-sobjects.js';
+import { QueryRecordsMcpTool } from './tools/query-records.js';
 
 /**
  * Every P9 Data Tool is READ and USER-scoped: it reads Salesforce data or schema through
@@ -13,6 +15,7 @@ import { ListSobjectsMcpTool } from './tools/list-sobjects.js';
 export const SFOA_DATA_TOOL_ROLES = Object.freeze({
   list_sobjects: 'USER',
   describe_sobject: 'USER',
+  query_records: 'USER',
 } as const);
 
 export type SfoaDataToolName = keyof typeof SFOA_DATA_TOOL_ROLES;
@@ -48,6 +51,14 @@ export class SfoaDataMcpProvider extends McpProvider {
     }
     if (requested.includes('describe_sobject')) {
       tools.push(new DescribeSobjectMcpTool(new DescribeSobjectExecutor(orgService)));
+    }
+    if (requested.includes('query_records')) {
+      // `requested` is the session's enabled set, so it is exactly the list of SFOA Data Tools
+      // the caller can see. The executor uses it to keep a truncation hint from recommending a
+      // Tool (the bulk export, the org-limits read) that `tools/list` does not advertise.
+      tools.push(new QueryRecordsMcpTool(
+        new QueryRecordsExecutor(orgService, { enabledToolNames: requested }),
+      ));
     }
     return Promise.resolve(tools);
   }

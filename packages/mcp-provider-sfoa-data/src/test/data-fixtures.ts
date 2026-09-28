@@ -1,7 +1,13 @@
 import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 
-export type ConnectionOperation = 'describeGlobal' | 'describe';
+export type ConnectionOperation =
+  | 'describeGlobal'
+  | 'describe'
+  | 'query'
+  | 'queryMore'
+  | 'toolingQuery'
+  | 'toolingQueryMore';
 
 export type ConnectionCall = Readonly<{ operation: ConnectionOperation; argument?: string }>;
 
@@ -36,6 +42,24 @@ export function createFixture(options: DataFixtureOptions = {}): DataFixture {
     describe: async (name: string) => {
       calls.push({ operation: 'describe', argument: name });
       return handler('describe', name);
+    },
+    query: async (statement: string) => {
+      calls.push({ operation: 'query', argument: statement });
+      return handler('query', statement);
+    },
+    queryMore: async (cursor: string) => {
+      calls.push({ operation: 'queryMore', argument: cursor });
+      return handler('queryMore', cursor);
+    },
+    tooling: {
+      query: async (statement: string) => {
+        calls.push({ operation: 'toolingQuery', argument: statement });
+        return handler('toolingQuery', statement);
+      },
+      queryMore: async (cursor: string) => {
+        calls.push({ operation: 'toolingQueryMore', argument: cursor });
+        return handler('toolingQueryMore', cursor);
+      },
     },
   } as unknown as Connection;
   const orgService = {
@@ -128,4 +152,29 @@ export function describePayload(
 /** A jsforce-shaped provider failure: `errorCode` plus `message`, as the SDK throws it. */
 export function salesforceError(code: string, message: string): Error {
   return Object.assign(new Error(message), { errorCode: code });
+}
+
+/**
+ * A jsforce-shaped query batch. `totalSize` defaults to the batch length and `done` to true,
+ * so a test states only the fact it is actually exercising — normally `nextRecordsUrl`, which
+ * is what makes the batch a non-final one.
+ */
+export function queryBatch(
+  records: readonly unknown[],
+  overrides: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return { done: true, totalSize: records.length, records, ...overrides };
+}
+
+/** `count` rows carrying a stable, identifiable field. */
+export function rows(count: number, prefix = 'r'): Record<string, unknown>[] {
+  return Array.from({ length: count }, (_, index) => ({ Id: `${prefix}${index}`, Name: `${prefix} ${index}` }));
+}
+
+/**
+ * `count` rows of a single narrow field. Continuation tests use these so the row count — not
+ * the response budget — is what the assertion is actually exercising.
+ */
+export function idRows(count: number, prefix = 'r'): Record<string, unknown>[] {
+  return Array.from({ length: count }, (_, index) => ({ Id: `${prefix}${index}` }));
 }

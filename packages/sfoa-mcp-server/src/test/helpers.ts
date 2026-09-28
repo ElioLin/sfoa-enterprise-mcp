@@ -94,12 +94,26 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       }),
       query: async (query: string) => {
         this.queryCalls.push(query);
-        return queryResult;
+        if (this.schema.queryError) throw this.schema.queryError;
+        return this.schema.query?.(query, 'query') ?? queryResult;
       },
-      tooling: { query: async (query: string) => {
-        this.queryCalls.push(query);
-        return queryResult;
-      } },
+      queryMore: async (cursor: string) => {
+        const batch = this.schema.recordedQueryPages?.get(cursor);
+        if (batch === undefined) throw new Error(`Unexpected continuation cursor ${cursor}`);
+        return batch;
+      },
+      tooling: {
+        query: async (query: string) => {
+          this.queryCalls.push(query);
+          if (this.schema.queryError) throw this.schema.queryError;
+          return this.schema.query?.(query, 'toolingQuery') ?? queryResult;
+        },
+        queryMore: async (cursor: string) => {
+          const batch = this.schema.recordedQueryPages?.get(cursor);
+          if (batch === undefined) throw new Error(`Unexpected Tooling continuation cursor ${cursor}`);
+          return batch;
+        },
+      },
       request: async (request: string | Readonly<{ url?: string }>) => {
         const url = typeof request === 'string' ? request : request.url ?? '';
         this.apiRequests.push(url);
@@ -156,6 +170,14 @@ export type RecordingSchemaOptions = Readonly<{
   describe?: (objectApiName: string) => unknown;
   describeGlobalError?: unknown;
   describeError?: unknown;
+  /**
+   * Answers a SOQL call with a batch chain: the first batch for the statement, then one per
+   * cursor in `recordedQueryPages`. Lets a protocol test exercise `query_records` paging and
+   * truncation without a live org.
+   */
+  query?: (query: string, operation: 'query' | 'toolingQuery') => unknown;
+  recordedQueryPages?: ReadonlyMap<string, unknown>;
+  queryError?: unknown;
 }>;
 
 function defaultDescribeGlobal(): unknown {

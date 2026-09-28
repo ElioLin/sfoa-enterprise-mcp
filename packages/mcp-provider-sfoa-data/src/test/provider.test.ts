@@ -15,15 +15,18 @@ function services(): Services {
 }
 
 test('every P9 Data Tool is a READ capability executed as the request USER', () => {
-  assert.deepEqual([...SFOA_DATA_TOOL_NAMES].sort(), ['describe_sobject', 'list_sobjects']);
-  assert.deepEqual({ ...SFOA_DATA_TOOL_ROLES }, { list_sobjects: 'USER', describe_sobject: 'USER' });
+  assert.deepEqual([...SFOA_DATA_TOOL_NAMES].sort(), ['describe_sobject', 'list_sobjects', 'query_records']);
+  assert.deepEqual(
+    { ...SFOA_DATA_TOOL_ROLES },
+    { list_sobjects: 'USER', describe_sobject: 'USER', query_records: 'USER' },
+  );
 });
 
 test('isSfoaDataToolName recognizes exactly its own tool names', () => {
   for (const name of SFOA_DATA_TOOL_NAMES) {
     assert.equal(isSfoaDataToolName(name), true, `${name} must be recognized`);
   }
-  for (const name of ['run_soql_query', 'get_username', 'query_records', 'toString', 'constructor', '__proto__', '']) {
+  for (const name of ['run_soql_query', 'get_username', 'toString', 'constructor', '__proto__', '']) {
     assert.equal(isSfoaDataToolName(name), false, `${name} must not be a Data Tool`);
   }
 });
@@ -33,7 +36,10 @@ test('the provider is named and provides every Data Tool when no subset is reque
   assert.equal(provider.getName(), 'SfoaDataMcpProvider');
 
   const tools = await provider.provideTools(services());
-  assert.deepEqual(tools.map((tool) => tool.getName()).sort(), ['describe_sobject', 'list_sobjects']);
+  assert.deepEqual(
+    tools.map((tool) => tool.getName()).sort(),
+    ['describe_sobject', 'list_sobjects', 'query_records'],
+  );
   for (const tool of tools) {
     assert.deepEqual(tool.getToolsets(), ['data']);
   }

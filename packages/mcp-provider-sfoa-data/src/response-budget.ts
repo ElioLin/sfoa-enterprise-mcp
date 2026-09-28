@@ -8,6 +8,15 @@
  */
 export const DATA_MAX_RESPONSE_BYTES = 262_144;
 
+/**
+ * Character budget for the human-readable text of `query_records`.
+ *
+ * A query result is business data whose rows are not known ahead of time, so the text the
+ * Agent reads is bounded separately from the byte budget that bounds the structured payload:
+ * the two are measured in the unit each one is actually consumed in.
+ */
+export const DATA_MAX_QUERY_TEXT_CHARACTERS = 60_000;
+
 export type ByteBudgetResult<T> = Readonly<{ kept: readonly T[]; truncated: boolean }>;
 
 /**
@@ -23,14 +32,35 @@ export function trimToByteBudget<T>(
   budgetBytes: number,
   build: (kept: readonly T[]) => unknown,
 ): ByteBudgetResult<T> {
-  const sizeOf = (count: number): number =>
-    Buffer.byteLength(JSON.stringify(build(items.slice(0, count))), 'utf8');
-  if (sizeOf(items.length) <= budgetBytes) return Object.freeze({ kept: items, truncated: false });
+  return trimToBudget(items, budgetBytes, (text) => Buffer.byteLength(text, 'utf8'), build);
+}
+
+/**
+ * The same prefix search measured in **characters**: the unit the rendered text is bounded
+ * in. A caller that must satisfy both bounds applies this to the result of
+ * `trimToByteBudget`, which is correct because both measurements grow with the prefix.
+ */
+export function trimToCharacterBudget<T>(
+  items: readonly T[],
+  budgetCharacters: number,
+  build: (kept: readonly T[]) => unknown,
+): ByteBudgetResult<T> {
+  return trimToBudget(items, budgetCharacters, (text) => text.length, build);
+}
+
+function trimToBudget<T>(
+  items: readonly T[],
+  budget: number,
+  measure: (text: string) => number,
+  build: (kept: readonly T[]) => unknown,
+): ByteBudgetResult<T> {
+  const sizeOf = (count: number): number => measure(JSON.stringify(build(items.slice(0, count))));
+  if (sizeOf(items.length) <= budget) return Object.freeze({ kept: items, truncated: false });
   let low = 0;
   let high = items.length;
   while (low < high) {
     const middle = Math.ceil((low + high) / 2);
-    if (sizeOf(middle) <= budgetBytes) low = middle;
+    if (sizeOf(middle) <= budget) low = middle;
     else high = middle - 1;
   }
   return Object.freeze({ kept: Object.freeze(items.slice(0, low)), truncated: true });

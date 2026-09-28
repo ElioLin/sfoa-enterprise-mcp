@@ -7,6 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ReleaseState, Toolset, type McpTool, type Services } from '@salesforce/mcp-provider-api';
 import {
+  QUERY_RECORDS_MAX_MAX_ROWS,
   SFOA_DATA_TOOL_NAMES,
   SfoaDataMcpProvider,
 } from '@sfoa/mcp-provider-sfoa-data';
@@ -310,6 +311,178 @@ test('the discovery server advertises an enabled Data Tool with the same contrac
   }
 });
 
+test('an enabled query_records call follows the continuation cursor to the end through the request USER identity', async () => {
+  const first = '/services/data/v67.0/query/01g-p9-first';
+  const second = '/services/data/v67.0/query/01g-p9-second';
+  const factory = new RecordingConnectionFactory({
+    query: () => ({ done: false, totalSize: 3, records: [{ Id: 'a' }], nextRecordsUrl: first }),
+    recordedQueryPages: new Map<string, unknown>([
+      [first, { done: false, totalSize: 3, records: [{ Id: 'b' }], nextRecordsUrl: second }],
+      [second, { done: true, totalSize: 3, records: [{ Id: 'c' }] }],
+    ]),
+  });
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'query_records'], factory });
+  try {
+    const listed = await harness.client.listTools();
+    const tool = listed.tools.find((candidate) => candidate.name === 'query_records');
+    assert.ok(tool !== undefined, 'query_records must be advertised once an Admin enables it');
+    assert.equal(tool.annotations?.readOnlyHint, true);
+    assert.equal(tool.annotations?.destructiveHint, false);
+    assert.deepEqual(Object.keys(tool.inputSchema.properties ?? {}).sort(), ['maxRows', 'query', 'useToolingApi']);
+    assert.ok(tool.outputSchema !== undefined);
+
+    const result = await harness.client.callTool({
+      name: 'query_records',
+      arguments: { query: 'SELECT Id FROM Account' },
+    });
+    assert.equal(result.isError === true, false);
+    const output = structured(result);
+    assert.equal(output.executionRole, 'USER');
+    assert.equal(output.api, 'REST');
+    assert.equal(output.totalSize, 3);
+    assert.equal(output.fetched, 3);
+    assert.equal(output.returnedCount, 3);
+    assert.equal(output.pages, 3);
+    assert.equal(output.done, true);
+    assert.equal(output.complete, true);
+    assert.equal(output.truncated, false);
+    assert.deepEqual(recordsOf(output).map((record) => record.Id), ['a', 'b', 'c']);
+    // The statement the Agent wrote, read once through the data API; the cursors are not
+    // statements and are never re-sent as one.
+    assert.deepEqual(harness.factory.queryCalls, ['SELECT Id FROM Account']);
+    assert.deepEqual([...new Set(harness.factory.creations.map((entry) => entry.platformUserId))], [TEST_PLATFORM_USER_A]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a query_records call that cannot be complete says why, and names no Tool this session does not advertise', async () => {
+  const factory = new RecordingConnectionFactory({
+    query: () => ({
+      done: false,
+      totalSize: 5_000,
+      records: Array.from({ length: 10 }, (_, index) => ({ Id: `r${index}` })),
+      nextRecordsUrl: '/services/data/v67.0/query/01g-unreached',
+    }),
+  });
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'query_records'], factory });
+  try {
+    const result = await harness.client.callTool({
+      name: 'query_records',
+      arguments: { query: 'SELECT Id FROM Account', maxRows: 3 },
+    });
+    const output = structured(result);
+    assert.equal(output.totalSize, 5_000);
+    assert.equal(output.fetched, 3);
+    assert.equal(output.returnedCount, 3);
+    assert.equal(output.pages, 1);
+    assert.equal(output.done, false);
+    assert.equal(output.complete, false);
+    assert.equal(output.truncated, true);
+    assert.equal(output.truncatedReason, 'MAX_ROWS');
+    assert.match(String(output.hint), /Truncated by MAX_ROWS/u);
+    // `submit_bulk_query` and `get_org_limits` are not in DEFAULT_ENABLED_TOOLS, so the hint
+    // may not send the Agent after a Tool `tools/list` does not contain.
+    assert.doesNotMatch(String(output.hint), /submit_bulk_query|get_org_limits/u);
+    assert.match(String(output.hint), /ask an administrator/u);
+    assert.deepEqual(harness.factory.queryCalls, ['SELECT Id FROM Account']);
+    assert.equal(harness.factory.queryCalls.length, 1, 'the cursor must not be followed once the row budget is spent');
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a query_records input outside the declared bounds is refused at the protocol boundary', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'query_records'] });
+  try {
+    // The statement rules (SELECT-only, no semicolon, no FOR UPDATE) need literal-aware
+    // scanning, so they are a Provider-side refinement the wire schema cannot carry; the
+    // numeric and non-empty bounds do reach the wire, and are checked here for that reason.
+    for (const arguments_ of [
+      { query: '' },
+      { query: 'SELECT Id FROM Account', maxRows: 0 },
+      { query: 'SELECT Id FROM Account', maxRows: QUERY_RECORDS_MAX_MAX_ROWS + 1 },
+      { query: 'SELECT Id FROM Account', maxRows: 1.5 },
+    ]) {
+      await assert.rejects(
+        harness.client.callTool({ name: 'query_records', arguments: arguments_ }),
+        (error: unknown) => /invalid arguments|query_records/iu.test(String(error)),
+        `${JSON.stringify(arguments_)} must be refused`,
+      );
+    }
+    assert.deepEqual(harness.factory.queryCalls, []);
+    assert.deepEqual(harness.factory.creations, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a query_records call reaches the P7 audit trail with the statement shape and the completeness facts', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'query_records'] });
+  try {
+    await harness.client.callTool({
+      name: 'query_records',
+      arguments: { query: 'SELECT Id, Name FROM ApexClass', useToolingApi: true, maxRows: 50 },
+    });
+
+    const terminal = harness.logger.forTool('query_records')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined, 'query_records must emit a TOOL_TERMINAL audit event');
+    assert.equal(terminal.auditEvent?.terminalSource, 'TOOL');
+    assert.equal(terminal.result, 'PASS');
+    assert.equal(terminal.outcome, 'SUCCESS');
+    assert.equal(terminal.executionRole, 'USER');
+    // The statement itself is recorded once, by the request's Salesforce-call semantic. The
+    // request summary carries what that record cannot show: which API and which row budget.
+    assert.deepEqual(terminal.requestSummary, {
+      objectApiName: null, filter: null, useToolingApi: true, maxRows: 50,
+    });
+    assert.deepEqual(terminal.responseSummary, {
+      isError: false, returnedCount: 1, totalSize: 1, fetched: 1, pages: 1, complete: true, truncated: false,
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a query_records call against an org-declared-unused standard object is blocked before any Salesforce call', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'query_records'] });
+  try {
+    const result = await harness.client.callTool({
+      name: 'query_records',
+      arguments: { query: 'SELECT Id FROM Quote' },
+    });
+    assert.equal(result.isError, true);
+    const output = structured(result);
+    assert.equal(output.success, false);
+    assert.equal(output.errorCode, 'MCP_SOBJECT_NOT_IN_USE');
+    assert.match(String(output.message), /Quote__c/u);
+    // The guard is decided from the statement alone, so it costs no Salesforce round trip and
+    // opens no Connection at all.
+    assert.deepEqual(harness.factory.queryCalls, []);
+    assert.deepEqual(harness.factory.creations, []);
+
+    const terminal = harness.logger.forTool('query_records')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined);
+    assert.equal(terminal.result, 'BLOCKED');
+    assert.equal(terminal.outcome, 'DENIED');
+    assert.equal(terminal.auditEvent?.terminalSource, 'GOVERNANCE');
+
+    // The replacement custom object, and a Tooling query, are both legitimate and run.
+    for (const arguments_ of [{ query: 'SELECT Id FROM Quote__c' }, { query: 'SELECT Id FROM ApexClass', useToolingApi: true }]) {
+      const allowed = await harness.client.callTool({ name: 'query_records', arguments: arguments_ });
+      assert.equal(allowed.isError === true, false, `${JSON.stringify(arguments_)} must not be blocked`);
+    }
+    assert.deepEqual(
+      harness.factory.queryCalls,
+      ['SELECT Id FROM Quote__c', 'SELECT Id FROM ApexClass'],
+    );
+  } finally {
+    await harness.close();
+  }
+});
+
 async function clientToolNames(client: Client): Promise<string[]> {
   const listed = await client.listTools();
   return listed.tools.map((tool) => tool.name);
@@ -332,4 +505,8 @@ function objectNames(output: Record<string, unknown>): string[] {
 
 function fieldNames(output: Record<string, unknown>): string[] {
   return (output.fields as Array<{ apiName: string }>).map((entry) => entry.apiName);
+}
+
+function recordsOf(output: Record<string, unknown>): Array<{ Id: string }> {
+  return output.records as Array<{ Id: string }>;
 }

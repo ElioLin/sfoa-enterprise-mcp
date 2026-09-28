@@ -29,6 +29,7 @@ import {
   DESCRIBE_SOBJECT_MAX_CHILD_RELATIONSHIPS,
   DESCRIBE_SOBJECT_MAX_PICKLIST_VALUES,
   LIST_SOBJECTS_MAX_LIMIT,
+  QUERY_RECORDS_MAX_MAX_ROWS,
   SFOA_DATA_TOOL_NAMES,
 } from '@sfoa/mcp-provider-sfoa-data';
 import { loadRemoteRuntimeConfig } from '../config.js';
@@ -48,7 +49,7 @@ export type P9LiveGate = Readonly<{
 
 export type P9LiveValidationReport = Readonly<{
   phase: 'P9';
-  task: 'T1';
+  task: 'T1+T2';
   generatedAt: string;
   objectApiName: string;
   filter: string;
@@ -62,6 +63,7 @@ export type P9LiveValidationReport = Readonly<{
   requestIdentity: P9LiveGate;
   listSobjects: P9LiveGate;
   describeSobject: P9LiveGate;
+  queryRecords: P9LiveGate;
   schemaSelfRepair: P9LiveGate;
   credentialSafety: P9LiveGate;
   connections: Readonly<{
@@ -72,6 +74,29 @@ export type P9LiveValidationReport = Readonly<{
 }>;
 
 const PLATFORM_USER_VARIABLE = 'P9_LIVE_PLATFORM_USER';
+
+/**
+ * A batch of 2000 rows is the REST API ceiling for one SOQL page, so an object holding fewer
+ * rows than this cannot exercise the continuation walk at all: the first batch would already
+ * be the whole result. Below it the query gate reports NOT TESTED rather than a PASS that
+ * proves nothing about paging.
+ */
+const SINGLE_BATCH_ROWS = 2_000;
+
+/** The row budget that proves the continuation walk reaches a declared-complete result. */
+const QUERY_RECORDS_PROBE_MARGIN = 1_000;
+
+/** A row budget below the org's row count, used to prove the truncation declaration. */
+const QUERY_RECORDS_TRUNCATION_MAX_ROWS = 500;
+
+/**
+ * Tool names a `query_records` hint might name. One that is not advertised must never appear:
+ * sending an Agent after a Tool `tools/list` does not contain costs it a turn to find out.
+ */
+const HINT_TOOL_CANDIDATES = Object.freeze([
+  'submit_bulk_query', 'get_org_limits', 'query_records', 'run_soql_query',
+  'list_sobjects', 'describe_sobject',
+]);
 
 /** Tool input keys that would let a caller pick an identity, an endpoint or a credential. */
 const FORBIDDEN_INPUT_KEYS = Object.freeze([
@@ -220,7 +245,7 @@ export async function runP9LiveValidation(
     const reason = `Identity route ${platformUserId} is ${route === null ? 'absent' : 'disabled'} in this Control Plane.`;
     return Object.freeze({
       phase: 'P9',
-      task: 'T1',
+      task: 'T1+T2',
       generatedAt,
       objectApiName,
       filter,
@@ -229,6 +254,7 @@ export async function runP9LiveValidation(
       requestIdentity: notTested(reason),
       listSobjects: notTested(reason),
       describeSobject: notTested(reason),
+      queryRecords: notTested(reason),
       schemaSelfRepair: notTested(reason),
       credentialSafety: notTested('No Tool call was made.'),
       connections: Object.freeze({ total: 0, distinctSalesforceUsernames: Object.freeze([]) }),
@@ -290,13 +316,14 @@ export async function runP9LiveValidation(
       const realEntries = sortEntries(await readDescribeGlobal(connection));
       const listSobjects = await runListSobjects(client, results, bounded, filter, realEntries);
       const describeSobject = await runDescribeSobject(client, results, objectApiName, connection);
+      const queryRecords = await runQueryRecords(client, results, objectApiName, connection, expectedNames);
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
       const usernames = [...new Set(measuringFactory.measurements.map((entry) => entry.salesforceUsername))];
 
       return Object.freeze({
         phase: 'P9',
-        task: 'T1',
+        task: 'T1+T2',
         generatedAt,
         objectApiName,
         filter,
@@ -305,13 +332,17 @@ export async function runP9LiveValidation(
         requestIdentity,
         listSobjects,
         describeSobject,
+        queryRecords,
         schemaSelfRepair,
         credentialSafety,
         connections: Object.freeze({
           total: measuringFactory.measurements.length,
           distinctSalesforceUsernames: Object.freeze(usernames),
         }),
-        overall: combine([toolInventory, requestIdentity, listSobjects, describeSobject, schemaSelfRepair, credentialSafety]),
+        overall: combine([
+          toolInventory, requestIdentity, listSobjects, describeSobject,
+          queryRecords, schemaSelfRepair, credentialSafety,
+        ]),
       });
     } finally {
       await client.close().catch(() => undefined);
@@ -523,6 +554,154 @@ async function runDescribeSobject(
     },
     'describe_sobject facts or truncation declaration disagreed with the org.',
   );
+}
+
+/**
+ * Cross-checks `query_records` completeness against the org rather than against itself.
+ *
+ * The Tool's whole reason to exist is that the official `run_soql_query` cannot say whether an
+ * answer is the whole answer, so the only meaningful test is a count the Tool did not produce:
+ * the org's own `COUNT()` read over the same live Connection. Three probes follow — an
+ * uncapped walk that must declare itself complete, a 500-row cap that must declare exactly why
+ * it is not, and an aggregate that must come back bounded and complete.
+ */
+async function runQueryRecords(
+  client: Client,
+  results: CallToolResult[],
+  objectApiName: string,
+  connection: Connection,
+  advertisedNames: readonly string[],
+): Promise<P9LiveGate> {
+  const realTotal = await readCount(connection, objectApiName);
+  if (realTotal === null) {
+    return notTested(`COUNT() of ${objectApiName} returned no row count, so a completeness claim cannot be cross-checked.`);
+  }
+  if (realTotal <= SINGLE_BATCH_ROWS) {
+    return notTested(
+      `${objectApiName} holds ${realTotal} rows, at or below one 2000-row batch, so the continuation walk would never run. `
+      + 'Point P9_LIVE_OBJECT at an object with more rows to exercise it.',
+    );
+  }
+  if (realTotal > QUERY_RECORDS_MAX_MAX_ROWS) {
+    return notTested(
+      `${objectApiName} holds ${realTotal} rows, above the Tool's ${QUERY_RECORDS_MAX_MAX_ROWS}-row ceiling, `
+      + 'so no single call could be complete and the completeness claim is untestable here.',
+    );
+  }
+  const statement = `SELECT Id FROM ${objectApiName}`;
+  const probeBudget = Math.min(QUERY_RECORDS_MAX_MAX_ROWS, realTotal + QUERY_RECORDS_PROBE_MARGIN);
+
+  const probe = await call(client, results, 'query_records', { query: statement, maxRows: probeBudget });
+  const probeOutput = outputOf(probe);
+  if (probeOutput === undefined) return failGate('query_records returned no structured content.');
+  // A standard object the org declares unused is refused by design before any Salesforce call;
+  // that is the guard working, not the gate failing.
+  if (probeOutput.errorCode === 'MCP_SOBJECT_NOT_IN_USE') {
+    return notTested(
+      `${objectApiName} is declared not in use in this org, so query_records refuses it by design: ${String(probeOutput.message)}`,
+    );
+  }
+  if (probeOutput.success !== true) {
+    return failGate(`query_records failed live: ${String(probeOutput.errorCode ?? 'no error code')}.`);
+  }
+
+  const fetched = integerOf(probeOutput.fetched);
+  const returnedCount = integerOf(probeOutput.returnedCount);
+  // The byte budget may legitimately shorten the returned slice, but only as a declared,
+  // named cut — a silent one is exactly the failure this Tool exists to prevent.
+  const budgetCut = returnedCount < fetched;
+  const probeFacts = probeOutput.executionRole === 'USER'
+    && probeOutput.totalSize === realTotal
+    && fetched === realTotal
+    && probeOutput.done === true
+    && probeOutput.truncated === budgetCut
+    && probeOutput.complete === !budgetCut
+    && (!budgetCut || probeOutput.truncatedReason === 'RESPONSE_BUDGET');
+
+  const capped = await call(client, results, 'query_records', {
+    query: statement,
+    maxRows: QUERY_RECORDS_TRUNCATION_MAX_ROWS,
+  });
+  const cappedOutput = outputOf(capped);
+  const cappedHint = typeof cappedOutput?.hint === 'string' ? cappedOutput.hint : '';
+  const namedTools = HINT_TOOL_CANDIDATES.filter((name) => cappedHint.includes(name));
+  const capFacts = cappedOutput?.success === true
+    && cappedOutput.executionRole === 'USER'
+    && cappedOutput.totalSize === realTotal
+    && cappedOutput.fetched === QUERY_RECORDS_TRUNCATION_MAX_ROWS
+    && cappedOutput.returnedCount === QUERY_RECORDS_TRUNCATION_MAX_ROWS
+    && cappedOutput.complete === false
+    && cappedOutput.truncated === true
+    && cappedOutput.truncatedReason === 'MAX_ROWS'
+    && cappedHint.length > 0
+    && namedTools.every((name) => advertisedNames.includes(name));
+
+  const aggregate = await call(client, results, 'query_records', {
+    query: `SELECT COUNT() FROM ${objectApiName}`,
+  });
+  const aggregateOutput = outputOf(aggregate);
+  const aggregateFacts = aggregateOutput?.success === true
+    && aggregateOutput.aggregate === true
+    && aggregateOutput.complete === true
+    && aggregateOutput.truncated === false
+    && firstInteger(aggregateOutput.records) === realTotal;
+
+  return gate(probeFacts && capFacts && aggregateFacts, {
+    objectApiName,
+    statement,
+    orgCount: realTotal,
+    probe: {
+      maxRows: probeBudget,
+      totalSize: probeOutput.totalSize,
+      fetched: probeOutput.fetched,
+      returnedCount: probeOutput.returnedCount,
+      pages: probeOutput.pages,
+      done: probeOutput.done,
+      complete: probeOutput.complete,
+      truncated: probeOutput.truncated,
+      truncatedReason: probeOutput.truncatedReason,
+      executionRole: probeOutput.executionRole,
+    },
+    capped: {
+      maxRows: QUERY_RECORDS_TRUNCATION_MAX_ROWS,
+      fetched: cappedOutput?.fetched,
+      returnedCount: cappedOutput?.returnedCount,
+      complete: cappedOutput?.complete,
+      truncated: cappedOutput?.truncated,
+      truncatedReason: cappedOutput?.truncatedReason,
+      hintPresent: cappedHint.length > 0,
+      toolNamesInHint: namedTools,
+      unadvertisedToolNamesInHint: namedTools.filter((name) => !advertisedNames.includes(name)),
+    },
+    aggregate: {
+      declared: aggregateOutput?.aggregate,
+      complete: aggregateOutput?.complete,
+      truncated: aggregateOutput?.truncated,
+      returnedCount: firstInteger(aggregateOutput?.records),
+    },
+  }, 'query_records completeness, truncation or aggregate declaration disagreed with the org.');
+}
+
+async function readCount(connection: Connection, objectApiName: string): Promise<number | null> {
+  const payload = await connection.query(`SELECT COUNT() FROM ${objectApiName}`) as unknown as Readonly<Record<string, unknown>>;
+  const first = readArray(payload.records)[0];
+  if (first === undefined) return null;
+  const values = Object.values(first).filter((entry): entry is number =>
+    typeof entry === 'number' && Number.isInteger(entry) && entry >= 0);
+  return values[0] ?? null;
+}
+
+/** The first non-negative integer in a record list, or -1 when there is none. */
+function firstInteger(value: unknown): number {
+  const first = readArray(value)[0];
+  if (first === undefined) return -1;
+  const found = Object.values(first).find((entry): entry is number =>
+    typeof entry === 'number' && Number.isInteger(entry) && entry >= 0);
+  return found ?? -1;
+}
+
+function integerOf(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) ? value : -1;
 }
 
 async function runSchemaSelfRepair(

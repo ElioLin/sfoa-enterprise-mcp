@@ -21,11 +21,13 @@ import type {
 import {
   IdentityRuntimeError,
   runWithSalesforceApiPurpose,
+  runWithSalesforceQuerySemantic,
   runtimeErrorToolResult,
   type SalesforceApiPurpose,
 } from '@sfoa/identity-runtime';
 import { z } from 'zod';
 import { RemoteRuntimeError, remoteRuntimeErrorToolResult } from './errors.js';
+import { describeSoqlObjectUsageBlock, evaluateSoqlObjectUsageGuard } from './soql-usage-guard.js';
 import { withTimeout } from './timeouts.js';
 
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -39,6 +41,7 @@ type ToolInput = Record<string, unknown>;
 const DATA_TOOL_PURPOSES: Readonly<Record<SfoaDataToolName, SalesforceApiPurpose>> = Object.freeze({
   list_sobjects: 'OBJECT_SCHEMA',
   describe_sobject: 'OBJECT_SCHEMA',
+  query_records: 'USER_QUERY',
 });
 
 /** Object API names and name prefixes are schema identifiers, not business data. */
@@ -104,13 +107,30 @@ export class DataToolFacade {
       return result;
     }
 
+    // The same org-usage guard the official `run_soql_query` path applies, applied here so the
+    // two SOQL Tools cannot disagree about which objects are in use: an org-declared-unused
+    // standard object usually returns zero rows, which an Agent reports as "none exists".
+    const verdict = name === 'query_records' ? evaluateSoqlObjectUsageGuard(input) : { blocked: false as const };
+    if (verdict.blocked) {
+      const blocked = new DataRuntimeError(
+        'MCP_SOBJECT_NOT_IN_USE',
+        describeSoqlObjectUsageBlock(verdict.substitution),
+        { suggestion: 'Re-issue the query against the object named above; do not fall back to the unused standard object.' },
+      );
+      await this.log('BLOCKED', elapsed(started), blocked.code, input);
+      return dataFailureToolResult(blocked, 'MCP_SOBJECT_NOT_IN_USE');
+    }
+
     try {
       // Every P9 Data Tool reads with the request-scoped USER Connection, initialized
       // lazily after role enforcement and outside the pre-existing Tool deadline.
       await this.options.connectionProvider?.getConnection();
+      const execute = (): Promise<CallToolResult> => Promise.resolve(this.options.tool.exec(input, extra));
       const result = await withTimeout(
-        runWithSalesforceApiPurpose(DATA_TOOL_PURPOSES[name], () =>
-          Promise.resolve(this.options.tool.exec(input, extra))),
+        runWithSalesforceApiPurpose(
+          DATA_TOOL_PURPOSES[name],
+          () => bindQuerySemantic(name, input, execute),
+        ),
         this.options.toolTimeoutMs,
         'MCP_TOOL_TIMEOUT',
         `Tool ${name} exceeded MCP_TOOL_TIMEOUT_MS. The runtime stopped waiting; Salesforce server-side cancellation is not guaranteed.`,
@@ -172,10 +192,40 @@ export class DataToolFacade {
   }
 }
 
+/**
+ * Binds the SOQL semantic for `query_records` so the request audit records the statement, the
+ * object it names and each page's result statistics through the same collector the official
+ * `run_soql_query` path uses. The scope is bound to *all* of the Tool's Salesforce calls, so a
+ * multi-page continuation is audited as one query rather than as unattributed API traffic.
+ *
+ * A Tool that carries no statement, or a call the Tool's own schema will reject, executes
+ * unbound: recording a query that never reached Salesforce would be worse than recording none.
+ */
+function bindQuerySemantic(
+  name: SfoaDataToolName,
+  input: ToolInput,
+  execute: () => Promise<CallToolResult>,
+): Promise<CallToolResult> {
+  if (name !== 'query_records' || typeof input.query !== 'string' || input.query.trim().length === 0) {
+    return execute();
+  }
+  return Promise.resolve(runWithSalesforceQuerySemantic({
+    queryType: input.useToolingApi === true ? 'TOOLING_SOQL' : 'DATA_SOQL',
+    soqlStatement: input.query,
+  }, execute));
+}
+
 function safeDataRequestSummary(input: ToolInput): unknown {
   return {
     objectApiName: boundedToken(input.objectApiName),
     filter: boundedToken(input.filter),
+    // The statement itself is recorded once, by the Salesforce-call semantic above, which
+    // bounds it and extracts its object. Repeating it here would put a second, differently
+    // bounded copy of the same text into the trail. What is recorded instead is the shape of
+    // the request that is not visible from the Salesforce call: which API and which row budget.
+    ...(typeof input.query === 'string'
+      ? { useToolingApi: input.useToolingApi === true, maxRows: boundedInteger(input.maxRows) }
+      : {}),
   };
 }
 
@@ -188,7 +238,12 @@ function safeDataResponseSummary(response: CallToolResult | undefined, errorCode
     ...(typeof content.returnedCount === 'number' ? { returnedCount: content.returnedCount } : {}),
     ...(typeof content.totalFields === 'number' ? { totalFields: content.totalFields } : {}),
     ...(typeof content.returnedFields === 'number' ? { returnedFields: content.returnedFields } : {}),
+    ...(typeof content.totalSize === 'number' ? { totalSize: content.totalSize } : {}),
+    ...(typeof content.fetched === 'number' ? { fetched: content.fetched } : {}),
+    ...(typeof content.pages === 'number' ? { pages: content.pages } : {}),
+    ...(typeof content.complete === 'boolean' ? { complete: content.complete } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
+    ...(typeof content.truncatedReason === 'string' ? { truncatedReason: content.truncatedReason } : {}),
     ...(errorCode ? { errorCode } : {}),
   };
 }
@@ -200,6 +255,10 @@ function safeDataResponseSummary(response: CallToolResult | undefined, errorCode
  */
 function boundedToken(value: unknown): string | null {
   return typeof value === 'string' ? value.slice(0, MAX_SUMMARY_TOKEN_LENGTH) : null;
+}
+
+function boundedInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) ? value : null;
 }
 
 function resultErrorCode(result: CallToolResult): string | undefined {
