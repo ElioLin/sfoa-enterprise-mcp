@@ -165,14 +165,20 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
       ...await new SfoaDmlMcpProvider(runtime.dmlAllowlist).provideTools(services),
       ...await new SfoaContextMcpProvider({
         toolNames: runtime.enabledTools.filter(isSfoaContextToolName),
+        // Discovery builds descriptors only: it has no principal, route or Connection provider, so
+        // every executor here denies. It still has to be *given* one, because the Provider refuses to
+        // build a diagnostic Tool without an executor — and a Provider that throws would take the
+        // whole inventory down, making `initialize` fail for every Tool, not just the enabled one.
         diagnosticQueryExecutor: { execute: forbidden },
         metadataContextExecutor: { execute: forbidden },
+        orgLimitsExecutor: { execute: forbidden },
       }).provideTools(services),
       // Data Tools read schema through the request-scoped USER Connection, which discovery
       // does not have. Only their descriptors are built here so that an enabled Data Tool is
       // advertised consistently; discovery denies every `tools/call` regardless.
       ...await new SfoaDataMcpProvider({
         toolNames: runtime.enabledTools.filter(isSfoaDataToolName),
+        advertisedToolNames: runtime.enabledTools,
       }).provideTools(services),
       // Host-native, like the governed runtime: `upload_files_to_record` has no Provider
       // behind it, so discovery has to be given its descriptor explicitly. Discovery

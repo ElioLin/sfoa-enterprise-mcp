@@ -19,6 +19,14 @@ export function contextExecutionErrorToolResult(error: unknown, inputErrorCode: 
     success: false,
     errorCode: runtimeError.code,
     message: sanitizeText(runtimeError.message, 2_000),
+    // Emitted only when the raiser set them, so every other context Tool's error result keeps its
+    // exact `{success, errorCode, message}` shape — their output schemas are `.strict()`.
+    ...(runtimeError.salesforceErrorCode === undefined
+      ? {}
+      : { salesforceErrorCode: sanitizeText(runtimeError.salesforceErrorCode, 128) }),
+    ...(runtimeError.suggestion === undefined
+      ? {}
+      : { suggestion: sanitizeText(runtimeError.suggestion, 2_000) }),
   };
   return {
     isError: true,

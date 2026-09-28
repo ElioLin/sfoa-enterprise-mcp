@@ -8,7 +8,6 @@ export type ConnectionOperation =
   | 'queryMore'
   | 'toolingQuery'
   | 'toolingQueryMore'
-  | 'limits'
   | 'search';
 
 export type ConnectionCall = Readonly<{ operation: ConnectionOperation; argument?: string }>;
@@ -62,10 +61,6 @@ export function createFixture(options: DataFixtureOptions = {}): DataFixture {
         calls.push({ operation: 'toolingQueryMore', argument: cursor });
         return handler('toolingQueryMore', cursor);
       },
-    },
-    limits: async () => {
-      calls.push({ operation: 'limits' });
-      return handler('limits');
     },
     search: async (statement: string) => {
       calls.push({ operation: 'search', argument: statement });
@@ -187,13 +182,6 @@ export function rows(count: number, prefix = 'r'): Record<string, unknown>[] {
  */
 export function idRows(count: number, prefix = 'r'): Record<string, unknown>[] {
   return Array.from({ length: count }, (_, index) => ({ Id: `${prefix}${index}` }));
-}
-
-/** A limits payload: the org's own keys, each a `{ Max, Remaining }` pair. */
-export function limitsPayload(
-  entries: Readonly<Record<string, unknown>>,
-): Record<string, unknown> {
-  return { ...entries };
 }
 
 /**

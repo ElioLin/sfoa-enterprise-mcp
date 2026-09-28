@@ -10,9 +10,11 @@ import type {
 import type { McpTool, McpToolConfig } from '@salesforce/mcp-provider-api';
 import {
   ContextRuntimeError,
+  SFOA_CONTEXT_TOOL_NAMES,
   SFOA_CONTEXT_TOOL_ROLES,
   contextExecutionErrorToolResult,
   isSfoaContextToolName,
+  type SfoaContextToolName,
 } from '@sfoa/mcp-provider-sfoa-context';
 import type {
   RequestContext,
@@ -174,16 +176,26 @@ export class ContextToolFacade {
   }
 }
 
+/**
+ * Which Salesforce surface each context Tool is audited under.
+ *
+ * Declared as a total map rather than a `switch … default: 'UNKNOWN'`, because a default silently
+ * absorbs a Tool that has no purpose decision: moving a Tool into this provider without revisiting
+ * its audit purpose would produce rows an operator reads as a semantic-capture failure. Written
+ * this way, that omission is a compile error in the layer that owns the audit contract.
+ */
+const CONTEXT_TOOL_PURPOSES: Readonly<Record<SfoaContextToolName, SalesforceApiPurpose>> = Object.freeze({
+  get_record_action_context: 'RECORD_ACTION_CONTEXT',
+  run_diagnostic_tooling_query: 'DIAGNOSTIC_TOOLING',
+  get_metadata_component_context: 'METADATA_RETRIEVE',
+  get_record_display_context: 'OBJECT_SCHEMA',
+  resolve_field_display_values: 'OBJECT_SCHEMA',
+  get_record_relationship_context: 'OBJECT_SCHEMA',
+  get_org_limits: 'ORG_LIMITS',
+});
+
 function contextPurpose(toolName: string): SalesforceApiPurpose {
-  switch (toolName) {
-    case 'get_record_action_context': return 'RECORD_ACTION_CONTEXT';
-    case 'run_diagnostic_tooling_query': return 'DIAGNOSTIC_TOOLING';
-    case 'get_metadata_component_context': return 'METADATA_RETRIEVE';
-    case 'get_record_display_context': return 'OBJECT_SCHEMA';
-    case 'resolve_field_display_values': return 'OBJECT_SCHEMA';
-    case 'get_record_relationship_context': return 'OBJECT_SCHEMA';
-    default: return 'UNKNOWN';
-  }
+  return isSfoaContextToolName(toolName) ? CONTEXT_TOOL_PURPOSES[toolName] : 'UNKNOWN';
 }
 
 function safeContextRequestSummary(toolName: string, input: ToolInput): unknown {
@@ -199,6 +211,10 @@ function safeContextRequestSummary(toolName: string, input: ToolInput): unknown 
       metadataType: typeof input.metadataType === 'string' ? input.metadataType : null,
       fullName: typeof input.fullName === 'string' ? input.fullName : null,
     };
+  }
+  if (toolName === 'get_org_limits') {
+    // The only input is a presentation switch; there is no business data and no statement here.
+    return { verbose: input.verbose === true };
   }
   if (toolName === 'get_record_display_context') {
     return {
@@ -224,9 +240,19 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     ...(typeof content.returnedFiles === 'number' ? { returnedFiles: content.returnedFiles } : {}),
     ...(fields !== undefined ? { fieldCount: fields } : {}),
     ...(Array.isArray(content.managedDmlFields) ? { managedDmlFieldCount: content.managedDmlFields.length } : {}),
+    ...(typeof content.totalLimits === 'number' ? { totalLimits: content.totalLimits } : {}),
+    ...(typeof content.returnedLimits === 'number' ? { returnedLimits: content.returnedLimits } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
     ...(errorCode ? { errorCode } : {}),
   };
+}
+
+/** Fails loudly if the purpose map and the role map ever disagree about which Tools exist. */
+export function assertContextToolPurposesMatchRoleMap(): void {
+  const missing = SFOA_CONTEXT_TOOL_NAMES.filter((name) => !Object.hasOwn(CONTEXT_TOOL_PURPOSES, name));
+  if (missing.length > 0) {
+    throw new Error(`Context Tools without an audit purpose: ${missing.join(', ')}.`);
+  }
 }
 
 function enrichManagedDmlFields(

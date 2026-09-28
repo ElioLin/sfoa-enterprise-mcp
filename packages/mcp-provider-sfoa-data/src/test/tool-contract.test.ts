@@ -4,23 +4,19 @@ import { ReleaseState, Toolset } from '@salesforce/mcp-provider-api';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { DescribeSobjectExecutor } from '../describe-sobject-executor.js';
 import { ListSobjectsExecutor } from '../list-sobjects-executor.js';
-import { OrgLimitsExecutor } from '../org-limits-executor.js';
 import { QueryRecordsExecutor } from '../query-records-executor.js';
 import { SearchRecordsExecutor } from '../search-records-executor.js';
 import {
   describeSobjectOutputSchema,
   listSobjectsOutputSchema,
-  orgLimitsOutputSchema,
   queryRecordsOutputSchema,
   searchRecordsOutputSchema,
   type DescribeSobjectInput,
   type ListSobjectsInput,
-  type OrgLimitsInput,
   type QueryRecordsInput,
   type SearchRecordsInput,
 } from '../schemas.js';
 import { DescribeSobjectMcpTool } from '../tools/describe-sobject.js';
-import { GetOrgLimitsMcpTool } from '../tools/get-org-limits.js';
 import { ListSobjectsMcpTool } from '../tools/list-sobjects.js';
 import { QueryRecordsMcpTool } from '../tools/query-records.js';
 import { SearchRecordsMcpTool } from '../tools/search-records.js';
@@ -29,7 +25,6 @@ import {
   describeGlobalPayload,
   describePayload,
   fieldEntry,
-  limitsPayload,
   queryBatch,
   rows,
   salesforceError,
@@ -55,10 +50,6 @@ function queryTool(
   );
 }
 
-function limitsTool(handler: (operation: string, argument?: string) => unknown): GetOrgLimitsMcpTool {
-  return new GetOrgLimitsMcpTool(new OrgLimitsExecutor(createFixture({ handler }).orgService));
-}
-
 function searchTool(
   handler: (operation: string, argument?: string) => unknown,
   enabledToolNames?: readonly string[],
@@ -72,7 +63,6 @@ type DataTool =
   | ListSobjectsMcpTool
   | DescribeSobjectMcpTool
   | QueryRecordsMcpTool
-  | GetOrgLimitsMcpTool
   | SearchRecordsMcpTool;
 
 function structured(result: CallToolResult): Record<string, unknown> {
@@ -393,108 +383,6 @@ test('a query_records result never names a Tool this session does not advertise'
   const text = textOf(result);
   assert.doesNotMatch(text, /submit_bulk_query|get_org_limits/u);
   assert.match(text, /ask an administrator to enable the bulk query capability/u);
-});
-
-test('get_org_limits declares a GA, DATA, read-only contract and says when to call it', () => {
-  const tool = limitsTool(() => limitsPayload({ DailyApiRequests: { Max: 100, Remaining: 40 } }));
-
-  assert.equal(tool.getName(), 'get_org_limits');
-  assert.equal(tool.getReleaseState(), ReleaseState.GA);
-  assert.deepEqual(tool.getToolsets(), [Toolset.DATA]);
-
-  const annotations = annotationsOf(tool);
-  assert.equal(annotations.readOnlyHint, true);
-  assert.equal(annotations.destructiveHint, false);
-  assert.ok(tool.getConfig().inputSchema !== undefined);
-  assert.ok(tool.getConfig().outputSchema !== undefined);
-
-  // The whole point of the Tool is to be called *before* the expensive thing, so the description
-  // has to say so: an Agent that only finds it after a failure has already spent the allowance.
-  const description = descriptionOf(tool);
-  assert.match(description, /before a bulk or otherwise large query/u);
-  for (const slot of ['DailyApiRequests', 'DailyBulkApiRequests', 'DailyAsyncApexExecutions', 'DataStorageMB', 'FileStorageMB']) {
-    assert.ok(description.includes(slot), `${slot} must be named in the description`);
-  }
-  assert.match(description, /never modifies data/u);
-});
-
-test('a successful get_org_limits result satisfies its own declared output schema and prints the five slots', async () => {
-  const tool = limitsTool(() => limitsPayload({
-    DailyApiRequests: { Max: 100, Remaining: 40 },
-    DailyBulkV2QueryJobs: { Max: 10_000, Remaining: 9_999 },
-    ConcurrentAsyncGetReportInstances: { Max: 200 },
-  }));
-  const result = await tool.exec({});
-
-  assert.equal(result.isError, undefined);
-  const output = structured(result);
-  assert.deepEqual(orgLimitsOutputSchema.parse(output), output);
-  assert.equal(output.success, true);
-  assert.equal(output.executionRole, 'USER');
-  assert.equal(output.api, 'REST');
-  assert.equal(output.totalLimits, 3);
-  assert.equal(output.truncated, false);
-
-  const text = textOf(result);
-  assert.match(text, /^get_org_limits: totalLimits=3 returnedLimits=3 unreadableLimits=0 truncated=false verbose=false$/mu);
-  assert.match(text, /^  DailyApiRequests: max=100 remaining=40 used=60 \(key=DailyApiRequests\)$/mu);
-  // The org reported the Bulk API 2.0 key, so the slot line keeps the documented Bulk API 1.0 title
-  // and states which key actually filled it. A caller comparing against Setup needs the real name.
-  assert.match(text, /^  DailyBulkApiRequests: max=10000 remaining=9999 used=1 \(key=DailyBulkV2QueryJobs\)$/mu);
-  assert.match(text, /^  DailyAsyncApexExecutions: not reported by this org \(present=false, key=null\)$/mu);
-  assert.match(text, /^  DataStorageMB: not reported by this org \(present=false, key=null\)$/mu);
-  assert.match(text, /^  FileStorageMB: not reported by this org \(present=false, key=null\)$/mu);
-});
-
-test('a get_org_limits text answer mirrors the structured table, and verbose changes only the text', async () => {
-  const payload = () => limitsPayload({
-    DailyApiRequests: { Max: 100, Remaining: 40 },
-    ConcurrentAsyncGetReportInstances: { Max: 200 },
-  });
-
-  const terse = await limitsTool(payload).exec({});
-  const verbose = await limitsTool(payload).exec({ verbose: true });
-
-  // `limits` is the full table either way: a field named `limits` must never be a subset of itself
-  // depending on a formatting switch, or a client cannot cache or compare two answers.
-  assert.deepEqual(structured(verbose).limits, structured(terse).limits);
-  assert.deepEqual(structured(verbose).highlights, structured(terse).highlights);
-  assert.equal(structured(terse).verbose, false);
-  assert.equal(structured(verbose).verbose, true);
-
-  assert.doesNotMatch(textOf(terse), /Limits \(2 entries\):/u);
-  assert.match(textOf(verbose), /^Limits \(2 entries\):$/mu);
-  assert.match(textOf(verbose), /^  ConcurrentAsyncGetReportInstances: \{"max":200,"remaining":null,"used":null,"measured":true\}$/mu);
-});
-
-test('an org that refuses the limits resource is reported as an access denial, not as an empty org', async () => {
-  const tool = limitsTool(() => {
-    throw salesforceError('API_DISABLED_FOR_ORG', 'limits resource is not enabled');
-  });
-  const result = await tool.exec({});
-
-  assert.equal(result.isError, true);
-  const output = structured(result);
-  assert.equal(output.success, false);
-  assert.equal(output.errorCode, 'MCP_LIMITS_ACCESS_DENIED');
-  assert.equal(output.salesforceErrorCode, 'API_DISABLED_FOR_ORG');
-  // One Salesforce code covers two different causes, so the message names both rather than guessing.
-  assert.match(String(output.message), /refused to report/u);
-  assert.match(String(output.suggestion), /View Setup and Configuration/u);
-  assert.match(String(output.suggestion), /other Salesforce Tools are unaffected/u);
-  assert.doesNotMatch(textOf(result), /\bstack\b/iu);
-  assert.deepEqual(orgLimitsOutputSchema.parse(output), output);
-});
-
-test('a limits payload with nothing readable fails rather than reporting an org without limits', async () => {
-  const tool = limitsTool(() => limitsPayload({ DailyApiRequests: { Max: '100' } }));
-  const result = await tool.exec({});
-
-  assert.equal(result.isError, true);
-  const output = structured(result);
-  assert.equal(output.errorCode, 'MCP_LIMITS_READ_FAILED');
-  assert.equal(output.limits, undefined, 'an empty table would read as "this org has no limits"');
-  assert.deepEqual(orgLimitsOutputSchema.parse(output), output);
 });
 
 test('search_records declares a GA, DATA, read-only contract and states what SOSL cannot do', () => {

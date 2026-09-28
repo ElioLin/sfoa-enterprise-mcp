@@ -42,7 +42,6 @@ const DATA_TOOL_PURPOSES: Readonly<Record<SfoaDataToolName, SalesforceApiPurpose
   list_sobjects: 'OBJECT_SCHEMA',
   describe_sobject: 'OBJECT_SCHEMA',
   query_records: 'USER_QUERY',
-  get_org_limits: 'ORG_LIMITS',
   search_records: 'SOSL_SEARCH',
 });
 
@@ -248,7 +247,6 @@ function safeDataRequestSummary(input: ToolInput): unknown {
           limit: boundedInteger(input.limit),
         }
       : {}),
-    ...(typeof input.verbose === 'boolean' ? { verbose: input.verbose } : {}),
   };
 }
 
@@ -268,9 +266,6 @@ function safeDataResponseSummary(response: CallToolResult | undefined, errorCode
     ...(typeof content.objectsReturned === 'number' ? { objectsReturned: content.objectsReturned } : {}),
     ...(typeof content.unreadableRecords === 'number' ? { unreadableRecords: content.unreadableRecords } : {}),
     ...(typeof content.limitSource === 'string' ? { limitSource: content.limitSource } : {}),
-    ...(typeof content.totalLimits === 'number' ? { totalLimits: content.totalLimits } : {}),
-    ...(typeof content.returnedLimits === 'number' ? { returnedLimits: content.returnedLimits } : {}),
-    ...(typeof content.unreadableLimits === 'number' ? { unreadableLimits: content.unreadableLimits } : {}),
     ...(typeof content.complete === 'boolean' ? { complete: content.complete } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
     ...(typeof content.truncatedReason === 'string' ? { truncatedReason: content.truncatedReason } : {}),

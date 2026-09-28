@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { OrgService, Services } from '@salesforce/mcp-provider-api';
+import { ReleaseState, Toolset, type OrgService, type Services } from '@salesforce/mcp-provider-api';
 import {
   SFOA_CONTEXT_TOOL_NAMES,
   SFOA_CONTEXT_TOOL_ROLES,
@@ -9,9 +9,16 @@ import {
 import {
   diagnosticQueryInputSchema,
   metadataContextInputSchema,
+  orgLimitsInputSchema,
+  orgLimitsOutputSchema,
   recordActionContextInputSchema,
   recordDisplayContextInputSchema,
+  type OrgLimitsOutput,
 } from '../schemas.js';
+import { ContextRuntimeError, CONTEXT_ERROR_CODES } from '../errors.js';
+import { contextExecutionErrorToolResult } from '../tool-results.js';
+import { GetOrgLimitsMcpTool } from '../tools/get-org-limits.js';
+import type { OrgLimitsReader } from '../contracts.js';
 
 const forbiddenFields = [
   'platformUserId',
@@ -32,7 +39,7 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('Context Provider exposes six GA Tools with stable output schemas and complete read-only annotations', async () => {
+test('Context Provider exposes seven GA Tools with stable output schemas and complete read-only annotations', async () => {
   const provider = new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
@@ -53,6 +60,7 @@ test('Context Provider exposes six GA Tools with stable output schemas and compl
         limits: { maxReturnedFiles: 40, maxFileBytes: 65_536, maxTotalBytes: 262_144, maxFileSummaries: 100 },
       }),
     },
+    orgLimitsExecutor: { execute: async () => limitsOutput() },
   });
   const tools = await provider.provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
@@ -75,8 +83,122 @@ test('Context Provider exposes six GA Tools with stable output schemas and compl
     get_record_display_context: 'USER',
     resolve_field_display_values: 'USER',
     get_record_relationship_context: 'USER',
+    // Reading the limits resource is an org-configuration read the business identities in this
+    // deployment are not granted, so the Tool belongs to the isolated diagnostic role.
+    get_org_limits: 'DIAGNOSTIC',
   });
 });
+
+test('get_org_limits refuses to be built without an executor rather than advertising a dead Tool', async () => {
+  const provider = new SfoaContextMcpProvider({
+    diagnosticQueryExecutor: { execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }) },
+    metadataContextExecutor: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', metadataType: input.metadataType, fullName: input.fullName,
+        files: [], omittedFiles: [], totalFiles: 0, returnedFiles: 0, totalBytes: 0, returnedBytes: 0,
+        truncated: false,
+        limits: { maxReturnedFiles: 40, maxFileBytes: 65_536, maxTotalBytes: 262_144, maxFileSummaries: 100 },
+      }),
+    },
+  });
+  await assert.rejects(
+    async () => provider.provideTools(createServices()),
+    /get_org_limits requires an org limits executor/u,
+  );
+});
+
+test('the get_org_limits Tool is GA, carries only a presentation switch, and reports the DIAGNOSTIC role', async () => {
+  const reader: OrgLimitsReader = { execute: async () => limitsOutput() };
+  const tool = new GetOrgLimitsMcpTool(reader);
+  assert.equal(tool.getName(), 'get_org_limits');
+  assert.equal(tool.getReleaseState(), ReleaseState.GA);
+  assert.deepEqual(tool.getToolsets(), [Toolset.DATA]);
+
+  const config = tool.getConfig();
+  assert.deepEqual(Object.keys(config.inputSchema ?? {}), ['verbose']);
+  assert.deepEqual(config.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  });
+  // The role is part of the contract the Agent reads, not a runtime detail it has to infer.
+  assert.match(config.description ?? '', /server-owned DIAGNOSTIC identity/u);
+
+  const result = await tool.exec({ verbose: true });
+  assert.equal(result.isError, undefined);
+  assert.equal((result.structuredContent as Record<string, unknown>).executionRole, 'DIAGNOSTIC');
+  assert.equal((result.structuredContent as Record<string, unknown>).api, 'REST');
+  assert.match(String((result.content[0] as { text: string }).text), /Highlights:/u);
+});
+
+test('org limits input rejects any attempt to select an identity, and the output pins the DIAGNOSTIC role literal', () => {
+  assert.equal(orgLimitsInputSchema.safeParse({}).success, true);
+  assert.equal(orgLimitsInputSchema.safeParse({ verbose: true }).success, true);
+  for (const forged of [
+    { username: 'forged@example.test' },
+    { usernameOrAlias: 'forged@example.test' },
+    { connectionRole: 'DIAGNOSTIC' },
+    { platformUserId: 'p2-user-a' },
+    { verbose: 'yes' },
+  ]) {
+    assert.equal(orgLimitsInputSchema.safeParse(forged).success, false, `${JSON.stringify(forged)} must be refused`);
+  }
+
+  assert.equal(orgLimitsOutputSchema.safeParse(limitsOutput()).success, true);
+  // A USER-role success is not a shape this Tool can produce, so it must not parse — otherwise a
+  // regression that silently reverted the role would still pass every schema check.
+  assert.equal(
+    orgLimitsOutputSchema.safeParse({ ...limitsOutput(), executionRole: 'USER' }).success,
+    false,
+  );
+  assert.equal(orgLimitsOutputSchema.safeParse({ success: false, errorCode: 'MCP_LIMITS_READ_FAILED' }).success, true);
+});
+
+test('the limits error surface is additive: only the two new codes, and only when the raiser set them', () => {
+  assert.ok(CONTEXT_ERROR_CODES.includes('MCP_LIMITS_READ_FAILED'));
+  assert.ok(CONTEXT_ERROR_CODES.includes('MCP_LIMITS_ACCESS_DENIED'));
+
+  const withExtras = contextExecutionErrorToolResult(
+    new ContextRuntimeError('MCP_LIMITS_ACCESS_DENIED', 'refused', {
+      salesforceErrorCode: 'API_DISABLED_FOR_ORG',
+      suggestion: 'Read the allowances from Salesforce Setup instead of retrying.',
+    }),
+    'MCP_LIMITS_READ_FAILED',
+  );
+  assert.deepEqual(Object.keys(withExtras.structuredContent as object).sort(),
+    ['errorCode', 'message', 'salesforceErrorCode', 'success', 'suggestion'].sort());
+  assert.equal((withExtras.structuredContent as Record<string, unknown>).salesforceErrorCode, 'API_DISABLED_FOR_ORG');
+
+  // Every other context Tool keeps its exact three-key error shape; the new keys are only emitted
+  // when a raiser actually set them, which is also what their `.strict()` output schemas require.
+  const plain = contextExecutionErrorToolResult(
+    new ContextRuntimeError('MCP_RECORD_DISPLAY_CONTEXT_INVALID', 'bad input'),
+    'MCP_RECORD_DISPLAY_CONTEXT_INVALID',
+  );
+  assert.deepEqual(Object.keys(plain.structuredContent as object), ['success', 'errorCode', 'message']);
+});
+
+function limitsOutput(): OrgLimitsOutput {
+  return {
+    success: true,
+    executionRole: 'DIAGNOSTIC',
+    api: 'REST',
+    verbose: false,
+    limits: { DailyApiRequests: { max: 100_000, remaining: 99_000, used: 1_000, measured: true } },
+    highlights: {
+      dailyApiRequests: { key: 'DailyApiRequests', present: true, max: 100_000, remaining: 99_000, used: 1_000 },
+      dailyBulkApiRequests: { key: null, present: false, max: null, remaining: null, used: null },
+      dailyAsyncApexExecutions: { key: null, present: false, max: null, remaining: null, used: null },
+      dataStorageMB: { key: null, present: false, max: null, remaining: null, used: null },
+      fileStorageMB: { key: null, present: false, max: null, remaining: null, used: null },
+    },
+    totalLimits: 1,
+    returnedLimits: 1,
+    unreadableLimits: 0,
+    truncated: false,
+  };
+}
 
 test('diagnostic query is SELECT-only and has no Tooling or identity switch', () => {
   assert.equal(diagnosticQueryInputSchema.safeParse({ query: 'SELECT Id FROM ApexClass LIMIT 5' }).success, true);

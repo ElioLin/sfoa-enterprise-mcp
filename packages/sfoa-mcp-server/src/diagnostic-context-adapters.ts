@@ -361,7 +361,14 @@ function resultText(result: { content: readonly { type: string; text?: string }[
     .join('\n');
 }
 
-function assertDiagnosticScope(scope: RequestScope, toolName: string): void {
+/**
+ * The one wording for "this request is not on the fixed DIAGNOSTIC identity".
+ *
+ * Exported because every diagnostic Tool needs it, including the ones whose executor lives outside
+ * this module: a second, inlined copy of the check would be free to drift from this code and message,
+ * and this is the guard an operator reads in the audit trail when a role mix-up is suspected.
+ */
+export function assertDiagnosticScope(scope: RequestScope, toolName: string): void {
   if (scope.route.connectionRole !== 'DIAGNOSTIC') {
     throw new ContextRuntimeError(
       'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED',

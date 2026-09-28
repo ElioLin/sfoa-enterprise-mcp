@@ -153,19 +153,6 @@ export const queryRecordsInputSchema = queryRecordsInputObjectSchema.superRefine
 /** The registered wire schema, which must stay a raw shape (see ADR-0024). */
 export const queryRecordsInputShape = queryRecordsInputObjectSchema.shape;
 
-export const orgLimitsInputSchema = z
-  .object({
-    verbose: z
-      .boolean()
-      .optional()
-      .describe(
-        'Set true to list every limit this org reports in the text answer; defaults to false, which '
-        + 'prints only the five highlights. structuredContent.limits carries the full table either way, '
-        + 'so this switch changes how much is readable at a glance and never what is available.',
-      ),
-  })
-  .strict();
-
 const searchRecordsInputObjectSchema = z
   .object({
     search: z
@@ -393,108 +380,6 @@ export const queryRecordsOutputSchema = z
   .strict();
 
 /**
- * The governor limits `get_org_limits` always reports, in the order the Tool documents them.
- *
- * These are this Tool's own slot names; each one is filled by looking up the org's key through
- * `ORG_LIMIT_HIGHLIGHT_ALIASES`, and the slot's `key` says which org key actually filled it. The
- * slots exist so that "the org does not meter this resource" is a reportable answer (`present:
- * false`) rather than a silence an Agent would read as "no limit".
- */
-export const ORG_LIMIT_HIGHLIGHT_SLOTS = [
-  'dailyApiRequests',
-  'dailyBulkApiRequests',
-  'dailyAsyncApexExecutions',
-  'dataStorageMB',
-  'fileStorageMB',
-] as const;
-
-export type OrgLimitHighlightSlot = (typeof ORG_LIMIT_HIGHLIGHT_SLOTS)[number];
-
-/**
- * Candidate org keys per slot, most specific first.
- *
- * Only `dailyBulkApiRequests` genuinely needs the table: Salesforce renamed the Bulk allowance
- * between Bulk API 1.0 (`DailyBulkApiRequests`) and Bulk API 2.0 (`DailyBulkV2QueryJobs`), and an
- * org may report either. The other slots carry one documented name each and are listed here so the
- * lookup has a single shape instead of a special case.
- *
- * **Not verified against a live org.** The limits resource was refused org-wide when this Tool was
- * built, at every API version and for four distinct identities (see
- * `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §1), so these names come from Salesforce's documentation
- * rather than from an observed payload. A miss is not a failure — the slot reports `present: false`
- * with a null key, which is itself the answer to whether this org meters that resource.
- */
-export const ORG_LIMIT_HIGHLIGHT_ALIASES = Object.freeze({
-  dailyApiRequests: Object.freeze(['DailyApiRequests']),
-  dailyBulkApiRequests: Object.freeze(['DailyBulkApiRequests', 'DailyBulkV2QueryJobs']),
-  dailyAsyncApexExecutions: Object.freeze(['DailyAsyncApexExecutions']),
-  dataStorageMB: Object.freeze(['DataStorageMB']),
-  fileStorageMB: Object.freeze(['FileStorageMB']),
-}) satisfies Readonly<Record<OrgLimitHighlightSlot, readonly string[]>>;
-
-/**
- * One governor limit, as this Tool reads it.
- *
- * `measured` is exactly `max !== null || remaining !== null`: it says whether the org reported a
- * number for this resource at all. It is kept as a field because it is what a quota pre-flight
- * branches on — an unmetered resource cannot be budgeted against, and a caller should not have to
- * re-derive that from two nulls.
- */
-const orgLimitEntrySchema = z
-  .object({
-    max: z.number().nonnegative().nullable(),
-    remaining: z.number().nonnegative().nullable(),
-    used: z.number().nonnegative().nullable(),
-    measured: z.boolean(),
-  })
-  .strict();
-
-const orgLimitHighlightSchema = z
-  .object({
-    /** The org key that filled this slot, or null when the org does not report it. */
-    key: z.string().nullable(),
-    present: z.boolean(),
-    max: z.number().nonnegative().nullable(),
-    remaining: z.number().nonnegative().nullable(),
-    used: z.number().nonnegative().nullable(),
-  })
-  .strict();
-
-/**
- * The five slots are written out in full rather than generated from `ORG_LIMIT_HIGHLIGHT_SLOTS`,
- * because a generated `Record<string, …>` would lose exactly the guarantee that matters: that every
- * slot is present. Written this way, dropping one is a compile error, and a test pins the key set to
- * the slot list so the two cannot drift.
- */
-const orgLimitHighlightsSchema = z
-  .object({
-    dailyApiRequests: orgLimitHighlightSchema,
-    dailyBulkApiRequests: orgLimitHighlightSchema,
-    dailyAsyncApexExecutions: orgLimitHighlightSchema,
-    dataStorageMB: orgLimitHighlightSchema,
-    fileStorageMB: orgLimitHighlightSchema,
-  })
-  .strict();
-
-export const orgLimitsOutputSchema = z
-  .object({
-    ...dataFailureFields,
-    executionRole: z.literal('USER').optional(),
-    api: z.literal('REST').optional(),
-    verbose: z.boolean().optional(),
-    /** Every limit the org reported, keyed by the org's own key. Same content whatever `verbose` says. */
-    limits: z.record(orgLimitEntrySchema).optional(),
-    highlights: orgLimitHighlightsSchema.optional(),
-    totalLimits: z.number().int().nonnegative().optional(),
-    returnedLimits: z.number().int().nonnegative().optional(),
-    /** Entries the org listed but reported no readable number for. */
-    unreadableLimits: z.number().int().nonnegative().optional(),
-    truncated: z.boolean().optional(),
-    hint: z.string().max(1_000).optional(),
-  })
-  .strict();
-
-/**
  * Why a `search_records` result is not every matching record.
  *
  * SOSL reports no total match count and hands out no continuation cursor — `SearchResult` carries
@@ -560,11 +445,6 @@ export type DescribeSobjectOutput = z.infer<typeof describeSobjectOutputSchema>;
 export type QueryRecordsInput = z.infer<typeof queryRecordsInputSchema>;
 export type QueryRecordsOutput = z.infer<typeof queryRecordsOutputSchema>;
 export type QueryTruncationReason = (typeof QUERY_TRUNCATION_REASONS)[number];
-export type OrgLimitsInput = z.infer<typeof orgLimitsInputSchema>;
-export type OrgLimitsOutput = z.infer<typeof orgLimitsOutputSchema>;
-export type OrgLimitEntry = z.infer<typeof orgLimitEntrySchema>;
-export type OrgLimitHighlight = z.infer<typeof orgLimitHighlightSchema>;
-export type OrgLimitHighlights = z.infer<typeof orgLimitHighlightsSchema>;
 export type SearchRecordsInput = z.infer<typeof searchRecordsInputSchema>;
 export type SearchRecordsOutput = z.infer<typeof searchRecordsOutputSchema>;
 export type SearchRecordGroup = z.infer<typeof searchRecordGroupSchema>;

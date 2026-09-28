@@ -5,7 +5,7 @@ import {
   ReleaseState,
   Toolset,
 } from '@salesforce/mcp-provider-api';
-import type { OrgLimitsExecutor } from '../org-limits-executor.js';
+import type { OrgLimitsReader } from '../contracts.js';
 import {
   ORG_LIMIT_HIGHLIGHT_ALIASES,
   ORG_LIMIT_HIGHLIGHT_SLOTS,
@@ -14,13 +14,22 @@ import {
   type OrgLimitsInput,
   type OrgLimitsOutput,
 } from '../schemas.js';
-import { dataFailureToolResult } from '../tool-results.js';
+import { contextExecutionErrorToolResult } from '../tool-results.js';
 
 type InputShape = typeof orgLimitsInputSchema.shape;
 type OutputShape = typeof orgLimitsOutputSchema.shape;
 
+/**
+ * Reports the org's governor limits to an Agent sizing a large data job.
+ *
+ * The Tool is DIAGNOSTIC: reading the limits resource is an org-configuration read that business
+ * integration identities are not granted, and the fixed server-owned DIAGNOSTIC identity is what the
+ * deployment provides for exactly that class of read. The role is declared in
+ * `SFOA_CONTEXT_TOOL_ROLES`, which is what routes the call and what makes the server refuse to
+ * enable this Tool without an enabled diagnostic identity.
+ */
 export class GetOrgLimitsMcpTool extends McpTool<InputShape, OutputShape> {
-  public constructor(private readonly executor: OrgLimitsExecutor) {
+  public constructor(private readonly executor: OrgLimitsReader) {
     super();
   }
 
@@ -56,6 +65,9 @@ export class GetOrgLimitsMcpTool extends McpTool<InputShape, OutputShape> {
         + 'Nothing is inferred here. If the org refuses the limits resource, or reports no readable number, the call '
         + 'fails with a structured error rather than returning an empty table — an empty table would read as "this '
         + 'org has no limits". '
+        + 'This Tool runs on the server-owned DIAGNOSTIC identity rather than on your own Salesforce user, because '
+        + 'the limits resource is an org configuration read that business identities are not granted; it therefore '
+        + 'reports the whole org\'s quota state and never any business record. '
         + 'Read-only: it reads quota counters and never modifies data.',
       inputSchema: orgLimitsInputSchema.shape,
       outputSchema: orgLimitsOutputSchema.shape,
@@ -77,7 +89,7 @@ export class GetOrgLimitsMcpTool extends McpTool<InputShape, OutputShape> {
         structuredContent: output,
       };
     } catch (error) {
-      return dataFailureToolResult(error, 'MCP_LIMITS_READ_FAILED');
+      return contextExecutionErrorToolResult(error, 'MCP_LIMITS_READ_FAILED');
     }
   }
 }

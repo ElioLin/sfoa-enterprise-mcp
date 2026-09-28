@@ -10,8 +10,14 @@ Tool parameter can name a username, platform user, instance URL, token or API ve
 | `list_sobjects` | `describeGlobal()` | SObject inventory with a prefix filter and a bounded page |
 | `describe_sobject` | `describe()` | Field, picklist and child-relationship schema for self-repair |
 | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` | Bounded SOQL whose answer always states whether it is complete |
-| `get_org_limits` | `limits()` | Org quota pre-flight before a large data job |
 | `search_records` | `search()` (SOSL) | Cross-object keyword lookup with a stated cap |
+
+`get_org_limits` used to live here. It moved to
+[`@sfoa/mcp-provider-sfoa-context`](../mcp-provider-sfoa-context/README.md) and to the
+server-owned `DIAGNOSTIC` identity when the live probe showed no business identity this
+deployment routes may read the `limits` resource — see
+[ADR-0027](../../docs/sfoa/adr/ADR-0027-p9-org-limits-diagnostic-identity.md). Every Tool in
+this package is therefore `READ`/`USER`, without exception.
 
 T4 adds the Bulk API 2.0 pair to this same Provider. See
 [ADR-0024](../../docs/sfoa/adr/ADR-0024-p9-data-provider-over-official-sdk.md)
@@ -19,13 +25,19 @@ for the upstream audit that put these on the official jsforce SDK instead of a r
 wrapped upstream Tool, [ADR-0025](../../docs/sfoa/adr/ADR-0025-p9-query-records-bounded-completeness.md)
 for the bounded-completeness contract, and
 [ADR-0026](../../docs/sfoa/adr/ADR-0026-p9-org-limits-and-sosl-search.md)
-for the quotas and SOSL decisions.
+for the quotas and SOSL decisions (revised for `get_org_limits` by ADR-0027).
 
 ## Contract rules these Tools follow
 
 - **Bounded everything.** Every Tool has a default and a hard limit, and reports
   `totalCount`/`returnedCount`/`truncated` rather than implying the answer is complete.
   `truncated: true` always carries a `hint` naming the next concrete step.
+- **Hints name only Tools the session advertises.** The `advertisedToolNames` option is the
+  session's whole `enabledTools` list, not this Provider's subset: `query_records` and
+  `search_records` suggest `get_org_limits` in their exhausted-allowance remedy, and that Tool
+  belongs to `@sfoa/mcp-provider-sfoa-context`. Gating the hint on the Data subset would make the
+  suggestion permanently unreachable without any error, so the host passes the session set from
+  both composition points (the governed runtime and Discovery).
 - **Response byte budget.** Results are trimmed to `DATA_MAX_RESPONSE_BYTES` (256 KiB)
   before returning, and the trim is measured against the fully rendered response — so the
   reported `truncated`/`hint` facts are inside the payload that was actually measured.

@@ -1,10 +1,11 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
-import type { DiagnosticToolingQueryExecutor, MetadataComponentContextExecutor } from './contracts.js';
+import type { DiagnosticToolingQueryExecutor, MetadataComponentContextExecutor, OrgLimitsReader } from './contracts.js';
 import { RecordActionContextExecutor } from './record-action-executor.js';
 import { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
 import type { EffectiveUiOptions } from './effective-ui-contracts.js';
 import { RecordDisplayContextExecutor } from './record-display-executor.js';
 import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.js';
+import { GetOrgLimitsMcpTool } from './tools/get-org-limits.js';
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
 import { RecordActionContextMcpTool } from './tools/record-action-context.js';
 import { RecordDisplayContextMcpTool } from './tools/record-display-context.js';
@@ -18,6 +19,11 @@ export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   get_record_display_context: 'USER',
   resolve_field_display_values: 'USER',
   get_record_relationship_context: 'USER',
+  // Reading the limits resource is an org configuration read the business identities are not
+  // granted, so it belongs on the fixed server-owned DIAGNOSTIC identity — the same reason the two
+  // Tooling/Metadata Tools above are DIAGNOSTIC. This map is what routes the call: the MCP server
+  // derives the execution role from it, so moving this line would move the identity the Tool runs on.
+  get_org_limits: 'DIAGNOSTIC',
 } as const);
 
 export type SfoaContextToolName = keyof typeof SFOA_CONTEXT_TOOL_ROLES;
@@ -36,6 +42,7 @@ export type SfoaContextProviderOptions = Readonly<{
   toolNames?: readonly SfoaContextToolName[];
   diagnosticQueryExecutor?: DiagnosticToolingQueryExecutor;
   metadataContextExecutor?: MetadataComponentContextExecutor;
+  orgLimitsExecutor?: OrgLimitsReader;
 }>;
 
 export class SfoaContextMcpProvider extends McpProvider {
@@ -72,6 +79,14 @@ export class SfoaContextMcpProvider extends McpProvider {
     }
     if (requested.includes('resolve_field_display_values')) tools.push(new PresentationRelationshipMcpTool(presentation, 'DISPLAY'));
     if (requested.includes('get_record_relationship_context')) tools.push(new PresentationRelationshipMcpTool(presentation, 'RELATIONSHIP'));
+    // Last, so the provided order still matches `SFOA_CONTEXT_TOOL_ROLES` — the tool list a caller
+    // reads and the role map that routes each call stay in the same order.
+    if (requested.includes('get_org_limits')) {
+      if (!this.options.orgLimitsExecutor) {
+        throw new Error('get_org_limits requires an org limits executor.');
+      }
+      tools.push(new GetOrgLimitsMcpTool(this.options.orgLimitsExecutor));
+    }
     return Promise.resolve(tools);
   }
 }

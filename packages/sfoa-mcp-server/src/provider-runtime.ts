@@ -60,6 +60,7 @@ import {
 import { DmlToolFacade } from './dml-tool-facade.js';
 import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { DmlToolGovernancePolicy } from './dml-tool-governance.js';
+import { ScopedOrgLimitsExecutor } from './org-limits-context-executor.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
 import { ToolGovernancePolicy } from './tool-governance.js';
 import {
@@ -366,6 +367,12 @@ export async function createGovernedMcpServer(
               ),
             }
           : {}),
+        // Unlike the two adapters above, this executor needs no official Tool: it reads through the
+        // request's own DIAGNOSTIC Connection. It is still host-side, because only the host holds the
+        // `RequestScope` that proves which identity the request was routed to.
+        ...(contextToolNames.includes('get_org_limits')
+          ? { orgLimitsExecutor: new ScopedOrgLimitsExecutor(options.scope) }
+          : {}),
       });
       const contextTools = await contextProvider.provideTools(options.scope.services);
       for (const tool of contextTools) {
@@ -384,6 +391,10 @@ export async function createGovernedMcpServer(
     if (dataToolNames.length > 0) {
       const dataTools = await new SfoaDataMcpProvider({
         toolNames: dataToolNames as readonly SfoaDataToolName[],
+        // A hint may only name a Tool `tools/list` advertises, and that set spans every provider:
+        // `get_org_limits` is a context Tool. Passing the Data subset here would silently drop the
+        // quota remedy from the query/search failures that are supposed to recommend it.
+        advertisedToolNames: options.initializedProvider.enabledTools,
       }).provideTools(options.scope.services);
       for (const tool of dataTools) {
         if (tool.getReleaseState() !== ReleaseState.GA) continue;

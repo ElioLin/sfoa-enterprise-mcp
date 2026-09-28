@@ -1,17 +1,15 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
 import { DescribeSobjectExecutor } from './describe-sobject-executor.js';
 import { ListSobjectsExecutor } from './list-sobjects-executor.js';
-import { OrgLimitsExecutor } from './org-limits-executor.js';
 import { QueryRecordsExecutor } from './query-records-executor.js';
 import { SearchRecordsExecutor } from './search-records-executor.js';
 import { DescribeSobjectMcpTool } from './tools/describe-sobject.js';
-import { GetOrgLimitsMcpTool } from './tools/get-org-limits.js';
 import { ListSobjectsMcpTool } from './tools/list-sobjects.js';
 import { QueryRecordsMcpTool } from './tools/query-records.js';
 import { SearchRecordsMcpTool } from './tools/search-records.js';
 
 /**
- * Every P9 Data Tool is READ and USER-scoped: it reads Salesforce data or schema through
+ * Every SFOA Data Tool is READ and USER-scoped: it reads Salesforce data or schema through
  * the request-scoped USER identity and never mutates business data. The role map is the
  * single source of truth the host uses to fix the execution role per tool name, so an
  * Agent can never switch roles through Tool input or batching.
@@ -20,7 +18,6 @@ export const SFOA_DATA_TOOL_ROLES = Object.freeze({
   list_sobjects: 'USER',
   describe_sobject: 'USER',
   query_records: 'USER',
-  get_org_limits: 'USER',
   search_records: 'USER',
 } as const);
 
@@ -37,6 +34,14 @@ export function isSfoaDataToolName(value: string): value is SfoaDataToolName {
 export type SfoaDataProviderOptions = Readonly<{
   /** Tools to build. Omitted means every SFOA Data Tool; the host passes the enabled set. */
   toolNames?: readonly SfoaDataToolName[];
+  /**
+   * Every Tool name this session advertises, across all providers — the set a hint may name.
+   *
+   * This is deliberately not `toolNames`. The truncation hints recommend Tools that live in other
+   * providers (`get_org_limits` is a context Tool), so gating them on the Data subset alone would
+   * silently drop the recommendation. Omitted means no cross-provider Tool may be named.
+   */
+  advertisedToolNames?: readonly string[];
 }>;
 
 export class SfoaDataMcpProvider extends McpProvider {
@@ -50,6 +55,9 @@ export class SfoaDataMcpProvider extends McpProvider {
 
   public provideTools(services: Services): Promise<McpTool[]> {
     const requested = this.options.toolNames ?? SFOA_DATA_TOOL_NAMES;
+    // A hint may only name a Tool `tools/list` advertises. `advertisedToolNames` is that set; when
+    // the caller does not supply one, the Data subset is the best available answer.
+    const advertised = this.options.advertisedToolNames ?? requested;
     const orgService = services.getOrgService();
     const tools: McpTool[] = [];
     if (requested.includes('list_sobjects')) {
@@ -59,21 +67,17 @@ export class SfoaDataMcpProvider extends McpProvider {
       tools.push(new DescribeSobjectMcpTool(new DescribeSobjectExecutor(orgService)));
     }
     if (requested.includes('query_records')) {
-      // `requested` is the session's enabled set, so it is exactly the list of SFOA Data Tools
-      // the caller can see. The executor uses it to keep a truncation hint from recommending a
-      // Tool (the bulk export, the org-limits read) that `tools/list` does not advertise.
+      // The executor uses this set to keep a truncation hint from recommending a Tool (the bulk
+      // export, the org-limits read) that `tools/list` does not advertise.
       tools.push(new QueryRecordsMcpTool(
-        new QueryRecordsExecutor(orgService, { enabledToolNames: requested }),
+        new QueryRecordsExecutor(orgService, { enabledToolNames: advertised }),
       ));
-    }
-    if (requested.includes('get_org_limits')) {
-      tools.push(new GetOrgLimitsMcpTool(new OrgLimitsExecutor(orgService)));
     }
     if (requested.includes('search_records')) {
       // Same contract as `query_records`: the ids-only hint may only name a Tool this session
       // actually advertises, which for a search that found records is `query_records`.
       tools.push(new SearchRecordsMcpTool(
-        new SearchRecordsExecutor(orgService, { enabledToolNames: requested }),
+        new SearchRecordsExecutor(orgService, { enabledToolNames: advertised }),
       ));
     }
     return Promise.resolve(tools);

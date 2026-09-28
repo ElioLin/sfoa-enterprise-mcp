@@ -10,6 +10,13 @@ Private Provider API extension for deterministic Salesforce facts:
   relationships filtered by existing CREATE governance and Salesforce createability.
 - `run_diagnostic_tooling_query` delegates through a Host-supplied official Tooling-query adapter.
 - `get_metadata_component_context` delegates through a Host-supplied official metadata-retrieve adapter.
+- `get_org_limits` reads the org's own governor-limit map and its five fixed highlight slots
+  through a Host-supplied executor on the fixed server-owned DIAGNOSTIC identity. It arrived in
+  P9-T3 from the data Provider, because the `limits` resource is org configuration that no
+  business identity this deployment routes is granted — the same class of read as the two
+  Tooling/Metadata Tools above, and the reason that role is siloed from the business roles. It
+  returns quota counters only, never a business record. See
+  [ADR-0027](../../docs/sfoa/adr/ADR-0027-p9-org-limits-diagnostic-identity.md).
 
 The Provider contains no identity selector, business reasoning, DML, arbitrary REST URL or client filesystem path. Tool visibility remains controlled by the remote Host's explicit configuration.
 

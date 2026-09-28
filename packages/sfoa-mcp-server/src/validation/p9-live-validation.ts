@@ -29,12 +29,14 @@ import {
   DESCRIBE_SOBJECT_MAX_CHILD_RELATIONSHIPS,
   DESCRIBE_SOBJECT_MAX_PICKLIST_VALUES,
   LIST_SOBJECTS_MAX_LIMIT,
-  ORG_LIMIT_HIGHLIGHT_ALIASES,
-  ORG_LIMIT_HIGHLIGHT_SLOTS,
   QUERY_RECORDS_MAX_MAX_ROWS,
   SEARCH_RECORDS_MAX_LIMIT,
   SFOA_DATA_TOOL_NAMES,
 } from '@sfoa/mcp-provider-sfoa-data';
+import {
+  ORG_LIMIT_HIGHLIGHT_ALIASES,
+  ORG_LIMIT_HIGHLIGHT_SLOTS,
+} from '@sfoa/mcp-provider-sfoa-context';
 import { loadRemoteRuntimeConfig } from '../config.js';
 import { startRemoteMcpServer } from '../http-server.js';
 import { createAttachmentIngress } from '../runtime.js';
@@ -216,9 +218,6 @@ export async function runP9LiveValidation(
   const objectApiName = environment.P9_LIVE_OBJECT?.trim() || config.identity.testObject || 'Account';
   const filter = environment.P9_LIVE_FILTER?.trim() || objectApiName.slice(0, 3);
   const dataToolNames = [...SFOA_DATA_TOOL_NAMES];
-  const enablementSource =
-    `the MySQL Control Plane snapshot for ${platformUserId}, extended additively with `
-    + `${dataToolNames.join(', ')} for this run (the Tools have no sfoa_tool_control row)`;
   const generatedAt = new Date().toISOString();
 
   const database = createControlPlaneDatabase(databaseConfig);
@@ -245,6 +244,26 @@ export async function runP9LiveValidation(
   const policySnapshotSource = new MySqlRuntimePolicySnapshotSource(database);
   const snapshot = await policySnapshotSource.load(platformUserId);
   const route = snapshot.identityRoute;
+  // `get_org_limits` runs on the server-owned DIAGNOSTIC identity, and the runtime refuses *every*
+  // request when a diagnostic Tool is enabled without an enabled diagnostic configuration. So this
+  // run may only enable the Tool when this Control Plane can actually route that identity; otherwise
+  // the enablement would abort the seven gates that have nothing to do with quotas. A diagnostic
+  // configuration that exists but has not passed verification is treated as absent for the same
+  // reason: the runtime would route it, and the gate would be measuring an unverified identity.
+  const diagnosticEnabled = snapshot.diagnostic !== null
+    && snapshot.diagnostic.enabled === true
+    && snapshot.diagnostic.verificationStatus === 'PASS';
+  /** Tools this run enables that live outside the Data provider, so the inventory check knows them. */
+  const movedToolNames = diagnosticEnabled ? ['get_org_limits'] : [];
+  const additiveToolNames = [...dataToolNames, ...movedToolNames];
+  const enablementSource =
+    `the MySQL Control Plane snapshot for ${platformUserId}, extended additively with `
+    + `${dataToolNames.join(', ')} for this run (the Tools have no sfoa_tool_control row)`
+    + (diagnosticEnabled
+      ? `, and additionally with ${movedToolNames.join(', ')} because this Control Plane has an enabled, `
+        + 'verification-passed Diagnostic identity that get_org_limits now requires'
+      : ', and without get_org_limits because this Control Plane has no enabled, verification-passed '
+        + 'Diagnostic identity to run it on');
 
   if (route === null || route.enabled !== true) {
     await closeQuietly(store, database, auditDatabase, auditPipeline);
@@ -290,11 +309,11 @@ export async function runP9LiveValidation(
       useLoopbackOriginDefaults: true,
     }),
     identityRuntime,
-    policySnapshotSource: new AdditiveDataToolsPolicySnapshotSource(policySnapshotSource, dataToolNames),
+    policySnapshotSource: new AdditiveDataToolsPolicySnapshotSource(policySnapshotSource, additiveToolNames),
     discoveryPolicySnapshotSource: new MySqlRuntimeDiscoveryPolicySnapshotSource(database),
     ...(attachmentIngress === undefined ? {} : { attachmentIngress }),
   });
-  const expectedNames = [...new Set([...snapshot.enabledTools, ...dataToolNames])].sort();
+  const expectedNames = [...new Set([...snapshot.enabledTools, ...additiveToolNames])].sort();
   const results: CallToolResult[] = [];
 
   try {
@@ -309,7 +328,7 @@ export async function runP9LiveValidation(
     const client = new Client({ name: 'p9-live-validation', version: '0.1.0-p9' });
     await client.connect(transport);
     try {
-      const toolInventory = await runToolInventory(client, expectedNames, dataToolNames);
+      const toolInventory = await runToolInventory(client, expectedNames, additiveToolNames);
       // The first Tool call is what opens the request-scoped Connection. Every independent
       // org fact below is read through that same live, already-authenticated Connection, so a
       // disagreement is a disagreement about Salesforce's own answer, not about a fixture.
@@ -332,7 +351,13 @@ export async function runP9LiveValidation(
       const listSobjects = await runListSobjects(client, results, bounded, filter, realEntries);
       const describeSobject = await runDescribeSobject(client, results, objectApiName, connection);
       const queryRecords = await runQueryRecords(client, results, objectApiName, connection, expectedNames);
-      const orgLimits = await runOrgLimits(client, results, connection);
+      const orgLimits = await runOrgLimits(
+        client,
+        results,
+        measuringFactory,
+        snapshot.diagnostic?.salesforceUsername ?? null,
+        diagnosticEnabled,
+      );
       const searchRecords = await runSearchRecords(client, results, connection, objectApiName, expectedNames);
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
@@ -375,33 +400,36 @@ export async function runP9LiveValidation(
 async function runToolInventory(
   client: Client,
   expectedNames: readonly string[],
-  dataToolNames: readonly string[],
+  additiveToolNames: readonly string[],
 ): Promise<P9LiveGate> {
   const listed = await client.listTools();
   const advertisedNames = listed.tools.map((tool) => tool.name).sort();
-  const dataTools = listed.tools.filter((tool) => dataToolNames.includes(tool.name));
-  const leakedKeys = dataTools.flatMap((tool) => Object.keys(tool.inputSchema.properties ?? {})
+  // The schema-leak and annotation checks follow the Tools this run actually added, not the Data
+  // provider's list: `get_org_limits` moved to the context provider, so keying off `SFOA_DATA_TOOL_NAMES`
+  // would silently stop checking its input keys — the one thing this gate exists to catch.
+  const inspectedTools = listed.tools.filter((tool) => additiveToolNames.includes(tool.name));
+  const leakedKeys = inspectedTools.flatMap((tool) => Object.keys(tool.inputSchema.properties ?? {})
     .filter((key) => FORBIDDEN_INPUT_KEYS.includes(key.toLowerCase()))
     .map((key) => `${tool.name}.${key}`));
-  const annotationsOk = dataTools.every((tool) => tool.annotations?.readOnlyHint === true
+  const annotationsOk = inspectedTools.every((tool) => tool.annotations?.readOnlyHint === true
     && tool.annotations.destructiveHint === false
     && tool.annotations.idempotentHint === true
     && tool.annotations.openWorldHint === true);
-  const allAdvertised = dataToolNames.every((name) => advertisedNames.includes(name));
+  const allAdvertised = additiveToolNames.every((name) => advertisedNames.includes(name));
 
   return gate(
     allAdvertised && sameArray(advertisedNames, expectedNames) && leakedKeys.length === 0 && annotationsOk,
     {
       advertised: advertisedNames,
       expectedFromSnapshot: expectedNames,
-      dataToolsAdvertised: dataTools.map((tool) => tool.name),
-      dataToolInputKeys: Object.fromEntries(
-        dataTools.map((tool) => [tool.name, Object.keys(tool.inputSchema.properties ?? {}).sort()]),
+      additiveToolsAdvertised: inspectedTools.map((tool) => tool.name),
+      additiveToolInputKeys: Object.fromEntries(
+        inspectedTools.map((tool) => [tool.name, Object.keys(tool.inputSchema.properties ?? {}).sort()]),
       ),
       forbiddenInputKeys: leakedKeys,
       readOnlyAnnotations: annotationsOk,
     },
-    'The advertised Tool inventory disagreed with the grant, or a Data Tool exposed a forbidden input key.',
+    'The advertised Tool inventory disagreed with the grant, or an added Tool exposed a forbidden input key.',
   );
 }
 
@@ -527,10 +555,24 @@ async function runDescribeSobject(
     .filter((key) => fullOutput[key] !== real[key])
     .map((key) => `${key}: tool=${JSON.stringify(fullOutput[key])} org=${JSON.stringify(real[key])}`);
 
+  // `truncated` is a document-level declaration: it is true when the field list was cut, when the
+  // child relationship list was cut, or when any returned field's picklist was cut. Reading it as a
+  // statement about fields alone fails an object whose fields fit while its children do not — Lead
+  // holds 101 fields under the 200-field default limit but 72 child relationships against a cap of
+  // 50, so the Tool correctly reports `truncated: true` with no field missing.
+  const picklistCuts = real.fields
+    .slice(0, fields.length)
+    .filter((field) => field.picklistValues.length > DESCRIBE_SOBJECT_MAX_PICKLIST_VALUES)
+    .length;
+  const expectedTruncated = real.fields.length > expectedFields
+    || real.childRelationships.length > expectedChildren
+    || picklistCuts > 0;
+
   const fullFacts = fullOutput.totalFields === real.fields.length
     && fullOutput.returnedFields === expectedFields
     && fields.length === expectedFields
-    && fullOutput.truncated === real.fields.length > expectedFields
+    && fullOutput.truncated === expectedTruncated
+    && (typeof fullOutput.hint === 'string') === expectedTruncated
     && sameArray(fields.map((field) => String(field.apiName)), realFieldNames.slice(0, expectedFields))
     && fullOutput.totalChildRelationships === real.childRelationships.length
     && fullOutput.returnedChildRelationships === expectedChildren
@@ -563,6 +605,9 @@ async function runDescribeSobject(
       returnedChildRelationships: children.length,
       executionRole: fullOutput.executionRole,
       truncated: fullOutput.truncated,
+      expectedTruncated,
+      picklistCuts,
+      hintPresent: typeof fullOutput.hint === 'string',
       cappedFieldNames: cappedFields.map((field) => String(field.apiName)),
       cappedTruncated: cappedOutput?.truncated,
       cappedHintPresent: typeof cappedOutput?.hint === 'string',
@@ -811,110 +856,211 @@ function integerOf(value: unknown): number {
  * Cross-checks `get_org_limits` against the org's own answer, or reports why the read cannot be
  * exercised here at all.
  *
- * The org is asked first, over the same request-scoped Connection the Tool will use, so the
- * comparison is between two readings of one live org rather than between the Tool and a fixture.
- * None of the identities this deployment routes is allowed to read the limits resource —
- * `API_DISABLED_FOR_ORG` at every API version and for every identity tried (see
- * `docs/sfoa/P9_T3_LIVE_PROBE_FINDINGS.md` §1) — and a refusal is reported as NOT TESTED naming
- * the Salesforce code. That is not a lenient outcome: the Tool's behaviour for a refusal is the
- * structured denial the unit and protocol layers pin, and calling this gate PASS would claim a
- * successful read that never happened. This says nothing about the org: the leading cause is a
- * missing `View Setup and Configuration` permission on the routed identities, and routing one
- * that has it turns this gate into a real PASS with no code change.
+ * The Tool now runs on the server-owned DIAGNOSTIC identity, so the Tool call comes first and the
+ * reference reading is taken over the Connection that call opened — which is the only way to prove
+ * two things at once: that the routing decision really produced a diagnostic scope, and that the
+ * numbers the Tool returned are the ones that identity sees. The earlier shape read the org first
+ * through the request USER Connection, which cannot be the reference any more: the Tool does not use
+ * that identity, so comparing against it would compare two different users' views of the org.
+ *
+ * A Control Plane with no enabled, verification-passed Diagnostic identity never reaches here — the
+ * caller does not enable the Tool in that case, because enabling a diagnostic Tool without one makes
+ * the runtime refuse *every* request. When it does reach here, the refusal branch below is the one
+ * this org has historically taken: reading the limits resource is an org-configuration read, and the
+ * business identities this deployment routes are not granted it. Whether the diagnostic identity is
+ * is exactly the open question this gate now answers, and a refusal here is a fact about the org
+ * rather than a gap in the harness — it is reported as NOT TESTED naming the Salesforce code,
+ * because a structured denial proves nothing about the read that could not be done.
  */
 async function runOrgLimits(
   client: Client,
   results: CallToolResult[],
-  connection: Connection,
+  measuringFactory: MeasuringConnectionFactory,
+  diagnosticUsername: string | null,
+  diagnosticEnabled: boolean,
 ): Promise<P9LiveGate> {
-  const reading = await readOrgLimits(connection);
-  if (reading.entries === null || reading.entries.size === 0) {
-    // The successful-read contract cannot be exercised here, but the refusal path can — and it is
-    // the path this org actually takes, so it is checked rather than skipped: the Tool must answer
-    // with the same refusal as a structured denial, never as a success and never as a crash. The
-    // gate still reports NOT TESTED, because a denial proves nothing about the read it could not do.
-    const denial = await call(client, results, 'get_org_limits', {});
-    const denialOutput = outputOf(denial);
-    const denied = denial.isError === true
-      && denialOutput?.success === false
-      && denialOutput.errorCode === 'MCP_LIMITS_ACCESS_DENIED'
-      && typeof denialOutput.suggestion === 'string';
-    const evidence = Object.freeze({
-      orgAnswer: reading.observed,
-      toolErrorCode: denialOutput?.errorCode,
-      toolSalesforceErrorCode: denialOutput?.salesforceErrorCode,
-      denialIsStructured: denied,
-    });
-    if (!denied) {
-      return failGate(
-        `The limits read was refused with ${reading.observed}, but get_org_limits answered `
-        + `${String(denialOutput?.errorCode ?? 'no error code')} instead of a structured MCP_LIMITS_ACCESS_DENIED.`,
-      );
-    }
+  if (!diagnosticEnabled) {
     return notTested(
-      `The limits read was refused with ${reading.observed}, so no successful read can be cross-checked and this gate `
-      + 'is not a PASS. The refusal path was exercised instead and behaved as contracted: the Tool returned a structured '
-      + 'MCP_LIMITS_ACCESS_DENIED.',
-      evidence,
+      'This Control Plane has no enabled, verification-passed Diagnostic identity, so get_org_limits was not '
+      + 'enabled for this run — enabling it without one would make the runtime refuse every request.',
+      { diagnosticConfigured: false },
     );
   }
-  const orgEntries = reading.entries;
+
   const result = await call(client, results, 'get_org_limits', {});
   const output = outputOf(result);
   if (output === undefined) return failGate('get_org_limits returned no structured content.');
+
+  // The role has to be asserted before the numbers are: a USER-role answer would mean the Tool ran on
+  // the business identity, where a missing permission is the expected outcome, and cross-checking its
+  // numbers against the diagnostic identity's would then be comparing two different answers.
+  const roleFacts = output.success === true && output.executionRole === 'DIAGNOSTIC';
   if (output.success !== true) {
-    return failGate(
-      `get_org_limits failed live with ${String(output.errorCode ?? 'no error code')} while the org answered the same read.`,
+    const denialOutput = output;
+    const denied = result.isError === true
+      && denialOutput.success === false
+      && denialOutput.errorCode === 'MCP_LIMITS_ACCESS_DENIED'
+      && typeof denialOutput.suggestion === 'string';
+    const evidence = Object.freeze({
+      toolErrorCode: denialOutput.errorCode,
+      toolSalesforceErrorCode: denialOutput.salesforceErrorCode,
+      denialIsStructured: denied,
+      diagnosticConfigured: true,
+    });
+    if (!denied) {
+      return failGate(
+        `get_org_limits failed with ${String(denialOutput.errorCode ?? 'no error code')} instead of either a successful `
+        + 'read or a structured MCP_LIMITS_ACCESS_DENIED.',
+      );
+    }
+    return notTested(
+      `The org refused the limits resource to the DIAGNOSTIC identity this Tool runs on with `
+      + `${String(denialOutput.salesforceErrorCode ?? 'no Salesforce error code')}, so no successful read can be `
+      + 'cross-checked and this gate is not a PASS. The refusal path was exercised instead and behaved as '
+      + 'contracted: the Tool returned a structured MCP_LIMITS_ACCESS_DENIED.',
+      evidence,
     );
   }
+  if (!roleFacts) {
+    return failGate(
+      `get_org_limits succeeded with executionRole=${String(output.executionRole)}; it must run on the DIAGNOSTIC identity.`,
+    );
+  }
+
+  // The Tool call opened a DIAGNOSTIC scope, so the most recent Connection is that scope's. Its
+  // username is checked against the Control Plane's configured diagnostic identity first: without
+  // that check a routing regression would silently turn the reference reading into a second reading
+  // of whatever identity the Tool did use, and the comparison below would be vacuously true.
+  const diagnosticConnection = await establishedConnection(measuringFactory);
+  if (diagnosticConnection === null) {
+    return failGate('The get_org_limits request did not create a request-scoped Salesforce Connection.');
+  }
+  const diagnosticIdentity = await readIdentity(diagnosticConnection);
+  const routedDiagnosticUsername = normalizeSalesforceIdentity(diagnosticUsername ?? '');
+  const liveDiagnosticUsername = normalizeSalesforceIdentity(diagnosticIdentity.username ?? '');
+  if (routedDiagnosticUsername.length === 0 || routedDiagnosticUsername !== liveDiagnosticUsername) {
+    return failGate(
+      'The get_org_limits request was answered by a different Salesforce user than the configured Diagnostic identity.',
+    );
+  }
+
+  const reading = await readOrgLimits(diagnosticConnection);
+  if (reading.entries === null || reading.entries.size === 0) {
+    // The Tool answered successfully but the same identity cannot reproduce the reading. That is a
+    // disagreement about what the org said, not a permissions fact, so it fails rather than skips.
+    return failGate(
+      `get_org_limits reported a successful read, but the same DIAGNOSTIC Connection could not reproduce it (${reading.observed}).`,
+    );
+  }
+  const orgEntries = reading.entries;
+
   const limits = recordOf(output.limits);
   const highlights = recordOf(output.highlights);
   if (limits === undefined) return failGate('get_org_limits returned no limits map.');
   if (highlights === undefined) return failGate('get_org_limits returned no highlights.');
 
-  const entryMismatches = Object.entries(limits).flatMap(([key, value]) => {
-    const org = orgEntries.get(key);
-    if (org === undefined) return [`${key} is not a key the org reported`];
-    const entry = recordOf(value);
-    if (entry === undefined) return [`${key} is not an object`];
-    // `used` is re-derived here from the org's own two numbers rather than compared to itself, which
-    // is the only way the gate can catch a subtraction done with the operands the wrong way round.
-    const expectedUsed = org.max !== null && org.remaining !== null && org.max >= org.remaining
-      ? org.max - org.remaining
+  // The Tool call and the reference read above are two live reads of a counter that the gate's own
+  // API traffic consumes, so `DailyApiRequests.remaining` cannot hold the same value in both and a
+  // strict comparison would fail a correct Tool on any org that is in use. The comparison is split
+  // by what is allowed to move:
+  //
+  // - `max` is a quota ceiling. It does not move, so it is compared strictly, always.
+  // - The Tool's `used` is first checked against its *own* `max - remaining`. That check is
+  //   time-independent, so an operand-order bug is still caught on a counter that moves between
+  //   the two readings — which comparing against the org's later reading could not do.
+  // - `remaining` and `used` are then compared against the org's reading, and any disagreement is
+  //   re-measured once against a fresh reference read. A value the org itself did not move between
+  //   those two readings is stable and must still match exactly; a value that did move is in flight
+  //   and only `max` is asserted for it. What was waived for that reason is reported as
+  //   `toleratedMoves`, so the waiver is evidence rather than silence.
+  type LimitBound = 'max' | 'remaining' | 'used';
+  type LimitMismatch = Readonly<{ key: string; bound: LimitBound; text: string }>;
+
+  const orgValue = (entries: OrgLimitsReadingEntries, key: string, bound: LimitBound): number | null => {
+    const entry = entries.get(key);
+    if (entry === undefined) return null;
+    if (bound === 'max') return entry.max;
+    if (bound === 'remaining') return entry.remaining;
+    return entry.max !== null && entry.remaining !== null && entry.max >= entry.remaining
+      ? entry.max - entry.remaining
       : null;
-    return (['max', 'remaining', 'used'] as const).flatMap((bound) => {
-      const expected: number | null = bound === 'used' ? expectedUsed : bound === 'max' ? org.max : org.remaining;
-      return entry[bound] === expected
-        ? []
-        : [`${key}.${bound}: tool=${JSON.stringify(entry[bound])} org=${JSON.stringify(expected)}`];
-    });
+  };
+
+  // Time-independent: a Tool whose `used` is not its own `max - remaining` is wrong whatever the org
+  // is doing, so this runs before any comparison against the reference reading.
+  const selfInconsistent = Object.entries(limits).flatMap(([key, value]) => {
+    const entry = recordOf(value);
+    if (entry === undefined) return [];
+    const max = typeof entry.max === 'number' ? entry.max : null;
+    const remaining = typeof entry.remaining === 'number' ? entry.remaining : null;
+    if (entry.used !== null && typeof entry.used !== 'number') {
+      return [`${key}.used: tool=${JSON.stringify(entry.used)} is neither a number nor null`];
+    }
+    const expected = max !== null && remaining !== null && max >= remaining ? max - remaining : null;
+    return entry.used === expected
+      ? []
+      : [`${key}.used: tool=${JSON.stringify(entry.used)} is not its own max-remaining=${JSON.stringify(expected)}`];
   });
+
+  const entryMismatchesFor = (entries: OrgLimitsReadingEntries): readonly LimitMismatch[] =>
+    Object.entries(limits).flatMap(([key, value]) => {
+      const org = entries.get(key);
+      if (org === undefined) return [{ key, bound: 'max' as const, text: `${key} is not a key the org reported` }];
+      const entry = recordOf(value);
+      if (entry === undefined) return [{ key, bound: 'max' as const, text: `${key} is not an object` }];
+      return (['max', 'remaining', 'used'] as const).flatMap((bound) => {
+        const expected = orgValue(entries, key, bound);
+        return entry[bound] === expected
+          ? []
+          : [{ key, bound, text: `${key}.${bound}: tool=${JSON.stringify(entry[bound])} org=${JSON.stringify(expected)}` }];
+      });
+    });
 
   // A slot the Tool reports as absent is a claim about the org, so it is checked the same way a
   // number is: `present: false` is only honest when no key this Tool would have read is there.
-  const highlightMismatches = ORG_LIMIT_HIGHLIGHT_SLOTS.flatMap((slot) => {
-    const highlight = recordOf(highlights[slot]);
-    if (highlight === undefined) return [`${slot} is missing from highlights`];
-    const key = typeof highlight.key === 'string' && highlight.key.length > 0 ? highlight.key : null;
-    if (highlight.present !== true) {
-      const orgAliasKeys = ORG_LIMIT_HIGHLIGHT_ALIASES[slot].filter((candidate) => orgEntries.has(candidate));
-      return key === null && highlight.max === null && highlight.remaining === null && orgAliasKeys.length === 0
-        ? []
-        : [`${slot}: reported absent, but the org reports ${orgAliasKeys.join(', ') || String(key)}`];
-    }
-    if (key === null) return [`${slot}: present without naming the key that filled it`];
-    const org = orgEntries.get(key);
-    if (org === undefined) return [`${slot}: key ${key} is not a key the org reported`];
-    return highlight.max === org.max && highlight.remaining === org.remaining
-      ? []
-      : [`${slot} (${key}): tool max/remaining=${String(highlight.max)}/${String(highlight.remaining)} `
-        + `org=${String(org.max)}/${String(org.remaining)}`];
-  });
+  const highlightMismatchesFor = (entries: OrgLimitsReadingEntries): readonly LimitMismatch[] =>
+    ORG_LIMIT_HIGHLIGHT_SLOTS.flatMap((slot): readonly LimitMismatch[] => {
+      const highlight = recordOf(highlights[slot]);
+      if (highlight === undefined) return [{ key: slot, bound: 'max', text: `${slot} is missing from highlights` }];
+      const key = typeof highlight.key === 'string' && highlight.key.length > 0 ? highlight.key : null;
+      if (highlight.present !== true) {
+        const orgAliasKeys = ORG_LIMIT_HIGHLIGHT_ALIASES[slot].filter((candidate) => entries.has(candidate));
+        return key === null && highlight.max === null && highlight.remaining === null && orgAliasKeys.length === 0
+          ? []
+          : [{ key: slot, bound: 'max', text: `${slot}: reported absent, but the org reports ${orgAliasKeys.join(', ') || String(key)}` }];
+      }
+      if (key === null) return [{ key: slot, bound: 'max', text: `${slot}: present without naming the key that filled it` }];
+      if (!entries.has(key)) return [{ key: slot, bound: 'max', text: `${slot}: key ${key} is not a key the org reported` }];
+      return (['max', 'remaining'] as const).flatMap((bound) => {
+        const expected = orgValue(entries, key, bound);
+        return highlight[bound] === expected
+          ? []
+          : [{ key, bound, text: `${slot} (${key}).${bound}: tool=${JSON.stringify(highlight[bound])} org=${JSON.stringify(expected)}` }];
+      });
+    });
+
+  const firstPass = [...entryMismatchesFor(orgEntries), ...highlightMismatchesFor(orgEntries)];
+  // Only a disagreement is worth a second reference read: the PASS path stays one reading.
+  const reread = firstPass.length === 0 ? null : await readOrgLimits(diagnosticConnection);
+  const orgAfter = reread?.entries ?? orgEntries;
+  // A value is only "in flight" when both readings report the key and the org moved it. A key that
+  // vanished from the second reading is not movement, so it keeps its mismatch and still fails.
+  const movedBetweenReadings = (mismatch: LimitMismatch): boolean => mismatch.bound !== 'max'
+    && orgEntries.has(mismatch.key) && orgAfter.has(mismatch.key)
+    && orgValue(orgAfter, mismatch.key, mismatch.bound) !== orgValue(orgEntries, mismatch.key, mismatch.bound);
+
+  const afterReread = [...entryMismatchesFor(orgAfter), ...highlightMismatchesFor(orgAfter)];
+  const entryMismatches = [
+    ...afterReread.filter((mismatch) => !movedBetweenReadings(mismatch)).map((mismatch) => mismatch.text),
+    ...selfInconsistent,
+  ];
+  const toleratedMoves = [...new Set(
+    [...firstPass, ...afterReread].filter(movedBetweenReadings).map((mismatch) => mismatch.text),
+  )];
 
   const returnedLimits = Object.keys(limits).length;
   const orgMeasured = [...orgEntries.values()].filter((entry) => entry.max !== null || entry.remaining !== null).length;
-  const facts = output.executionRole === 'USER'
-    && output.totalLimits === orgEntries.size
+  const facts = output.totalLimits === orgEntries.size
     && output.returnedLimits === returnedLimits
     && output.unreadableLimits === orgEntries.size - orgMeasured
     && output.truncated === (returnedLimits < orgEntries.size)
@@ -928,14 +1074,17 @@ async function runOrgLimits(
   const verboseOutput = outputOf(verboseResult);
   const verboseLimits = recordOf(verboseOutput?.limits);
   const verboseFacts = verboseOutput?.success === true
+    && verboseOutput.executionRole === 'DIAGNOSTIC'
     && verboseOutput.verbose === true
     && output.verbose === false
     && verboseLimits !== undefined
     && sameArray(Object.keys(verboseLimits).sort(), Object.keys(limits).sort());
 
   return gate(
-    entryMismatches.length === 0 && highlightMismatches.length === 0 && facts && verboseFacts,
+    entryMismatches.length === 0 && facts && verboseFacts,
     {
+      executionRole: output.executionRole,
+      referenceIdentity: liveDiagnosticUsername,
       orgLimitCount: orgEntries.size,
       orgMeasuredCount: orgMeasured,
       // The org's own key names are org configuration, not credentials, and naming them is what
@@ -947,15 +1096,20 @@ async function runOrgLimits(
       highlightSlots: Object.keys(highlights),
       presentSlots: ORG_LIMIT_HIGHLIGHT_SLOTS.filter((slot) => recordOf(highlights[slot])?.present === true),
       verbose: { reported: verboseOutput?.verbose, defaultReported: output.verbose, keySetUnchanged: verboseFacts },
+      referenceReread: reread === null ? 'not needed' : reread.observed,
       entryMismatches: entryMismatches.slice(0, 10),
-      highlightMismatches: highlightMismatches.slice(0, 10),
+      // Counters the org itself moved between the two reference readings. Asserted on `max` only,
+      // and listed here so the waiver is visible instead of being an invisible tolerance.
+      toleratedMoves: toleratedMoves.slice(0, 10),
     },
     'get_org_limits disagreed with the org\'s own limits reading.',
   );
 }
 
+type OrgLimitsReadingEntries = ReadonlyMap<string, Readonly<{ max: number | null; remaining: number | null }>>;
+
 type OrgLimitsReading = Readonly<{
-  entries: ReadonlyMap<string, Readonly<{ max: number | null; remaining: number | null }>> | null;
+  entries: OrgLimitsReadingEntries | null;
   observed: string;
 }>;
 
