@@ -905,3 +905,88 @@ user. Saving/discovering tools does not require a user and does not access Sales
 Existing Internal clients retain MCP_CLIENT_TOKEN plus X-Platform-User-Id.
 Keep Authorization and X-WeCom-User-Id intact through the existing reverse proxy.
 See [P8-06 deployment/UAT](P8_06_WECOM_CHANNEL_DISCOVERY.md).
+
+## P9 data-completeness (T1+T2) deployment
+
+Deployed `feature/p9-data-completeness` at `dbdaf67` to 192.168.156.203 on 2026-09-28,
+with LF endings and no build output so the server's bytes are reproducible from the archive:
+
+```bash
+git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz --prefix=app/ -o sfoa-p9-<sha>.tar.gz HEAD
+```
+
+| | |
+|---|---|
+| archive | `sfoa-p9-dbdaf67-20260928-122025.tar.gz` |
+| size / sha256 | 2,779,734 bytes / `07a06263994446a8dbd06af73c4193e3d5843252aac0c90f14b5932d7189d78a` |
+| contents | 1183 files; no `dist/`, no `.env.local`, no `.git` |
+| pre-deploy backup | `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-p9-20260928-122521.tar.gz` (1,063,819,838 bytes) |
+| staging | `/data/sfoa-enterprise-mcp/staging-p9-20260928-122521` |
+| manifest | `/data/sfoa-enterprise-mcp/p9-expected-manifest.txt` (1183 lines) |
+
+**What shipped.** A new workspace `packages/mcp-provider-sfoa-data`
+(`@sfoa/mcp-provider-sfoa-data@0.1.0-p9`) with `list_sobjects`, `describe_sobject` and
+`query_records`, plus `DataToolFacade` in `sfoa-mcp-server` and the matching Admin catalog
+rows. The Tools are READ / USER / GA and default-disabled: they are not in
+`DEFAULT_ENABLED_TOOLS` and have no `sfoa_tool_control` row, so `tools/list` is unchanged
+until an Admin enables them in Tool Governance. No `mcp-provider-dx-core` file and no
+official `run_soql_query` behaviour was touched.
+
+**node_modules after the failed install.** `yarn install --frozen-lockfile` fails
+deterministically on this server with
+`ENOENT ... lstat '.../@typescript-eslint/eslint-plugin/node_modules/ignore'` — the yarn v1
++ `nohoist: ["**"]` linker bug of §8. It is confined to lint-only dependencies; runtime
+resolution was intact throughout. The runtime tree was restored byte-exactly from the
+pre-deploy backup and the new workspace was linked by hand:
+
+```bash
+ln -s ../../packages/mcp-provider-sfoa-data \
+  /data/sfoa-enterprise-mcp/app/node_modules/@sfoa/mcp-provider-sfoa-data
+for p in sfoa-mcp-server sfoa-admin-api; do
+  ln -s ../../../mcp-provider-sfoa-data \
+    /data/sfoa-enterprise-mcp/app/packages/$p/node_modules/@sfoa/mcp-provider-sfoa-data
+done
+```
+
+`mcp-provider-dx-core` was deliberately not rebuilt: its source is unchanged and it emits
+`lib/`, not `dist/`.
+
+**Verification — all green.**
+
+| check | result |
+|---|---|
+| app tree vs archive | `BYTE_VERIFY_OK` (`sha256sum -c` over all 1183 files) |
+| services | restarted 12:50:19 clean, new PIDs |
+| `/health`, `/admin/api/ready` | 200 within 1s |
+| audit persistence | UP, zero failures |
+| service journal | no errors |
+| nginx `:9000/health` | 200 |
+| live `tools/list` (authenticated) | 16 Tools, exactly the 16 enabled `sfoa_tool_control` rows |
+| P9 Tools advertised | none of `list_sobjects`, `describe_sobject`, `query_records` (by design) |
+| Admin catalog `/admin/api/tools` | 104 rows; all three P9 Tools present as READ / USER / GA / `enableAllowed: true` / `enabled: false`; no `UNKNOWN` rows |
+| playbook version | 1.9.0 (1.10.0 belongs to T5) |
+
+**Known limitation — the P9 live gate cannot run on this server.** `yarn workspace
+@sfoa/mcp-server validate:p9` refuses with `MCP_ATTACHMENT_CONFIGURATION_INVALID`:
+
+> Enabled Tool upload_files_to_record requires the SFOA Attachment Ingress, which is not
+> enabled on this runtime.
+
+This is neither a P9 nor a deployment defect. `upload_files_to_record` has been enabled in
+`sfoa_tool_control` (row id 16, created 2026-09-16) since the attachment work shipped, and
+the runtime refuses any enabled attachment Tool with no ingress bound:
+
+- `packages/sfoa-mcp-server/src/provider-runtime.ts:408` — throws when `options.attachmentIngress` is absent
+- `packages/sfoa-mcp-server/src/discovery-server.ts:156` — the same refusal on the discovery surface
+- `packages/sfoa-mcp-server/src/runtime.ts:73,86` — the only place that composes the ingress, from `config` + `store`
+
+The deployed service wires it and is healthy — the `tools/list` row above is 16 Tools over
+`/mcp` at HTTP 200, `upload_files_to_record` among them. The validation harness at
+`packages/sfoa-mcp-server/src/validation/p9-live-validation.ts:266-281` calls
+`startRemoteMcpServer` without it, so its own in-process server rejects every request
+before any Tool is called. The gate is therefore blocked on any Control Plane that enables
+the attachment Tool; it ran PASS locally only because the local Control Plane does not.
+The refusal never reaches the `sfoa-mcp-server` service journal (0 occurrences in 30 days),
+so it cannot be found by reading logs — the visible symptom is only the gate's HTTP 500.
+Fixing it means composing the ingress in the harness the way `runtime.ts` does; that is a
+code change rather than a deployment step, and was left for a separate decision.
