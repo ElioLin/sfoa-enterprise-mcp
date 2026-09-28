@@ -69,6 +69,20 @@ test('P4 diagnostic configuration is optional while disabled and fails closed wh
     });
     assert.equal(diagnostic.identity.diagnosticUsername, 'fixed-diagnostic@example.test');
 
+    // `get_org_limits` inherited this gate by moving into the context role map, and the inheritance
+    // is exactly what this case pins: nothing in `config.ts` names the Tool, so only the role map
+    // makes enabling it without a diagnostic identity a startup failure instead of a request failure.
+    for (const enabled of ['run_diagnostic_tooling_query', 'get_metadata_component_context', 'get_org_limits']) {
+      await assert.rejects(
+        loadRemoteRuntimeConfig(projectRoot, { ...environment, MCP_ENABLED_TOOLS: enabled }),
+        (error: unknown) =>
+          error instanceof RemoteRuntimeError &&
+          error.code === 'MCP_DIAGNOSTIC_CONFIGURATION_INVALID' &&
+          error.message.includes(enabled),
+        `${enabled} must require SFOA_DIAGNOSTIC_USERNAME`,
+      );
+    }
+
     await assert.rejects(
       loadRemoteRuntimeConfig(projectRoot, {
         ...environment,
@@ -86,7 +100,12 @@ test('P4 diagnostic configuration is optional while disabled and fails closed wh
 });
 
 test('request scope selection is fixed by an enabled Tool name, never by client role/username fields or a batch', () => {
-  const enabled = ['get_record_action_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context'];
+  const enabled = [
+    'get_record_action_context',
+    'run_diagnostic_tooling_query',
+    'get_metadata_component_context',
+    'get_org_limits',
+  ];
   assert.equal(
     getRequestedExecutionRole(
       { method: 'tools/call', params: { name: 'run_diagnostic_tooling_query', arguments: { query: 'SELECT Id FROM ApexClass' } } },
@@ -100,6 +119,21 @@ test('request scope selection is fixed by an enabled Tool name, never by client 
       enabled,
     ),
     'DIAGNOSTIC',
+  );
+  assert.equal(
+    getRequestedExecutionRole(
+      { method: 'tools/call', params: { name: 'get_org_limits', arguments: { connectionRole: 'USER', username: 'forged' } } },
+      enabled,
+    ),
+    'DIAGNOSTIC',
+  );
+  assert.equal(
+    getRequestedExecutionRole(
+      { method: 'tools/call', params: { name: 'get_org_limits', arguments: {} } },
+      ['get_record_action_context'],
+    ),
+    'USER',
+    'a Tool that is not enabled in this session cannot select the diagnostic scope',
   );
   assert.equal(
     getRequestedExecutionRole(
@@ -192,6 +226,22 @@ test('facades structurally block USER Tools on DIAGNOSTIC and diagnostic Tools o
   assert.equal(diagnosticBlocked.isError, true);
   assert.match(toolResultText(diagnosticBlocked), /MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED/u);
   assert.equal(diagnosticTool.executions, 0);
+
+  // `get_org_limits` is the newest Tool to join the diagnostic role; it must be blocked on a USER
+  // route by the same check as the two older ones, with the same code.
+  const limitsTool = new CountingTool('get_org_limits');
+  const limitsFacade = new ContextToolFacade({
+    tool: limitsTool,
+    context,
+    route: userRoute,
+    toolTimeoutMs: 1_000,
+    logger,
+    clientId: 'client',
+  });
+  const limitsBlocked = await limitsFacade.execute({ verbose: true }, extra);
+  assert.equal(limitsBlocked.isError, true);
+  assert.match(toolResultText(limitsBlocked), /MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED/u);
+  assert.equal(limitsTool.executions, 0);
 
   const recordTool = new CountingTool('get_record_action_context');
   const recordFacade = new ContextToolFacade({

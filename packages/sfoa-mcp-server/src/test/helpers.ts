@@ -24,6 +24,8 @@ export const TEST_PLATFORM_USER_A = 'p2-user-a';
 export const TEST_PLATFORM_USER_B = 'p2-user-b';
 export const TEST_USERNAME_A = 'user-a@example.test';
 export const TEST_USERNAME_B = 'user-b@example.test';
+/** The server-owned DIAGNOSTIC identity. Distinct from both USER usernames by construction. */
+export const TEST_DIAGNOSTIC_USERNAME = 'diagnostic-a@example.test';
 
 export const TEST_IDENTITY_CONFIG: IdentityRuntimeConfig = Object.freeze({
   projectRoot: process.cwd(),
@@ -42,7 +44,14 @@ export type ConnectionCreation = Readonly<{
   sequence: number;
   platformUserId: string;
   salesforceUsername: string;
+  /** Which of the two server-owned roles the runtime resolved for this request. */
+  connectionRole: SalesforceIdentityRoute['connectionRole'];
   connection: Connection;
+}>;
+
+export type LimitsCall = Readonly<{
+  platformUserId: string;
+  salesforceUsername: string;
 }>;
 
 export type DmlCall = Readonly<{
@@ -61,8 +70,13 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly queryCalls: string[] = [];
   /** SObject schema reads, in order: `describeGlobal` or `describe:<objectApiName>`. */
   public readonly schemaCalls: string[] = [];
-  /** Governor-limit reads, one entry per `limits()` call. */
-  public readonly limitsCalls: string[] = [];
+  /**
+   * Governor-limit reads, in order. The platform user is not enough to tell the two request
+   * scopes apart — a DIAGNOSTIC call is triggered by, and therefore carries, the same
+   * platform user as the USER call beside it — so the attributed Salesforce username is
+   * recorded too, and that is what a role assertion has to read.
+   */
+  public readonly limitsCalls: LimitsCall[] = [];
   /** SOSL statements sent through `search()`, in order. */
   public readonly searchCalls: string[] = [];
   public instanceUrlForRoute = (route: SalesforceIdentityRoute): string =>
@@ -119,7 +133,10 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
         },
       },
       limits: async () => {
-        this.limitsCalls.push(route.platformUserId);
+        this.limitsCalls.push({
+          platformUserId: route.platformUserId,
+          salesforceUsername: route.salesforceUsername,
+        });
         if (this.schema.limitsError) throw this.schema.limitsError;
         return (this.schema.limits ?? defaultLimits)();
       },
@@ -162,6 +179,7 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       sequence,
       platformUserId: route.platformUserId,
       salesforceUsername: route.salesforceUsername,
+      connectionRole: route.connectionRole,
       connection,
     });
     return connection;
@@ -322,18 +340,34 @@ function uiApiResponse(url: string): unknown {
   throw new Error(`Unexpected test UI API request: ${url}`);
 }
 
+/**
+ * Builds the identity runtime a harness runs against.
+ *
+ * `diagnosticUsername` is a parameter rather than a field of the shared `TEST_IDENTITY_CONFIG`
+ * on purpose: the runtime only builds a DIAGNOSTIC scope factory when a diagnostic user is
+ * configured, so putting one in the shared config would silently give every existing suite a
+ * scope it was never written to exercise — turning "this Tool refused the USER route" into a
+ * test that proves nothing about the refusal. A suite opts in explicitly, and only the suites
+ * about diagnostic routing do.
+ */
 export function createTestIdentityRuntime(
   baseRoot: string,
   connectionFactory: SalesforceConnectionFactory = new RecordingConnectionFactory(),
   logger: RuntimeLogger = new NoopRuntimeLogger(),
+  diagnosticUsername?: string,
 ): IdentityRuntime {
   const workspaceFactory = new RequestWorkspaceFactory({ baseRoot });
-  return createIdentityRuntime(TEST_IDENTITY_CONFIG, {
-    connectionFactory,
-    workspaceFactory,
-    cwdGuard: new CwdExecutionGuard(),
-    logger,
-  });
+  return createIdentityRuntime(
+    diagnosticUsername === undefined
+      ? TEST_IDENTITY_CONFIG
+      : { ...TEST_IDENTITY_CONFIG, diagnosticUsername },
+    {
+      connectionFactory,
+      workspaceFactory,
+      cwdGuard: new CwdExecutionGuard(),
+      logger,
+    },
+  );
 }
 
 export function createTestRemoteConfig(

@@ -381,8 +381,9 @@ test('a query_records call that cannot be complete says why, and names no Tool t
     assert.equal(output.truncated, true);
     assert.equal(output.truncatedReason, 'MAX_ROWS');
     assert.match(String(output.hint), /Truncated by MAX_ROWS/u);
-    // `submit_bulk_query` and `get_org_limits` are not in DEFAULT_ENABLED_TOOLS, so the hint
-    // may not send the Agent after a Tool `tools/list` does not contain.
+    // `submit_bulk_query` and `get_org_limits` are not enabled in this session, so the hint may
+    // not send the Agent after a Tool `tools/list` does not contain. The gate is the session's
+    // advertised set — `get_org_limits` is a context Tool and can never be in the Data subset.
     assert.doesNotMatch(String(output.hint), /submit_bulk_query|get_org_limits/u);
     assert.match(String(output.hint), /ask an administrator/u);
     assert.deepEqual(harness.factory.queryCalls, ['SELECT Id FROM Account']);
@@ -478,84 +479,6 @@ test('a query_records call against an org-declared-unused standard object is blo
       harness.factory.queryCalls,
       ['SELECT Id FROM Quote__c', 'SELECT Id FROM ApexClass'],
     );
-  } finally {
-    await harness.close();
-  }
-});
-
-test('an enabled get_org_limits call reads the org limits through the request USER identity and audits as ORG_LIMITS', async () => {
-  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'get_org_limits'] });
-  try {
-    const listed = await harness.client.listTools();
-    const tool = listed.tools.find((candidate) => candidate.name === 'get_org_limits');
-    assert.ok(tool !== undefined, 'get_org_limits must be advertised once an Admin enables it');
-    assert.equal(tool.annotations?.readOnlyHint, true);
-    assert.equal(tool.annotations?.destructiveHint, false);
-    assert.deepEqual(Object.keys(tool.inputSchema.properties ?? {}), ['verbose']);
-    assert.ok(tool.outputSchema !== undefined);
-
-    const result = await harness.client.callTool({ name: 'get_org_limits', arguments: { verbose: true } });
-    assert.equal(result.isError === true, false);
-    const output = structured(result);
-    assert.equal(output.executionRole, 'USER');
-    assert.equal(output.api, 'REST');
-    assert.equal(output.verbose, true);
-    assert.equal(output.totalLimits, 4);
-    assert.equal(output.returnedLimits, 4);
-    assert.equal(output.unreadableLimits, 0);
-    assert.equal(output.truncated, false);
-    assert.deepEqual(Object.keys(output.highlights as object), [
-      'dailyApiRequests', 'dailyBulkApiRequests', 'dailyAsyncApexExecutions', 'dataStorageMB', 'fileStorageMB',
-    ]);
-    assert.deepEqual((output.highlights as Record<string, unknown>).dailyApiRequests, {
-      key: 'DailyApiRequests', present: true, max: 100_000, remaining: 99_000, used: 1_000,
-    });
-    // The org reports the Bulk API 2.0 key, so the slot reports which name actually filled it rather
-    // than silently assuming the Bulk API 1.0 one.
-    assert.deepEqual((output.highlights as Record<string, unknown>).dailyBulkApiRequests, {
-      key: 'DailyBulkV2QueryJobs', present: true, max: 10_000, remaining: 9_500, used: 500,
-    });
-    assert.deepEqual((output.highlights as Record<string, unknown>).fileStorageMB, {
-      key: 'FileStorageMB', present: true, max: 2_048, remaining: 2_000, used: 48,
-    });
-
-    assert.deepEqual(harness.factory.limitsCalls, [TEST_PLATFORM_USER_A]);
-    assert.deepEqual([...new Set(harness.factory.creations.map((entry) => entry.platformUserId))], [TEST_PLATFORM_USER_A]);
-
-    const terminal = harness.logger.forTool('get_org_limits')
-      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
-    assert.ok(terminal !== undefined, 'get_org_limits must emit a TOOL_TERMINAL audit event');
-    assert.equal(terminal.result, 'PASS');
-    assert.equal(terminal.executionRole, 'USER');
-    assert.deepEqual(terminal.requestSummary, { objectApiName: null, filter: null, verbose: true });
-    assert.deepEqual(terminal.responseSummary, {
-      isError: false, totalLimits: 4, returnedLimits: 4, unreadableLimits: 0, truncated: false,
-    });
-  } finally {
-    await harness.close();
-  }
-});
-
-test('an org that refuses the limits resource is reported as a denial and audited as a failure', async () => {
-  const factory = new RecordingConnectionFactory({
-    // Reproduces the live org: `limits()` answers API_DISABLED_FOR_ORG for every identity tried.
-    limitsError: Object.assign(new Error('limits resource is not enabled'), { errorCode: 'API_DISABLED_FOR_ORG' }),
-  });
-  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'get_org_limits'], factory });
-  try {
-    const result = await harness.client.callTool({ name: 'get_org_limits', arguments: {} });
-    assert.equal(result.isError, true);
-    const output = structured(result);
-    assert.equal(output.errorCode, 'MCP_LIMITS_ACCESS_DENIED');
-    assert.equal(output.salesforceErrorCode, 'API_DISABLED_FOR_ORG');
-    assert.doesNotMatch(JSON.stringify(result.content), /at .*\.ts:\d+/u);
-
-    const terminal = harness.logger.forTool('get_org_limits')
-      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
-    assert.ok(terminal !== undefined);
-    assert.equal(terminal.result, 'ERROR');
-    assert.equal(terminal.outcome, 'FAILED');
-    assert.equal(terminal.errorCode, 'MCP_LIMITS_ACCESS_DENIED');
   } finally {
     await harness.close();
   }
@@ -675,6 +598,11 @@ test('a multi-statement search is refused by the Tool rather than at the wire, a
 });
 
 test('an exhausted-allowance failure names get_org_limits only when this session advertises it', async () => {
+  // The remedy is gated on the session's advertised set, not on the Data subset: `get_org_limits`
+  // is a DIAGNOSTIC context Tool and can never appear in `toolNames`, so gating on the subset
+  // would drop the remedy from the very failure that is supposed to recommend it. Only
+  // `search_records` is ever *called* here — enabling `get_org_limits` alongside it changes what
+  // `tools/list` advertises, which is exactly the input the gate reads.
   const factory = () => new RecordingConnectionFactory({
     searchError: Object.assign(new Error('Request limit exceeded'), { errorCode: 'REQUEST_LIMIT_EXCEEDED' }),
   });

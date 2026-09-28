@@ -88,8 +88,14 @@ test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execu
     const executionList = await executionListResponse.json() as typeof discovered;
     assert.deepEqual(discovered.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), executionList.result.tools.slice().sort((a, b) => a.name.localeCompare(b.name)), 'SDK schemas match execution');
     const defaultGlobal = global;
+    // `get_org_limits` is listed here for a reason beyond "one more Tool": Discovery has no principal,
+    // route or Connection provider, so it can only *describe* a diagnostic Tool — and the Provider
+    // refuses to build one without an executor. The two assertions below are therefore also the proof
+    // that Discovery was handed a deny-only executor: had it not been, the Provider would throw and
+    // this `tools/list` would be a 500 for every Tool, not just this one.
     global = { ...global, enabledTools: ['get_username', 'run_soql_query', 'retrieve_metadata', 'get_agent_playbook', 'get_record_links',
-      'get_record_action_context', 'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'create_record', 'update_record',
+      'get_record_action_context', 'get_record_display_context', 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'get_org_limits',
+      'create_record', 'update_record',
       'create_records', 'update_records', 'resolve_field_display_values', 'get_record_relationship_context'],
       dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: true, attachmentEnabled: false, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt }],
       diagnostic: { id: '1', salesforceUsername: 'diagnostic@example.test', enabled: true, verificationStatus: 'PASS', lastVerifiedAt: global.loadedAt,
