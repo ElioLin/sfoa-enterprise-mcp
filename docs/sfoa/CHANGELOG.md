@@ -2,6 +2,50 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-29 — P9-T4 deployed to the test server, and a defect in the gate that reports it
+
+`feature/p9-data-completeness` was deployed to `crm-ex-test02` **before T5**, on the decision that
+T4 is independently verifiable. The two Bulk Tools are live behind Tool Governance and the gate
+passes: 19 pages summing to **37 001** rows against an independent `COUNT()` of **37 001**, job
+`750C5000004qTurIAE`, 27 720 ms, `apiUsage valid`. Full record in
+[TEST_SERVER_DEPLOYMENT.md](TEST_SERVER_DEPLOYMENT.md#p9-t4-bulk-export-pair-deployment-2026-09-29).
+
+Three defects were found by re-running the live gate, and fixed:
+
+- **The Tool inventory gate asserted one blanket `idempotentHint`.** `submit_bulk_query` declares
+  `false` deliberately — a second submit creates a second job and spends `DailyBulkV2QueryJobs`
+  again — and `MCP_ENGINEERING_RULES.md` licenses `true` only when repeated calls have no effect.
+  The expectation is now stated **per Tool**, and a Tool absent from that map is treated as an
+  offender, so a new additive Tool cannot inherit a green check by being unknown.
+- **The gate discarded the audit-flush verdict** and now reports it as `auditPersistence`, combined
+  into `overall`, with the pipeline's health counters. `close()` returns `flushed: false` under
+  `MCP_AUDIT_FLUSH_TIMEOUT` rather than throwing, so a caller that ignored it could not tell
+  "the evidence exists" from "these gates passed and nothing was recorded".
+- **That verdict was computed but never exposed** on the success path's report literal, so the run
+  reported `overall: PASS` off a gate the reader could not see.
+
+**An `auditPersistence` PASS does not currently prove the trail is complete.** The gate closes the
+audit pipeline to read the verdict, and the close can land while a request handler is still
+finishing: `http-server.ts:524` offers a request's snapshot from the handler's `finally`, *after*
+the call has resolved to the client. Late snapshots are refused with `MCP_AUDIT_PIPELINE_CLOSED`
+and lost, and because the gate samples health at flush time the refusal never appears in the
+counters it reports. The four runs on the test server show it: runs 1–2 recorded the
+`schemaSelfRepair` probe's `MCP_SOBJECT_NOT_FOUND` row, runs 3–4 did not, and run 4 logged exactly
+one refusal 401 ms *after* its flush succeeded. The counters reconcile with the rows
+(`enqueuedSnapshots: 34` = 34 rows), which proves the snapshot was refused **before** enqueue
+rather than dropped after it. The fix is to flush only after the server stops serving; it has
+**not** been made, the deployed harness still carries the defect, and it needs one more live run to
+verify. The deployed service is unaffected — a missing probe row is a gap in the harness's account
+of its own evidence, not a change in what any Tool does.
+
+**A claim in this deployment's first draft was falsified and removed rather than explained.** An
+earlier commit and doc comment asserted the T4 run "wrote no audit rows at all", citing the newest
+`audit_id` as 1344. That measurement came from the local checkout's `.env.local`, which points at
+`127.0.0.1` rather than the shared Control Plane, so it could not have seen the run's rows. Against
+the real database the run's 34 rows are present and the counters match. The commit message and the
+doc comment were both rewritten (the commit was unpushed, so this corrected the record rather than
+appending to it).
+
 ## 2026-09-29 — P9-T4 follow-up: the Bulk export gate's row floor becomes a stated scale, not a fixed number
 
 The T4 acceptance run requires a live Bulk export over an object of **at least 100 000 rows**.

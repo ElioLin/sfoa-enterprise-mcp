@@ -1094,3 +1094,117 @@ returned `onlyLocal: [packages/mcp/README.md]`, `onlyServer: []` — and `sha256
 follows symlinks, verified that entry as OK. The same trap makes the local `tar -tzf` count one
 higher than the server-side `find -type f` count.
 
+## P9-T4 Bulk export pair deployment (2026-09-29)
+
+Deployed the branch tip of `feature/p9-data-completeness` on 2026-09-29, again directly from the
+feature branch and **not** merged to `main` first. This deployment was made **before** T5, on the
+deliberate decision that T4 is independently verifiable — it is a pair of Tools behind the same
+Tool Governance gate, not a change that T5 would rewrite.
+
+| | |
+|---|---|
+| source ref | `feature/p9-data-completeness` @ `204501d` (not in `main`) |
+| archive | `sfoa-p9-t4-204501d.tar.gz` |
+| size / sha256 | 2,919,317 bytes / `30840705467cf3c1fcc37e1bd8525b1c15d656fc853b7b7a6fc91e9176e0b838` |
+| contents | 1204 manifest entries; no `dist/`, no `.env.local`, no `.git` |
+| pre-deploy backup | `backup/sfoa-app-pre-204501d-20260929-095622.tar.gz` (10,199,700 bytes, source only) |
+| staging | `staging-p9-t4-204501d` |
+| app tree vs archive | `BYTE_VERIFY_OK` — 1204 OK, 0 NOT OK |
+
+**What shipped.** `@sfoa/mcp-provider-sfoa-data` gains `submit_bulk_query` and
+`get_bulk_query_results`, the Bulk API 2.0 export pair; `@sfoa/identity-runtime` gains the
+`BULK_QUERY` audit purpose; `sfoa-mcp-server` gains the Bulk executor and the page-fit rule. No
+migration, no lockfile change, no manifest change.
+
+**Rebuilt in dependency order**, `BUILD_OK` at `10:07:42`:
+
+```bash
+yarn workspace @sfoa/mcp-provider-sfoa-data run build
+yarn workspace @sfoa/identity-runtime run build
+yarn workspace @sfoa/mcp-server run build
+yarn workspace @sfoa/admin-api run build     # tool-catalog.ts imports SFOA_DATA_TOOL_NAMES
+```
+
+`sfoa-admin-api` **is** rebuilt here, unlike the T3 deployment: `src/tool-catalog.ts:4` imports
+`SFOA_DATA_TOOL_NAMES` from the data package's `dist`, so a new Data Tool changes what the Admin
+catalog enumerates.
+
+**Verification — all green.** Both services restarted `active`, `/health` 200 and
+`/admin/api/health` 200, `auditPersistence UP`, and `skill:runtime:check` reported no drift.
+
+**Three follow-up single-file syncs.** Three gate defects were found and fixed by re-running the
+live gate; each fix was synced as a single byte-verified file plus a `sfoa-mcp-server` rebuild,
+because a full re-archive for a one-file change would have cost more than it proved. The SHA-256
+of each deployed file matched the repository blob before the rebuild was started.
+
+| repository blob | deployed file sha256 | commit |
+|---|---|---|
+| `6f8e7282…` | `6f8e7282…` | `16d2dfd` — per-Tool idempotence expectation |
+| `0e674ee4…` | `0e674ee4…` | `49cf66c` — report the audit-flush verdict |
+| `6fdb31bc…` | `6fdb31bc…` | `3e27c7e` — expose that verdict on the success path |
+| `fe2bd3ab…` | `1ba5f7db…` | `d8acdc2` — drop a falsified claim from the rationale |
+
+The last row is the one case where the two columns legitimately differ: the source blob is
+`fe2bd3ab…` and the synced file is `1ba5f7db…` because the working copy carries CRLF while the
+blob is LF, so the file was extracted with `git -c core.autocrlf=false show` and verified against
+the **extracted** bytes rather than the blob (see §3.1 and the note at the end of the T3 section).
+
+**T4 gate runs — `overall: PASS`.** Three runs of `validate:p9` were made against this server, at
+02:16:34–02:17:21Z, 02:22:41–02:23:23Z and 02:25:40–02:26:24Z. The last is the one the T4 evidence
+rests on, and it reported every gate `PASS` — `toolInventory`, `requestIdentity`, `listSobjects`,
+`describeSobject`, `queryRecords`, `orgLimits`, `searchRecords`, `bulkQuery`, `schemaSelfRepair`,
+`credentialSafety`, and the new `auditPersistence`.
+
+| | |
+|---|---|
+| object / floor | `Contact` at 37 000 rows via `P9_LIVE_BULK_MIN_ROWS` (the org's real ceiling, see ADR-0028 deviation 5) |
+| pages / row sum | 19 pages, `rowsSummedAcrossPages` **37 001** |
+| independent check | `orgCount` **37 001** — the paged sum and `COUNT()` agree exactly |
+| `totalRecords` / page size | 37 001 / 2 000 |
+| job | `750C5000004qTurIAE`, submitted `UploadComplete`, `polls` 3 |
+| `elapsedMs` / `apiUsage` | 27 720 / `valid` |
+| tool inventory | 23 advertised, `readOnlyAnnotations: true`, `annotationOffenders: []` |
+
+**Step 4 — the audit evidence, read from the real Control Plane.** The three gate runs are present
+in `sfoa_audit_log` on `192.168.156.127` as `MCP_TOOL_CALL` rows: run 4 occupies **ids 6641–6674**,
+which is **34 rows** against the run's own pipeline counters of `enqueuedSnapshots: 34` /
+`persistedSnapshots: 34`. The two independent accounts of the run agree exactly.
+
+**A defect this deployment introduced, and did not fix.** The `auditPersistence` gate
+(`49cf66c`) closes the audit pipeline to read the flush verdict, and that close happens **while the
+server can still be finishing a request**. `http-server.ts:524` offers a request's audit snapshot
+from the handler's `finally`, after `await resources.close()` — that is, *after* the call has
+already resolved to the client. The snapshots that arrive late are therefore refused with
+`MCP_AUDIT_PIPELINE_CLOSED` and lost, and because the gate samples `getHealth()` at flush time,
+the refusal is not in the counters it reports. The run loses an audit and still reports
+`auditPersistence: PASS`.
+
+The four runs on this server show it directly. Runs 1 and 2 (before the gate existed) each recorded
+the `schemaSelfRepair` probe's `MCP_SOBJECT_NOT_FOUND` row; runs 3 and 4 (after it) did not.
+
+| run | `describe_sobject` rows | error row | gate stderr |
+|---|---|---|---|
+| 1 (02:08) | 3 PASS | `6558` present | — |
+| 2 (02:16) | 3 PASS | `6602` present | — |
+| 3 (02:22) | 3 PASS | **absent** | not captured |
+| 4 (02:25) | 3 PASS | **absent** | 1 × `MCP_AUDIT_PIPELINE_CLOSED` at `02:26:26.071Z` |
+
+The timing closes it: the flush succeeded at `02:26:25.670Z` and the refusal is logged 401 ms
+later. The counters reconcile with the rows (`enqueuedSnapshots: 34` = 34 rows), which is what
+proves the snapshot was **refused before enqueue** rather than dropped from the queue after it —
+the refused offer increments `droppedSnapshots`, but the gate had already sampled health.
+
+The correct fix is to flush only after the server has stopped serving, so that no handler can
+still be offering a snapshot. It is a code change to the harness and it **has not been made**: the
+trees deployed here still carry the defect, and a fix must be followed by one more live gate run to
+show the `MCP_SOBJECT_NOT_FOUND` row coming back. The deployed **service** is unaffected — the
+defect is confined to the validation harness's account of its own evidence. See the 2026-09-29
+CHANGELOG entry.
+
+**Step 5 — no Tool Governance change was made.** `sfoa_tool_control` holds 22 rows (ids 1–22,
+`row_version = 1` throughout) and neither Bulk Tool has one, which is the shipped default-disabled
+state. The gate does not need a Control Plane write to run: it extends the enabled-set snapshot
+in memory, and `enablementSource` says so in its own words. The operator enables the pair from the
+Admin Tool Governance page when the Tools should be reachable; because the enabled set is read per
+request, that takes effect on the next request with no restart.
+
