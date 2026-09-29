@@ -1132,22 +1132,28 @@ catalog enumerates.
 **Verification — all green.** Both services restarted `active`, `/health` 200 and
 `/admin/api/health` 200, `auditPersistence UP`, and `skill:runtime:check` reported no drift.
 
-**Three follow-up single-file syncs.** Three gate defects were found and fixed by re-running the
-live gate; each fix was synced as a single byte-verified file plus a `sfoa-mcp-server` rebuild,
-because a full re-archive for a one-file change would have cost more than it proved. The SHA-256
-of each deployed file matched the repository blob before the rebuild was started.
+**Five follow-up single-file syncs.** Gate defects were found and fixed by re-running the live gate;
+each fix was synced as a single byte-verified file plus a `sfoa-mcp-server` rebuild, because a full
+re-archive for a one-file change would have cost more than it proved. The sha256 of each deployed
+file matched the **extracted** bytes of the repository blob before the rebuild was started. Both
+columns below are the sha256 of the LF bytes, the left one taken with
+`git -c core.autocrlf=false show <commit>:<path> | sha256sum` and the right one from `sha256sum` on
+the file in place on the server:
 
-| repository blob | deployed file sha256 | commit |
+| extracted LF bytes | deployed file sha256 | commit |
 |---|---|---|
 | `6f8e7282…` | `6f8e7282…` | `16d2dfd` — per-Tool idempotence expectation |
 | `0e674ee4…` | `0e674ee4…` | `49cf66c` — report the audit-flush verdict |
 | `6fdb31bc…` | `6fdb31bc…` | `3e27c7e` — expose that verdict on the success path |
-| `fe2bd3ab…` | `1ba5f7db…` | `d8acdc2` — drop a falsified claim from the rationale |
+| `1ba5f7db…` | `1ba5f7db…` | `d8acdc2` — drop a falsified claim from the rationale |
+| `0e71c9c3…` | `0e71c9c3…` | `b4e3453` — flush after the server stops serving |
 
-The last row is the one case where the two columns legitimately differ: the source blob is
-`fe2bd3ab…` and the synced file is `1ba5f7db…` because the working copy carries CRLF while the
-blob is LF, so the file was extracted with `git -c core.autocrlf=false show` and verified against
-the **extracted** bytes rather than the blob (see §3.1 and the note at the end of the T3 section).
+The two columns agree on every row, which is the point of the gate: for the `d8acdc2` sync the
+working copy on disk was CRLF and hashed to `fe2bd3ab…`, so an earlier draft of this table carried
+that value as the source and read as though the bytes had differed. They had not — `fe2bd3ab…` is
+the CRLF reading of the same content and the LF bytes were `1ba5f7db…` on both sides. Extract with
+`git -c core.autocrlf=false show` and never hash the working copy (see §3.1 and the note at the end
+of the T3 section).
 
 **T4 gate runs — `overall: PASS`.** Three runs of `validate:p9` were made against this server, at
 02:16:34–02:17:21Z, 02:22:41–02:23:23Z and 02:25:40–02:26:24Z. The last is the one the T4 evidence
