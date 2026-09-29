@@ -81,6 +81,32 @@ fails identically on `main` (`903f0a3`) with the same `MCP_REQUEST_TIMEOUT`; `va
 errors are all in the upstream `mcp-provider-code-analyzer` package, 25 files, none of them `@sfoa`.
 Each is recorded with its evidence in the acceptance report rather than counted as a pass.
 
+**The same contract was then carried to the host that consumes it.** The five surfaces above are all
+server-side; an Agent reaches them through OpenClaw, so the workspace was synced in the same pass.
+`skill:runtime:sync` published all three business Skills — the new `sfoa-data-analysis` (7
+references) plus refreshed `sfoa-crm-core` and `sfoa-record-change` — with `runtime-check` reporting
+`drift: []` and each SKILL.md byte-identical between canonical and workspace. The connector Skill
+`sfoa`, which is the `skill:export` package and had been installed on 09-23 still announcing
+Playbook **1.9.0 / 15 Tools**, was regenerated at **1.10.0 / 22 Tools**; only its `SKILL.md` changed
+(the `mcp.json` next to it is byte-identical), and the old copy is kept as `SKILL.md.bak-1.9.0`.
+
+Files are not visibility, so the allowlist was patched too: `sfoa-data-analysis` was absent from both
+`skills.entries` and `agents.entries.main.skills`, which is why `openclaw skills check` reported it
+as `Excluded by agent allowlist` — installed, and invisible to the model. `openclaw config patch`
+(after a `--dry-run`, with the config backed up) added it to both, and the CLI's own verdict was that
+the change does **not** need a restart, so the Gateway was not bounced
+(`ActiveEnterTimestamp` unchanged at `2026-09-20 08:40:05 CST`). Visible-to-model went 5 → 6. The
+connector Skill `sfoa` stays deliberately outside `main`'s allowlist, as before: `main` reaches the
+MCP through the host-side registration, not through a second copy of the instructions. Human WeCom
+UAT is still not executed and is not claimed.
+
+**The temporary artifacts are gone and the local stack is back.** Every `.p9-*` file — injectors,
+audit and coverage runners, gate logs, acceptance JSON — was deleted from the checkout's `.temp/` and
+from the app tree, with `/tmp/p9-*` and the generated export package `out/`; `incoming/` archives and
+`backup/` backups are what remains. The dev stack that was stopped before the dependency install was
+restarted afterwards and `yarn ai:doctor` then reads `services: PASS` with all three surfaces
+reachable, superseding the `NOT_RUNNING` recorded in the acceptance report §5.4.
+
 ## 2026-09-29 — P9-T4 deployed to the test server, and four defects in the gate that reports it, found and fixed
 
 `feature/p9-data-completeness` was deployed to `crm-ex-test02` **before T5**, on the decision that

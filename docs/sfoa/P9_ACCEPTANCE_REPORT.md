@@ -187,6 +187,11 @@ Expected: the local dev stack was deliberately stopped before the dependency ins
 restarted for these gates. The doctor's own `problems: []` is clean, and the service-level evidence
 for this acceptance comes from the test server, not from a local stack.
 
+The stack was restored afterwards, and the doctor re-run on the same tree reads `services` as
+`PASS` — `mcp`, `adminApi` and `adminWeb` all `reachable: true`, `httpStatus: 200` — with
+`problems: []`. So the `NOT_RUNNING` above is a statement about where the stack was at the time of
+the run, not a defect that survived the acceptance.
+
 ## 6. Audit acceptance
 
 The plan's `yarn ai:audit --user <platformUserId> --latest 20 --since 24h`, executed on the test

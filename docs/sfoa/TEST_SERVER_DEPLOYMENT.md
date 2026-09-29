@@ -1355,4 +1355,18 @@ record was validated by parsing the JSON, not by reading an exit code, and the o
 by pid. The same holds for the audit runners below. This is a property of the temporary runners in
 `.temp/`, not of the deployed service.
 
+**Follow-ups, in the order they happened.** The acceptance report was written first
+([P9_ACCEPTANCE_REPORT.md](P9_ACCEPTANCE_REPORT.md)), then:
+
+1. **The host side of the same contract.** The `sfoa-data-analysis` Skill and the regenerated `sfoa`
+   connector Skill were synced into the OpenClaw workspace on this same server, and the Skill was
+   added to the `main` Agent's allowlist. That is a different surface from the four in the table
+   above and is recorded in
+   [OPENCLAW_TEST_SERVER_DEPLOYMENT.md](OPENCLAW_TEST_SERVER_DEPLOYMENT.md#22-p9-t5-同步业务-skill-与-agent-playbook-11002026-09-29).
+2. **The temporary artifacts were removed.** Every `.p9-*` file the run created — the injector, the
+   audit and coverage runners, the build/gate logs and the acceptance reports — was deleted from
+   both the checkout's `.temp/` and the app tree, along with `/tmp/p9-*`; the generated export
+   package `out/` went with them. The only P9 artifacts left on the host are the archives under
+   `incoming/` and the pre-deploy backups under `backup/`.
+
 

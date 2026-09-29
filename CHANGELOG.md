@@ -73,6 +73,19 @@
   that matches its predicted count, and 34 of 34 audit snapshots persisted with the
   queue drained. Evidence and per-command results:
   [docs/sfoa/P9_ACCEPTANCE_REPORT.md](docs/sfoa/P9_ACCEPTANCE_REPORT.md).
+- Sync the host that consumes the contract, not just the server that serves it.
+  `skill:runtime:sync` published all three business Skills into the OpenClaw
+  workspace — the new `sfoa-data-analysis` plus refreshed `sfoa-crm-core` and
+  `sfoa-record-change` — with `runtime-check` reporting no drift and each SKILL.md
+  byte-identical between the canonical tree and the workspace copy. The connector
+  Skill produced by `skill:export`, still announcing **1.9.0 / 15 Tools** from its
+  09-23 install, was regenerated at **1.10.0 / 22 Tools**; because files are not
+  visibility, the Skill was also added to `skills.entries` and to the `main`
+  Agent's allowlist, where its absence had made `openclaw skills check` report it
+  as `Excluded by agent allowlist` — installed and invisible. The Gateway was not
+  restarted (`openclaw config patch` reports this change does not need one; its
+  `ActiveEnterTimestamp` is unchanged), and visible-to-model went 5 → 6. Human
+  WeCom UAT remains **not executed** and is not claimed.
 
 # SFoA Skill Export Package + Summary-Navigation Reference (2026-09-23)
 
