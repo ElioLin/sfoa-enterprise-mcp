@@ -1366,7 +1366,10 @@ by pid. The same holds for the audit runners below. This is a property of the te
 2. **The temporary artifacts were removed.** Every `.p9-*` file the run created — the injector, the
    audit and coverage runners, the build/gate logs and the acceptance reports — was deleted from
    both the checkout's `.temp/` and the app tree, along with `/tmp/p9-*`; the generated export
-   package `out/` went with them. The only P9 artifacts left on the host are the archives under
-   `incoming/` and the pre-deploy backups under `backup/`.
+   package `out/` went with them. What stays is what this record cites by path: the archives under
+   `incoming/`, the pre-deploy backups under `backup/`, and the three archive manifest listings the
+   earlier P9 sections name at the deployment-tree root — `p9-expected-manifest.txt` (cited at
+   §P9-T1, line 925), `p9-a9d0f13-expected-manifest.txt` (§P9-T3, line 1010) and
+   `p9-t4-204501d-expected.txt` (the T4 archive's listing, whose 1204 entries §P9-T4 reports).
 
 

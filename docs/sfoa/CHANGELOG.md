@@ -102,10 +102,12 @@ UAT is still not executed and is not claimed.
 
 **The temporary artifacts are gone and the local stack is back.** Every `.p9-*` file — injectors,
 audit and coverage runners, gate logs, acceptance JSON — was deleted from the checkout's `.temp/` and
-from the app tree, with `/tmp/p9-*` and the generated export package `out/`; `incoming/` archives and
-`backup/` backups are what remains. The dev stack that was stopped before the dependency install was
-restarted afterwards and `yarn ai:doctor` then reads `services: PASS` with all three surfaces
-reachable, superseding the `NOT_RUNNING` recorded in the acceptance report §5.4.
+from the app tree, with `/tmp/p9-*` and the generated export package `out/`. What remains is what the
+deployment record cites by path: the `incoming/` archives, the `backup/` backups, and the three
+archive manifest listings at the deployment-tree root that the T1/T3/T4 sections name. The dev stack
+that was stopped before the dependency install was restarted afterwards and `yarn ai:doctor` then
+reads `services: PASS` with all three surfaces reachable, superseding the `NOT_RUNNING` recorded in
+the acceptance report §5.4.
 
 ## 2026-09-29 — P9-T4 deployed to the test server, and four defects in the gate that reports it, found and fixed
 
