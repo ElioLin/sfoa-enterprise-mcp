@@ -65,6 +65,14 @@ export type P9LiveValidationReport = Readonly<{
    * be pointed at a different one without moving the gates that only need a live object.
    */
   bulkObjectApiName: string;
+  /**
+   * The row floor this run's Bulk export gate applied, and where it came from.
+   *
+   * Reported at the top level rather than only inside the gate because it qualifies the whole
+   * run's credibility: a `bulkQuery` PASS at 10 000 rows and one at 100 000 rows are different
+   * claims, and a reader must not have to open the gate to tell which was made.
+   */
+  bulkMinimumRows: Readonly<{ rows: number; source: 'plan' | typeof BULK_MINIMUM_ROWS_VARIABLE }>;
   filter: string;
   /**
    * Where the Data Tool enablement came from for this run. The Tools deliberately have no
@@ -109,17 +117,42 @@ const QUERY_RECORDS_TRUNCATION_MAX_ROWS = 500;
 const BULK_OBJECT_VARIABLE = 'P9_LIVE_BULK_OBJECT';
 
 /**
- * The Bulk export gate's row floor.
+ * Row floor of the Bulk export gate, as the P9 plan's T4 acceptance states it.
  *
  * The cross-check this gate exists for — the summed `returnedCount` of every page against the
  * org's own `COUNT()`, read independently over the same live Connection — is the only evidence
  * that the paging delivered **every** row rather than merely stopping cleanly. A result set of
  * a few thousand rows reaches its last page in two calls and cannot distinguish a working walk
- * from one that ends early by luck, so the gate refuses to report a PASS below this floor
- * rather than reporting one that proves nothing. `P9_LIVE_BULK_OBJECT` points the gate at an
- * object large enough; the T4 acceptance run requires one of at least 100 000 rows.
+ * from one that ends early by luck, so the gate refuses to report a PASS below a floor rather
+ * than reporting one that proves nothing. `P9_LIVE_BULK_OBJECT` points the gate at an object
+ * large enough; the plan asks for one of at least this many rows.
  */
 const BULK_EXPORT_MINIMUM_ROWS = 100_000;
+
+/**
+ * Overrides the floor above, so the gate can be run on an org whose largest object is smaller
+ * than the plan assumed.
+ *
+ * The floor exists to make the walk a walk, not to fix a number: what a run has to be able to
+ * distinguish is a loop that paged to the real end from one that stopped early by luck. An org
+ * that cannot supply 100 000 rows in any object can still exercise that distinction — the
+ * deployment this gate was first run against tops out at 37 496 rows on `Contact`, which is 19
+ * pages of the default 2 000 and 19 cursor advances — but the run must then **say** it was made
+ * at a reduced scale rather than quietly reporting the plan's floor as met. The report carries
+ * both numbers (`plannedMinimumRows` and `minimumRows`) plus `minimumRowsSource`, so a PASS on a
+ * relaxed floor is never mistakable for a PASS at the planned one.
+ */
+const BULK_MINIMUM_ROWS_VARIABLE = 'P9_LIVE_BULK_MIN_ROWS';
+
+/**
+ * The lowest floor the override may set.
+ *
+ * Below five pages at the default page size the gate is measuring a single request with extra
+ * steps: nearly any implementation reaches a last page in one or two calls, so a PASS there would
+ * be evidence of nothing. The bound is here rather than in the operator's judgement because an
+ * override that can be set arbitrarily low is an override that can manufacture a green run.
+ */
+const BULK_EXPORT_MINIMUM_OVERRIDE_ROWS = SINGLE_BATCH_ROWS * 5;
 
 /** How long the gate waits between state polls while Salesforce runs the job. */
 const BULK_EXPORT_POLL_INTERVAL_MS = 2_000;
@@ -245,6 +278,28 @@ export function missingP9LiveVariables(environment: NodeJS.ProcessEnv = process.
   return environment[PLATFORM_USER_VARIABLE]?.trim() ? [] : [PLATFORM_USER_VARIABLE];
 }
 
+/**
+ * The row floor the Bulk export gate will enforce for this run.
+ *
+ * Returning the source alongside the number is what keeps a relaxed run honest: the report says
+ * which floor was applied, so `minimumRows: 10000` next to `minimumRowsSource: 'P9_LIVE_BULK_MIN_ROWS'`
+ * cannot be read as the plan's requirement having been met.
+ */
+function resolveBulkMinimumRows(
+  environment: NodeJS.ProcessEnv,
+): Readonly<{ rows: number; source: 'plan' | typeof BULK_MINIMUM_ROWS_VARIABLE }> {
+  const raw = environment[BULK_MINIMUM_ROWS_VARIABLE]?.trim();
+  if (raw === undefined || raw === '') return Object.freeze({ rows: BULK_EXPORT_MINIMUM_ROWS, source: 'plan' });
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < BULK_EXPORT_MINIMUM_OVERRIDE_ROWS) {
+    throw new Error(
+      `${BULK_MINIMUM_ROWS_VARIABLE} must be an integer of at least ${BULK_EXPORT_MINIMUM_OVERRIDE_ROWS}: `
+      + 'below that the walk is a single request with extra steps, and a PASS would prove nothing about paging.',
+    );
+  }
+  return Object.freeze({ rows: parsed, source: BULK_MINIMUM_ROWS_VARIABLE });
+}
+
 export async function runP9LiveValidation(
   projectRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
@@ -266,6 +321,7 @@ export async function runP9LiveValidation(
   // is separately pointable: a deployment whose only large object is not the one the other gates
   // use can still run the export leg.
   const bulkObjectApiName = environment[BULK_OBJECT_VARIABLE]?.trim() || objectApiName;
+  const bulkMinimumRows = resolveBulkMinimumRows(environment);
   const filter = environment.P9_LIVE_FILTER?.trim() || objectApiName.slice(0, 3);
   const dataToolNames = [...SFOA_DATA_TOOL_NAMES];
   const generatedAt = new Date().toISOString();
@@ -324,6 +380,7 @@ export async function runP9LiveValidation(
       generatedAt,
       objectApiName,
       bulkObjectApiName,
+      bulkMinimumRows,
       filter,
       enablementSource,
       toolInventory: notTested(reason),
@@ -417,6 +474,7 @@ export async function runP9LiveValidation(
         connection,
         bulkObjectApiName,
         expectedNames,
+        bulkMinimumRows,
       );
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
@@ -428,6 +486,7 @@ export async function runP9LiveValidation(
         generatedAt,
         objectApiName,
         bulkObjectApiName,
+        bulkMinimumRows,
         filter,
         enablementSource,
         toolInventory,
@@ -1508,8 +1567,9 @@ function recordOf(value: unknown): Readonly<Record<string, unknown>> | undefined
  * the rows it summed equal a count the loop did not produce. So the gate:
  *
  * 1. reads `COUNT(Id)` over the live Connection — the independent reference — and refuses to pass
- *    below `BULK_EXPORT_MINIMUM_ROWS`, because a short result set cannot distinguish a correct
- *    walk from one that ends early;
+ *    below the row floor this run applies (`BULK_EXPORT_MINIMUM_ROWS`, or `P9_LIVE_BULK_MIN_ROWS`
+ *    when the org cannot supply the planned one), because a short result set cannot distinguish a
+ *    correct walk from one that ends early;
  * 2. submits the export through `submit_bulk_query` and holds the returned `jobId`;
  * 3. polls `get_bulk_query_results` until the platform reaches `JobComplete`, asserting that the
  *    running states make **no** completeness claim at all (`locator`/`hasMore`/`complete` are
@@ -1529,6 +1589,7 @@ async function runBulkQuery(
   connection: Connection,
   objectApiName: string,
   advertisedNames: readonly string[],
+  minimumRows: Readonly<{ rows: number; source: 'plan' | typeof BULK_MINIMUM_ROWS_VARIABLE }>,
 ): Promise<P9LiveGate> {
   const reading = await readCount(connection, objectApiName);
   const orgCount = reading.count;
@@ -1538,12 +1599,20 @@ async function runBulkQuery(
       + 'so an export cannot be cross-checked against the org.',
     );
   }
-  if (orgCount < BULK_EXPORT_MINIMUM_ROWS) {
+  if (orgCount < minimumRows.rows) {
     return notTested(
-      `${objectApiName} holds ${orgCount} rows, below the ${BULK_EXPORT_MINIMUM_ROWS}-row floor this gate requires: `
+      `${objectApiName} holds ${orgCount} rows, below the ${minimumRows.rows}-row floor this run applies `
+      + `(from ${minimumRows.source === 'plan' ? "the P9 plan's T4 acceptance" : minimumRows.source}): `
       + 'a small result set reaches its last page in a couple of calls, so summing the pages would prove nothing '
-      + `about the walk. Point ${BULK_OBJECT_VARIABLE} at an object of at least ${BULK_EXPORT_MINIMUM_ROWS} rows.`,
-      { objectApiName, orgCount, minimumRows: BULK_EXPORT_MINIMUM_ROWS },
+      + `about the walk. Point ${BULK_OBJECT_VARIABLE} at an object of at least ${minimumRows.rows} rows, or lower `
+      + `${BULK_MINIMUM_ROWS_VARIABLE} to a floor this org can actually supply.`,
+      {
+        objectApiName,
+        orgCount,
+        minimumRows: minimumRows.rows,
+        minimumRowsSource: minimumRows.source,
+        plannedMinimumRows: BULK_EXPORT_MINIMUM_ROWS,
+      },
     );
   }
 
@@ -1736,7 +1805,11 @@ async function runBulkQuery(
     objectApiName,
     statement,
     orgCount,
-    minimumRows: BULK_EXPORT_MINIMUM_ROWS,
+    minimumRows: minimumRows.rows,
+    minimumRowsSource: minimumRows.source,
+    // The plan's own floor, carried even on a relaxed run so the report states both scales: a PASS
+    // under `minimumRowsSource: P9_LIVE_BULK_MIN_ROWS` must never read as a PASS at 100 000 rows.
+    plannedMinimumRows: BULK_EXPORT_MINIMUM_ROWS,
     executionRole: submitOutput.executionRole,
     operation: submitOutput.operation,
     jobId,
