@@ -21,6 +21,7 @@ import {
   freezeSnapshot,
   MySqlAuditBatchSink,
   MySqlControlPlaneStore,
+  type AuditPipelineHealth,
   type ControlPlaneDatabaseClient,
   type RequestPolicySnapshot,
 } from '@sfoa/control-plane';
@@ -394,6 +395,9 @@ export async function runP9LiveValidation(
       schemaSelfRepair: notTested(reason),
       credentialSafety: notTested('No Tool call was made.'),
       connections: Object.freeze({ total: 0, distinctSalesforceUsernames: Object.freeze([]) }),
+      // Reported even here: a run that refused to start still wrote whatever the identity runtime
+      // resolved before the refusal, and `PARTIAL` is a claim about the gates, not about the trail.
+      auditPersistence: runAuditPersistence(await flushAuditTrail(auditPipeline)),
       overall: 'PARTIAL',
     });
   }
@@ -479,6 +483,9 @@ export async function runP9LiveValidation(
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
       const usernames = [...new Set(measuringFactory.measurements.map((entry) => entry.salesforceUsername))];
+      // Read before the report is assembled: the outer `finally` closes the pipeline only after
+      // this value has been returned, so a report that waited for it could never carry it.
+      const auditPersistence = runAuditPersistence(await flushAuditTrail(auditPipeline));
 
       return Object.freeze({
         phase: 'P9',
@@ -506,6 +513,7 @@ export async function runP9LiveValidation(
         overall: combine([
           toolInventory, requestIdentity, listSobjects, describeSobject,
           queryRecords, orgLimits, searchRecords, bulkQuery, schemaSelfRepair, credentialSafety,
+          auditPersistence,
         ]),
       });
     } finally {
@@ -2191,6 +2199,53 @@ function notTested(reason: string, detail: Readonly<Record<string, unknown>> = {
 function combine(gates: readonly P9LiveGate[]): 'PASS' | 'PARTIAL' | 'FAIL' {
   if (gates.some((entry) => entry.status === 'FAIL')) return 'FAIL';
   return gates.some((entry) => entry.status === 'NOT TESTED') ? 'PARTIAL' : 'PASS';
+}
+
+/**
+ * Flushes the run's audit pipeline and reports what the flush actually did.
+ *
+ * The audits are the evidence these gates are supposed to be checkable against, and the pipeline
+ * is the only thing that knows whether they reached MySQL. A bounded flush that runs out of time
+ * drops the remaining queue under `MCP_AUDIT_FLUSH_TIMEOUT` and *returns* `flushed: false` rather
+ * than throwing, so a caller that ignores the verdict cannot tell "the P7 evidence exists" from
+ * "these gates passed and nothing was recorded".
+ *
+ * That is not hypothetical: the T4 run passed all ten gates and wrote no audit rows at all, and
+ * nothing in the report said so. `close()` is memoized, so reading the verdict here and letting
+ * `closeQuietly` close again costs one flush.
+ *
+ * `dropped` is null rather than 0 when the close itself threw, because the count is then unknown
+ * — and an unknown count must not be reported as a clean one.
+ */
+async function flushAuditTrail(
+  auditPipeline: AsyncAuditPipeline,
+): Promise<Readonly<{ flushed: boolean; dropped: number | null; health: AuditPipelineHealth }>> {
+  const outcome = await auditPipeline.close(DEFAULT_AUDIT_FLUSH_TIMEOUT_MS).catch(() => undefined);
+  return Object.freeze({
+    flushed: outcome?.flushed === true,
+    dropped: outcome === undefined ? null : outcome.dropped,
+    health: auditPipeline.getHealth(),
+  });
+}
+
+/**
+ * Turns the flush verdict into a gate, so a run that lost its own trail cannot report a clean
+ * `overall`. A dropped audit is a failure of the *evidence*, not of a Tool, and the message says
+ * exactly that rather than implying the deployment misbehaved.
+ */
+function runAuditPersistence(
+  audits: Readonly<{ flushed: boolean; dropped: number | null; health: AuditPipelineHealth }>,
+): P9LiveGate {
+  return gate(
+    audits.flushed
+      && audits.dropped === 0
+      && audits.health.droppedSnapshots === 0
+      && audits.health.writerFailureCount === 0,
+    audits,
+    'The run did not persist its own audit trail, so the P7 evidence for these gates is absent. '
+    + 'The gates above are still true of the live org; what is missing is the record of them, and a '
+    + 'caller that needs the trail has to re-run with a longer flush than DEFAULT_AUDIT_FLUSH_TIMEOUT_MS allows.',
+  );
 }
 
 async function closeQuietly(
