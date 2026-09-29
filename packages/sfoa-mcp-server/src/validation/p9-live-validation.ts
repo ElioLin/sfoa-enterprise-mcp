@@ -510,6 +510,7 @@ export async function runP9LiveValidation(
           total: measuringFactory.measurements.length,
           distinctSalesforceUsernames: Object.freeze(usernames),
         }),
+        auditPersistence,
         overall: combine([
           toolInventory, requestIdentity, listSobjects, describeSobject,
           queryRecords, orgLimits, searchRecords, bulkQuery, schemaSelfRepair, credentialSafety,
