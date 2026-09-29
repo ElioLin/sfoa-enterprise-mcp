@@ -181,6 +181,19 @@ appear in an ADR and in the changelog:
 4. **`get_bulk_query_results` is not a `HINT_TOOL_CANDIDATES` entry** in the live validation: the
    gate reaches it through the `jobId` the submission returned, so a hint-driven candidate list
    is not what exercises it.
+5. **The export gate's 100 000-row floor is overridable**, because the deployment this ADR was
+   first run against **cannot supply an object that large**. Every one of the org's 523 queryable
+   objects was counted over the live Connection: the largest is `ContactShare` at 74 660 rows, the
+   largest business object is `Contact` at 37 496, and 12 objects exceed 10 000. The floor's stated
+   purpose is to make the walk a walk — to distinguish a loop that paged to the real end from one
+   that stopped early by luck — and 37 496 rows at the default 2 000-row page is 19 pages and 19
+   cursor advances, which meets that purpose while the literal number does not. So
+   `P9_LIVE_BULK_MIN_ROWS` may lower it, bounded below at 10 000 (five pages) so the override
+   cannot manufacture a green run, and the run reports `minimumRows`, `minimumRowsSource` and
+   `plannedMinimumRows` together so a PASS at a reduced scale is never mistakable for a PASS at the
+   planned one. This is the P9 convention applied honestly: a deviation recorded rather than
+   silently taken, and the acceptance requirement of 100 000 rows remains **unmet** until an org
+   with such an object runs the gate.
 
 ## Consequences
 
@@ -264,9 +277,10 @@ real Streamable HTTP runtime, the governance block, the `TOOL_TERMINAL` summarie
 audit purpose/category pinning in the classifier suite.
 
 With a live org: the export gate in `packages/sfoa-mcp-server/src/validation/p9-live-validation.ts`
-runs a locator loop to exhaustion against an object of at least 100 000 rows, cross-checks the
+runs a locator loop to exhaustion against an object at or above the run's row floor, cross-checks the
 summed `returnedCount` against a `COUNT()` read independently, and records the elapsed time and
 the `apiUsage` the responses reported — the row-count cross-check being the only evidence that
-the paging really delivered every row. Until that run is executed on a deployment with a
-routeable identity, the gate reports `NOT TESTED` and the run's `overall` is `PARTIAL`; no part
-of it is asserted from the unit suite.
+the paging really delivered every row. The floor is 100 000 rows unless `P9_LIVE_BULK_MIN_ROWS`
+lowers it (deviation 5), and the run states both the applied floor and its source. Until the run
+is executed on a deployment with a routeable identity, the gate reports `NOT TESTED` and the run's
+`overall` is `PARTIAL`; no part of it is asserted from the unit suite.

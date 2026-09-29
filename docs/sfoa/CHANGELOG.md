@@ -2,6 +2,36 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-29 — P9-T4 follow-up: the Bulk export gate's row floor becomes a stated scale, not a fixed number
+
+The T4 acceptance run requires a live Bulk export over an object of **at least 100 000 rows**.
+The deployment this gate was first run against cannot supply one, and that had to be established
+before it could be recorded: `run_soql_query` was used to read `COUNT()` for **every one of the
+org's 523 queryable objects**, and the largest was then re-read under each of the eight enabled
+identity routes to rule out a sharing-limited answer. The result is in
+[ADR-0028](adr/ADR-0028-p9-bulk-query-export-over-official-sdk.md) deviation 5: the largest
+object in that org is `ContactShare` at **74 660** rows, the largest business object is `Contact`
+at **37 496**, and 12 objects exceed 10 000. No object is within 25 % of the planned floor.
+
+- **`P9_LIVE_BULK_MIN_ROWS` may lower the floor, and the run says so.** `p9-live-validation.ts`
+  now resolves the floor per run and reports `minimumRows`, `minimumRowsSource` and
+  `plannedMinimumRows` **together** — in the `bulkQuery` gate and at the top level of the report,
+  because a `bulkQuery` PASS at 37 496 rows and one at 100 000 rows are different claims and a
+  reader must not have to open the gate to tell which was made. A relaxed run therefore cannot be
+  mistaken for the plan's requirement having been met, which it has **not** been.
+- **The override is bounded below at 10 000 rows (five pages at the default 2 000-row page).**
+  Below that the gate measures a single request with extra steps, and an override that can be set
+  arbitrarily low is an override that can manufacture a green run; a value under the bound is
+  refused before any Tool call rather than clamped.
+- **The floor's purpose is the scale that satisfies it, not the number.** The gate's own rationale
+  is that a short result set reaches its last page in a couple of calls and cannot distinguish a
+  working walk from one that ends early by luck. `Contact` at 37 496 rows is 19 pages and 19
+  cursor advances under the default page size, which meets that purpose; the literal 100 000 does
+  not, and this entry does not claim otherwise.
+- **No Tool behavior changed.** The change is confined to the live validation harness; the two
+  Bulk Tools, their schemas, their audit summaries and every unit and protocol test are untouched
+  and re-run green (`sfoa-mcp-server` **237/237**, lint clean).
+
 ## 2026-09-29 — P9-T4: the Bulk API 2.0 export pair, and a page that is never returned short
 
 Closes GAP-D2 / P9-3 on `feature/p9-data-completeness` with the last two Tools of
