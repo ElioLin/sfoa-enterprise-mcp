@@ -1,3 +1,79 @@
+# SFoA P9 Data Completeness (2026-09-29)
+
+- Add the `@sfoa/mcp-provider-sfoa-data` provider and its six read-only Tools —
+  `query_records`, `list_sobjects`, `describe_sobject`, `search_records`,
+  `submit_bulk_query`, `get_bulk_query_results` — plus `get_org_limits` in the
+  existing `@sfoa/mcp-provider-sfoa-context` provider. **Seven** Tools, not the
+  eight the P9 plan's wording implies: P9-5 is a Skill-and-description deliverable
+  with no Tool of its own, so six of the six items that name a Tool contribute one
+  each. Every one of the seven is **disabled by default** and reaches an Agent only
+  through an explicitly enabled Control Plane route; the advertised surface on the
+  test server went from 16 Tools to 23, with `readOnlyAnnotations` true and no
+  annotation offenders (`MCP Runtime changed: YES`).
+- Land the P9 divergence ADRs rather than silently deviating from the plan:
+  [ADR-0024](docs/sfoa/adr/ADR-0024-p9-data-provider-over-official-sdk.md)
+  (`describe_global` renamed `list_sobjects`, and a data provider that vendors no
+  official code), [ADR-0025](docs/sfoa/adr/ADR-0025-p9-query-records-bounded-completeness.md)
+  (`query_records` as a new Tool beside the untouched official `run_soql_query`
+  rather than a wrapper of it),
+  [ADR-0026](docs/sfoa/adr/ADR-0026-p9-org-limits-and-sosl-search.md) (SOSL search
+  and the limits snapshot), [ADR-0027](docs/sfoa/adr/ADR-0027-p9-org-limits-diagnostic-identity.md)
+  (`get_org_limits` on the Diagnostic identity, because the `limits` resource is
+  org configuration a business identity cannot read) and
+  [ADR-0028](docs/sfoa/adr/ADR-0028-p9-bulk-query-export-over-official-sdk.md)
+  (Bulk API 2.0 export over the official SDK, with five recorded deviations).
+- Record the one acceptance criterion the org cannot meet, instead of meeting it
+  on paper: the plan's milestone asks for a "100 000-row real object" and no object
+  in this org has one — a survey of all 523 queryable objects put the largest at
+  `ContactShare` with **74 660** rows and the largest business object at `Contact`
+  with **37 496**. The Bulk export gate runs at that real scale under
+  `P9_LIVE_BULK_MIN_ROWS` and reports both the floor it used and the floor the plan
+  asked for (`minimumRows` / `plannedMinimumRows`), and the override cannot be set
+  below five pages, so a relaxed-floor PASS is never mistakable for a planned-floor
+  one. Recorded as ADR-0028 deviation 5.
+- Publish Playbook **1.10.0** with the data-completeness contract: the coverage
+  declaration obligation for anything derived from `query_records`/Bulk results
+  (`fetched` vs `totalSize`, and no whole-result claim while `truncated` is true),
+  Tool selection by expected size, aggregate-before-detail, schema self-repair
+  before retrying an `INVALID_FIELD`, and a limits check ahead of a large job. The
+  five `agent:sync` generated artifacts (including the 小犇 instruction
+  `docs/agent/DIFY_AGENT_INSTRUCTION.md`) carry `Playbook-Version: 1.10.0` and
+  `agent:check` reports no drift.
+- Add `skills/sfoa-data-analysis`, the business Skill the P9 contract needs: hard
+  rules for the completeness declaration and for what `truncated` forbids, the
+  three escalation paths out of a truncated result (aggregate, Bulk, narrow the
+  scope), the rule that untrusted field content stays data, and explicit
+  statistical scope; guidelines for COUNT-then-detail, `describe` self-repair,
+  a limits pre-check and locator discipline. Registered in
+  `BUSINESS_SKILL_ALLOWLIST` so the runtime publisher will accept it, and present
+  in the canonical, `.claude` and `.codebuddy` copies.
+- Fix a **defect in the P9 live gate itself**, found by running it: the
+  `get_org_limits` gate waived a disagreement with the reference reading only when
+  the org moved that counter between the gate's two reference readings. The
+  counter is advanced by the run's own API traffic, so once that traffic stops the
+  org stops moving and the waiver cannot fire — three runs of byte-identical code
+  disagreed with their own reference reading by 4, 3 and 8 on `DailyApiRequests`,
+  in both directions, and two of the three failed a correct Tool. The gate now
+  also waives a disagreement within a small fraction of the limit's ceiling, keeps
+  `max` strict, keeps the Tool's own `used === max - remaining` strict (so a
+  swapped operand, a wrong key, a stringified number or a scale error still fail),
+  and reports every waiver in `toleratedMoves` so a tolerated disagreement stays
+  visible. This follows the T4 precedent: the gate is part of the deliverable, and
+  a gate that fails a correct implementation cannot certify anything.
+- Correct the two Playbook-version drift gates that the 1.10.0 bump moves
+  (`AgentIntegrationPage.test.ts`, `SkillContent.test.ts`). They assert the
+  published version on purpose — a page or generated Skill still naming an older
+  Playbook must not pass unnoticed — and the previous bump, 1.8.0 → 1.9.0, updated
+  the same two literals.
+- Verified on the test server: the full P9 live acceptance is `overall: PASS`
+  across all eleven gates, including a Bulk export whose summed page counts equal
+  the org's own `COUNT()` (37 010 of 37 010 across 19 pages), a `query_records`
+  probe that declares `truncated: true / RESPONSE_BUDGET` rather than claiming the
+  whole result, schema self-repair after `MCP_SOBJECT_NOT_FOUND`, a SOSL search
+  that matches its predicted count, and 34 of 34 audit snapshots persisted with the
+  queue drained. Evidence and per-command results:
+  [docs/sfoa/P9_ACCEPTANCE_REPORT.md](docs/sfoa/P9_ACCEPTANCE_REPORT.md).
+
 # SFoA Skill Export Package + Summary-Navigation Reference (2026-09-23)
 
 - Add the zero-credential AgentSkills export generator

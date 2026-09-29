@@ -113,14 +113,32 @@ Standard 服务器固定工具集：
 
 ### 阶段 P9：数据完备性（对应目标 1）
 
+> **P9 已交付**（分支 `feature/p9-data-completeness`，2026-09-29）。六项交付项中 P9-1/2/3/4/6 各落一个工具、P9-5
+> 只落 skill 与工具描述（**无工具**），故新增工具为 **7 个**而不是计划措辞里的 8 个：`query_records`、
+> `list_sobjects`、`describe_sobject`、`search_records`、`submit_bulk_query`、`get_bulk_query_results`
+> 落在 `@sfoa/mcp-provider-sfoa-data`，`get_org_limits` 按 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md)
+> 落在 `@sfoa/mcp-provider-sfoa-context`。七个工具**全部默认禁用**，按路由由 Admin 显式启用。
+>
+> 与计划措辞的偏离各有 ADR：[ADR-0024](adr/ADR-0024-p9-data-provider-over-official-sdk.md)（`describe_global`
+> 改名 `list_sobjects`）、[ADR-0025](adr/ADR-0025-p9-query-records-bounded-completeness.md)（P9-1 不包装
+> `run_soql_query`，另立 `query_records`）、[ADR-0026](adr/ADR-0026-p9-org-limits-and-sosl-search.md)、
+> [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md)、[ADR-0028](adr/ADR-0028-p9-bulk-query-export-over-official-sdk.md)
+> （Bulk 导出对比官方 SDK 的五项偏离）。
+>
+> 里程碑验收里的「10 万行级真实对象」在本 org 不存在：523 个可查询对象中最大的是 `ContactShare`（**74 660**
+> 行），最大的业务对象 `Contact` 勘察时为 **37 496** 行、本次验收 run 独立 `COUNT()` 实测 **37 010** 行，均远低于
+> 10 万。已按 ADR-0028 的 deviation 5 记录真实规模与本次所用参数（run 同时输出 `minimumRows` 与
+> `plannedMinimumRows`），未以任何方式伪造 10 万行。完整验收见
+> [P9_ACCEPTANCE_REPORT.md](P9_ACCEPTANCE_REPORT.md)。
+
 | # | 交付项 | 设计要点 | 角色/治理 | 上游策略 |
 | --- | --- | --- | --- | --- |
-| P9-1 | `run_soql_query` SFOA 增强（wrapper） | 有界自动翻页（默认 maxRows=2000，Admin 可配置上限，建议 50k）；输出结构化 `{records, totalSize, fetched, done, truncated, truncationHint}`；超限时返回前 N 行 + 统计摘要 + "用 bulk query / 聚合"指引；查询错误结构化（errorCode + 修正建议）；检测聚合查询（GROUP BY/HAVING/COUNT）并放宽翻页 | READ / USER | EXTEND（SFOA wrapper，官方文件零改动） |
-| P9-2 | `describe_sobject` + `describe_global` | jsforce `describe()/describeGlobal()`；对象模式输出字段（类型/label/nillable/createable/updateable/picklist/referenceTo/relationshipName）+ childRelationships；全局模式输出对象清单；有界截断 | READ / USER | 官方 SDK |
-| P9-3 | `submit_bulk_query` + `get_bulk_query_results` | Bulk API 2.0：提交异步查询作业 → 轮询/取结果；默认只回样本 + totalSize，可选分页取全量；PK chunking 支持；作业配额不足时报结构化错误（配合 P9-4） | READ / USER | 官方 SDK（jsforce bulk） |
-| P9-4 | `get_org_limits` | `Connection.limits()` 全量快照；重点标注 API/bulk 并发与日配额。**角色为 READ / DIAGNOSTIC**（原计划为 READ / USER）：`limits` 资源不含业务记录，属 org 配置读，业务身份读不到，故落在服务器自有的诊断身份上，工具也随之移入 `@sfoa/mcp-provider-sfoa-context`——见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | READ / DIAGNOSTIC | 官方 SDK |
-| P9-5 | 聚合引导（skill + 工具描述） | 在 `sfoa-data-analysis` skill（见 P11-1）与工具描述中固化："先 COUNT/GROUP BY 估量，再决定明细路径"；声明聚合天然防截断 | — | — |
-| P9-6 | `search_records`（SOSL） | `Connection.search()`；跨对象 FIND 子句；结果有界 | READ / USER | 官方 SDK |
+| P9-1 | `query_records`（原计划为 `run_soql_query` SFOA 增强 wrapper；官方 `run_soql_query` 并存不改，偏离见 [ADR-0025](adr/ADR-0025-p9-query-records-bounded-completeness.md)）**已交付**（T1） | 有界自动翻页（默认 maxRows=2000，Admin 可配置上限，建议 50k）；输出结构化 `{records, totalSize, fetched, done, truncated, truncationHint}`；超限时返回前 N 行 + 统计摘要 + "用 bulk query / 聚合"指引；查询错误结构化（errorCode + 修正建议）；检测聚合查询（GROUP BY/HAVING/COUNT）并放宽翻页 | READ / USER | EXTEND（SFOA wrapper，官方文件零改动） |
+| P9-2 | `describe_sobject` + `list_sobjects`（原计划名 `describe_global`，偏离见 [ADR-0024](adr/ADR-0024-p9-data-provider-over-official-sdk.md)）**已交付**（T1/T2） | jsforce `describe()/describeGlobal()`；对象模式输出字段（类型/label/nillable/createable/updateable/picklist/referenceTo/relationshipName）+ childRelationships；全局模式输出对象清单；有界截断 | READ / USER | 官方 SDK |
+| P9-3 | `submit_bulk_query` + `get_bulk_query_results` **已交付**（T4） | Bulk API 2.0：提交异步查询作业 → 轮询/取结果；默认只回样本 + totalSize，可选分页取全量；PK chunking 支持；作业配额不足时报结构化错误（配合 P9-4） | READ / USER | 官方 SDK（jsforce bulk） |
+| P9-4 | `get_org_limits` **已交付**（T3） | `Connection.limits()` 全量快照；重点标注 API/bulk 并发与日配额。**角色为 READ / DIAGNOSTIC**（原计划为 READ / USER）：`limits` 资源不含业务记录，属 org 配置读，业务身份读不到，故落在服务器自有的诊断身份上，工具也随之移入 `@sfoa/mcp-provider-sfoa-context`——见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | READ / DIAGNOSTIC | 官方 SDK |
+| P9-5 | 聚合引导（skill + 工具描述）**已交付**（T5）——只落 `sfoa-data-analysis` skill 与工具描述，**不新增工具** | 在 `sfoa-data-analysis` skill（见 P11-1）与工具描述中固化："先 COUNT/GROUP BY 估量，再决定明细路径"；声明聚合天然防截断 | — | — |
+| P9-6 | `search_records`（SOSL）**已交付**（T2） | `Connection.search()`；跨对象 FIND 子句；结果有界 | READ / USER | 官方 SDK |
 
 **P9 里程碑验收**：对 10 万行级真实对象完成一次"全量统计 + 明细抽样"分析且数据完整性声明可审计（totalSize == fetched || truncated==true 且有续查指引）；agent 在无人工辅助下通过 describe 自修正常见 INVALID_FIELD。
 

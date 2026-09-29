@@ -2,6 +2,85 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-29 — P9-T5: Playbook 1.10.0, the data-analysis Skill, and a second gate defect found by running the acceptance
+
+T5 closes the P9 plan. The seven Tools were already built and deployed; what was missing was the
+Agent-facing contract that tells an Agent how to use them without lying about what it read, the Skill
+that carries the same contract into the business workflow, and the end-to-end acceptance. Results in
+[P9_ACCEPTANCE_REPORT.md](P9_ACCEPTANCE_REPORT.md).
+
+**Playbook 1.10.0 — the data-completeness contract.** The plan's five points, all landing in the new
+「数据查询与完整性」 section: a coverage declaration is **obligatory** for any conclusion drawn from
+`query_records` or Bulk results (`fetched` against `totalSize`, and no whole-result claim while
+`truncated` is true); Tool selection follows expected size (single-batch exploration may use
+`run_soql_query`, anything past 2 000 rows or needing a coverage claim uses `query_records`, a full
+export uses the Bulk pair); aggregate before detail; `list_sobjects` / `describe_sobject` before
+writing a query whose field names are uncertain, and `describe` before retrying after
+`INVALID_FIELD`; and `get_org_limits` ahead of a large job. `capabilities.ts` needed only the minimal
+change — the new Tools are described, not given a new capability model, and the renderer is
+untouched.
+
+**A Skill, not a Tool, is what P9-5 actually needed.** `skills/sfoa-data-analysis` is a top-level
+canonical Skill in the same shape as `sfoa-crm-core`: hard rules for the completeness declaration and
+for what `truncated` forbids, the three escalation paths out of a truncated result (aggregate, Bulk,
+narrow the scope), the rule that untrusted field content is data and never instruction, explicit
+statistical scope (time window, filters, currency), and guidelines for COUNT-then-detail, `describe`
+self-repair, a limits pre-check and locator discipline. It is registered in
+`BUSINESS_SKILL_ALLOWLIST`, which is the single authorization source for runtime publication, and
+present in the canonical, `.claude`, `.codebuddy` and `.agents` copies.
+
+**The build order was the deployment defect, and it had been visible the whole time.** Playbook 1.9.0
+was still being served by the test environment after the P9 Tools were deployed, because the version
+reaches the two consumers by different routes: `@sfoa/admin-web` **inlines** it at build time, while
+`sfoa-mcp-server` resolves it at **runtime** from `packages/sfoa-agent-playbook/dist`. Building the
+frontend before the playbook therefore produced a green build, two `active` services and a stale
+Agent page — nothing fails, the version is simply old. Rebuilding in dependency order fixed it, and a
+second symptom surfaced underneath: rebuilt files under `sfoa-admin-web/dist` carry the default
+SELinux label and nginx serves them as `500` until `restorecon -R` restores
+`httpd_sys_content_t`. With both fixed, 1.10.0 is confirmed on all four surfaces that can report it,
+each read rather than inferred — the playbook `dist`, the 小犇 instruction
+(`Playbook-Version: 1.10.0`), the built Admin bundle, and the live `get_agent_playbook` Tool
+description. Recorded in
+[TEST_SERVER_DEPLOYMENT.md](TEST_SERVER_DEPLOYMENT.md#p9-t5-playbook-1100-data-analysis-skill-and-acceptance-deployment-2026-09-29).
+
+**A second defect in the P9 live gate itself, and again found by running it.** The `orgLimits` gate
+failed on two of three pre-fix runs with a disagreement of a few units on `DailyApiRequests`. The
+cause is directional rather than random: that counter is advanced by the run's **own** API traffic,
+the gate compares the Tool's reading to a reference reading taken around it, and the waiver it
+already had could only excuse a disagreement it could witness as movement between the two reference
+readings. Once the run's traffic stops, the reference readings agree and the waiver can never fire —
+so a counter the harness had itself moved was reported as a defect in a correct Tool. The fix keeps
+`max` strict and keeps the Tool's own `used === max - remaining` strict, and adds one bounded
+tolerance of `max(5, ceil(ceiling × 1/10 000))` — scaled by the limit's ceiling rather than its
+value, because `used` is a difference of two ceiling-sized numbers — with every waiver reported in
+`toleratedMoves`. Two of the three post-fix runs waived by movement and one **only** by the new
+tolerance (its two reference readings were identical), which is what shows both paths work. The
+change is confined to the validation harness; no Tool, schema, audit summary or unit test changed.
+
+**Acceptance — `overall: PASS`, all 11 gates, three consecutive runs.** Against the real org: Bulk
+pages summing to 37 010 rows against an independent `COUNT()` of 37 010; a `query_records` probe that
+declares `truncated: true / RESPONSE_BUDGET` instead of claiming the whole result; schema self-repair
+after `MCP_SOBJECT_NOT_FOUND`; a SOSL search matching its predicted count; `get_org_limits` reading
+73 limits and re-reading 73 with no mismatch on the DIAGNOSTIC identity; 34 of 34 audit snapshots
+persisted with the queue drained; and 23 advertised Tools with `readOnlyAnnotations: true` and no
+annotation offenders. The plan's 100 000-row floor was **not** met — no object in this org is near it
+— and the run says so in its own output rather than being read as if it had been met.
+
+The audit leg (`--latest 20 --since 24h` for the routed identity) shows all seven P9 Tools leaving
+evidence: 210 audit rows against 210 distinct correlation ids in the window, 1 183 payload-evidence
+rows of which 18 are the bounded truncated prefix, and no credential-shaped content — 0 matches for
+JWT, bearer, refresh-token, access-token or client-secret patterns, agreeing with the live
+`credentialSafety` gate's `matchedPatterns: []` over 2 801 044 bytes. Chain coverage is reported as
+it is: the schema has no `sessionId`, `callId`, `parentCallId` or `spanId`, so the analyzer marks the
+traces `PARTIAL` and this acceptance claims no per-session chain it cannot express. The identity was
+resolved inside the querying process throughout, so no platform user id reached a command line.
+
+**Failures that remain are pre-existing and are named, not absorbed.** `test:p7`'s HTTP OFF/ON gate
+fails identically on `main` (`903f0a3`) with the same `MCP_REQUEST_TIMEOUT`; `validate:p2` and
+`validate:p3` stop at a missing `SECOND_TEST_USER` in the local environment; and `yarn lint`'s 47
+errors are all in the upstream `mcp-provider-code-analyzer` package, 25 files, none of them `@sfoa`.
+Each is recorded with its evidence in the acceptance report rather than counted as a pass.
+
 ## 2026-09-29 — P9-T4 deployed to the test server, and four defects in the gate that reports it, found and fixed
 
 `feature/p9-data-completeness` was deployed to `crm-ex-test02` **before T5**, on the decision that

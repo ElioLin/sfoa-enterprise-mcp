@@ -1245,3 +1245,114 @@ in memory, and `enablementSource` says so in its own words. The operator enables
 Admin Tool Governance page when the Tools should be reachable; because the enabled set is read per
 request, that takes effect on the next request with no restart.
 
+## P9-T5 Playbook 1.10.0, data-analysis Skill and acceptance deployment (2026-09-29)
+
+The T5 tip of `feature/p9-data-completeness`, deployed the same day after T4. Unlike T4 this
+deployment carries the Agent-facing contract, so it is the one that decides what the test server's
+playbook actually says — and the reason the test environment was still answering **1.9.0** before it.
+
+| | |
+|---|---|
+| source ref | `feature/p9-data-completeness` @ `6d7ea3d` (not in `main`) |
+| archive | `sfoa-p9-t5-6d7ea3d.tar.gz` |
+| size / sha256 | 3,006,851 bytes / `7ecceb30c06eb1ceb42fb813240b70d2684544589165d1800012e3a2a2962ccc` |
+| transfer | the same sha256 computed locally and on `crm-ex-test02` → `TRANSFER_VERIFY_OK` |
+| contents | 1476 manifest entries; no `dist/`, no `.env.local`, no `.git` |
+| pre-deploy backup | `backup/sfoa-app-pre-6d7ea3d-20260929-133736.tar.gz` (22,130,744 bytes) |
+| staging | `staging-p9-t5-6d7ea3d` — 1235 regular files and 1 symlink |
+| app tree vs staging | `rsync -rcn` reports the symlink skip and one file, both accounted for below |
+
+The archive's own manifest also carries the T4 gate fixes. `204501d` was the T4 archive, and the
+five single-file syncs that followed it (`16d2dfd` … `b4e3453`) were applied to the app tree one
+file at a time and never to an archive; `6d7ea3d` contains `p9-live-validation.ts` at `0e71c9c3…`,
+which is exactly `b4e3453`'s version. So the T5 archive re-based that file onto the branch and the
+T4 sync trail no longer has to be reasoned about when reading the app tree.
+
+**What shipped.** Playbook **1.10.0** with the data-completeness contract, and its five
+`agent:sync` artifacts; the `sfoa-data-analysis` Skill (canonical under `skills/`, plus its three
+generated copies); and the two `sfoa-admin-web` drift-gate literals that had to follow the new
+version. The `@sfoa/mcp-provider-sfoa-data` and `@sfoa/mcp-provider-sfoa-context` packages are
+byte-identical to what T4 deployed.
+
+**Rebuild order — this is the defect this deployment is about.** The Playbook version reaches the
+browser and the MCP server by two different routes:
+
+- `@sfoa/admin-web` **inlines** `AGENT_PLAYBOOK_VERSION` at build time, so its bundle must be built
+  *after* the playbook.
+- `@sfoa/mcp-server` resolves it at **runtime** from `packages/sfoa-agent-playbook/dist`, so it
+  needs the playbook's `dist` to be current but not its own rebuild to be last.
+
+Building the frontend first is therefore silently wrong: everything type-checks, both services stay
+`active`, and the Admin Agent page reports the previous version for as long as nobody looks. That is
+the state the test environment was in, and it is a build-order defect rather than a deployment
+failure. The rebuild was re-run in dependency order, and the mtimes on the server now read as a
+record of it:
+
+| time (CST) | artifact |
+|---|---|
+| 13:38:20 | `@sfoa/mcp-provider-sfoa-data/dist` |
+| 13:38:24 | `@sfoa/identity-runtime/dist` |
+| 13:38:31 | `@sfoa/mcp-server/dist` |
+| 13:38:35 | `@sfoa/admin-api/dist` |
+| 13:52:55 | `@sfoa/agent-playbook/dist` (rebuilt on the corrected order) |
+| 13:53:02 | `@sfoa/admin-web/dist` (inlines 1.10.0) |
+| 13:53:04 | `sfoa-mcp-server` restarted |
+| 14:08:48 | `@sfoa/mcp-server/dist` rebuilt after the single-file sync below |
+| 14:08:58 | `sfoa-mcp-server` restarted again |
+
+`@sfoa/mcp-provider-sfoa-context/dist` keeps its 2026-09-28 17:26 mtime and was deliberately not
+rebuilt — T5 did not change that package.
+
+**A second failure hidden behind the first: SELinux.** Rebuilding `packages/sfoa-admin-web/dist`
+creates files with the default context, and on this host SELinux is Enforcing with a file-context
+rule that only covers paths *inside* the dist. nginx then serves them as `500` — a symptom that
+looks like a broken build rather than a mislabelled file. The fix is the one already recorded in
+§3 of this document: `restorecon -R` the dist and confirm the context. Both are now
+`unconfined_u:object_r:httpd_sys_content_t:s0`.
+
+**Playbook 1.10.0 is live on all four surfaces that can report it** — checked by reading each one
+rather than inferring from the build:
+
+```bash
+node -e 'console.log(require("./packages/sfoa-agent-playbook/dist/version.js").AGENT_PLAYBOOK_VERSION)'
+# 1.10.0
+grep -o 'Playbook-Version: [0-9.]*' docs/agent/DIFY_AGENT_INSTRUCTION.md   # 1.10.0
+grep -o 'Playbook-Version: [0-9.]*' packages/sfoa-admin-web/dist/index.html # 1.10.0
+node -e 'console.log(JSON.stringify(require("./packages/sfoa-mcp-server/dist/agent-guidance.js")).match(/Canonical version [0-9.]+/))'
+# [ 'Canonical version 1.10.0' ]   — the live get_agent_playbook Tool description
+```
+
+**One follow-up single-file sync.** Running the live gate found a second defect in the gate itself
+(§P9 acceptance, below), fixed in `95d960a`. As with T4's five, it was synced as a single
+byte-verified file plus a `sfoa-mcp-server` rebuild rather than a fresh archive. Both columns are
+the sha256 of the **LF** bytes, the left read with
+`git -c core.autocrlf=false show 95d960a:<path> | sha256sum` and the right with `sha256sum` on the
+server:
+
+| extracted LF bytes | deployed file sha256 | size | commit |
+|---|---|---|---|
+| `bcba7d20e3f51ae265e7ced1064e8478cbf0bb85f64eea6593690c177ac522fe` | `bcba7d20e3f51ae265e7ced1064e8478cbf0bb85f64eea6593690c177ac522fe` | 116,566 | `95d960a` — the limits endpoint's own lag |
+
+The file as it stood before the sync is kept at
+`backup/p9-live-validation.ts.95d960a-20260929140803.bak` (112,733 bytes), named for the commit it
+was replaced by.
+
+**`rsync -rcn` between `staging-p9-t5-6d7ea3d` and the app tree now reports only the symlink skip**:
+`packages/sfoa-mcp-server/src/validation/p9-live-validation.ts` is the one file that legitimately
+differs, because the staging tree holds `6d7ea3d`'s copy (`0e71c9c3…`) and the app tree holds
+`95d960a`'s (`bcba7d20…`). Every other regular file in staging is byte-identical to the app tree.
+
+**Verification — all green.** Both services `active`, `/health` 200, `/admin/api/health` 200.
+`overall: PASS` on the live acceptance run, all 11 gates PASS; the run's own first line in the
+harness output is the masked route it resolved, `enabledRoutes=8 of 8`.
+
+**An observation about the harness, recorded because it cost time.** The live-gate runner prints
+its complete JSON report and then **does not exit** — the Control Plane's connection pool keeps the
+event loop alive after the report is written. An ssh invocation that waits for the exit therefore
+never returns, and repeated runs left orphaned `node .p9-live-inject.mjs` processes on the host
+(load average stayed at 0.00, so nothing was busy; they were simply parked). Every report in this
+record was validated by parsing the JSON, not by reading an exit code, and the orphans were cleared
+by pid. The same holds for the audit runners below. This is a property of the temporary runners in
+`.temp/`, not of the deployed service.
+
+

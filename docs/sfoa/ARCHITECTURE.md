@@ -834,6 +834,14 @@ Every row above is now shipped; the gap analysis and ADR-0024 record how each on
 Provider and to the `DIAGNOSTIC` role in P9-T3, and the role map below is what routes it. See
 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md).
 
+P9-T5 adds no Tool, and the table above is complete because of that rather than in spite of it: the
+plan's sixth item is the aggregate-first guidance, which lands in **Playbook 1.10.0** and in the
+`skills/sfoa-data-analysis` Skill. The contract those two carry is what makes the bounded output
+above usable — a coverage declaration is obligatory for any conclusion drawn from a `query_records`
+or Bulk result, no whole-result claim may be made while `truncated` is true, and an Agent that hits
+`INVALID_FIELD` must `describe` before retrying. The Tools state their own completeness; the Playbook
+and the Skill say what an Agent owes a reader who acts on that answer.
+
 `query_records` exists because the official `run_soql_query` makes exactly one request and
 never consumes `nextRecordsUrl`, so a result larger than one batch is returned as though it
 were the answer (GAP-D1). It follows the continuation cursor until the result is done, the
