@@ -218,7 +218,7 @@ async function verifyPackageCompleteness({ projectRoot, canonicalDir }) {
  * OpenClaw workspace。`sfoa-mcp-maintainer` 是开发/运维 Skill，永远不得进入
  * 这个列表，也不得因为「方便同步」而把整个 `skills/*` 复制到 Runtime。
  */
-export const BUSINESS_SKILL_ALLOWLIST = Object.freeze(['sfoa-crm-core', 'sfoa-record-change']);
+export const BUSINESS_SKILL_ALLOWLIST = Object.freeze(['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis']);
 
 /** Runtime Copy 中禁止出现的文件特征：凭据、版本库元数据与可执行脚本。 */
 const RUNTIME_FORBIDDEN_SEGMENTS = Object.freeze(['.git', '.ssh', 'secrets', 'node_modules', '__pycache__']);

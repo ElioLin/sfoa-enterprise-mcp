@@ -58,6 +58,13 @@ export const TOOL_PRESENTATION = Object.freeze({
   run_diagnostic_tooling_query: { group: '诊断', purpose: 'Tooling API 只读诊断查询（治理可见时）' },
   get_metadata_component_context: { group: '诊断', purpose: 'Metadata 组件上下文' },
   upload_files_to_record: { group: '附件', purpose: '上传本地文件为记录附件' },
+  list_sobjects: { group: '数据', purpose: '对象清单与可查询性（describeGlobal），用于自助探索' },
+  describe_sobject: { group: '数据', purpose: '对象字段/关系/picklist 元数据（describe），用于查询前核对字段' },
+  query_records: { group: '数据', purpose: '有界自动翻页 SOQL（totalSize/fetched/truncated），用于完整性声明' },
+  search_records: { group: '数据', purpose: 'SOSL 跨对象关键词检索，结果有界' },
+  submit_bulk_query: { group: '数据', purpose: 'Bulk API 2.0 查询作业提交，返回 jobId（服务端不保存作业状态）' },
+  get_bulk_query_results: { group: '数据', purpose: 'Bulk 查询作业状态与结果页读取（一次一页 + 游标）' },
+  get_org_limits: { group: '诊断', purpose: 'org limits 快照（API/Bulk 配额），由 DIAGNOSTIC 身份执行' },
   get_agent_playbook: { group: '基础设施', purpose: '当前 Playbook 与能力快照' },
   get_record_links: { group: '基础设施', purpose: '可信记录链接；不猜测或拼接 Salesforce URL' },
 });

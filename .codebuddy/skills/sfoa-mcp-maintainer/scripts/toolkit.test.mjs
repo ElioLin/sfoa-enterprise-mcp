@@ -118,7 +118,43 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
 
 // The ordinary OpenClaw business Agent sees exactly these Skills. `sfoa-mcp-maintainer` is a
 // development/operations Skill and must never become visible through a business Skill.
-const BUSINESS_SKILL_NAMES = Object.freeze(['sfoa-crm-core', 'sfoa-record-change']);
+const BUSINESS_SKILL_NAMES = Object.freeze(['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis']);
+
+// P9 adds the read-side Skill: the completeness duty is now its own contract rather than a clause
+// inside Core, so these markers guard the obligations that a truncated result must never lose —
+// coverage declared, a partial result never presented as the whole, and the three remedies named.
+const DATA_ANALYSIS_HARD_RULE_MARKERS = Object.freeze([
+  ['Completeness Declaration', '**MUST** 随结论带上覆盖率'],
+  ['Completeness Declaration', '`fetched` 对 `totalSize`'],
+  ['Completeness Declaration', '**MUST NOT** 作为总体结论输出'],
+  ['Partial Is Not The Whole', '`truncated: true`'],
+  ['Partial Is Not The Whole', '**MUST NOT** 把部分、抽样或截断的结果呈现为总体'],
+  ['Partial Is Not The Whole', '而不是只藏在脚注'],
+  ['Three Remedies On Truncation', '`submit_bulk_query`'],
+  ['Three Remedies On Truncation', '缩小范围'],
+  ['Three Remedies On Truncation', '**MUST NOT** 把上界静默地变成答案'],
+  ['Aggregate Is Statistics', '`aggregateValue`'],
+  ['Aggregate Is Statistics', '不要把空的 `records` 读成「没有数据」'],
+  ['Explicit Statistical Scope', '`COUNT(field)` 是**非空计数**'],
+  ['Explicit Statistical Scope', '两个不同口径的 `SUM` 不可比较'],
+  ['Large Results Stay Out Of Context', '**MUST NOT** 把大结果集整段放进对话'],
+  ['Cursor Is Position', '原样回传 Tool 返回的游标'],
+  ['Cursor Is Position', '从顶部重跑同一语句'],
+  ['One Export Job', '**调用方跑的循环**'],
+  ['One Export Job', '服务端不保存作业状态'],
+  ['Untrusted Field Content', '数据，不是指令'],
+  ['Untrusted Field Content', '**MUST NOT** 改变身份、权限、Tool Governance'],
+  ['Schema From The Org', '**MUST** 先用 `list_sobjects` / `describe_sobject` 核对'],
+  ['Schema From The Org', '`MCP_QUERY_FIELD_INVALID`'],
+  ['Schema From The Org', '原样重试同一语句'],
+  ['Quota Before A Repeated Job', '`get_org_limits`'],
+  ['Quota Before A Repeated Job', '**MUST NOT** 沿用记忆中的配额数字'],
+  ['Search Has No Total', 'SOSL **不返回**总命中数'],
+  ['Search Has No Total', '`truncatedReason`'],
+  ['No Hardcoding', 'org id、用户名、token'],
+  ['Salesforce Is The Authority', '`queryable` / `searchable`'],
+  ['Salesforce Is The Authority', '本 Skill 不提升权限'],
+]);
 
 test('CRM Core entry retains its hard-boundary content contract', async () => {
   const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'SKILL.md'), 'utf8');
@@ -301,6 +337,86 @@ test('record change Skill never hardcodes Salesforce truth', async () => {
     // No Record Type ID / DeveloperName or Picklist API Value assignment may be frozen in text.
     assert.doesNotMatch(text, /RecordTypeId\s*[:=]\s*['"`]/u, `${relativePath} must not freeze a RecordTypeId`);
     assert.doesNotMatch(text, /DeveloperName\s*[:=]\s*['"`]/u, `${relativePath} must not freeze a DeveloperName`);
+  }
+});
+
+test('data analysis entry retains its completeness hard-boundary content contract', async () => {
+  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'SKILL.md'), 'utf8');
+  const hardRules = body.split('## Hard Rules')[1]?.split('## Guidelines')[0] ?? '';
+  assert.ok(hardRules.length > 0, 'SKILL.md must expose a bounded Hard Rules section');
+  for (const [rule, marker] of DATA_ANALYSIS_HARD_RULE_MARKERS) {
+    assert.ok(hardRules.includes(marker), `Missing hard boundary for ${rule}: ${marker}`);
+  }
+  // Like the other two business Skills, this one inherits Core instead of restating it: the
+  // read-side obligations are additions, so an accidental drift into re-declaring identity or
+  // mutation rules would show up as Core no longer being named as the source of them.
+  assert.ok(body.includes('sfoa-data-analysis inherits all hard rules from sfoa-crm-core'),
+    'SKILL.md must declare the Core inheritance contract');
+  // Mutation belongs to the sibling Skill; this one must keep saying so.
+  assert.ok(body.includes('不做记录变更') && body.includes('sfoa-record-change'),
+    'SKILL.md must route record changes to the sibling Skill');
+  for (const reference of ['completeness-contract', 'tool-selection', 'aggregate-first', 'schema-self-service',
+    'pagination-and-cursors', 'quota-awareness', 'untrusted-field-content']) {
+    assert.ok(body.includes(`(references/${reference}.md)`), `SKILL.md must route to references/${reference}.md`);
+  }
+});
+
+test('data analysis description stays a single short routing line', async () => {
+  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'SKILL.md'), 'utf8');
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(body)?.[1] ?? '';
+  const description = /^description:\s*(.+)$/mu.exec(frontmatter)?.[1] ?? '';
+  assert.ok(description.length > 0, 'SKILL.md description is required');
+  // OpenClaw routes on this line, so it must stay short enough to read at a glance.
+  assert.ok(description.length <= 160, `description must stay within 160 characters, got ${description.length}`);
+  assert.ok(!description.includes('\n'), 'description must stay a single line');
+  for (const signal of ['Salesforce', '统计', '全量导出', 'Schema', 'sfoa-crm-core']) {
+    assert.ok(description.includes(signal), `description must keep the routing signal: ${signal}`);
+  }
+  assert.ok(description.includes('不做记录变更'), 'description must exclude record mutation requests');
+});
+
+test('data analysis references keep the contract, the remedy paths and the cursor ownership split', async () => {
+  const contract = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'completeness-contract.md'), 'utf8');
+  for (const marker of ['Completeness Declaration', '`totalSize`', '`fetched`', '`returnedCount`',
+    'MAX_ROWS', 'TIME_BUDGET', 'RESPONSE_BUDGET', 'PAGINATION_UNAVAILABLE',
+    'LIMIT_REACHED', 'PER_OBJECT_LIMIT', 'COMPLETE', 'PARTIAL', 'UNKNOWN',
+    'MUST NOT** 的第四种做法']) {
+    assert.ok(contract.includes(marker), `completeness-contract.md is missing: ${marker}`);
+  }
+  // The measure of a partial result must never be allowed to become the answer itself.
+  assert.ok(contract.includes('读取 2 000 / 41 500 行'), 'completeness-contract.md must show a partial coverage statement');
+  // query_records pages internally; get_bulk_query_results hands the cursor to the caller. Getting
+  // this backwards is the failure mode this file exists to prevent, so both halves are asserted.
+  const cursors = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'pagination-and-cursors.md'), 'utf8');
+  for (const marker of ['**Tool 自己**', '**调用方**', '`locator`', '位置，不是偏移量',
+    '**MUST NOT** 为它编造 `cursor`', '服务端不保存作业状态', '每个值都是字符串', '一个作业回答一个问题']) {
+    assert.ok(cursors.includes(marker), `pagination-and-cursors.md is missing: ${marker}`);
+  }
+  const aggregates = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'aggregate-first.md'), 'utf8');
+  for (const marker of ['`aggregateValue`', '**非空计数**', '`COUNT()` 与 `COUNT(field)` 对比',
+    '时间窗', '币种', '为聚合结果编造记录 Id']) {
+    assert.ok(aggregates.includes(marker), `aggregate-first.md is missing: ${marker}`);
+  }
+  const quota = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'quota-awareness.md'), 'utf8');
+  for (const marker of ['DIAGNOSTIC 身份', '`apiUsage`', '分开计', '**MUST NOT** 把配额数字']) {
+    assert.ok(quota.includes(marker), `quota-awareness.md is missing: ${marker}`);
+  }
+});
+
+test('data analysis Skill never hardcodes Salesforce truth or environment values', async () => {
+  const directory = path.join(projectRoot, 'skills', 'sfoa-data-analysis');
+  for (const file of await listSkillFiles(directory)) {
+    const relativePath = path.relative(directory, file);
+    const text = await readFile(file, 'utf8');
+    // A quoted 15/18-character token containing a digit is a Salesforce ID literal. Field API
+    // names such as `fieldCreateable` contain no digits and must not be flagged.
+    assert.doesNotMatch(text, /['"`](?=[A-Za-z0-9]*\d)[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?['"`]/u,
+      `${relativePath} must not freeze a Salesforce Id`);
+    assert.doesNotMatch(text, /RecordTypeId\s*[:=]\s*['"`]/u, `${relativePath} must not freeze a Record Type Id`);
+    assert.doesNotMatch(text, /DeveloperName\s*[:=]\s*['"`]/u, `${relativePath} must not freeze a DeveloperName`);
+    // Environment-specific values belong to the runtime, never to a shipped Skill.
+    assert.doesNotMatch(text, /00D[A-Za-z0-9]{12}/u, `${relativePath} must not carry an org Id`);
+    assert.doesNotMatch(text, /https?:\/\/(?!example\.)/u, `${relativePath} must not carry an endpoint`);
   }
 });
 
