@@ -2211,9 +2211,17 @@ function combine(gates: readonly P9LiveGate[]): 'PASS' | 'PARTIAL' | 'FAIL' {
  * than throwing, so a caller that ignores the verdict cannot tell "the P7 evidence exists" from
  * "these gates passed and nothing was recorded".
  *
- * That is not hypothetical: the T4 run passed all ten gates and wrote no audit rows at all, and
- * nothing in the report said so. `close()` is memoized, so reading the verdict here and letting
- * `closeQuietly` close again costs one flush.
+ * Discarding the verdict is exactly the gap this closes: a run that passed every gate and a run
+ * that passed every gate while losing the record of them used to read identically, because the
+ * report carried no field that could differ. `close()` is memoized, so reading the verdict here
+ * and letting `closeQuietly` close again costs no second flush.
+ *
+ * Closing the pipeline to read that verdict is not free: it happens while the server is still up,
+ * so anything the teardown logs between here and `server.close()` is refused with
+ * `MCP_AUDIT_PIPELINE_CLOSED` and counted only in the post-flush health. Those refusals are
+ * teardown noise rather than evidence of the gates, which is why the counters below describe the
+ * pipeline *at flush time* and why a reader who finds such a line on stderr should not read it as
+ * this gate having been bypassed.
  *
  * `dropped` is null rather than 0 when the close itself threw, because the count is then unknown
  * — and an unknown count must not be reported as a clean one.
