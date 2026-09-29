@@ -21,10 +21,40 @@ export const AGENT_RECOGNIZED_TOOL_NAMES = [
   'get_metadata_component_context',
   'get_record_display_context',
   'upload_files_to_record',
+  // P9 data-completeness Tools. Recognized here so the rendered capability facts can name them:
+  // the Playbook's own contract is "use only the Tools reported as currently enabled", and a
+  // DATA_COMPLETENESS rule that recommends a query path the capability list cannot report would
+  // be unverifiable to the Agent reading it. Recognition is not enablement — every one of these
+  // Tools stays out of DEFAULT_ENABLED_TOOLS and is enabled per route by an Admin.
+  'list_sobjects',
+  'describe_sobject',
+  'query_records',
+  'search_records',
+  'submit_bulk_query',
+  'get_bulk_query_results',
+  'get_org_limits',
   ...AGENT_INFRASTRUCTURE_TOOL_NAMES,
 ] as const;
 
 export type AgentRecognizedToolName = (typeof AGENT_RECOGNIZED_TOOL_NAMES)[number];
+
+/**
+ * The read Tools the `DATA_COMPLETENESS` section reasons about: object/schema discovery, the
+ * bounded paging read, cross-object search, the Bulk export pair, and the quota snapshot. Kept as
+ * its own list so the section's status line can report exactly which of them this request may use,
+ * and drift-checked against `AGENT_RECOGNIZED_TOOL_NAMES` by the package's own suite.
+ */
+export const DATA_COMPLETENESS_TOOL_NAMES = [
+  'list_sobjects',
+  'describe_sobject',
+  'query_records',
+  'search_records',
+  'submit_bulk_query',
+  'get_bulk_query_results',
+  'get_org_limits',
+] as const;
+
+export type DataCompletenessToolName = (typeof DATA_COMPLETENESS_TOOL_NAMES)[number];
 
 export const DYNAMIC_FORM_EVIDENCE_VALUES = ['AVAILABLE', 'PARTIAL', 'NOT_AVAILABLE'] as const;
 export type DynamicFormEvidence = (typeof DYNAMIC_FORM_EVIDENCE_VALUES)[number];

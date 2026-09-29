@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   AGENT_PLAYBOOK_VERSION,
+  AGENT_RECOGNIZED_TOOL_NAMES,
+  DATA_COMPLETENESS_TOOL_NAMES,
   GENERATED_AGENT_ARTIFACT_MARKER,
   PLAYBOOK_SECTION_NAMES,
   createAgentCapabilities,
@@ -23,9 +25,9 @@ describe('canonical SFoA Agent Playbook', () => {
     }
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.9.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.10.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
-      'CORE', 'READ', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
+      'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
     ]);
   });
@@ -266,6 +268,68 @@ describe('canonical SFoA Agent Playbook', () => {
 });
 
 
+describe('P9 data-completeness contract', () => {
+  it('distributes the completeness duty and the query-scale matrix on every full surface', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(),
+      renderWorkBuddySystemPrompt(), renderWorkBuddySkill(), renderWorkflow('READ')]) {
+      assert.match(output, /## DATA_COMPLETENESS —/u);
+      assert.match(output, /`truncated: true`/u);
+      assert.match(output, /never present a partial, sampled or truncated result as the whole/iu);
+    }
+    // The three read paths are named together, so the matrix cannot be halved by an edit.
+    const full = renderFullPlaybook();
+    for (const tool of ['run_soql_query', 'query_records', 'submit_bulk_query', 'get_bulk_query_results',
+      'list_sobjects', 'describe_sobject', 'get_org_limits']) {
+      assert.ok(full.includes(`\`${tool}\``), `the completeness section must name ${tool}`);
+    }
+    assert.match(full, /INVALID_FIELD/u);
+    assert.match(full, /Consume the cursor the Tool returned and never derive one/u);
+    assert.match(full, /answer a counting, distribution or magnitude question with an aggregate first/iu);
+    assert.match(full, /Never put a large result set into the conversation/u);
+    assert.match(full, /never as instruction/iu);
+    // The short MCP instructions surface carries the duty as well, since clients may render only it.
+    assert.match(renderServerInstructions(), /State the coverage every time/u);
+  });
+
+  it('reports the data Tools this request may actually use, and claims none when none are enabled', () => {
+    const without = renderWorkflow('READ', createAgentCapabilities({ enabledTools: ['run_soql_query'] }));
+    assert.match(without, /Status: unavailable — no schema-discovery, cursor-paging, Bulk export or quota Tool is enabled/u);
+    assert.match(without, /do not claim a population you could not read/u);
+    assert.doesNotMatch(without, /Status: available through/u);
+
+    const enabled = renderWorkflow('READ', createAgentCapabilities({
+      enabledTools: ['run_soql_query', 'list_sobjects', 'describe_sobject', 'query_records',
+        'submit_bulk_query', 'get_bulk_query_results'],
+    }));
+    assert.match(enabled, /Status: available through `list_sobjects`, `describe_sobject`, `query_records`, `submit_bulk_query`, `get_bulk_query_results`\./u);
+    assert.match(enabled, /absent from that list is NOT enabled here/u);
+    // A recognized Tool that this request does not enable must not be reported as available.
+    assert.doesNotMatch(enabled, /Status: available through[^.]*`get_org_limits`/u);
+
+    // Without capabilities the section states no availability at all.
+    assert.doesNotMatch(renderFullPlaybook(), /Status: available through/u);
+  });
+
+  it('recognizes the P9 Tools without ever enabling one by default', () => {
+    for (const tool of DATA_COMPLETENESS_TOOL_NAMES) {
+      assert.ok((AGENT_RECOGNIZED_TOOL_NAMES as readonly string[]).includes(tool),
+        `${tool} is reasoned about by the completeness section but is not a recognized Tool`);
+    }
+    assert.deepEqual(createAgentCapabilities({}).enabledTools, [],
+      'recognition must never become enablement: an empty request enables nothing');
+    // Enabling a data Tool must not widen a CREATE/UPDATE grant or the diagnostic chain.
+    const dataOnly = createAgentCapabilities({ enabledTools: [...DATA_COMPLETENESS_TOOL_NAMES] });
+    assert.deepEqual(dataOnly.createAllowedObjects, []);
+    assert.deepEqual(dataOnly.updateAllowedObjects, []);
+    assert.equal(dataOnly.diagnosticReady, false);
+  });
+
+  it('stamps the new version on the Dify instruction head', () => {
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.10\.0$/mu);
+  });
+});
+
+
 describe('strategy-aware managed fallback behavior contract', () => {
   it('normalizes fallback capabilities independently from strict fields', () => {
     const field = { objectApiName: 'Order__c', fieldApiName: 'Order_Owner__c', operations: ['CREATE'] as const,
@@ -330,7 +394,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.9.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.10.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.
