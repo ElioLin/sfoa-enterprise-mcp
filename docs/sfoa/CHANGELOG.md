@@ -2,6 +2,138 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-29 — P9-T4: the Bulk API 2.0 export pair, and a page that is never returned short
+
+Closes GAP-D2 / P9-3 on `feature/p9-data-completeness` with the last two Tools of
+`@sfoa/mcp-provider-sfoa-data`: `submit_bulk_query` creates a Bulk API 2.0 **query** job and
+returns its `jobId`, and `get_bulk_query_results` polls that job's state and reads one page of
+its result set per call. The gap they close is the one the first three P9 tasks leave open: a
+REST SOQL query is capped at 2000 rows per page and its continuation cursor eventually stops, so
+"every row of this object, and I can tell you how many" has no bounded path through
+`query_records` at all. The design record is
+[ADR-0028](adr/ADR-0028-p9-bulk-query-export-over-official-sdk.md).
+
+- **`operation` is not an input, so the DML Bulk operations are structurally absent.** The
+  submission's registered schema is `{ query }` and the provider always sends
+  `operation: 'query'`. A Bulk ingest, upsert, update or delete is not rejected — there is no
+  input through which it can be expressed, which is what makes `readOnlyHint: true` a claim
+  about the code rather than about the review. The statement is the same SOQL the rest of the
+  package accepts, and the submission is covered by the org object-usage guard for the reason
+  `query_records` is: a Bulk job over an org-declared-unused object returns zero rows just as
+  quietly, and an export is the answer an Agent is least likely to re-check.
+- **The decision with the most consequence is that a cut page is re-read, never shortened.**
+  The byte budget bounds a slice, and the obvious implementation — return the rows that fit plus
+  the cursor — is **wrong** in a way specific to this API: `Sforce-Locator` points past the page
+  Salesforce *served*, not past the rows that fit, so returning a cut page with that cursor
+  silently skips every dropped row. When the budget cuts a page the Tool therefore re-requests a
+  **smaller page from the same cursor** for exactly the number that fit; a smaller page is a
+  prefix of the larger one, so the fitting count strictly decreases. The loop is bounded at
+  `PAGE_FIT_ATTEMPTS = 5`, and a single row too wide to fit produces `MCP_BULK_SLICE_TOO_LARGE`
+  with a suggestion to narrow the projection rather than a truncated answer. `maxRecords` is
+  documented as an **upper bound, not a promise**.
+- **Nothing about an export survives a request.** No table, no in-memory cache, no session: the
+  job lives in Salesforce, the caller holds the `jobId` and the cursor, and every call re-states
+  them. That is what keeps the pair compatible with the stateless HTTP runtime
+  (`sessionIdGenerator: undefined`), and it is asserted by protocol test as well as by absence of
+  any store.
+- **Both facts the Tools need exist only in response headers, so the read goes through the SDK's
+  own `Connection.request`.** `Sforce-Locator` is the paging cursor and `Sforce-Limit-Info` is
+  the org's API-usage counter; neither appears in a body. The SDK's public `bulk2` surface cannot
+  reach either — `QueryJobV2.result()` streams *every* page into one stream and keeps the cursor
+  in a private field (no bounded page read at all), `createJob()` is ingest-only so it cannot
+  create a query job and return just its Id, and `HttpApi` never exposes headers. `HttpApi` does
+  `this._transport = options.transport || conn._transport`, so a wrapper passed as
+  `connection.request(req, { transport })`'s second argument delegates the authenticated request
+  unchanged and copies the headers out of the pending stream's `'response'` event. jsforce
+  injects `Authorization` **before** the transport is reached, so this path never sees, holds or
+  logs a credential; the URL is version-relative (`/jobs/query…`) and expanded by the SDK, so no
+  instance URL or API version is assembled in the provider; and the P7 adapter still intercepts
+  the request. The wrapper is typed against a structural `ObservableTransport`/`ObservablePending`/
+  `ObservableResponse` declared in the provider rather than a deep import, so the package keeps
+  `@salesforce/core` as its single declared SDK dependency. The one cast —
+  `{ transport: observing } as unknown as RequestOptions` — exists because `Connection.request`
+  publishes its options as `JsonMap`, a JSON value type that cannot name a function and therefore
+  cannot describe an option the SDK's own code reads.
+- **The export gets its own audit purpose rather than being filed as a SOQL query.** A new
+  `SalesforceApiPurpose` value `BULK_QUERY` covers both halves, because a submission audited under
+  one category and a result read under another would leave the trail unable to answer "what did
+  this export cost and what did it read". The classifier already maps `/jobs/…` to `BULK_API`, so
+  the purpose and the category now name the same surface instead of adjacent ones. The
+  **submission** carries a statement and so stays bound to `DATA_SOQL` through
+  `SOQL_STATEMENT_TOOLS`; the **result read** names a job Id rather than a statement and is
+  deliberately absent from that map — recording a query that never reached Salesforce would be
+  worse than recording none.
+- **A failed job is an error, not an empty result.** While a job is still running, `locator`,
+  `hasMore` and `complete` are **omitted** rather than reported `false`, because "there is no next
+  page" and "there are no rows yet" are the same shape to a caller that reads only the fields and
+  only one of them is true. A job the platform ended as `Failed` or `Aborted` is an `isError`
+  result carrying the platform's own reason, because "the job failed" and "the job matched
+  nothing" are opposite facts. A job belonging to another identity is refused by Salesforce and
+  mapped to `MCP_BULK_ACCESS_DENIED` with the instruction to report the refusal — there is no
+  cross-identity penetration and no attempt to work around it.
+- **Quota is reported, not pre-flighted.** ADR-0026 planned a `get_org_limits` pre-flight for
+  T4; ADR-0027 then measured that no business identity this deployment routes may read the
+  `limits` resource and that the DATA Tools cannot borrow the diagnostic identity. This entry
+  takes ADR-0027's option (b) literally: no pre-flight, and the quota fact reported is the one the
+  Bulk response itself carries — `Sforce-Limit-Info`, parsed into
+  `apiUsage { used, limit, remaining }`. An allowance refusal maps to `MCP_BULK_LIMIT_EXCEEDED`
+  and names `get_org_limits` **only when the session advertises it**.
+- **Four deviations from the plan's wording, recorded because the P9 convention requires it.**
+  (1) `fetchedCumulative` is **omitted**: the plan listed it "if obtainable", and with no
+  server-side state it is not obtainable honestly — the Tool cannot know how many rows earlier
+  calls returned, and inventing a cumulative count from `numberRecordsProcessed` would be a
+  completeness claim the export cannot support. `totalRecords` (the platform's own
+  `numberRecordsProcessed`) and this page's `returnedCount` are reported instead, so the caller
+  sums its own calls. (2) All three wire calls are REST calls through `Connection.request` rather
+  than a mix with `bulk2.job(...).check()` for the state: `check()` cannot inject a transport, so
+  it would capture neither header, and mixing two clients for one job would make the audit row
+  set depend on which half of the pair is running. (3) No pre-flight, per the bullet above. (4)
+  `get_bulk_query_results` is deliberately **not** a `HINT_TOOL_CANDIDATES` entry in the live
+  validation: that list is what a `query_records` hint is scanned against, and the export gate
+  reaches the Tool through the `jobId` the submission returned instead.
+- **The two Tools are `READ`/`USER` and default-disabled**, registered as `'USER'` in
+  `SFOA_DATA_TOOL_ROLES` and absent from `DEFAULT_ENABLED_TOOLS`: a Bulk query job belongs to the
+  identity that created it, so the request's USER identity is the only scope that can read an
+  export it started. `get_org_limits` moved out of this package in the T3 follow-up above, so
+  every Tool in `@sfoa/mcp-provider-sfoa-data` is now `READ`/`USER` without exception. The Admin
+  catalog entries are in `packages/sfoa-admin-api/src/tool-catalog.ts`; nothing here changes any
+  official file, and no Tool parameter accepts a username, token, instance URL or API version.
+- **Test coverage added.** Provider `mcp-provider-sfoa-data` **155/155** (+10 Bulk contract
+  tests): the submission's exact request body and its four statement rules, the `{ query }`-only
+  input shape, the state machine (`UploadComplete`/`InProgress` → no rows and no completeness
+  claim; `JobComplete` → a page and a cursor; `Failed`/`Aborted` → a structured failure; an
+  unknown state → `unknown`), cursor continuation, the two budgets and the same-cursor re-request,
+  the failure-reason mapping, the access refusal on a foreign job, the `advertisedToolNames`
+  gating of every hint, and the strict-input refusals (a malformed jobId, the literal `null`
+  cursor, an out-of-range `maxRecords`). `sfoa-identity-runtime` **75/75** (+2 classifier rows
+  pinning `/jobs/query` and `/jobs/query/<id>/results` to `BULK_API` with the API version and path
+  preserved). `sfoa-mcp-server` **237/237**, of which `data-tool-runtime` **21/21** (+4 protocol
+  tests): `tools/list` absence while disabled, a submit → fetch closed loop through the real
+  Streamable HTTP runtime (asserting the Tool input key sets, the exact five-call URL sequence,
+  the string-valued CSV records and the per-call `apiUsage`), both halves' `TOOL_TERMINAL`
+  summaries in the P7 audit trail, the governance block on an org-declared-unused object before
+  any Salesforce call, and a Failed job reported with the platform reason plus four wire-level
+  refusals of the pagination rules.
+- **The live export leg is written but has not been executed here: `未执行 live，待人工补验`.**
+  The `bulkQuery` gate in `packages/sfoa-mcp-server/src/validation/p9-live-validation.ts` reads
+  the org's own `COUNT(Id)` first, refuses to report anything but `NOT TESTED` below a
+  **100 000**-row floor (`P9_LIVE_BULK_OBJECT` points it at an object large enough, defaulting to
+  `P9_LIVE_OBJECT`), submits the export, polls to `JobComplete` while asserting the running states
+  claim nothing, walks the cursor to exhaustion asserting each page's internal agreement and that
+  its cursor advanced, and then compares the summed `returnedCount` with the count it read first —
+  recording the elapsed time, the page count and the `apiUsage` the responses reported. The row
+  floor exists because a short result set cannot distinguish a correct walk from one that ends
+  early by luck. Until that run happens on a deployment with a routeable identity, the gate
+  reports `NOT TESTED` and the run's `overall` is `PARTIAL`; **no part of the row-count
+  cross-check is asserted from the unit suite**, and nothing in this entry should be read as
+  evidence that it was. The `yarn ai:audit` and live `apiUsage` observations the T4 acceptance
+  requires are outstanding for the same reason.
+- **Docs.** `ARCHITECTURE.md` promotes the P9-T4 row from `planned` to shipped and records the
+  pair's four properties, why the read goes through `Connection.request`, and the `BULK_QUERY`
+  purpose; the provider `README.md` gains the two Tool rows plus a section on the two properties
+  an Agent has to be able to rely on; `response-budget.ts`'s `DATA_MAX_QUERY_TEXT_CHARACTERS` note
+  now says it bounds the text of a Bulk result page as well as `query_records`.
+
 ## 2026-09-28 — P9-T3 follow-up: `get_org_limits` moves to the DIAGNOSTIC identity
 
 `get_org_limits` is no longer a Data Tool. It moves from

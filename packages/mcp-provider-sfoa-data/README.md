@@ -11,6 +11,8 @@ Tool parameter can name a username, platform user, instance URL, token or API ve
 | `describe_sobject` | `describe()` | Field, picklist and child-relationship schema for self-repair |
 | `query_records` | `query()` + `nextRecordsUrl` / `queryMore()` | Bounded SOQL whose answer always states whether it is complete |
 | `search_records` | `search()` (SOSL) | Cross-object keyword lookup with a stated cap |
+| `submit_bulk_query` | `POST /jobs/query` (Bulk API 2.0) | Starts a query job for an export too large to page; returns the `jobId` |
+| `get_bulk_query_results` | `GET /jobs/query/<id>[/results]` | Polls the job's state and reads one result page per call, with the cursor for the next |
 
 `get_org_limits` used to live here. It moved to
 [`@sfoa/mcp-provider-sfoa-context`](../mcp-provider-sfoa-context/README.md) and to the
@@ -19,13 +21,28 @@ deployment routes may read the `limits` resource — see
 [ADR-0027](../../docs/sfoa/adr/ADR-0027-p9-org-limits-diagnostic-identity.md). Every Tool in
 this package is therefore `READ`/`USER`, without exception.
 
-T4 adds the Bulk API 2.0 pair to this same Provider. See
+The Bulk pair reads the Bulk API 2.0 **query**-job endpoints through the official SDK's own
+`Connection.request`, which is the only route that exposes the `Sforce-Locator` cursor and the
+`Sforce-Limit-Info` counter both Tools report. See
 [ADR-0024](../../docs/sfoa/adr/ADR-0024-p9-data-provider-over-official-sdk.md)
 for the upstream audit that put these on the official jsforce SDK instead of a reused or
 wrapped upstream Tool, [ADR-0025](../../docs/sfoa/adr/ADR-0025-p9-query-records-bounded-completeness.md)
 for the bounded-completeness contract, and
 [ADR-0026](../../docs/sfoa/adr/ADR-0026-p9-org-limits-and-sosl-search.md)
-for the quotas and SOSL decisions (revised for `get_org_limits` by ADR-0027).
+for the quotas and SOSL decisions (revised for `get_org_limits` by ADR-0027);
+[ADR-0028](../../docs/sfoa/adr/ADR-0028-p9-bulk-query-export-over-official-sdk.md) records the
+Bulk export's own decisions.
+
+## Bulk export: the two properties an Agent has to be able to rely on
+
+1. **No result set is ever returned whole.** Each call carries one page and the cursor for the
+   next one, so an export's size is bounded by the caller's loop instead of by a single
+   response. The response budget can still cut a page, and when it does the Tool re-reads a
+   *smaller* page from the same cursor rather than handing back a cursor that would skip the
+   rows it could not fit — a page is never returned partially.
+2. **No job state is stored on the server.** The job lives in Salesforce, the caller holds the
+   `jobId` and the cursor, and every call re-states them. Nothing about an export survives a
+   request, which is what keeps the pair compatible with the stateless HTTP runtime.
 
 ## Contract rules these Tools follow
 

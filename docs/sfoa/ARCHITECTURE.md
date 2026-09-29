@@ -827,12 +827,11 @@ Agent
 | P9-T2 | `query_records` | `sfoa-data` | `query()` + `nextRecordsUrl` / `queryMore()` |
 | P9-T3 | `get_org_limits` | `sfoa-context` (DIAGNOSTIC) | `limits()` |
 | P9-T3 | `search_records` | `sfoa-data` | `search()` (SOSL) |
-| planned | `submit_bulk_query`, `get_bulk_query_results` | `sfoa-data` | Bulk API 2.0 |
+| P9-T4 | `submit_bulk_query`, `get_bulk_query_results` | `sfoa-data` | Bulk API 2.0 query jobs over `request()` |
 
-Only the shipped rows are advertised today; the planned row is recorded in the gap analysis
-and ADR-0024 and is not part of the current tool surface. `get_org_limits` is the one P9 Tool
-that is not a data Provider Tool — it moved to the context Provider and to the `DIAGNOSTIC`
-role in P9-T3, and the role map below is what routes it. See
+Every row above is now shipped; the gap analysis and ADR-0024 record how each one was chosen.
+`get_org_limits` is the one P9 Tool that is not a data Provider Tool — it moved to the context
+Provider and to the `DIAGNOSTIC` role in P9-T3, and the role map below is what routes it. See
 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md).
 
 `query_records` exists because the official `run_soql_query` makes exactly one request and
@@ -928,6 +927,49 @@ migration and no Control Plane change. `SOSL_SEARCH` is emitted by the data faca
 `DATA_TOOL_PURPOSES` map and `ORG_LIMITS` by the context facade's `CONTEXT_TOOL_PURPOSES` map;
 the context map is saturated over `SfoaContextToolName` and asserted total over the role map, so
 a Tool that moves between providers cannot be audited as `UNKNOWN`.
+
+`submit_bulk_query` and `get_bulk_query_results` exist because a detail export of a large object
+has no bounded path through a REST SOQL query at all (GAP-D2/P9-3): `query_records` is capped at
+2000 rows per batch and its continuation cursor eventually stops, so "every row, and I can say
+how many" is not a question it can answer. Salesforce runs the statement server-side instead and
+the rows are read page by page afterwards. Four properties define the pair. **No server-side job
+state exists anywhere in the path** — the job lives in Salesforce, the caller holds the `jobId`
+and the cursor, and every later call re-states them, which is what keeps a two-call export
+compatible with `sessionIdGenerator: undefined`. **No result set is ever returned in one
+response**: each call carries exactly one page plus the cursor for the next, so the size of an
+export is bounded by the caller's loop rather than by a single response. **A page is never
+returned partially**: the response budget bounds a slice, but the `Sforce-Locator` cursor
+Salesforce returns points past the page it served rather than past the rows that fit, so a cut
+page handed back with that cursor would silently skip every dropped row — instead the Tool
+re-requests a *smaller* page from the **same** cursor (each attempt is a prefix of the last, so
+the fitting count strictly decreases, bounded at five attempts) and fails with
+`MCP_BULK_SLICE_TOO_LARGE` when even one row cannot fit. **`operation` is fixed to `query`
+inside the Provider**, so no input can reach a Bulk ingest, upsert, update or delete; the
+capability is structurally absent rather than merely rejected, and both Tools are `READ`/`USER`
+by the same argument as the rest of the package. The result read reports the platform's own
+state machine (`UploadComplete`/`InProgress`/`JobComplete`/`Failed`/`Aborted`); a job that ended
+`Failed` or `Aborted` is an `isError` result carrying the platform's `errorMessage`, because
+"the job failed" and "the job matched nothing" are opposite facts, and a job belonging to
+another identity is reported as an access refusal rather than worked around. `fetchedCumulative`
+is deliberately **absent**: with no server-side state a cumulative read count cannot be computed
+honestly, so `totalRecords` is the platform's `numberRecordsProcessed` and the caller sums
+`returnedCount` across its own calls. Quota protection follows
+[ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) option (b) rather than a
+pre-flight: the observable quota is the `Sforce-Limit-Info` counter the Bulk response itself
+carries, reported as `apiUsage`, and an allowance refusal names `get_org_limits` only when the
+session advertises it. See [ADR-0028](adr/ADR-0028-p9-bulk-query-export-over-official-sdk.md).
+
+The Bulk pair is also the one place where the Provider reaches `Connection.request` directly
+instead of a higher-level SDK method, and the reason is measurable rather than stylistic: both
+facts the Tools are built on — the `Sforce-Locator` cursor and the `Sforce-Limit-Info` counter —
+exist **only** as response headers, and `QueryJobV2.result()` streams every page while keeping
+its cursor in a private field, `createJob()` is ingest-only, and `HttpApi` reads headers and
+never exposes them. The call stays inside the official client: jsforce injects the
+`Authorization` header before the transport is reached, so no credential is ever handled by this
+code, the URL is version-relative (`/jobs/query…`, expanded by the SDK), and the P7
+`jsforce-audit-adapter` still attributes every wire attempt — the classifier already maps
+`/jobs/…` to `BULK_API`, and both Tools emit the new `BULK_QUERY` purpose, with the submission
+carrying the statement as `DATA_SOQL` and the result read carrying none (it names a job Id).
 
 The Provider is composed through the same public `McpProvider`/`McpTool`/`Services` seam as
 P3, requires exactly one allowed username from the request `OrgService`, and takes the
