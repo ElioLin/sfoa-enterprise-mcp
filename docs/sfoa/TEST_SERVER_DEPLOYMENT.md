@@ -1168,19 +1168,21 @@ rests on, and it reported every gate `PASS` — `toolInventory`, `requestIdentit
 **Step 4 — the audit evidence, read from the real Control Plane.** The three gate runs are present
 in `sfoa_audit_log` on `192.168.156.127` as `MCP_TOOL_CALL` rows: run 4 occupies **ids 6641–6674**,
 which is **34 rows** against the run's own pipeline counters of `enqueuedSnapshots: 34` /
-`persistedSnapshots: 34`. The two independent accounts of the run agree exactly.
+`persistedSnapshots: 34`. The two independent accounts of the run agree exactly. Run 5 occupies
+**ids 6683–6716**, also 34 rows, against the same counters.
 
-**A defect this deployment introduced, and did not fix.** The `auditPersistence` gate
-(`49cf66c`) closes the audit pipeline to read the flush verdict, and that close happens **while the
-server can still be finishing a request**. `http-server.ts:524` offers a request's audit snapshot
+**A defect this deployment introduced, and the fix that closed it.** The `auditPersistence` gate
+(`49cf66c`) closes the audit pipeline to read the flush verdict, and that close happened **while the
+server could still be finishing a request**. `http-server.ts:524` offers a request's audit snapshot
 from the handler's `finally`, after `await resources.close()` — that is, *after* the call has
-already resolved to the client. The snapshots that arrive late are therefore refused with
+already resolved to the client. The snapshots that arrive late were therefore refused with
 `MCP_AUDIT_PIPELINE_CLOSED` and lost, and because the gate samples `getHealth()` at flush time,
-the refusal is not in the counters it reports. The run loses an audit and still reports
+the refusal was not in the counters it reported. The run lost an audit and still reported
 `auditPersistence: PASS`.
 
-The four runs on this server show it directly. Runs 1 and 2 (before the gate existed) each recorded
-the `schemaSelfRepair` probe's `MCP_SOBJECT_NOT_FOUND` row; runs 3 and 4 (after it) did not.
+The five runs on this server show it directly. Runs 1 and 2 (before the gate existed) each recorded
+the `schemaSelfRepair` probe's `MCP_SOBJECT_NOT_FOUND` row; runs 3 and 4 (after it) did not; run 5,
+after the fix, does again.
 
 | run | `describe_sobject` rows | error row | gate stderr |
 |---|---|---|---|
@@ -1188,18 +1190,47 @@ the `schemaSelfRepair` probe's `MCP_SOBJECT_NOT_FOUND` row; runs 3 and 4 (after 
 | 2 (02:16) | 3 PASS | `6602` present | — |
 | 3 (02:22) | 3 PASS | **absent** | not captured |
 | 4 (02:25) | 3 PASS | **absent** | 1 × `MCP_AUDIT_PIPELINE_CLOSED` at `02:26:26.071Z` |
+| 5 (02:44, post-fix) | 3 PASS | `6716` present | empty |
 
-The timing closes it: the flush succeeded at `02:26:25.670Z` and the refusal is logged 401 ms
-later. The counters reconcile with the rows (`enqueuedSnapshots: 34` = 34 rows), which is what
+The timing closes it: in run 4 the flush succeeded at `02:26:25.670Z` and the refusal is logged
+401 ms later. The counters reconcile with the rows (`enqueuedSnapshots: 34` = 34 rows), which is what
 proves the snapshot was **refused before enqueue** rather than dropped from the queue after it —
 the refused offer increments `droppedSnapshots`, but the gate had already sampled health.
 
-The correct fix is to flush only after the server has stopped serving, so that no handler can
-still be offering a snapshot. It is a code change to the harness and it **has not been made**: the
-trees deployed here still carry the defect, and a fix must be followed by one more live gate run to
-show the `MCP_SOBJECT_NOT_FOUND` row coming back. The deployed **service** is unaffected — the
-defect is confined to the validation harness's account of its own evidence. See the 2026-09-29
-CHANGELOG entry.
+The fix is to flush only after the server has stopped serving, so that no handler can still be
+offering a snapshot, and to make the gate say whether that drain happened. Made in `b4e3453`:
+
+- The success path now awaits `client.close()` and then `server.close()` **before** flushing.
+  `server.close()` is the barrier that makes the flush mean something: it does
+  `Promise.allSettled([...activeRequests])` raced against `max(requestTimeoutMs, toolTimeoutMs)`, and
+  `activeRequests` holds the whole `handleRemoteRequest` promise (added at `http-server.ts:183`), so
+  its `finally` — and the audit offer inside it — has run by the time the close settles. Both closes
+  are memoized, so the outer `finally` closing them again costs nothing.
+- The verdict is read *while the report is still being assembled*: the outer `finally` closes the
+  pipeline only after the value has been returned, so a report that waited for it could never carry
+  it.
+- `runAuditPersistence` takes the shutdown and now also requires `drained === true`, so a clean flush
+  over a short trail can no longer pass on its own. The refusal path (no enabled route) reads its
+  verdict *before* `closeQuietly` for the same reason and passes `null` — no server was started, so
+  the drain check does not apply, and that path is the one place the trail matters most, since it is
+  the only record that the run was turned away rather than that it never started.
+
+**Verified live** in the same deployment (`p9-live-validation.ts` sha256
+`0e71c9c3d0c27e32fb77cc9c2df44cb1fe2a76bd6fe9fd55b9dd4fbc00fa531b`, `dist` rebuilt, both services
+restarted): `overall: PASS`, all 11 gates PASS, **stderr empty — zero `MCP_AUDIT_PIPELINE_CLOSED`**
+against run 4's exactly one, and `auditPersistence` `{flushed: true, dropped: 0, enqueuedSnapshots:
+34, persistedSnapshots: 34, droppedSnapshots: 0, writerFailureCount: 0, shutdown: {drained: true,
+forcedConnections: false}}`. The DB agrees a third time: **34 rows, ids 6683–6716**, and the last of
+them is the row runs 3–4 had lost —
+
+```
+6716  2026-09-29 02:44:20.913  MCP_TOOL_CALL  describe_sobject  ERROR  MCP_SOBJECT_NOT_FOUND
+```
+
+`enqueuedSnapshots: 34` = 34 rows = `persistedSnapshots: 34`, so the error snapshot was enqueued and
+persisted by the flush rather than refused before it: the row is *in* the trail the gate reports on.
+The deployed **service** was unaffected throughout — the defect was confined to the validation
+harness's account of its own evidence. See the 2026-09-29 CHANGELOG entry.
 
 **Step 5 — no Tool Governance change was made.** `sfoa_tool_control` holds 22 rows (ids 1–22,
 `row_version = 1` throughout) and neither Bulk Tool has one, which is the shipped default-disabled

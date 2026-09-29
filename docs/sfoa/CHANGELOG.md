@@ -2,7 +2,7 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
-## 2026-09-29 — P9-T4 deployed to the test server, and a defect in the gate that reports it
+## 2026-09-29 — P9-T4 deployed to the test server, and four defects in the gate that reports it, found and fixed
 
 `feature/p9-data-completeness` was deployed to `crm-ex-test02` **before T5**, on the decision that
 T4 is independently verifiable. The two Bulk Tools are live behind Tool Governance and the gate
@@ -10,7 +10,8 @@ passes: 19 pages summing to **37 001** rows against an independent `COUNT()` of 
 `750C5000004qTurIAE`, 27 720 ms, `apiUsage valid`. Full record in
 [TEST_SERVER_DEPLOYMENT.md](TEST_SERVER_DEPLOYMENT.md#p9-t4-bulk-export-pair-deployment-2026-09-29).
 
-Three defects were found by re-running the live gate, and fixed:
+Four defects were found by re-running the live gate and reading the audit record it produced, and
+fixed:
 
 - **The Tool inventory gate asserted one blanket `idempotentHint`.** `submit_bulk_query` declares
   `false` deliberately — a second submit creates a second job and spends `DailyBulkV2QueryJobs`
@@ -23,20 +24,44 @@ Three defects were found by re-running the live gate, and fixed:
   "the evidence exists" from "these gates passed and nothing was recorded".
 - **That verdict was computed but never exposed** on the success path's report literal, so the run
   reported `overall: PASS` off a gate the reader could not see.
+- **The flush ran while the server could still be serving**, so the run's own last audit snapshot was
+  refused and lost while the gate reported a clean trail. Fixed by closing the client and the server
+  before flushing, and by requiring the shutdown to report `drained`. Evidence below.
 
-**An `auditPersistence` PASS does not currently prove the trail is complete.** The gate closes the
-audit pipeline to read the verdict, and the close can land while a request handler is still
+**An `auditPersistence` PASS did not prove the trail was complete, and now does.** The gate closes the
+audit pipeline to read the verdict, and the close could land while a request handler was still
 finishing: `http-server.ts:524` offers a request's snapshot from the handler's `finally`, *after*
-the call has resolved to the client. Late snapshots are refused with `MCP_AUDIT_PIPELINE_CLOSED`
-and lost, and because the gate samples health at flush time the refusal never appears in the
-counters it reports. The four runs on the test server show it: runs 1–2 recorded the
+the call has resolved to the client. Late snapshots were refused with `MCP_AUDIT_PIPELINE_CLOSED`
+and lost, and because the gate samples health at flush time the refusal never appeared in the
+counters it reported. The four runs on the test server showed it: runs 1–2 recorded the
 `schemaSelfRepair` probe's `MCP_SOBJECT_NOT_FOUND` row, runs 3–4 did not, and run 4 logged exactly
-one refusal 401 ms *after* its flush succeeded. The counters reconcile with the rows
-(`enqueuedSnapshots: 34` = 34 rows), which proves the snapshot was refused **before** enqueue
-rather than dropped after it. The fix is to flush only after the server stops serving; it has
-**not** been made, the deployed harness still carries the defect, and it needs one more live run to
-verify. The deployed service is unaffected — a missing probe row is a gap in the harness's account
-of its own evidence, not a change in what any Tool does.
+one refusal 401 ms *after* its flush succeeded. The counters reconciled with the rows
+(`enqueuedSnapshots: 34` = 34 rows), which proved the snapshot was refused **before** enqueue
+rather than dropped after it.
+
+The fix (`b4e3453`) stops serving before asking the pipeline for its verdict: the success path awaits
+`client.close()` and then `server.close()` before flushing. `server.close()` is the barrier that makes
+the flush mean something — it does `Promise.allSettled([...activeRequests])` raced against
+`max(requestTimeoutMs, toolTimeoutMs)`, and `activeRequests` holds the whole `handleRemoteRequest`
+promise (`http-server.ts:183`), so the audit offer in its `finally` has run by the time the close
+settles; both closes are memoized, so the outer `finally` closing them again costs nothing. The
+verdict is read while the report is still being assembled, since the outer `finally` closes the
+pipeline only after the value has been returned and a report that waited for it could never carry it.
+`runAuditPersistence` now takes the `GracefulShutdownResult` and additionally requires
+`drained === true`, so a clean flush over a short trail can no longer pass on its own; the refusal
+path (no enabled route) reads its verdict before `closeQuietly` and passes `null`, because no server
+was started there and that path is the one place the trail matters most — it is the only record that
+the run was turned away rather than that it never started.
+
+Verified live in the same deployment (`p9-live-validation.ts` sha256
+`0e71c9c3d0c27e32fb77cc9c2df44cb1fe2a76bd6fe9fd55b9dd4fbc00fa531b`): `overall: PASS`, all 11 gates
+PASS, **stderr empty — zero `MCP_AUDIT_PIPELINE_CLOSED`** against run 4's exactly one,
+`auditPersistence {flushed: true, dropped: 0, enqueuedSnapshots: 34, persistedSnapshots: 34,
+droppedSnapshots: 0, writerFailureCount: 0, shutdown: {drained: true, forcedConnections: false}}`,
+and the DB independently agrees: 34 rows, ids 6683–6716, the last of them the restored
+`6716 … describe_sobject ERROR MCP_SOBJECT_NOT_FOUND`. The deployed service was unaffected
+throughout — a missing probe row was a gap in the harness's account of its own evidence, not a change
+in what any Tool does.
 
 **A claim in this deployment's first draft was falsified and removed rather than explained.** An
 earlier commit and doc comment asserted the T4 run "wrote no audit rows at all", citing the newest
