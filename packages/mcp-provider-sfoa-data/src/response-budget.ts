@@ -9,11 +9,14 @@
 export const DATA_MAX_RESPONSE_BYTES = 262_144;
 
 /**
- * Character budget for the human-readable text of `query_records`.
+ * Character budget for the human-readable text of `query_records` and of a Bulk query result
+ * page.
  *
  * A query result is business data whose rows are not known ahead of time, so the text the
  * Agent reads is bounded separately from the byte budget that bounds the structured payload:
- * the two are measured in the unit each one is actually consumed in.
+ * the two are measured in the unit each one is actually consumed in. A Bulk page is the same
+ * shape of output — an unknown number of rows of unknown width — which is why it shares this
+ * budget rather than declaring a second one.
  */
 export const DATA_MAX_QUERY_TEXT_CHARACTERS = 60_000;
 

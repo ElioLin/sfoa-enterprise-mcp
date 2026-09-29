@@ -125,6 +125,15 @@ export type SalesforceApiPurpose =
    */
   | 'ORG_LIMITS'
   | 'SOSL_SEARCH'
+  /**
+   * The Bulk API 2.0 export, named for the surface rather than folded into `USER_QUERY`. Its
+   * two halves are a job submission and a run of page reads, and the API category the transport
+   * classifier assigns them is already `BULK_API` — so a purpose of `USER_QUERY` would leave
+   * rows whose purpose and category name different surfaces. Only the submission carries a
+   * statement and therefore a `queryType`; the page reads name a job Id, which is why the
+   * purpose cannot be read as "every row here is a query".
+   */
+  | 'BULK_QUERY'
   | 'UNKNOWN';
 export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
 export type SalesforceQueryType = 'DATA_SOQL' | 'TOOLING_SOQL';

@@ -63,6 +63,44 @@ export type DmlCall = Readonly<{
   record: Readonly<Record<string, unknown>>;
 }>;
 
+/**
+ * One Bulk API 2.0 call, as the Provider built it. The `url` is version-relative —
+ * `/jobs/query/<id>/results?...` — because jsforce, not this code, expands it against the
+ * instance URL. `body` is the parsed request body for the submission and absent for a read.
+ */
+export type BulkCall = Readonly<{ method: string; url: string; body?: unknown }>;
+
+/**
+ * A Bulk API 2.0 answer. The headers are not decoration: `Sforce-Locator` is the paging cursor
+ * and `Sforce-Limit-Info` is the org's API-usage counter, and both exist only here.
+ */
+export type BulkAnswer = Readonly<{
+  body: unknown;
+  headers?: Readonly<Record<string, string>>;
+}>;
+
+/** The response-event listener a jsforce transport is expected to notify. */
+type BulkResponseListener = (response: Readonly<{ headers?: Readonly<Record<string, string>> }>) => void;
+
+type BulkPending = Readonly<{
+  stream(): Readonly<{ on(event: 'response', listener: BulkResponseListener): void }>;
+  emit(headers: Readonly<Record<string, string>> | undefined): void;
+}>;
+
+function createBulkPending(): BulkPending {
+  const listeners: BulkResponseListener[] = [];
+  return {
+    stream: () => ({
+      on: (event, listener) => {
+        if (event === 'response') listeners.push(listener);
+      },
+    }),
+    emit: (headers) => {
+      for (const listener of listeners) listener({ headers: headers ?? {} });
+    },
+  };
+}
+
 export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly creations: ConnectionCreation[] = [];
   public readonly dmlCalls: DmlCall[] = [];
@@ -79,6 +117,8 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly limitsCalls: LimitsCall[] = [];
   /** SOSL statements sent through `search()`, in order. */
   public readonly searchCalls: string[] = [];
+  /** Bulk API 2.0 calls, in order. Every P9 Bulk request goes through `request()`. */
+  public readonly bulkCalls: BulkCall[] = [];
   public instanceUrlForRoute = (route: SalesforceIdentityRoute): string =>
     `https://${route.platformUserId}.my.salesforce.com`;
 
@@ -92,7 +132,19 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
       done: true,
     };
     const createdRecordId = `00Q${String(sequence).padStart(12, '0')}AAA`;
+    // Bulk API 2.0 reaches this Connection the way it does in production: the Provider hands
+    // `request` a transport, and the response headers are delivered through that transport's
+    // `'response'` event. Modelling it any shorter would let the production header capture be
+    // wrong while these tests still passed.
+    let pending: BulkPending | undefined;
+    const bulkTransport = {
+      httpRequest: () => {
+        pending = createBulkPending();
+        return pending;
+      },
+    };
     const connection = {
+      _transport: bulkTransport,
       instanceUrl: this.instanceUrlForRoute(route),
       getApiVersion: () => '65.0',
       describeGlobal: async () => {
@@ -145,10 +197,28 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
         if (this.schema.searchError) throw this.schema.searchError;
         return (this.schema.search ?? defaultSearch)(statement);
       },
-      request: async (request: string | Readonly<{ url?: string }>) => {
+      request: async (
+        request: string | Readonly<{ method?: string; url?: string; body?: string }>,
+        requestOptions?: Readonly<{ transport?: { httpRequest(): BulkPending } }>,
+      ) => {
         const url = typeof request === 'string' ? request : request.url ?? '';
-        this.apiRequests.push(url);
-        return uiApiResponse(url);
+        if (!url.includes('/jobs/query')) {
+          this.apiRequests.push(url);
+          return uiApiResponse(url);
+        }
+        const method = typeof request === 'string' ? 'GET' : request.method ?? 'GET';
+        const body = typeof request === 'string' ? undefined : request.body;
+        const call: BulkCall = {
+          method,
+          url,
+          ...(body === undefined ? {} : { body: parseJsonBody(body) }),
+        };
+        this.bulkCalls.push(call);
+        const active = requestOptions?.transport ?? bulkTransport;
+        const activePending = active.httpRequest();
+        const answer = await (this.schema.bulk ?? refuseBulk)(call);
+        activePending.emit(answer.headers);
+        return answer.body;
       },
       sobject: (objectApiName: string) => ({
         create: async (record: Record<string, unknown>) => {
@@ -216,6 +286,12 @@ export type RecordingSchemaOptions = Readonly<{
   /** Answers a SOSL call. The default returns one Account record per statement. */
   search?: (statement: string) => unknown;
   searchError?: unknown;
+  /**
+   * Answers a Bulk API 2.0 call. The default refuses one: a Bulk request is only ever made by a
+   * Tool the test deliberately enabled, so a fixture that answered it anyway would let a stray
+   * call pass unnoticed.
+   */
+  bulk?: (call: BulkCall) => BulkAnswer | Promise<BulkAnswer>;
 }>;
 
 function defaultDescribeGlobal(): unknown {
@@ -279,6 +355,58 @@ function defaultSearch(statement: string): unknown {
       },
     ],
   };
+}
+
+const BULK_QUERY_JOB_ID = '750000000000001AAA';
+
+/** A Bulk API 2.0 job payload, as `POST /jobs/query` and `GET /jobs/query/<id>` return it. */
+export function bulkJob(overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    id: BULK_QUERY_JOB_ID,
+    operation: 'query',
+    object: 'Account',
+    state: 'JobComplete',
+    contentType: 'CSV',
+    apiVersion: 65,
+    numberRecordsProcessed: 0,
+    numberRecordsFailed: 0,
+    ...overrides,
+  };
+}
+
+/** The job Id the fixture's answers carry, so a test can page a job it did not create itself. */
+export const TEST_BULK_QUERY_JOB_ID = BULK_QUERY_JOB_ID;
+
+/**
+ * A Bulk result page's headers. `Sforce-Locator` carries the next cursor — the literal string
+ * `null` at the end, as Salesforce sends it — and `Sforce-Limit-Info` the org's API counter.
+ */
+export function bulkResultHeaders(locator: string | null, used?: number, limit?: number): Record<string, string> {
+  return {
+    'sforce-locator': locator ?? 'null',
+    ...(used === undefined || limit === undefined ? {} : { 'sforce-limit-info': `api-usage=${used}/${limit}` }),
+  };
+}
+
+/**
+ * `count` rows of a Bulk result page, as jsforce parses the CSV: values are all **strings**, and
+ * an absent field is an empty string rather than null.
+ */
+export function bulkRows(count: number, prefix = 'r'): Record<string, string>[] {
+  return Array.from({ length: count }, (_, index) => ({ Id: `${prefix}${index}`, Name: `${prefix} ${index}` }));
+}
+
+function refuseBulk(call: BulkCall): never {
+  throw new Error(`Unexpected Bulk API call ${call.method} ${call.url}`);
+}
+
+/** A request body is JSON by construction; a test asserting on it wants the object, not the text. */
+function parseJsonBody(body: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return body;
+  }
 }
 
 function uiApiResponse(url: string): unknown {

@@ -60,6 +60,34 @@ export const SEARCH_RECORDS_MAX_SEARCH_LENGTH = 2_000;
 export const SEARCH_RECORDS_MAX_OBJECTS = 20;
 export const SEARCH_RECORDS_MAX_FIELDS = 25;
 
+/** The same statement ceiling `query_records` accepts: Bulk API 2.0 takes the same SOQL. */
+export const BULK_QUERY_MAX_QUERY_LENGTH = QUERY_RECORDS_MAX_QUERY_LENGTH;
+
+/**
+ * A Bulk results page is bounded by two independent limits and the *smaller* wins: this caller
+ * ceiling, and the response budget the Tool applies to whatever comes back. The ceiling is
+ * deliberately modest because a page is read into memory in full before it can be measured.
+ */
+export const BULK_QUERY_RESULTS_DEFAULT_MAX_RECORDS = 2_000;
+export const BULK_QUERY_RESULTS_MAX_MAX_RECORDS = 50_000;
+
+/**
+ * A paging cursor is opaque and its length is the platform's to choose, so this bounds only
+ * what a *caller* may send back — a cursor this Tool hands out is never truncated, because a
+ * truncated cursor would silently skip rows.
+ */
+export const BULK_QUERY_MAX_LOCATOR_LENGTH = 8_192;
+
+/**
+ * Salesforce record and job Ids are 15 characters, or 18 when they carry the case-insensitive
+ * checksum. Bulk query job Ids are always 18, but a caller may hold either form, and the
+ * platform — not this Tool — is the authority on whether an Id exists.
+ */
+const salesforceIdPattern = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/u;
+
+/** The literal Salesforce returns in `Sforce-Locator` to mean "there is no next page". */
+const NO_LOCATOR = 'null';
+
 export const listSobjectsInputSchema = z
   .object({
     filter: z
@@ -228,6 +256,80 @@ export const searchRecordsInputSchema = searchRecordsInputObjectSchema.superRefi
 
 /** The registered wire schema, which must stay a raw shape (see ADR-0024). */
 export const searchRecordsInputShape = searchRecordsInputObjectSchema.shape;
+
+/**
+ * The Bulk query submission takes one statement and nothing else. `operation` is **not** an
+ * input: it is fixed to `query` inside the provider, so no caller can reach a Bulk ingest,
+ * update, upsert or delete through this Tool — the capability is structurally absent rather
+ * than merely rejected.
+ */
+const submitBulkQueryInputObjectSchema = z
+  .object({
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(BULK_QUERY_MAX_QUERY_LENGTH)
+      .describe(
+        'A single SOQL SELECT statement to run as a Bulk API 2.0 query job. It must begin with SELECT, '
+        + 'must not contain a semicolon outside a string literal, and must not use FOR UPDATE. The job '
+        + 'is created asynchronously, so this call returns a jobId rather than rows; read the rows with '
+        + 'get_bulk_query_results.',
+      ),
+  })
+  .strict();
+
+/** The statement rules are enforced here for the same reason `query_records` enforces them (ADR-0024). */
+export const submitBulkQueryInputSchema = submitBulkQueryInputObjectSchema.superRefine((value, context) => {
+  const inspection = inspectSoqlQuery(value.query);
+  if (!inspection.usable) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['query'], message: inspection.message });
+  }
+});
+
+/** The registered wire schema, which must stay a raw shape (see ADR-0024). */
+export const submitBulkQueryInputShape = submitBulkQueryInputObjectSchema.shape;
+
+const getBulkQueryResultsInputObjectSchema = z
+  .object({
+    jobId: z
+      .string()
+      .trim()
+      .regex(salesforceIdPattern, 'must be a 15- or 18-character Salesforce Id')
+      .describe(
+        'The jobId submit_bulk_query returned. This Tool keeps no server-side job state, so the Id is '
+        + 'the caller\'s to hold and pass back on every call.',
+      ),
+    locator: z
+      .string()
+      .trim()
+      .min(1)
+      .max(BULK_QUERY_MAX_LOCATOR_LENGTH)
+      .refine((value) => value.toLocaleLowerCase('en-US') !== NO_LOCATOR, {
+        message: 'must be a cursor returned by a previous call; the value "null" means there are no more rows',
+      })
+      .optional()
+      .describe(
+        'The continuation cursor from the previous call\'s locator field. Omit it — or pass it back '
+        + 'unchanged — to read the next page. A cursor is position, not offset: passing a stale one '
+        + 're-reads from that position rather than skipping ahead, and no page is ever skipped for you.',
+      ),
+    maxRecords: z
+      .number()
+      .int()
+      .min(1)
+      .max(BULK_QUERY_RESULTS_MAX_MAX_RECORDS)
+      .optional()
+      .describe(
+        `The largest slice to read in this call; defaults to ${BULK_QUERY_RESULTS_DEFAULT_MAX_RECORDS} and `
+        + `cannot exceed ${BULK_QUERY_RESULTS_MAX_MAX_RECORDS}. It is an upper bound, not a promise: the `
+        + 'response budget can return a smaller slice, and the locator says where the next one starts.',
+      ),
+  })
+  .strict();
+
+export const getBulkQueryResultsInputSchema = getBulkQueryResultsInputObjectSchema;
+export const getBulkQueryResultsInputShape = getBulkQueryResultsInputObjectSchema.shape;
 
 const dataFailureFields = {
   success: z.boolean(),
@@ -438,6 +540,68 @@ export const searchRecordsOutputSchema = z
   })
   .strict();
 
+const bulkApiUsageSchema = z
+  .object({
+    used: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    remaining: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const submitBulkQueryOutputSchema = z
+  .object({
+    ...dataFailureFields,
+    executionRole: z.literal('USER').optional(),
+    api: z.literal('REST').optional(),
+    /** Always `query`: this Tool has no way to express an ingest or a DML Bulk operation. */
+    operation: z.literal('query').optional(),
+    jobId: z.string().optional(),
+    /** The platform's job state, or null when it reported one this contract does not know. */
+    state: z.string().optional(),
+    stateMessage: z.string().max(2_000).optional(),
+    apiVersion: z.string().optional(),
+    /**
+     * The org's own API-usage counter, read from the `Sforce-Limit-Info` header the Bulk
+     * response carries. This is the quota fact the submission itself produces; there is no
+     * pre-flight, because no identity this deployment can route is allowed to read the
+     * `limits` resource (see ADR-0027 and ADR-0028).
+     */
+    apiUsage: bulkApiUsageSchema.optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
+export const getBulkQueryResultsOutputSchema = z
+  .object({
+    ...dataFailureFields,
+    executionRole: z.literal('USER').optional(),
+    api: z.literal('REST').optional(),
+    jobId: z.string().optional(),
+    /** The platform's job state at the moment of this call. */
+    state: z.string().optional(),
+    /** Salesforce's own explanation for a Failed or Aborted job. */
+    stateMessage: z.string().max(2_000).optional(),
+    numberRecordsProcessed: z.number().int().nonnegative().nullable().optional(),
+    numberRecordsFailed: z.number().int().nonnegative().nullable().optional(),
+    /** The result set's total row count, known only once the job reaches JobComplete. */
+    totalRecords: z.number().int().nonnegative().nullable().optional(),
+    records: z.array(z.record(z.unknown())).readonly().optional(),
+    /** Rows in `records`. Every value is a string: Bulk API 2.0 serves results as CSV. */
+    returnedCount: z.number().int().nonnegative().optional(),
+    /** The cursor for the next page, or null when the result set is exhausted. */
+    locator: z.string().nullable().optional(),
+    hasMore: z.boolean().optional(),
+    /** True only when this page is the last one, so `records` holds the end of the result set. */
+    complete: z.boolean().optional(),
+    apiUsage: bulkApiUsageSchema.optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
+export type SubmitBulkQueryInput = z.infer<typeof submitBulkQueryInputSchema>;
+export type SubmitBulkQueryOutput = z.infer<typeof submitBulkQueryOutputSchema>;
+export type GetBulkQueryResultsInput = z.infer<typeof getBulkQueryResultsInputSchema>;
+export type GetBulkQueryResultsOutput = z.infer<typeof getBulkQueryResultsOutputSchema>;
 export type ListSobjectsInput = z.infer<typeof listSobjectsInputSchema>;
 export type ListSobjectsOutput = z.infer<typeof listSobjectsOutputSchema>;
 export type DescribeSobjectInput = z.infer<typeof describeSobjectInputSchema>;

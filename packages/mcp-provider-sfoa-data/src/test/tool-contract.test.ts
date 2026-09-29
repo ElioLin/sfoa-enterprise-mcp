@@ -2,25 +2,36 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ReleaseState, Toolset } from '@salesforce/mcp-provider-api';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { GetBulkQueryResultsExecutor } from '../bulk-query-results-executor.js';
+import { SubmitBulkQueryExecutor } from '../bulk-query-submit-executor.js';
 import { DescribeSobjectExecutor } from '../describe-sobject-executor.js';
 import { ListSobjectsExecutor } from '../list-sobjects-executor.js';
 import { QueryRecordsExecutor } from '../query-records-executor.js';
 import { SearchRecordsExecutor } from '../search-records-executor.js';
 import {
   describeSobjectOutputSchema,
+  getBulkQueryResultsOutputSchema,
   listSobjectsOutputSchema,
   queryRecordsOutputSchema,
   searchRecordsOutputSchema,
+  submitBulkQueryOutputSchema,
   type DescribeSobjectInput,
+  type GetBulkQueryResultsInput,
   type ListSobjectsInput,
   type QueryRecordsInput,
   type SearchRecordsInput,
+  type SubmitBulkQueryInput,
 } from '../schemas.js';
 import { DescribeSobjectMcpTool } from '../tools/describe-sobject.js';
+import { GetBulkQueryResultsMcpTool } from '../tools/get-bulk-query-results.js';
 import { ListSobjectsMcpTool } from '../tools/list-sobjects.js';
 import { QueryRecordsMcpTool } from '../tools/query-records.js';
 import { SearchRecordsMcpTool } from '../tools/search-records.js';
+import { SubmitBulkQueryMcpTool } from '../tools/submit-bulk-query.js';
 import {
+  bulkJob,
+  bulkResultHeaders,
+  bulkRows,
   createFixture,
   describeGlobalPayload,
   describePayload,
@@ -31,6 +42,7 @@ import {
   searchPayload,
   searchRecord,
   sobjectEntry,
+  type BulkResponse,
 } from './data-fixtures.js';
 
 function listTool(handler: () => unknown): ListSobjectsMcpTool {
@@ -59,11 +71,27 @@ function searchTool(
   );
 }
 
+type BulkResponder = (request: Readonly<{ method: string; url: string }>) => BulkResponse | Promise<BulkResponse>;
+
+function submitBulkTool(bulk: BulkResponder, enabledToolNames?: readonly string[]): SubmitBulkQueryMcpTool {
+  return new SubmitBulkQueryMcpTool(
+    new SubmitBulkQueryExecutor(createFixture({ bulk }).orgService, { enabledToolNames }),
+  );
+}
+
+function resultsBulkTool(bulk: BulkResponder, enabledToolNames?: readonly string[]): GetBulkQueryResultsMcpTool {
+  return new GetBulkQueryResultsMcpTool(
+    new GetBulkQueryResultsExecutor(createFixture({ bulk }).orgService, { enabledToolNames }),
+  );
+}
+
 type DataTool =
   | ListSobjectsMcpTool
   | DescribeSobjectMcpTool
   | QueryRecordsMcpTool
-  | SearchRecordsMcpTool;
+  | SearchRecordsMcpTool
+  | SubmitBulkQueryMcpTool
+  | GetBulkQueryResultsMcpTool;
 
 function structured(result: CallToolResult): Record<string, unknown> {
   assert.ok(result.structuredContent !== undefined, 'every Data Tool result carries structuredContent');
@@ -530,4 +558,199 @@ test('a search hint never names a Tool this session does not advertise', async (
     ['search_records', 'query_records'],
   );
   assert.match(textOf(await withQuery.exec({ search: 'acme' })), /read these Ids with query_records/u);
+});
+
+const JOB_ID = '750000000000001AAA';
+
+function jobResponse(state: string, overrides: Readonly<Record<string, unknown>> = {}): BulkResponse {
+  return { body: bulkJob(JOB_ID, { state, ...overrides }), headers: bulkResultHeaders(null) };
+}
+
+test('submit_bulk_query declares a GA, DATA, read-only contract and says what it will not do', () => {
+  const tool = submitBulkTool(() => jobResponse('UploadComplete'));
+
+  assert.equal(tool.getName(), 'submit_bulk_query');
+  assert.equal(tool.getReleaseState(), ReleaseState.GA);
+  assert.deepEqual(tool.getToolsets(), [Toolset.DATA]);
+
+  const annotations = annotationsOf(tool);
+  assert.equal(annotations.readOnlyHint, true);
+  // Not idempotent: submitting twice creates two jobs and costs two sets of API calls.
+  assert.equal(annotations.idempotentHint, false);
+  assert.equal(annotations.destructiveHint, false);
+  assert.ok(tool.getConfig().inputSchema !== undefined);
+  assert.ok(tool.getConfig().outputSchema !== undefined);
+
+  // The Agent has to be able to tell what creating a job does and does not do before calling it.
+  const description = descriptionOf(tool);
+  assert.match(description, /never an insert, update, upsert or delete/u);
+  assert.match(description, /operation is fixed to query rather than accepted as input/u);
+  assert.match(description, /asynchronous/u);
+  assert.match(description, /No job state is stored on the server/u);
+  assert.match(description, /query_records for a small or exploratory result/u);
+  assert.match(description, /describe_sobject/u);
+});
+
+test('get_bulk_query_results declares a GA, DATA, read-only contract and cross-references the submission', () => {
+  const tool = resultsBulkTool(() => jobResponse('JobComplete'));
+
+  assert.equal(tool.getName(), 'get_bulk_query_results');
+  assert.equal(tool.getReleaseState(), ReleaseState.GA);
+  assert.deepEqual(tool.getToolsets(), [Toolset.DATA]);
+
+  const annotations = annotationsOf(tool);
+  assert.equal(annotations.readOnlyHint, true);
+  assert.equal(annotations.destructiveHint, false);
+  // Reading the same page twice is the same read, so this one is idempotent.
+  assert.equal(annotations.idempotentHint, true);
+  assert.ok(tool.getConfig().inputSchema !== undefined);
+  assert.ok(tool.getConfig().outputSchema !== undefined);
+
+  const description = descriptionOf(tool);
+  assert.match(description, /submit_bulk_query/u);
+  assert.match(description, /A page is never returned partially/u);
+  assert.match(description, /every value in records is a string|every field arrives as text/u);
+  assert.match(description, /No job state is stored on the server/u);
+  assert.match(description, /Failed or Aborted/u);
+});
+
+test('the two Bulk Tools name each other, so either one leads to the other', () => {
+  // An Agent that finds only one half has to be able to reach the other from its description.
+  assert.match(descriptionOf(submitBulkTool(() => jobResponse('UploadComplete'))), /get_bulk_query_results/u);
+  assert.match(descriptionOf(resultsBulkTool(() => jobResponse('JobComplete'))), /submit_bulk_query/u);
+});
+
+test('a successful submit_bulk_query result satisfies its own declared output schema and the text mirrors it', async () => {
+  const tool = submitBulkTool(
+    () => ({ body: bulkJob(JOB_ID, { state: 'JobComplete' }), headers: bulkResultHeaders(null, { used: 4, limit: 100 }) }),
+    ['submit_bulk_query', 'get_bulk_query_results'],
+  );
+  const result = await tool.exec({ query: 'SELECT Id FROM Account' });
+
+  assert.equal(result.isError, undefined);
+  const output = structured(result);
+  assert.deepEqual(submitBulkQueryOutputSchema.parse(output), output);
+  assert.equal(output.success, true);
+  assert.equal(output.jobId, JOB_ID);
+  assert.equal(output.operation, 'query');
+  assert.equal(output.api, 'REST');
+
+  const text = textOf(result);
+  assert.match(text, /^submit_bulk_query: jobId=750000000000001AAA state=JobComplete apiVersion=65\.0 operation=query apiUsage=4\/100 used$/mu);
+  assert.match(text, /Next: The job is already complete: call get_bulk_query_results with this jobId/u);
+});
+
+test('a successful get_bulk_query_results result satisfies its own declared output schema and the text mirrors it', async () => {
+  const tool = resultsBulkTool(
+    (request) => (request.url.includes('/results')
+      ? { body: bulkRows(2), headers: bulkResultHeaders(null, { used: 5, limit: 100 }) }
+      : { body: bulkJob(JOB_ID, { numberRecordsProcessed: 2 }), headers: bulkResultHeaders(null) }),
+    ['get_bulk_query_results'],
+  );
+  const result = await tool.exec({ jobId: JOB_ID });
+
+  assert.equal(result.isError, undefined);
+  const output = structured(result);
+  assert.deepEqual(getBulkQueryResultsOutputSchema.parse(output), output);
+  assert.equal(output.complete, true);
+  assert.equal(output.returnedCount, 2);
+
+  const text = textOf(result);
+  assert.match(text, /^get_bulk_query_results: jobId=750000000000001AAA state=JobComplete numberRecordsProcessed=2 numberRecordsFailed=0 totalRecords=2 returnedCount=2 hasMore=false complete=true locator=null$/mu);
+  assert.match(text, /Records \(2\):/u);
+});
+
+test('a Failed job is an isError result that still satisfies the declared output schema', async () => {
+  const tool = resultsBulkTool(() => jobResponse('Failed', { errorMessage: 'Invalid field: Nope' }));
+  const result = await tool.exec({ jobId: JOB_ID });
+
+  // The call succeeded and the export did not: the Agent has to see a failure, and a client
+  // parsing structuredContent has to be able to rely on the same declared shape.
+  assert.equal(result.isError, true);
+  const output = structured(result);
+  assert.deepEqual(getBulkQueryResultsOutputSchema.parse(output), output);
+  assert.equal(output.success, false);
+  assert.equal(output.errorCode, 'MCP_BULK_JOB_FAILED');
+  assert.match(textOf(result), /^stateMessage: Invalid field: Nope$/mu);
+  assert.doesNotMatch(textOf(result), /at .*\.(ts|js):\d+/u);
+  assert.doesNotMatch(textOf(result), /\bstack\b/iu);
+});
+
+test('a Bulk failure stays an isError result with a safe next step and no stack trace', async () => {
+  const tool = submitBulkTool(() => {
+    throw Object.assign(new Error('No such column Nmae on entity Account'), { errorCode: 'INVALID_FIELD' });
+  });
+  const result = await tool.exec({ query: 'SELECT Nmae FROM Account' });
+
+  assert.equal(result.isError, true);
+  const output = structured(result);
+  assert.equal(output.errorCode, 'MCP_BULK_QUERY_INVALID');
+  assert.equal(output.salesforceErrorCode, 'INVALID_FIELD');
+  assert.match(textOf(result), /Next: /u);
+  assert.doesNotMatch(textOf(result), /at .*\.(ts|js):\d+/u);
+  assert.doesNotMatch(textOf(result), /\bstack\b/iu);
+  assert.deepEqual(submitBulkQueryOutputSchema.parse(output), output);
+});
+
+test('a Bulk hint never names a Tool this session does not advertise', async () => {
+  const submit = submitBulkTool(() => jobResponse('InProgress'), ['submit_bulk_query']);
+  const submitText = textOf(await submit.exec({ query: 'SELECT Id FROM Account' }));
+  assert.doesNotMatch(submitText, /get_bulk_query_results/u);
+  assert.match(submitText, /Ask an administrator to enable the Bulk result-reading capability/u);
+
+  const results = resultsBulkTool(() => jobResponse('InProgress'), ['get_bulk_query_results']);
+  const resultsText = textOf(await results.exec({ jobId: JOB_ID }));
+  assert.match(resultsText, /Call get_bulk_query_results again/u);
+  assert.doesNotMatch(resultsText, /submit_bulk_query/u);
+});
+
+test('no Bulk Tool accepts a Salesforce identity, credential or org selector as input', async () => {
+  const rejected: ReadonlyArray<Readonly<{ label: string; input: Readonly<Record<string, unknown>> }>> = [
+    { label: 'username', input: { query: 'SELECT Id FROM Account', username: 'admin@example.test' } },
+    { label: 'accessToken', input: { query: 'SELECT Id FROM Account', accessToken: 'secret' } },
+    { label: 'instanceUrl', input: { query: 'SELECT Id FROM Account', instanceUrl: 'https://example.my.salesforce.com' } },
+    { label: 'operation', input: { query: 'SELECT Id FROM Account', operation: 'delete' } },
+  ];
+  for (const { label, input } of rejected) {
+    let called = false;
+    const tool = submitBulkTool(() => {
+      called = true;
+      return jobResponse('UploadComplete');
+    });
+    const result = await tool.exec(input as unknown as SubmitBulkQueryInput);
+
+    assert.equal(result.isError, true, `${label} must not be an accepted input`);
+    assert.equal(structured(result).errorCode, 'MCP_DATA_INVALID_INPUT');
+    assert.equal(called, false, `${label} must not reach Salesforce`);
+  }
+
+  const results = resultsBulkTool(() => jobResponse('JobComplete'));
+  const withExtra = await results.exec({ jobId: JOB_ID, query: 'SELECT Id FROM Account' } as unknown as GetBulkQueryResultsInput);
+  assert.equal(withExtra.isError, true);
+  assert.equal(structured(withExtra).errorCode, 'MCP_DATA_INVALID_INPUT');
+});
+
+test('an illegal jobId or cursor is rejected before any Bulk call', async () => {
+  const rejected: ReadonlyArray<Readonly<{ label: string; input: Readonly<Record<string, unknown>> }>> = [
+    { label: 'jobId too short', input: { jobId: '750000000000001A' } },
+    { label: 'jobId too long', input: { jobId: '750000000000001AAAA' } },
+    { label: 'jobId not an Id', input: { jobId: 'not-a-salesforce-id' } },
+    { label: 'locator is the terminal marker', input: { jobId: JOB_ID, locator: 'null' } },
+    { label: 'maxRecords above the cap', input: { jobId: JOB_ID, maxRecords: 50_001 } },
+    { label: 'maxRecords of zero', input: { jobId: JOB_ID, maxRecords: 0 } },
+  ];
+  for (const { label, input } of rejected) {
+    let called = false;
+    const tool = resultsBulkTool(() => {
+      called = true;
+      return jobResponse('JobComplete');
+    });
+    const result = await tool.exec(input as unknown as GetBulkQueryResultsInput);
+
+    assert.equal(result.isError, true, `${label} must be rejected`);
+    const output = structured(result);
+    assert.equal(output.errorCode, 'MCP_DATA_INVALID_INPUT', label);
+    assert.deepEqual(getBulkQueryResultsOutputSchema.parse(output), output);
+    assert.equal(called, false, `${label} must not reach Salesforce`);
+  }
 });

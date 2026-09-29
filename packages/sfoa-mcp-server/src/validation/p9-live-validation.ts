@@ -25,6 +25,7 @@ import {
   type RequestPolicySnapshot,
 } from '@sfoa/control-plane';
 import {
+  BULK_QUERY_RESULTS_DEFAULT_MAX_RECORDS,
   DESCRIBE_SOBJECT_DEFAULT_FIELD_LIMIT,
   DESCRIBE_SOBJECT_MAX_CHILD_RELATIONSHIPS,
   DESCRIBE_SOBJECT_MAX_PICKLIST_VALUES,
@@ -55,9 +56,15 @@ export type P9LiveGate = Readonly<{
 
 export type P9LiveValidationReport = Readonly<{
   phase: 'P9';
-  task: 'T1+T2+T3';
+  task: 'T1+T2+T3+T4';
   generatedAt: string;
   objectApiName: string;
+  /**
+   * The object the Bulk export gate runs against. It is usually `objectApiName`, but the export
+   * needs an object large enough for the row-count cross-check to mean anything, so the gate can
+   * be pointed at a different one without moving the gates that only need a live object.
+   */
+  bulkObjectApiName: string;
   filter: string;
   /**
    * Where the Data Tool enablement came from for this run. The Tools deliberately have no
@@ -72,6 +79,7 @@ export type P9LiveValidationReport = Readonly<{
   queryRecords: P9LiveGate;
   orgLimits: P9LiveGate;
   searchRecords: P9LiveGate;
+  bulkQuery: P9LiveGate;
   schemaSelfRepair: P9LiveGate;
   credentialSafety: P9LiveGate;
   connections: Readonly<{
@@ -97,6 +105,31 @@ const QUERY_RECORDS_PROBE_MARGIN = 1_000;
 /** A row budget below the org's row count, used to prove the truncation declaration. */
 const QUERY_RECORDS_TRUNCATION_MAX_ROWS = 500;
 
+/** The object the Bulk export gate is pointed at, when it has to differ from `P9_LIVE_OBJECT`. */
+const BULK_OBJECT_VARIABLE = 'P9_LIVE_BULK_OBJECT';
+
+/**
+ * The Bulk export gate's row floor.
+ *
+ * The cross-check this gate exists for — the summed `returnedCount` of every page against the
+ * org's own `COUNT()`, read independently over the same live Connection — is the only evidence
+ * that the paging delivered **every** row rather than merely stopping cleanly. A result set of
+ * a few thousand rows reaches its last page in two calls and cannot distinguish a working walk
+ * from one that ends early by luck, so the gate refuses to report a PASS below this floor
+ * rather than reporting one that proves nothing. `P9_LIVE_BULK_OBJECT` points the gate at an
+ * object large enough; the T4 acceptance run requires one of at least 100 000 rows.
+ */
+const BULK_EXPORT_MINIMUM_ROWS = 100_000;
+
+/** How long the gate waits between state polls while Salesforce runs the job. */
+const BULK_EXPORT_POLL_INTERVAL_MS = 2_000;
+
+/** A Bulk query job is asynchronous; this bounds how long the gate waits for one to finish. */
+const BULK_EXPORT_MAX_POLLS = 60;
+
+/** Pages allowed beyond the arithmetic minimum before the walk is called non-terminating. */
+const BULK_EXPORT_PAGE_MARGIN = 5;
+
 /**
  * Tool names a `query_records` hint might name. One that is not advertised must never appear:
  * sending an Agent after a Tool `tools/list` does not contain costs it a turn to find out.
@@ -104,6 +137,19 @@ const QUERY_RECORDS_TRUNCATION_MAX_ROWS = 500;
 const HINT_TOOL_CANDIDATES = Object.freeze([
   'submit_bulk_query', 'get_org_limits', 'query_records', 'run_soql_query',
   'list_sobjects', 'describe_sobject',
+]);
+
+/**
+ * The same gate, widened by the one Tool only a Bulk result page can name.
+ *
+ * `get_bulk_query_results` is deliberately not in `HINT_TOOL_CANDIDATES`: that list is what a
+ * `query_records` hint is scanned against, and a search hint that named the result-reading half
+ * of an export it never started would be advice an Agent cannot act on. A Bulk page hint is the
+ * opposite case — naming it is the whole point of the hint — so it is checked against the list
+ * plus its own name rather than against a list that must stay narrow.
+ */
+const BULK_HINT_TOOL_CANDIDATES = Object.freeze([
+  ...HINT_TOOL_CANDIDATES, 'get_bulk_query_results',
 ]);
 
 /** Tool input keys that would let a caller pick an identity, an endpoint or a credential. */
@@ -216,6 +262,10 @@ export async function runP9LiveValidation(
   if (!config.clientToken) throw new Error('The P9 live validation requires an independent internal client token.');
   const clientToken = config.clientToken;
   const objectApiName = environment.P9_LIVE_OBJECT?.trim() || config.identity.testObject || 'Account';
+  // The export gate needs an object with enough rows for the cross-check to mean something, so it
+  // is separately pointable: a deployment whose only large object is not the one the other gates
+  // use can still run the export leg.
+  const bulkObjectApiName = environment[BULK_OBJECT_VARIABLE]?.trim() || objectApiName;
   const filter = environment.P9_LIVE_FILTER?.trim() || objectApiName.slice(0, 3);
   const dataToolNames = [...SFOA_DATA_TOOL_NAMES];
   const generatedAt = new Date().toISOString();
@@ -270,9 +320,10 @@ export async function runP9LiveValidation(
     const reason = `Identity route ${platformUserId} is ${route === null ? 'absent' : 'disabled'} in this Control Plane.`;
     return Object.freeze({
       phase: 'P9',
-      task: 'T1+T2+T3',
+      task: 'T1+T2+T3+T4',
       generatedAt,
       objectApiName,
+      bulkObjectApiName,
       filter,
       enablementSource,
       toolInventory: notTested(reason),
@@ -282,6 +333,7 @@ export async function runP9LiveValidation(
       queryRecords: notTested(reason),
       orgLimits: notTested(reason),
       searchRecords: notTested(reason),
+      bulkQuery: notTested(reason),
       schemaSelfRepair: notTested(reason),
       credentialSafety: notTested('No Tool call was made.'),
       connections: Object.freeze({ total: 0, distinctSalesforceUsernames: Object.freeze([]) }),
@@ -359,15 +411,23 @@ export async function runP9LiveValidation(
         diagnosticEnabled,
       );
       const searchRecords = await runSearchRecords(client, results, connection, objectApiName, expectedNames);
+      const bulkQuery = await runBulkQuery(
+        client,
+        results,
+        connection,
+        bulkObjectApiName,
+        expectedNames,
+      );
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
       const usernames = [...new Set(measuringFactory.measurements.map((entry) => entry.salesforceUsername))];
 
       return Object.freeze({
         phase: 'P9',
-        task: 'T1+T2+T3',
+        task: 'T1+T2+T3+T4',
         generatedAt,
         objectApiName,
+        bulkObjectApiName,
         filter,
         enablementSource,
         toolInventory,
@@ -377,6 +437,7 @@ export async function runP9LiveValidation(
         queryRecords,
         orgLimits,
         searchRecords,
+        bulkQuery,
         schemaSelfRepair,
         credentialSafety,
         connections: Object.freeze({
@@ -385,7 +446,7 @@ export async function runP9LiveValidation(
         }),
         overall: combine([
           toolInventory, requestIdentity, listSobjects, describeSobject,
-          queryRecords, orgLimits, searchRecords, schemaSelfRepair, credentialSafety,
+          queryRecords, orgLimits, searchRecords, bulkQuery, schemaSelfRepair, credentialSafety,
         ]),
       });
     } finally {
@@ -1435,6 +1496,341 @@ function recordOf(value: unknown): Readonly<Record<string, unknown>> | undefined
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Readonly<Record<string, unknown>>
     : undefined;
+}
+
+/**
+ * Cross-checks the Bulk API 2.0 export pair against the org's own row count.
+ *
+ * This is the one P9 gate whose evidence cannot be produced any other way. Every other Data Tool
+ * answers inside one response, so its completeness claim can be compared to the org's own reading
+ * of the same question. An export is deliberately *not* one response: the caller holds the job Id
+ * and the cursor, and the only proof that the loop it drives really delivered every row is that
+ * the rows it summed equal a count the loop did not produce. So the gate:
+ *
+ * 1. reads `COUNT(Id)` over the live Connection — the independent reference — and refuses to pass
+ *    below `BULK_EXPORT_MINIMUM_ROWS`, because a short result set cannot distinguish a correct
+ *    walk from one that ends early;
+ * 2. submits the export through `submit_bulk_query` and holds the returned `jobId`;
+ * 3. polls `get_bulk_query_results` until the platform reaches `JobComplete`, asserting that the
+ *    running states make **no** completeness claim at all (`locator`/`hasMore`/`complete` are
+ *    omitted rather than reported false);
+ * 4. walks the cursor to exhaustion, asserting on every page that the Tool's own fields agree with
+ *    each other, that the page is not shortened, and that the platform's `numberRecordsProcessed`
+ *    is the whole job's count rather than the page's;
+ * 5. compares the summed `returnedCount` with the `COUNT(Id)` it read first.
+ *
+ * A Bulk query job is executed by Salesforce asynchronously, so an org that is slow to run one
+ * makes this gate untestable rather than failed — as does a job the platform ends itself. Both
+ * are reported as NOT TESTED naming the reason, because neither is a fact about the Tool.
+ */
+async function runBulkQuery(
+  client: Client,
+  results: CallToolResult[],
+  connection: Connection,
+  objectApiName: string,
+  advertisedNames: readonly string[],
+): Promise<P9LiveGate> {
+  const reading = await readCount(connection, objectApiName);
+  const orgCount = reading.count;
+  if (orgCount === null) {
+    return notTested(
+      `COUNT() of ${objectApiName} returned no row count — ${reading.observed} — `
+      + 'so an export cannot be cross-checked against the org.',
+    );
+  }
+  if (orgCount < BULK_EXPORT_MINIMUM_ROWS) {
+    return notTested(
+      `${objectApiName} holds ${orgCount} rows, below the ${BULK_EXPORT_MINIMUM_ROWS}-row floor this gate requires: `
+      + 'a small result set reaches its last page in a couple of calls, so summing the pages would prove nothing '
+      + `about the walk. Point ${BULK_OBJECT_VARIABLE} at an object of at least ${BULK_EXPORT_MINIMUM_ROWS} rows.`,
+      { objectApiName, orgCount, minimumRows: BULK_EXPORT_MINIMUM_ROWS },
+    );
+  }
+
+  const statement = `SELECT Id FROM ${objectApiName}`;
+  const pageSize = BULK_QUERY_RESULTS_DEFAULT_MAX_RECORDS;
+  const submits = await call(client, results, 'submit_bulk_query', { query: statement });
+  const submitOutput = outputOf(submits);
+  if (submitOutput === undefined) return failGate('submit_bulk_query returned no structured content.');
+  // A standard object the org declares unused is refused by design before any Salesforce call;
+  // that is the guard working, not the gate failing.
+  if (submitOutput.errorCode === 'MCP_SOBJECT_NOT_IN_USE') {
+    return notTested(
+      `${objectApiName} is declared not in use in this org, so submit_bulk_query refuses it by design: ${String(submitOutput.message)}`,
+    );
+  }
+  if (submitOutput.errorCode === 'MCP_BULK_LIMIT_EXCEEDED') {
+    return notTested(
+      `The org refused the Bulk submission because its API allowance is exhausted: ${String(submitOutput.message)}`,
+    );
+  }
+  if (submitOutput.success !== true) {
+    return failGate(`submit_bulk_query failed live: ${String(submitOutput.errorCode ?? 'no error code')}.`);
+  }
+
+  const jobId = typeof submitOutput.jobId === 'string' ? submitOutput.jobId : '';
+  const submitState = typeof submitOutput.state === 'string' ? submitOutput.state : null;
+  const submitApiUsage = apiUsageShapeOf(submitOutput.apiUsage);
+  // The submission's own contract: it says which operation it created (always `query`, because
+  // there is no input that could express another), it names a job whose Id could be handed back,
+  // and it reports the org's counter rather than a pre-flight reading it cannot make.
+  const submitFacts = submitOutput.executionRole === 'USER'
+    && submitOutput.operation === 'query'
+    && SALESFORCE_ID.test(jobId)
+    && typeof submitOutput.apiVersion === 'string' && submitOutput.apiVersion.length > 0
+    && (submitState === null || submitState.length > 0)
+    && submitApiUsage !== 'invalid';
+
+  const startedAt = Date.now();
+  const pageBudget = Math.ceil(orgCount / pageSize) + BULK_EXPORT_PAGE_MARGIN;
+  const pendingMismatches: string[] = [];
+  const pageDetails: Readonly<Record<string, unknown>>[] = [];
+  const mismatches: string[] = [...(submitFacts ? [] : ['the submission did not satisfy its own declared contract'])];
+  const check = (condition: boolean, message: string): void => {
+    if (!condition) mismatches.push(message);
+  };
+
+  // The job is asynchronous, so the first readable page arrives from whichever poll first sees
+  // `JobComplete` — there is no separate "wait, then read" step, and a poll that reports a
+  // running state must claim nothing about rows.
+  let page: Readonly<Record<string, unknown>> | null = null;
+  let polls = 0;
+  let pendingStates = 0;
+  let lastState: string | null = submitState;
+  let apiUsage: ApiUsageShape = submitApiUsage;
+  while (page === null && polls < BULK_EXPORT_MAX_POLLS) {
+    polls += 1;
+    const polled = await call(client, results, 'get_bulk_query_results', { jobId });
+    const output = outputOf(polled);
+    if (output === undefined) return failGate('get_bulk_query_results returned no structured content.');
+    if (output.errorCode === 'MCP_BULK_LIMIT_EXCEEDED') {
+      return notTested(
+        `The org refused a Bulk read because its API allowance is exhausted: ${String(output.message)}`,
+        { jobId, polls },
+      );
+    }
+    if (output.success !== true) {
+      return failGate(`get_bulk_query_results failed live: ${String(output.errorCode ?? 'no error code')}.`);
+    }
+    apiUsage = mergeApiUsage(apiUsage, apiUsageShapeOf(output.apiUsage));
+    lastState = typeof output.state === 'string' ? output.state : null;
+    if (lastState === 'Failed' || lastState === 'Aborted') {
+      return notTested(
+        `Salesforce ended the Bulk query job as ${lastState}, so there is no result set to page: `
+        + `${typeof output.stateMessage === 'string' ? output.stateMessage : 'no reason was reported'}.`,
+        { jobId, state: lastState, polls },
+      );
+    }
+    if (lastState === 'JobComplete') {
+      page = output;
+      break;
+    }
+    // Running states make no completeness claim: `locator`, `hasMore` and `complete` are absent
+    // rather than false, because "there is no next page" and "there are no rows yet" are the same
+    // shape to a caller that reads only the fields.
+    pendingStates += 1;
+    pendingMismatches.push(...pendingShapeMismatches(output));
+    await sleep(BULK_EXPORT_POLL_INTERVAL_MS);
+  }
+  if (page === null) {
+    return failGate(
+      `The Bulk query job did not reach JobComplete within ${BULK_EXPORT_MAX_POLLS} polls `
+      + `(last state ${String(lastState)}).`,
+    );
+  }
+
+  let requestedLocator: string | null = null;
+  let cumulative = 0;
+  let pagesRead = 0;
+  let totalRecords: number | null = null;
+  let exhaustingPage: Readonly<Record<string, unknown>> | null = null;
+  while (page !== null) {
+    pagesRead += 1;
+    const records = readArray(page.records);
+    const returnedCount = integerOf(page.returnedCount);
+    const nextLocator = typeof page.locator === 'string' && page.locator.length > 0 ? page.locator : null;
+    const hasMore = page.hasMore === true;
+    const pageTotal = integerOf(page.totalRecords);
+    cumulative += returnedCount > 0 ? returnedCount : 0;
+    totalRecords = pageTotal > 0 ? pageTotal : totalRecords;
+    apiUsage = mergeApiUsage(apiUsage, apiUsageShapeOf(page.apiUsage));
+
+    check(page.executionRole === 'USER', `page ${pagesRead}: executionRole=${String(page.executionRole)}`);
+    check(page.state === 'JobComplete', `page ${pagesRead}: state=${String(page.state)}`);
+    check(returnedCount === records.length, `page ${pagesRead}: returnedCount=${String(page.returnedCount)} for ${records.length} rows`);
+    check(returnedCount >= 0 && returnedCount <= pageSize, `page ${pagesRead}: returnedCount=${String(page.returnedCount)} against a requested ${pageSize}`);
+    // A page that fits the budget is returned whole, so its row count is what Salesforce served.
+    // The counter is the *whole job's* processed count — the platform's own number — which is why
+    // it is compared against the `COUNT()` read before the export rather than against the page.
+    check(pageTotal === orgCount, `page ${pagesRead}: totalRecords=${String(page.totalRecords)} but the org holds ${orgCount} rows`);
+    // `numberRecordsProcessed` is the same platform counter under its own name, and a query job
+    // does not always report it — so it is held to the org's count when it is reported at all,
+    // rather than making the gate fail on an absent value the Tool is right to pass through.
+    check(
+      typeof page.numberRecordsProcessed !== 'number' || page.numberRecordsProcessed === orgCount,
+      `page ${pagesRead}: numberRecordsProcessed=${String(page.numberRecordsProcessed)} but the org holds ${orgCount} rows`,
+    );
+    check(
+      page.numberRecordsFailed === 0 || page.numberRecordsFailed === null || page.numberRecordsFailed === undefined,
+      `page ${pagesRead}: numberRecordsFailed=${String(page.numberRecordsFailed)}`,
+    );
+    check(hasMore === (nextLocator !== null), `page ${pagesRead}: hasMore=${String(page.hasMore)} with locator=${nextLocator === null ? 'null' : 'present'}`);
+    check(page.complete === !hasMore, `page ${pagesRead}: complete=${String(page.complete)} with hasMore=${String(page.hasMore)}`);
+    check(!hasMore || typeof page.locator === 'string', `page ${pagesRead}: hasMore with a locator that is not a string`);
+    check(hasMore || page.locator === null, `page ${pagesRead}: the last page's locator is ${JSON.stringify(page.locator)} rather than null`);
+    check(records.length === 0 || records.every(isCsvRow), `page ${pagesRead}: a row carried a value that is not a string, which Bulk API 2.0 CSV results cannot produce`);
+    check(typeof page.hint === 'string' && page.hint.length > 0, `page ${pagesRead}: no hint was returned`);
+    const hint = typeof page.hint === 'string' ? page.hint : '';
+    const namedTools = BULK_HINT_TOOL_CANDIDATES.filter((name) => hint.includes(name));
+    check(namedTools.every((name) => advertisedNames.includes(name)), `page ${pagesRead}: the hint names unadvertised Tools: ${namedTools.filter((name) => !advertisedNames.includes(name)).join(', ')}`);
+    if (hasMore) {
+      // A cursor is a position, not an offset: a page that hands back the cursor it was given has
+      // made no progress, and the walk below would never terminate.
+      check(nextLocator !== requestedLocator, `page ${pagesRead}: the cursor did not advance`);
+    }
+    pageDetails.push(Object.freeze({
+      page: pagesRead,
+      requestedLocator: requestedLocator === null ? null : 'present',
+      returnedCount,
+      cumulative,
+      hasMore,
+      complete: page.complete,
+      totalRecords: page.totalRecords,
+      numberRecordsProcessed: page.numberRecordsProcessed,
+      hintNamesTools: namedTools,
+    }));
+
+    if (!hasMore) {
+      exhaustingPage = page;
+      break;
+    }
+    if (pagesRead >= pageBudget) {
+      return failGate(
+        `The Bulk result walk read ${pagesRead} pages without exhausting a ${orgCount}-row result set at ${pageSize} rows per page.`,
+      );
+    }
+    requestedLocator = nextLocator;
+    const next = await call(client, results, 'get_bulk_query_results', {
+      jobId,
+      locator: nextLocator,
+      maxRecords: pageSize,
+    });
+    const nextOutput = outputOf(next);
+    if (nextOutput === undefined) return failGate('get_bulk_query_results returned no structured content.');
+    if (nextOutput.success !== true) {
+      return failGate(`get_bulk_query_results failed live on page ${pagesRead + 1}: ${String(nextOutput.errorCode ?? 'no error code')}.`);
+    }
+    page = nextOutput;
+  }
+
+  check(pendingMismatches.length === 0, `a running job claimed a completeness it could not have: ${pendingMismatches.slice(0, 3).join('; ')}`);
+  // The cross-check the gate exists for: what the caller's loop summed, against a count the loop
+  // never participated in producing.
+  check(cumulative === orgCount, `the walk returned ${cumulative} rows but the org's own COUNT(Id) is ${orgCount}`);
+  check(totalRecords === orgCount, `the job reported ${String(totalRecords)} rows in total but the org's own COUNT(Id) is ${orgCount}`);
+  check(exhaustingPage?.complete === true, 'the walk ended without a page declaring the result set complete');
+  check(exhaustingPage?.locator === null, `the final page carried a cursor (${String(exhaustingPage?.locator)}) alongside complete`);
+
+  const elapsedMs = Date.now() - startedAt;
+  return gate(mismatches.length === 0, {
+    objectApiName,
+    statement,
+    orgCount,
+    minimumRows: BULK_EXPORT_MINIMUM_ROWS,
+    executionRole: submitOutput.executionRole,
+    operation: submitOutput.operation,
+    jobId,
+    apiVersion: submitOutput.apiVersion,
+    submittedState: submitState,
+    polls,
+    runningStatesObserved: pendingStates,
+    pages: pagesRead,
+    rowsSummedAcrossPages: cumulative,
+    totalRecords,
+    pageSize,
+    elapsedMs,
+    // The quota fact the responses themselves carried — `Sforce-Limit-Info`, as the org reported
+    // it. There is no pre-flight (ADR-0027 option (b)), so this is the only allowance evidence a
+    // Bulk run produces.
+    apiUsage,
+    pageDetails: pageDetails.slice(0, 6),
+    mismatches: mismatches.slice(0, 10),
+  }, 'The Bulk export walk, its page contract or its row-count cross-check disagreed with the org.');
+}
+
+/**
+ * The claims a still-running Bulk job must **not** be making.
+ *
+ * Reported as a list rather than a boolean so a failure names which field was invented. The
+ * three omitted fields are the whole point: an Agent that reads `complete: false` off a job that
+ * has simply not finished yet concludes the export is truncated, and one that reads `locator:
+ * null` concludes it is done.
+ */
+function pendingShapeMismatches(output: Readonly<Record<string, unknown>>): string[] {
+  const state = typeof output.state === 'string' ? output.state : 'unknown';
+  return [
+    ...(output.locator === undefined ? [] : [`${state}: locator was reported (${JSON.stringify(output.locator)}) before the job completed`]),
+    ...(output.hasMore === undefined ? [] : [`${state}: hasMore was reported (${JSON.stringify(output.hasMore)}) before the job completed`]),
+    ...(output.complete === undefined ? [] : [`${state}: complete was reported (${JSON.stringify(output.complete)}) before the job completed`]),
+    ...(readArray(output.records).length === 0 ? [] : [`${state}: rows were returned before the job completed`]),
+    ...(integerOf(output.returnedCount) === 0 ? [] : [`${state}: returnedCount=${String(output.returnedCount)} before the job completed`]),
+    ...(output.totalRecords === null ? [] : [`${state}: totalRecords=${String(output.totalRecords)} before the job completed`]),
+    ...(typeof output.hint === 'string' && output.hint.length > 0 ? [] : [`${state}: no hint was returned`]),
+  ];
+}
+
+/**
+ * A Bulk API 2.0 CSV result row: every value a string.
+ *
+ * This is the one property of the wire format an Agent has to know to read the rows at all — a
+ * numeric field arrives as `"42"`, not `42`, and an absent field arrives as `""` rather than
+ * `null` — so the gate asserts it rather than trusting the contract note in the description.
+ */
+function isCsvRow(record: Readonly<Record<string, unknown>>): boolean {
+  return Object.values(record).every((value) => typeof value === 'string');
+}
+
+/**
+ * How a Bulk response's `Sforce-Limit-Info` counter classified: `absent` when the response
+ * carried none, `valid` when it carried the documented shape, `invalid` when it carried
+ * something else. Merged across a run so one malformed counter is never washed out.
+ */
+type ApiUsageShape = 'absent' | 'valid' | 'invalid';
+
+/**
+ * Classifies the `apiUsage` counter a Bulk response reported.
+ *
+ * The counter is optional by design — Salesforce does not attach `Sforce-Limit-Info` to every
+ * response — so an absent one is a fact about the response rather than a defect in the Tool. A
+ * present one that is not the documented three-number shape, or whose `remaining` is not its own
+ * `limit - used`, is.
+ */
+function apiUsageShapeOf(value: unknown): ApiUsageShape {
+  if (value === undefined) return 'absent';
+  const entry = recordOf(value);
+  if (entry === undefined) return 'invalid';
+  const used = integerOf(entry.used);
+  const limit = integerOf(entry.limit);
+  const remaining = integerOf(entry.remaining);
+  return used >= 0 && limit > 0 && remaining >= 0 && remaining === Math.max(limit - used, 0)
+    ? 'valid'
+    : 'invalid';
+}
+
+/** Keeps the strongest classification seen: a malformed counter is never washed out by a later one. */
+function mergeApiUsage(current: ApiUsageShape, next: ApiUsageShape): ApiUsageShape {
+  if (current === 'invalid' || next === 'invalid') return 'invalid';
+  if (current === 'valid' || next === 'valid') return 'valid';
+  return 'absent';
+}
+
+/** A Salesforce record Id, in either its 15- or 18-character form. */
+const SALESFORCE_ID = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/u;
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 async function runSchemaSelfRepair(

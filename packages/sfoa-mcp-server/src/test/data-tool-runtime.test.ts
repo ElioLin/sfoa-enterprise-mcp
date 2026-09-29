@@ -16,9 +16,13 @@ import { startRemoteMcpServer, type RemoteMcpServer } from '../http-server.js';
 import { DEFAULT_ENABLED_TOOLS } from '../tool-governance.js';
 import { createUploadFilesToRecordTool } from '../attachment-tool.js';
 import {
+  bulkJob,
+  bulkResultHeaders,
+  bulkRows,
   createTestIdentityRuntime,
   createTestRemoteConfig,
   RecordingConnectionFactory,
+  TEST_BULK_QUERY_JOB_ID,
   TEST_CLIENT_TOKEN,
   TEST_PLATFORM_USER_A,
 } from './helpers.js';
@@ -629,6 +633,239 @@ test('an exhausted-allowance failure names get_org_limits only when this session
     assert.match(String(output.message), /Call get_org_limits/u);
   } finally {
     await with_.close();
+  }
+});
+
+test('an enabled Bulk export is one closed loop: submit a job, then read its pages through the locator', async () => {
+  const job = bulkJob({ numberRecordsProcessed: 3 });
+  const factory = new RecordingConnectionFactory({
+    bulk: (call) => {
+      if (call.method === 'POST') return { body: job, headers: bulkResultHeaders(null, 12, 100) };
+      if (call.url.includes('/results')) {
+        return call.url.includes('locator=cursor-1')
+          ? { body: bulkRows(1, 'c'), headers: bulkResultHeaders(null, 14, 100) }
+          : { body: bulkRows(2), headers: bulkResultHeaders('cursor-1', 13, 100) };
+      }
+      return { body: job, headers: bulkResultHeaders(null) };
+    },
+  });
+  const harness = await startHarness({
+    enabledTools: [...DEFAULT_ENABLED_TOOLS, 'submit_bulk_query', 'get_bulk_query_results'],
+    factory,
+  });
+  try {
+    const listed = await harness.client.listTools();
+    const byName = new Map(listed.tools.map((tool) => [tool.name, tool]));
+    const submit = byName.get('submit_bulk_query');
+    const read = byName.get('get_bulk_query_results');
+    assert.ok(submit !== undefined && read !== undefined, 'both halves of the export must be advertised');
+    assert.equal(submit.annotations?.readOnlyHint, true);
+    assert.equal(submit.annotations?.destructiveHint, false);
+    // `operation` is deliberately absent: it is fixed to `query` inside the Provider, so no
+    // caller can reach a Bulk ingest or DML operation through this Tool.
+    assert.deepEqual(Object.keys(submit.inputSchema.properties ?? {}), ['query']);
+    assert.ok(submit.outputSchema !== undefined);
+    assert.deepEqual(Object.keys(read.inputSchema.properties ?? {}).sort(), ['jobId', 'locator', 'maxRecords']);
+    assert.ok(read.outputSchema !== undefined);
+
+    const submitted = await harness.client.callTool({
+      name: 'submit_bulk_query',
+      arguments: { query: 'SELECT Id, Name FROM Account' },
+    });
+    assert.equal(submitted.isError === true, false);
+    const submission = structured(submitted);
+    assert.equal(submission.executionRole, 'USER');
+    assert.equal(submission.api, 'REST');
+    assert.equal(submission.operation, 'query');
+    assert.equal(submission.jobId, TEST_BULK_QUERY_JOB_ID);
+    assert.equal(submission.state, 'JobComplete');
+    assert.deepEqual(submission.apiUsage, { used: 12, limit: 100, remaining: 88 });
+    assert.match(String(submission.hint), /call get_bulk_query_results with this jobId/u);
+
+    const first = await harness.client.callTool({
+      name: 'get_bulk_query_results',
+      arguments: { jobId: TEST_BULK_QUERY_JOB_ID, maxRecords: 2 },
+    });
+    assert.equal(first.isError === true, false);
+    const page = structured(first);
+    assert.equal(page.state, 'JobComplete');
+    assert.equal(page.totalRecords, 3);
+    assert.equal(page.returnedCount, 2);
+    assert.equal(page.hasMore, true);
+    assert.equal(page.complete, false);
+    assert.equal(page.locator, 'cursor-1');
+    assert.deepEqual(page.apiUsage, { used: 13, limit: 100, remaining: 87 });
+    // Results are CSV, so every value is a string — a caller that needs a number has to convert.
+    assert.deepEqual(recordsOf(page), [{ Id: 'r0', Name: 'r 0' }, { Id: 'r1', Name: 'r 1' }]);
+    assert.match(String(page.hint), /the locator from this result to read the next page/u);
+
+    const last = await harness.client.callTool({
+      name: 'get_bulk_query_results',
+      arguments: { jobId: TEST_BULK_QUERY_JOB_ID, locator: 'cursor-1', maxRecords: 2 },
+    });
+    const finalPage = structured(last);
+    assert.equal(finalPage.returnedCount, 1);
+    assert.equal(finalPage.hasMore, false);
+    assert.equal(finalPage.complete, true);
+    assert.equal(finalPage.locator, null);
+    assert.deepEqual(recordsOf(finalPage), [{ Id: 'c0', Name: 'c 0' }]);
+
+    // The submission body is the query and the CSV contract, and nothing else: no operation
+    // beyond `query`, no object name the caller could point somewhere else.
+    assert.deepEqual(factory.bulkCalls[0], {
+      method: 'POST',
+      url: '/jobs/query',
+      body: {
+        operation: 'query',
+        query: 'SELECT Id, Name FROM Account',
+        contentType: 'CSV',
+        columnDelimiter: 'COMMA',
+        lineEnding: 'LF',
+      },
+    });
+    assert.deepEqual(factory.bulkCalls.map((call) => `${call.method} ${call.url}`), [
+      'POST /jobs/query',
+      `GET /jobs/query/${TEST_BULK_QUERY_JOB_ID}`,
+      `GET /jobs/query/${TEST_BULK_QUERY_JOB_ID}/results?maxRecords=2`,
+      `GET /jobs/query/${TEST_BULK_QUERY_JOB_ID}`,
+      `GET /jobs/query/${TEST_BULK_QUERY_JOB_ID}/results?maxRecords=2&locator=cursor-1`,
+    ]);
+    // Both halves read with the single request-scoped USER Connection: a Bulk job belongs to the
+    // identity that created it, and no Tool may switch roles to reach another identity's export.
+    assert.deepEqual([...new Set(factory.creations.map((entry) => entry.platformUserId))], [TEST_PLATFORM_USER_A]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('both halves of a Bulk export reach the P7 audit trail with their own terminal summaries', async () => {
+  const job = bulkJob({ numberRecordsProcessed: 3 });
+  const factory = new RecordingConnectionFactory({
+    bulk: (call) => (call.url.includes('/results')
+      ? { body: bulkRows(2), headers: bulkResultHeaders('cursor-1') }
+      : { body: job, headers: bulkResultHeaders(null) }),
+  });
+  const harness = await startHarness({
+    enabledTools: [...DEFAULT_ENABLED_TOOLS, 'submit_bulk_query', 'get_bulk_query_results'],
+    factory,
+  });
+  try {
+    await harness.client.callTool({
+      name: 'submit_bulk_query',
+      arguments: { query: 'SELECT Id, Name FROM Account' },
+    });
+    await harness.client.callTool({
+      name: 'get_bulk_query_results',
+      arguments: { jobId: TEST_BULK_QUERY_JOB_ID, locator: 'cursor-1' },
+    });
+
+    const submission = harness.logger.forTool('submit_bulk_query')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(submission !== undefined, 'submit_bulk_query must emit a TOOL_TERMINAL audit event');
+    assert.equal(submission.result, 'PASS');
+    assert.equal(submission.executionRole, 'USER');
+    assert.equal(submission.auditEvent?.terminalSource, 'TOOL');
+    // The statement is recorded by the Salesforce-call semantic; what the Tool adds is that a
+    // Bulk export was started, which the statement alone cannot say.
+    assert.deepEqual(submission.requestSummary, {
+      objectApiName: null, filter: null, useToolingApi: false, maxRows: null,
+    });
+    assert.deepEqual(submission.responseSummary, {
+      isError: false, state: 'JobComplete', jobId: TEST_BULK_QUERY_JOB_ID,
+    });
+
+    const page = harness.logger.forTool('get_bulk_query_results')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(page !== undefined, 'get_bulk_query_results must emit a TOOL_TERMINAL audit event');
+    assert.equal(page.result, 'PASS');
+    assert.equal(page.auditEvent?.terminalSource, 'TOOL');
+    // Which export was read and where in it the read resumed — the two facts a run of page
+    // reads needs in order to be explainable as one export.
+    assert.deepEqual(page.requestSummary, {
+      objectApiName: null, filter: null, jobId: TEST_BULK_QUERY_JOB_ID, locator: 'cursor-1', maxRecords: null,
+    });
+    assert.deepEqual(page.responseSummary, {
+      isError: false, returnedCount: 2, complete: false, state: 'JobComplete', jobId: TEST_BULK_QUERY_JOB_ID,
+      numberRecordsProcessed: 3, numberRecordsFailed: 0, totalRecords: 3, hasMore: true,
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a Bulk submission over an org-declared-unused standard object is blocked before any Salesforce call', async () => {
+  const harness = await startHarness({ enabledTools: [...DEFAULT_ENABLED_TOOLS, 'submit_bulk_query'] });
+  try {
+    // The same guard `query_records` applies, applied to the submission as well: a Bulk job over
+    // an unused standard object returns zero rows just as quietly, and an export is the answer
+    // an Agent is least likely to re-check.
+    const result = await harness.client.callTool({
+      name: 'submit_bulk_query',
+      arguments: { query: 'SELECT Id FROM Quote' },
+    });
+    assert.equal(result.isError, true);
+    const output = structured(result);
+    assert.equal(output.errorCode, 'MCP_SOBJECT_NOT_IN_USE');
+    assert.match(String(output.message), /Quote__c/u);
+    assert.deepEqual(harness.factory.bulkCalls, []);
+    assert.deepEqual(harness.factory.creations, []);
+
+    const terminal = harness.logger.forTool('submit_bulk_query')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined);
+    assert.equal(terminal.result, 'BLOCKED');
+    assert.equal(terminal.outcome, 'DENIED');
+    assert.equal(terminal.auditEvent?.terminalSource, 'GOVERNANCE');
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a Bulk job that ended Failed is reported with the platform reason, and the pagination rules are refused at the wire', async () => {
+  const factory = new RecordingConnectionFactory({
+    bulk: () => ({ body: bulkJob({ state: 'Failed', errorMessage: 'Invalid field: Nmae' }) }),
+  });
+  const harness = await startHarness({
+    enabledTools: [...DEFAULT_ENABLED_TOOLS, 'get_bulk_query_results'],
+    factory,
+  });
+  try {
+    const failed = await harness.client.callTool({
+      name: 'get_bulk_query_results',
+      arguments: { jobId: TEST_BULK_QUERY_JOB_ID },
+    });
+    assert.equal(failed.isError, true);
+    const output = structured(failed);
+    assert.equal(output.success, false);
+    assert.equal(output.errorCode, 'MCP_BULK_JOB_FAILED');
+    assert.equal(output.state, 'Failed');
+    assert.equal(output.stateMessage, 'Invalid field: Nmae');
+    assert.doesNotMatch(JSON.stringify(failed.content), /at .*\.ts:\d+/u);
+
+    const terminal = harness.logger.forTool('get_bulk_query_results')
+      .find((event) => event.auditEvent?.eventType === 'TOOL_TERMINAL');
+    assert.ok(terminal !== undefined);
+    assert.equal(terminal.result, 'ERROR');
+    assert.equal(terminal.outcome, 'FAILED');
+    assert.equal(terminal.errorCode, 'MCP_BULK_JOB_FAILED');
+
+    // The numeric and format bounds of the paging inputs do reach the wire schema, so they are
+    // refused at the protocol boundary before the Provider's own parse is ever reached.
+    for (const arguments_ of [
+      { jobId: 'not-a-salesforce-id' },
+      { jobId: TEST_BULK_QUERY_JOB_ID, locator: 'null' },
+      { jobId: TEST_BULK_QUERY_JOB_ID, maxRecords: 50_001 },
+      { jobId: TEST_BULK_QUERY_JOB_ID, maxRecords: 0 },
+    ]) {
+      await assert.rejects(
+        harness.client.callTool({ name: 'get_bulk_query_results', arguments: arguments_ }),
+        (error: unknown) => /invalid arguments|get_bulk_query_results/iu.test(String(error)),
+        `${JSON.stringify(arguments_)} must be refused`,
+      );
+    }
+    assert.deepEqual(factory.bulkCalls.map((call) => call.url), [`/jobs/query/${TEST_BULK_QUERY_JOB_ID}`]);
+  } finally {
+    await harness.close();
   }
 });
 

@@ -9,6 +9,10 @@ const cases = [
   ['https://acme.my.salesforce.com/services/data/v63.0/tooling/query?q=SELECT+Id+FROM+ApexClass', 'TOOLING_API', '63.0', '/services/data/v63.0/tooling/query?q=SELECT+Id+FROM+ApexClass'],
   ['https://acme.my.salesforce.com/services/data/v62.0/composite', 'COMPOSITE_API', '62.0', '/services/data/v62.0/composite'],
   ['https://acme.my.salesforce.com/services/data/v61.0/jobs/ingest', 'BULK_API', '61.0', '/services/data/v61.0/jobs/ingest'],
+  // Bulk API 2.0 **query** jobs share the ingest path's prefix, so a P9 export is attributed to
+  // the Bulk surface rather than to the REST one its `/services/data/` prefix would suggest.
+  ['https://acme.my.salesforce.com/services/data/v65.0/jobs/query', 'BULK_API', '65.0', '/services/data/v65.0/jobs/query'],
+  ['https://acme.my.salesforce.com/services/data/v65.0/jobs/query/750000000000001AAA/results?maxRecords=2000', 'BULK_API', '65.0', '/services/data/v65.0/jobs/query/750000000000001AAA/results?maxRecords=2000'],
   ['https://acme.my.salesforce.com/services/apexrest/sfoa/health', 'APEX_REST_API', null, '/services/apexrest/sfoa/health'],
   ['https://acme.my.salesforce.com/services/Soap/m/65.0/00Dxx', 'METADATA_API', '65.0', '/services/Soap/m/65.0/00Dxx'],
   ['https://acme.my.salesforce.com/services/Soap/u/65.0/00Dxx', 'SOAP_API', '65.0', '/services/Soap/u/65.0/00Dxx'],

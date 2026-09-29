@@ -23,6 +23,25 @@ export const DATA_ERROR_CODES = [
   'MCP_SEARCH_FIELD_INVALID',
   'MCP_SEARCH_LIMIT_EXCEEDED',
   'MCP_SEARCH_ACCESS_DENIED',
+  'MCP_BULK_SUBMIT_FAILED',
+  'MCP_BULK_QUERY_INVALID',
+  'MCP_BULK_MALFORMED',
+  'MCP_BULK_LIMIT_EXCEEDED',
+  'MCP_BULK_ACCESS_DENIED',
+  'MCP_BULK_JOB_NOT_FOUND',
+  /**
+   * The job exists and belongs to this identity, but the platform ended it without a result
+   * set. Distinct from `MCP_BULK_RESULTS_FAILED`, which means the job was fine and the read
+   * of its results was not — an Agent's next step is the same in neither case.
+   */
+  'MCP_BULK_JOB_FAILED',
+  'MCP_BULK_RESULTS_FAILED',
+  /**
+   * A single CSV row is wider than one whole response may be. Reported instead of returning a
+   * partial page, because a partial page would have to either drop rows or hand back a cursor
+   * that skips them.
+   */
+  'MCP_BULK_SLICE_TOO_LARGE',
 ] as const;
 
 export type DataErrorCode = (typeof DATA_ERROR_CODES)[number];

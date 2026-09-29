@@ -8,15 +8,39 @@ export type ConnectionOperation =
   | 'queryMore'
   | 'toolingQuery'
   | 'toolingQueryMore'
-  | 'search';
+  | 'search'
+  | 'bulkRequest';
 
 export type ConnectionCall = Readonly<{ operation: ConnectionOperation; argument?: string }>;
+
+/**
+ * One Bulk API 2.0 call as the Connection received it, after jsforce's own URL expansion. The
+ * `url` is the **full** expanded path, so a test asserts what actually went on the wire rather
+ * than what this fixture chose to make of it.
+ */
+export type BulkRequest = Readonly<{
+  method: string;
+  url: string;
+  body?: unknown;
+  headers: Readonly<Record<string, string>>;
+}>;
+
+/**
+ * A Bulk API 2.0 answer. `headers` is where the two facts this capability depends on live, so a
+ * fixture that omitted them would be a fixture for a different API than the one being tested.
+ */
+export type BulkResponse = Readonly<{
+  body: unknown;
+  headers?: Readonly<Record<string, string>>;
+}>;
 
 export type DataFixtureOptions = Readonly<{
   /** Allowed org usernames for the request. Defaults to exactly one USER. */
   usernames?: readonly string[];
   /** Answers a Salesforce call, or throws to simulate a provider failure. */
   handler?: (operation: ConnectionOperation, argument?: string) => unknown;
+  /** Answers a Bulk API 2.0 call, or throws. Omitted refuses one, as an unexpected call should. */
+  bulk?: (request: BulkRequest) => BulkResponse | Promise<BulkResponse>;
 }>;
 
 export type DataFixture = Readonly<{
@@ -24,9 +48,39 @@ export type DataFixture = Readonly<{
   calls: ConnectionCall[];
 }>;
 
+/** The response-event listener a jsforce transport is expected to notify. */
+type ResponseListener = (response: Readonly<{ headers?: Readonly<Record<string, string>> }>) => void;
+
+type FakePending = Readonly<{
+  stream(): Readonly<{ on(event: 'response', listener: ResponseListener): void }>;
+  /** Test-only: delivers the response headers to whoever attached a listener, as jsforce does. */
+  emit(headers: Readonly<Record<string, string>> | undefined): void;
+}>;
+
+function createPending(): FakePending {
+  const listeners: ResponseListener[] = [];
+  return {
+    stream: () => ({
+      on: (event, listener) => {
+        if (event === 'response') listeners.push(listener);
+      },
+    }),
+    emit: (headers) => {
+      for (const listener of listeners) listener({ headers: headers ?? {} });
+    },
+  };
+}
+
 /**
  * Builds a request-scoped `OrgService` whose Connection records every call, so a test can
  * assert both the returned facts and which Salesforce surface the executor used.
+ *
+ * The Bulk API is served through a **faithful transport emulation** rather than by shortcutting
+ * it: `connection.request` drives whichever transport it was handed — exactly as jsforce's
+ * `HttpApi` does — and that transport hands back a pending whose `'response'` event carries the
+ * headers. The production client reaches the result headers by listening on that event, so a
+ * fixture that returned headers some shorter way would let the whole mechanism be wrong while
+ * the tests still passed.
  */
 export function createFixture(options: DataFixtureOptions = {}): DataFixture {
   const usernames = options.usernames ?? ['user@example.test'];
@@ -35,7 +89,23 @@ export function createFixture(options: DataFixtureOptions = {}): DataFixture {
     ?? (() => {
       throw new Error('Unexpected Salesforce call');
     });
+  const bulk = options.bulk
+    ?? (() => {
+      throw new Error('Unexpected Bulk API call');
+    });
+  // The transport a Connection owns, and the pending most recently handed out through it: the
+  // fake `request` emits the response on the latter, because jsforce's own `request` reaches the
+  // transport through the caller-supplied one and never holds the pending itself.
+  let lastPending: FakePending | undefined;
+  const transport = {
+    httpRequest: () => {
+      lastPending = createPending();
+      return lastPending;
+    },
+  };
   const connection = {
+    _transport: transport,
+    getApiVersion: () => '65.0',
     describeGlobal: async () => {
       calls.push({ operation: 'describeGlobal' });
       return handler('describeGlobal');
@@ -66,12 +136,41 @@ export function createFixture(options: DataFixtureOptions = {}): DataFixture {
       calls.push({ operation: 'search', argument: statement });
       return handler('search', statement);
     },
+    request: async (
+      outgoing: string | Readonly<{ method?: string; url?: string; body?: string; headers?: Readonly<Record<string, string>> }>,
+      requestOptions?: Readonly<{ transport?: { httpRequest(): FakePending } }>,
+    ) => {
+      const method = typeof outgoing === 'string' ? 'GET' : (outgoing.method ?? 'GET');
+      const url = typeof outgoing === 'string' ? outgoing : String(outgoing.url);
+      const headers = typeof outgoing === 'string' ? {} : (outgoing.headers ?? {});
+      const body = typeof outgoing === 'string' ? undefined : outgoing.body;
+      calls.push({ operation: 'bulkRequest', argument: `${method} ${url}` });
+      const active = requestOptions?.transport ?? transport;
+      const pending = active.httpRequest();
+      const response = await bulk({
+        method,
+        url,
+        headers,
+        ...(body === undefined ? {} : { body: parseJson(body) }),
+      });
+      pending.emit(response.headers);
+      return response.body;
+    },
   } as unknown as Connection;
   const orgService = {
     getAllowedOrgUsernames: async () => new Set(usernames),
     getConnection: async () => connection,
   } as unknown as OrgService;
   return { orgService, calls };
+}
+
+/** A request body is JSON by construction; a test asserting on it wants the object, not the text. */
+function parseJson(body: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return body;
+  }
 }
 
 export function sobjectEntry(
@@ -206,4 +305,53 @@ export function searchRecord(
     Id: '001000000000001',
     ...fields,
   };
+}
+
+/** A Bulk API 2.0 job payload, as `POST /jobs/query` and `GET /jobs/query/<id>` return it. */
+export function bulkJob(
+  id: string,
+  overrides: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return {
+    id,
+    operation: 'query',
+    object: 'Account',
+    createdById: '005000000000001',
+    createdDate: '2026-09-29T00:00:00.000+0000',
+    state: 'JobComplete',
+    concurrencyMode: 'parallel',
+    contentType: 'CSV',
+    apiVersion: 65,
+    lineEnding: 'LF',
+    columnDelimiter: 'COMMA',
+    numberRecordsProcessed: 0,
+    numberRecordsFailed: 0,
+    retries: 0,
+    totalProcessingTime: 0,
+    ...overrides,
+  };
+}
+
+/**
+ * A Bulk API 2.0 result page's headers. The cursor is `Sforce-Locator` and the org's own
+ * API-usage counter is `Sforce-Limit-Info`; neither appears in a body, which is the whole
+ * reason the production client captures headers at all.
+ */
+export function bulkResultHeaders(
+  locator: string | null,
+  apiUsage: Readonly<{ used: number; limit: number }> | null = null,
+): Record<string, string> {
+  return {
+    'sforce-locator': locator ?? 'null',
+    ...(apiUsage === null ? {} : { 'sforce-limit-info': `api-usage=${apiUsage.used}/${apiUsage.limit}` }),
+  };
+}
+
+/**
+ * `count` rows of a Bulk result page, as jsforce's `parseCSV({columns: true})` returns them: an
+ * array of objects whose values are **all strings**, and in which an absent field is an empty
+ * string rather than null. That is the platform's shape, not a simplification of it.
+ */
+export function bulkRows(count: number, prefix = 'r'): Record<string, string>[] {
+  return Array.from({ length: count }, (_, index) => ({ Id: `${prefix}${index}`, Name: `${prefix} ${index}` }));
 }

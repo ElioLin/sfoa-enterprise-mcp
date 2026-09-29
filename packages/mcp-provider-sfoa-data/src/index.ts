@@ -1,3 +1,6 @@
+export * from './bulk-query-api.js';
+export * from './bulk-query-results-executor.js';
+export * from './bulk-query-submit-executor.js';
 export * from './describe-sobject-executor.js';
 export * from './errors.js';
 export * from './list-sobjects-executor.js';
@@ -13,6 +16,8 @@ export * from './soql.js';
 export * from './sosl.js';
 export * from './tool-results.js';
 export * from './tools/describe-sobject.js';
+export * from './tools/get-bulk-query-results.js';
 export * from './tools/list-sobjects.js';
 export * from './tools/query-records.js';
 export * from './tools/search-records.js';
+export * from './tools/submit-bulk-query.js';

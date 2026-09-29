@@ -37,12 +37,28 @@ type ToolInput = Record<string, unknown>;
  * Which Salesforce surface each Data Tool is audited under. Declared as a total map rather
  * than a switch so that adding a Tool to the Provider's role map without deciding its audit
  * purpose is a compile error here, in the layer that owns the audit contract.
+ *
+ * The two Bulk query Tools share one purpose because they are two halves of one export: a
+ * submission that is audited under one category and a result read under another would leave
+ * the trail unable to answer "what did this export cost and what did it read".
  */
 const DATA_TOOL_PURPOSES: Readonly<Record<SfoaDataToolName, SalesforceApiPurpose>> = Object.freeze({
   list_sobjects: 'OBJECT_SCHEMA',
   describe_sobject: 'OBJECT_SCHEMA',
   query_records: 'USER_QUERY',
   search_records: 'SOSL_SEARCH',
+  submit_bulk_query: 'BULK_QUERY',
+  get_bulk_query_results: 'BULK_QUERY',
+});
+
+/**
+ * The Data Tools that carry a SOQL statement of their own, and the query type each one's
+ * statement is audited as. `get_bulk_query_results` is absent deliberately: it names a job Id
+ * rather than a statement, so there is nothing for the semantic channel to record.
+ */
+const SOQL_STATEMENT_TOOLS: Readonly<Partial<Record<SfoaDataToolName, 'DATA_SOQL'>>> = Object.freeze({
+  query_records: 'DATA_SOQL',
+  submit_bulk_query: 'DATA_SOQL',
 });
 
 /** Object API names and name prefixes are schema identifiers, not business data. */
@@ -115,10 +131,15 @@ export class DataToolFacade {
       return result;
     }
 
-    // The same org-usage guard the official `run_soql_query` path applies, applied here so the
-    // two SOQL Tools cannot disagree about which objects are in use: an org-declared-unused
+    // The same org-usage guard the official `run_soql_query` path applies, applied here so no
+    // SOQL-bearing Tool can disagree about which objects are in use: an org-declared-unused
     // standard object usually returns zero rows, which an Agent reports as "none exists".
-    const verdict = name === 'query_records' ? evaluateSoqlObjectUsageGuard(input) : { blocked: false as const };
+    // `submit_bulk_query` is covered as well as `query_records` — a Bulk job over the same
+    // unused object would report zero rows just as quietly, and an export is the answer an
+    // Agent is least likely to re-check.
+    const verdict = SOQL_STATEMENT_TOOLS[name] === undefined
+      ? { blocked: false as const }
+      : evaluateSoqlObjectUsageGuard(input);
     if (verdict.blocked) {
       const blocked = new DataRuntimeError(
         'MCP_SOBJECT_NOT_IN_USE',
@@ -201,24 +222,29 @@ export class DataToolFacade {
 }
 
 /**
- * Binds the SOQL semantic for `query_records` so the request audit records the statement, the
- * object it names and each page's result statistics through the same collector the official
- * `run_soql_query` path uses. The scope is bound to *all* of the Tool's Salesforce calls, so a
- * multi-page continuation is audited as one query rather than as unattributed API traffic.
+ * Binds the SOQL semantic for the Data Tools that carry a statement (`query_records` and
+ * `submit_bulk_query`) so the request audit records the statement, the object it names and
+ * each page's result statistics through the same collector the official `run_soql_query` path
+ * uses. The scope is bound to *all* of the Tool's Salesforce calls, so a multi-page
+ * continuation is audited as one query rather than as unattributed API traffic.
  *
- * A Tool that carries no statement, or a call the Tool's own schema will reject, executes
- * unbound: recording a query that never reached Salesforce would be worse than recording none.
+ * A Tool that carries no statement — `get_bulk_query_results` names a job Id — or a call the
+ * Tool's own schema will reject executes unbound: recording a query that never reached
+ * Salesforce would be worse than recording none.
  */
 function bindQuerySemantic(
   name: SfoaDataToolName,
   input: ToolInput,
   execute: () => Promise<CallToolResult>,
 ): Promise<CallToolResult> {
-  if (name !== 'query_records' || typeof input.query !== 'string' || input.query.trim().length === 0) {
+  const queryType = SOQL_STATEMENT_TOOLS[name];
+  if (queryType === undefined || typeof input.query !== 'string' || input.query.trim().length === 0) {
     return execute();
   }
   return Promise.resolve(runWithSalesforceQuerySemantic({
-    queryType: input.useToolingApi === true ? 'TOOLING_SOQL' : 'DATA_SOQL',
+    // `query_records` is the only statement Tool that can read the Tooling API; a Bulk query
+    // job is always a data-API query, which is why its entry above is fixed to DATA_SOQL.
+    queryType: name === 'query_records' && input.useToolingApi === true ? 'TOOLING_SOQL' : queryType,
     soqlStatement: input.query,
   }, execute));
 }
@@ -233,6 +259,19 @@ function safeDataRequestSummary(input: ToolInput): unknown {
     // the request that is not visible from the Salesforce call: which API and which row budget.
     ...(typeof input.query === 'string'
       ? { useToolingApi: input.useToolingApi === true, maxRows: boundedInteger(input.maxRows) }
+      : {}),
+    // A Bulk result read carries no statement at all — just the job it reads and where in that
+    // job's result set it resumes. The job Id is a Salesforce record Id and the locator is an
+    // opaque cursor, so both are governance facts about *which* export was read rather than
+    // business data; the locator is bounded anyway because it is caller-supplied and is never
+    // inspected by anything downstream. `maxRecords` is recorded because it is the caller's
+    // slice budget, which is what makes a run of reads explainable as one export.
+    ...(typeof input.jobId === 'string'
+      ? {
+          jobId: boundedToken(input.jobId),
+          locator: boundedToken(input.locator),
+          maxRecords: boundedInteger(input.maxRecords),
+        }
       : {}),
     // SOSL has no semantic channel: a search is not a SOQL query, so the Salesforce call records
     // an empty semantic and the text has to be captured here or not at all. The term is business
@@ -269,6 +308,21 @@ function safeDataResponseSummary(response: CallToolResult | undefined, errorCode
     ...(typeof content.complete === 'boolean' ? { complete: content.complete } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
     ...(typeof content.truncatedReason === 'string' ? { truncatedReason: content.truncatedReason } : {}),
+    // The Bulk export's own facts. `state` is the job's platform state and the two counters are
+    // its progress, which is what makes a run of page reads auditable as one export; `hasMore`
+    // says whether the caller was told to continue. The platform's free-text `stateMessage` and
+    // the Tool's `hint` are deliberately not recorded: the failure a trail has to name is
+    // already in `errorCode`, and both are prose the Tool is the right place to read.
+    ...(typeof content.state === 'string' ? { state: content.state } : {}),
+    ...(typeof content.jobId === 'string' ? { jobId: content.jobId } : {}),
+    ...(typeof content.numberRecordsProcessed === 'number'
+      ? { numberRecordsProcessed: content.numberRecordsProcessed }
+      : {}),
+    ...(typeof content.numberRecordsFailed === 'number'
+      ? { numberRecordsFailed: content.numberRecordsFailed }
+      : {}),
+    ...(typeof content.totalRecords === 'number' ? { totalRecords: content.totalRecords } : {}),
+    ...(typeof content.hasMore === 'boolean' ? { hasMore: content.hasMore } : {}),
     ...(errorCode ? { errorCode } : {}),
   };
 }

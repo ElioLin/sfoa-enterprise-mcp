@@ -1,24 +1,35 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
+import { GetBulkQueryResultsExecutor } from './bulk-query-results-executor.js';
+import { SubmitBulkQueryExecutor } from './bulk-query-submit-executor.js';
 import { DescribeSobjectExecutor } from './describe-sobject-executor.js';
 import { ListSobjectsExecutor } from './list-sobjects-executor.js';
 import { QueryRecordsExecutor } from './query-records-executor.js';
 import { SearchRecordsExecutor } from './search-records-executor.js';
 import { DescribeSobjectMcpTool } from './tools/describe-sobject.js';
+import { GetBulkQueryResultsMcpTool } from './tools/get-bulk-query-results.js';
 import { ListSobjectsMcpTool } from './tools/list-sobjects.js';
 import { QueryRecordsMcpTool } from './tools/query-records.js';
 import { SearchRecordsMcpTool } from './tools/search-records.js';
+import { SubmitBulkQueryMcpTool } from './tools/submit-bulk-query.js';
 
 /**
  * Every SFOA Data Tool is READ and USER-scoped: it reads Salesforce data or schema through
  * the request-scoped USER identity and never mutates business data. The role map is the
  * single source of truth the host uses to fix the execution role per tool name, so an
  * Agent can never switch roles through Tool input or batching.
+ *
+ * The two Bulk query Tools are USER-scoped for a reason beyond the general rule: a Bulk query
+ * job belongs to the identity that created it, so binding every call to the request's own
+ * identity is what makes "read someone else's export" structurally impossible rather than
+ * merely refused.
  */
 export const SFOA_DATA_TOOL_ROLES = Object.freeze({
   list_sobjects: 'USER',
   describe_sobject: 'USER',
   query_records: 'USER',
   search_records: 'USER',
+  submit_bulk_query: 'USER',
+  get_bulk_query_results: 'USER',
 } as const);
 
 export type SfoaDataToolName = keyof typeof SFOA_DATA_TOOL_ROLES;
@@ -78,6 +89,18 @@ export class SfoaDataMcpProvider extends McpProvider {
       // actually advertises, which for a search that found records is `query_records`.
       tools.push(new SearchRecordsMcpTool(
         new SearchRecordsExecutor(orgService, { enabledToolNames: advertised }),
+      ));
+    }
+    if (requested.includes('submit_bulk_query')) {
+      // The submission hint names the result reader, and its allowance branch names
+      // `get_org_limits` — a context Tool — so both are gated on the session's advertised set.
+      tools.push(new SubmitBulkQueryMcpTool(
+        new SubmitBulkQueryExecutor(orgService, { enabledToolNames: advertised }),
+      ));
+    }
+    if (requested.includes('get_bulk_query_results')) {
+      tools.push(new GetBulkQueryResultsMcpTool(
+        new GetBulkQueryResultsExecutor(orgService, { enabledToolNames: advertised }),
       ));
     }
     return Promise.resolve(tools);
