@@ -40,7 +40,7 @@ import {
   ORG_LIMIT_HIGHLIGHT_SLOTS,
 } from '@sfoa/mcp-provider-sfoa-context';
 import { loadRemoteRuntimeConfig } from '../config.js';
-import { startRemoteMcpServer } from '../http-server.js';
+import { startRemoteMcpServer, type GracefulShutdownResult } from '../http-server.js';
 import { createAttachmentIngress } from '../runtime.js';
 import {
   MySqlRuntimeDiscoveryPolicySnapshotSource,
@@ -373,6 +373,11 @@ export async function runP9LiveValidation(
         + 'Diagnostic identity to run it on');
 
   if (route === null || route.enabled !== true) {
+    // Read the verdict before closing the pipeline, not after: closing first would answer for a
+    // flush this run never took, and the refusal path is the one place the trail matters most,
+    // since it is the only record that the run was turned away rather than that it never started.
+    // No server was started here, so no shutdown is passed and the drain check does not apply.
+    const auditPersistence = runAuditPersistence(await flushAuditTrail(auditPipeline), null);
     await closeQuietly(store, database, auditDatabase, auditPipeline);
     const reason = `Identity route ${platformUserId} is ${route === null ? 'absent' : 'disabled'} in this Control Plane.`;
     return Object.freeze({
@@ -397,7 +402,7 @@ export async function runP9LiveValidation(
       connections: Object.freeze({ total: 0, distinctSalesforceUsernames: Object.freeze([]) }),
       // Reported even here: a run that refused to start still wrote whatever the identity runtime
       // resolved before the refusal, and `PARTIAL` is a claim about the gates, not about the trail.
-      auditPersistence: runAuditPersistence(await flushAuditTrail(auditPipeline)),
+      auditPersistence,
       overall: 'PARTIAL',
     });
   }
@@ -483,9 +488,15 @@ export async function runP9LiveValidation(
       const schemaSelfRepair = await runSchemaSelfRepair(client, results, objectApiName);
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(connection));
       const usernames = [...new Set(measuringFactory.measurements.map((entry) => entry.salesforceUsername))];
-      // Read before the report is assembled: the outer `finally` closes the pipeline only after
-      // this value has been returned, so a report that waited for it could never carry it.
-      const auditPersistence = runAuditPersistence(await flushAuditTrail(auditPipeline));
+      // Stop serving before asking the pipeline for its verdict, and await it: `close()` settles
+      // every active request task, and a request offers its audit snapshot from its own `finally`,
+      // so this is the barrier that makes the flush below mean something. Both closes are memoized,
+      // so the `finally` blocks that close them again cost nothing.
+      await client.close().catch(() => undefined);
+      const shutdown = await server.close().catch(() => undefined);
+      // Read while the report is still being assembled: the outer `finally` closes the pipeline
+      // only after this value has been returned, so a report that waited for it could never carry it.
+      const auditPersistence = runAuditPersistence(await flushAuditTrail(auditPipeline), shutdown);
 
       return Object.freeze({
         phase: 'P9',
@@ -2216,12 +2227,11 @@ function combine(gates: readonly P9LiveGate[]): 'PASS' | 'PARTIAL' | 'FAIL' {
  * report carried no field that could differ. `close()` is memoized, so reading the verdict here
  * and letting `closeQuietly` close again costs no second flush.
  *
- * Closing the pipeline to read that verdict is not free: it happens while the server is still up,
- * so anything the teardown logs between here and `server.close()` is refused with
- * `MCP_AUDIT_PIPELINE_CLOSED` and counted only in the post-flush health. Those refusals are
- * teardown noise rather than evidence of the gates, which is why the counters below describe the
- * pipeline *at flush time* and why a reader who finds such a line on stderr should not read it as
- * this gate having been bypassed.
+ * Where the caller calls this from is not a detail. A request's audit snapshot is offered from
+ * `handleRemoteRequest`'s own `finally` (`http-server.ts:524`), which runs *after* the call has
+ * already resolved to the client, so a flush taken while the server can still offer one refuses it
+ * with `MCP_AUDIT_PIPELINE_CLOSED` and then reports a clean trail. The flush belongs after the
+ * server has stopped serving, and the shutdown it is given says whether that was clean.
  *
  * `dropped` is null rather than 0 when the close itself threw, because the count is then unknown
  * — and an unknown count must not be reported as a clean one.
@@ -2241,19 +2251,31 @@ async function flushAuditTrail(
  * Turns the flush verdict into a gate, so a run that lost its own trail cannot report a clean
  * `overall`. A dropped audit is a failure of the *evidence*, not of a Tool, and the message says
  * exactly that rather than implying the deployment misbehaved.
+ *
+ * The shutdown is checked as well, and for the same reason one level down: `close()` races its
+ * drain against the grace timeout and abandons the remaining handlers when it loses, and a handler
+ * that was abandoned never reaches the `finally` that offers its snapshot. A flush can therefore
+ * come back clean over a trail that is short. The three cases are kept apart on purpose: `null`
+ * means no server was started, so there was nothing to drain; `undefined` means the close itself
+ * threw, so a clean drain was never confirmed and the trail may be short; and a shutdown that
+ * reported `drained: false` is a short trail even when every counter is clean.
  */
 function runAuditPersistence(
   audits: Readonly<{ flushed: boolean; dropped: number | null; health: AuditPipelineHealth }>,
+  shutdown: GracefulShutdownResult | null | undefined,
 ): P9LiveGate {
   return gate(
     audits.flushed
       && audits.dropped === 0
       && audits.health.droppedSnapshots === 0
-      && audits.health.writerFailureCount === 0,
-    audits,
-    'The run did not persist its own audit trail, so the P7 evidence for these gates is absent. '
-    + 'The gates above are still true of the live org; what is missing is the record of them, and a '
-    + 'caller that needs the trail has to re-run with a longer flush than DEFAULT_AUDIT_FLUSH_TIMEOUT_MS allows.',
+      && audits.health.writerFailureCount === 0
+      && (shutdown === null || (shutdown !== undefined && shutdown.drained === true)),
+    Object.freeze({ ...audits, shutdown: shutdown ?? null }),
+    'The run did not persist the whole of its own audit trail, so the P7 evidence for these gates '
+    + 'is incomplete. The gates above are still true of the live org; what is missing is the record '
+    + 'of them. The flush can come back clean over a short trail when the server did not drain, and '
+    + 'a refused snapshot is counted only in the post-flush health, so the health counters in this '
+    + 'detail describe the pipeline at flush time and the shutdown field says whether it drained.',
   );
 }
 
