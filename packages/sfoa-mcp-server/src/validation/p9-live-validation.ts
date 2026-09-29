@@ -186,6 +186,19 @@ const BULK_HINT_TOOL_CANDIDATES = Object.freeze([
   ...HINT_TOOL_CANDIDATES, 'get_bulk_query_results',
 ]);
 
+/**
+ * How far a counter the gate's own traffic advances may sit from its reference reading before the
+ * difference is a defect rather than the limits endpoint's own lag, as a fraction of the limit's
+ * ceiling.
+ *
+ * The argument for the waiver, and for what it can and cannot hide, is at `withinSlack` in the
+ * org-limits gate; it lives here because that is where the file declares its other gate tolerances.
+ */
+const VOLATILE_COUNTER_SLACK_RATIO = 1 / 10_000;
+
+/** The floor of the ratio above, so a limit with a small ceiling still tolerates that lag. */
+const VOLATILE_COUNTER_SLACK_FLOOR = 5;
+
 /** Tool input keys that would let a caller pick an identity, an endpoint or a credential. */
 const FORBIDDEN_INPUT_KEYS = Object.freeze([
   'username', 'usernameoralias', 'salesforceusername', 'platformuserid', 'accesstoken', 'refreshtoken',
@@ -1141,12 +1154,28 @@ async function runOrgLimits(
   //   time-independent, so an operand-order bug is still caught on a counter that moves between
   //   the two readings — which comparing against the org's later reading could not do.
   // - `remaining` and `used` are then compared against the org's reading, and any disagreement is
-  //   re-measured once against a fresh reference read. A value the org itself did not move between
-  //   those two readings is stable and must still match exactly; a value that did move is in flight
-  //   and only `max` is asserted for it. What was waived for that reason is reported as
-  //   `toleratedMoves`, so the waiver is evidence rather than silence.
+  //   re-measured once against a fresh reference read. A disagreement is waived when the org moved
+  //   the value between those two readings, or when it is within the lag tolerance that
+  //   `withinSlack` applies. `max` is never waived, and what was waived is reported as
+  //   `toleratedMoves`, so a waiver is evidence rather than silence.
   type LimitBound = 'max' | 'remaining' | 'used';
-  type LimitMismatch = Readonly<{ key: string; bound: LimitBound; text: string }>;
+
+  /**
+   * One disagreement between the Tool and a reference reading, carrying the two numbers as well as
+   * the rendered text: the tolerance below judges the numbers, and reading them back out of the
+   * text would couple the decision to that text's wording. Both are null whenever the disagreement
+   * is not a difference between two numbers — a missing key, a non-numeric value, a slot the Tool
+   * reports as absent — and such a disagreement is never tolerated.
+   */
+  type LimitMismatch = Readonly<{
+    key: string;
+    bound: LimitBound;
+    text: string;
+    tool: number | null;
+    org: number | null;
+  }>;
+
+  const asNumber = (value: unknown): number | null => (typeof value === 'number' ? value : null);
 
   const orgValue = (entries: OrgLimitsReadingEntries, key: string, bound: LimitBound): number | null => {
     const entry = entries.get(key);
@@ -1177,14 +1206,24 @@ async function runOrgLimits(
   const entryMismatchesFor = (entries: OrgLimitsReadingEntries): readonly LimitMismatch[] =>
     Object.entries(limits).flatMap(([key, value]) => {
       const org = entries.get(key);
-      if (org === undefined) return [{ key, bound: 'max' as const, text: `${key} is not a key the org reported` }];
+      if (org === undefined) {
+        return [{ key, bound: 'max' as const, text: `${key} is not a key the org reported`, tool: null, org: null }];
+      }
       const entry = recordOf(value);
-      if (entry === undefined) return [{ key, bound: 'max' as const, text: `${key} is not an object` }];
+      if (entry === undefined) {
+        return [{ key, bound: 'max' as const, text: `${key} is not an object`, tool: null, org: null }];
+      }
       return (['max', 'remaining', 'used'] as const).flatMap((bound) => {
         const expected = orgValue(entries, key, bound);
         return entry[bound] === expected
           ? []
-          : [{ key, bound, text: `${key}.${bound}: tool=${JSON.stringify(entry[bound])} org=${JSON.stringify(expected)}` }];
+          : [{
+            key,
+            bound,
+            text: `${key}.${bound}: tool=${JSON.stringify(entry[bound])} org=${JSON.stringify(expected)}`,
+            tool: asNumber(entry[bound]),
+            org: expected,
+          }];
       });
     });
 
@@ -1193,21 +1232,39 @@ async function runOrgLimits(
   const highlightMismatchesFor = (entries: OrgLimitsReadingEntries): readonly LimitMismatch[] =>
     ORG_LIMIT_HIGHLIGHT_SLOTS.flatMap((slot): readonly LimitMismatch[] => {
       const highlight = recordOf(highlights[slot]);
-      if (highlight === undefined) return [{ key: slot, bound: 'max', text: `${slot} is missing from highlights` }];
+      if (highlight === undefined) {
+        return [{ key: slot, bound: 'max', text: `${slot} is missing from highlights`, tool: null, org: null }];
+      }
       const key = typeof highlight.key === 'string' && highlight.key.length > 0 ? highlight.key : null;
       if (highlight.present !== true) {
         const orgAliasKeys = ORG_LIMIT_HIGHLIGHT_ALIASES[slot].filter((candidate) => entries.has(candidate));
         return key === null && highlight.max === null && highlight.remaining === null && orgAliasKeys.length === 0
           ? []
-          : [{ key: slot, bound: 'max', text: `${slot}: reported absent, but the org reports ${orgAliasKeys.join(', ') || String(key)}` }];
+          : [{
+            key: slot,
+            bound: 'max',
+            text: `${slot}: reported absent, but the org reports ${orgAliasKeys.join(', ') || String(key)}`,
+            tool: null,
+            org: null,
+          }];
       }
-      if (key === null) return [{ key: slot, bound: 'max', text: `${slot}: present without naming the key that filled it` }];
-      if (!entries.has(key)) return [{ key: slot, bound: 'max', text: `${slot}: key ${key} is not a key the org reported` }];
+      if (key === null) {
+        return [{ key: slot, bound: 'max', text: `${slot}: present without naming the key that filled it`, tool: null, org: null }];
+      }
+      if (!entries.has(key)) {
+        return [{ key: slot, bound: 'max', text: `${slot}: key ${key} is not a key the org reported`, tool: null, org: null }];
+      }
       return (['max', 'remaining'] as const).flatMap((bound) => {
         const expected = orgValue(entries, key, bound);
         return highlight[bound] === expected
           ? []
-          : [{ key, bound, text: `${slot} (${key}).${bound}: tool=${JSON.stringify(highlight[bound])} org=${JSON.stringify(expected)}` }];
+          : [{
+            key,
+            bound,
+            text: `${slot} (${key}).${bound}: tool=${JSON.stringify(highlight[bound])} org=${JSON.stringify(expected)}`,
+            tool: asNumber(highlight[bound]),
+            org: expected,
+          }];
       });
     });
 
@@ -1221,13 +1278,45 @@ async function runOrgLimits(
     && orgEntries.has(mismatch.key) && orgAfter.has(mismatch.key)
     && orgValue(orgAfter, mismatch.key, mismatch.bound) !== orgValue(orgEntries, mismatch.key, mismatch.bound);
 
+  /**
+   * The backstop for the case movement cannot witness: the org's counters stopped moving before the
+   * second reference read, so a Tool that read a moment earlier keeps a disagreement nothing in
+   * this run can blame it for.
+   *
+   * The limits endpoint is eventually consistent — a reading can lag the org — and three runs of
+   * identical code disagreed with their own reference reading by 4, 3 and 8 on `DailyApiRequests`,
+   * in both directions, which is why the waiver is on the size of the disagreement rather than on
+   * its sign. The tolerance is a fraction of the limit's ceiling rather than of the value, because
+   * the `used` bound is a difference of two ceiling-sized numbers: scaling it by its own small
+   * value would understate exactly the lag it has to absorb. `VOLATILE_COUNTER_SLACK_FLOOR` keeps
+   * the tolerance from collapsing to nothing on a limit with a small ceiling.
+   *
+   * What this cannot hide, and what it can. `max` is never tolerated, a non-numeric value is never
+   * tolerated, and the Tool's own `used === max - remaining` is asserted before any of this — so a
+   * swapped operand, a read of the wrong key, a stringified number and a scale error all still
+   * fail. What it can hide is a disagreement on `remaining`/`used` under the ratio, on a key whose
+   * `max` is right: the same magnitude as the endpoint's own lag, and the reason a waiver is
+   * reported in `toleratedMoves` rather than applied silently.
+   */
+  const withinSlack = (mismatch: LimitMismatch): boolean => {
+    if (mismatch.bound === 'max') return false;
+    if (mismatch.tool === null || mismatch.org === null) return false;
+    const ceiling = orgAfter.get(mismatch.key)?.max ?? null;
+    const scale = ceiling ?? Math.max(Math.abs(mismatch.tool), Math.abs(mismatch.org));
+    return Math.abs(mismatch.tool - mismatch.org)
+      <= Math.max(VOLATILE_COUNTER_SLACK_FLOOR, Math.ceil(scale * VOLATILE_COUNTER_SLACK_RATIO));
+  };
+
+  const tolerated = (mismatch: LimitMismatch): boolean =>
+    movedBetweenReadings(mismatch) || withinSlack(mismatch);
+
   const afterReread = [...entryMismatchesFor(orgAfter), ...highlightMismatchesFor(orgAfter)];
   const entryMismatches = [
-    ...afterReread.filter((mismatch) => !movedBetweenReadings(mismatch)).map((mismatch) => mismatch.text),
+    ...afterReread.filter((mismatch) => !tolerated(mismatch)).map((mismatch) => mismatch.text),
     ...selfInconsistent,
   ];
   const toleratedMoves = [...new Set(
-    [...firstPass, ...afterReread].filter(movedBetweenReadings).map((mismatch) => mismatch.text),
+    [...firstPass, ...afterReread].filter(tolerated).map((mismatch) => mismatch.text),
   )];
 
   const returnedLimits = Object.keys(limits).length;
