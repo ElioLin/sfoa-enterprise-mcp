@@ -517,6 +517,29 @@ export async function runP9LiveValidation(
   }
 }
 
+/**
+ * The idempotence each additive P9 Tool has to advertise, keyed by Tool name.
+ *
+ * `MCP_ENGINEERING_RULES.md` licenses `idempotentHint: true` only when identical repeated calls
+ * cause no additional effect, and T4 is the first task to add a Tool where they do: a second
+ * identical `submit_bulk_query` creates a second Bulk query job and spends the org's
+ * `DailyBulkV2QueryJobs` allowance again, so the provider declares `false` for it deliberately and
+ * says so in its own contract test. A blanket `idempotentHint === true` therefore stopped
+ * describing the set it was asserting over.
+ *
+ * The expectation is stated per Tool rather than relaxed to "whatever the Tool says", so a silent
+ * flip in *either* direction still fails the gate — which dropping the check would not catch.
+ */
+const ADDITIVE_TOOL_IDEMPOTENCE: Readonly<Record<string, boolean>> = Object.freeze({
+  describe_sobject: true,
+  get_bulk_query_results: true,
+  get_org_limits: true,
+  list_sobjects: true,
+  query_records: true,
+  search_records: true,
+  submit_bulk_query: false,
+});
+
 async function runToolInventory(
   client: Client,
   expectedNames: readonly string[],
@@ -531,10 +554,17 @@ async function runToolInventory(
   const leakedKeys = inspectedTools.flatMap((tool) => Object.keys(tool.inputSchema.properties ?? {})
     .filter((key) => FORBIDDEN_INPUT_KEYS.includes(key.toLowerCase()))
     .map((key) => `${tool.name}.${key}`));
-  const annotationsOk = inspectedTools.every((tool) => tool.annotations?.readOnlyHint === true
-    && tool.annotations.destructiveHint === false
-    && tool.annotations.idempotentHint === true
-    && tool.annotations.openWorldHint === true);
+  // A Tool absent from the expectation map is an offender too: a new additive Tool must be added
+  // here deliberately, rather than inheriting a green annotation check by being unknown.
+  const annotationOffenders = inspectedTools.filter((tool) => {
+    const expectedIdempotence = ADDITIVE_TOOL_IDEMPOTENCE[tool.name];
+    if (expectedIdempotence === undefined) return true;
+    return tool.annotations?.readOnlyHint !== true
+      || tool.annotations.destructiveHint !== false
+      || tool.annotations.openWorldHint !== true
+      || tool.annotations.idempotentHint !== expectedIdempotence;
+  }).map((tool) => tool.name);
+  const annotationsOk = annotationOffenders.length === 0;
   const allAdvertised = additiveToolNames.every((name) => advertisedNames.includes(name));
 
   return gate(
@@ -548,8 +578,10 @@ async function runToolInventory(
       ),
       forbiddenInputKeys: leakedKeys,
       readOnlyAnnotations: annotationsOk,
+      annotationOffenders,
     },
-    'The advertised Tool inventory disagreed with the grant, or an added Tool exposed a forbidden input key.',
+    'The advertised Tool inventory disagreed with the grant, an added Tool exposed a forbidden input key, '
+    + 'or an added Tool carried annotations other than the read-only set this run expects.',
   );
 }
 
