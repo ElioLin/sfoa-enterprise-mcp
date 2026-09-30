@@ -1,3 +1,62 @@
+# SFoA P10 Diagnostic Depth — T1 prerequisite probe (2026-09-30)
+
+- Measure the diagnostic identity's real capability surface **before** building six
+  Tools on it, because P9's cost of assuming was the `limits()` endpoint being
+  refused to every business identity and `get_org_limits` having to be re-homed
+  (ADR-0027). The probe runs the exact Connection the Tools run on —
+  `snapshotDiagnosticRoute` over the runtime's own request-scope factory — and
+  reports **36 `AVAILABLE` · 5 `DENIED` · 0 `ERROR`** with
+  `probeMode: SANDBOX_WRITE_ALLOWED`. Findings and inference are recorded in
+  separate columns in
+  [P10_T0_LIVE_PROBE_FINDINGS.md](docs/sfoa/P10_T0_LIVE_PROBE_FINDINGS.md), because
+  P9 had to self-correct an inference that had been written as a fact.
+- Land [ADR-0029](docs/sfoa/adr/ADR-0029-p10-diagnostic-identity-prerequisites.md):
+  the per-Tool permission prerequisites, the org-admin prerequisites that **no code
+  can supply** with the production enablement check steps, the degradation contract
+  (a missing prerequisite is a structured error naming it — **never a silent empty
+  result**, which an agent reads as "no anomaly"), and the formal filing of the
+  §0.3 red line with the per-Tool query whitelist.
+- **Four measured facts change the design, and each becomes a 修订注记 in the
+  affected T2–T5 prompt section** (original prompt text preserved):
+  `set_trace_flag` must be **create-or-extend** — an overlapping `TraceFlag` create
+  is refused with `FIELD_INTEGRITY_EXCEPTION`, so "trace me for an hour" fails the
+  second time it is used; the Apex log parser must follow **the log's own header
+  version** (54.0 and 56.0 both observed against a v68.0 org); no P10 Tool may
+  match on a **localized label** (`ApexLog.Status` matched 1 row in English and 8 in
+  the localized literal); and `SetupAuditTrail` counts live in `totalSize` while
+  `COUNT(Id)` is refused outright.
+- The red line is now measured on **both** of its halves, and only one is
+  structural: through the Tooling API the platform refuses `Lead`, `Account`,
+  `Value_Bill__c` and `Order__c` with `INVALID_TYPE` while resolving `ApexClass` as
+  a control — but the **same identity reads 955 `Lead` rows over the standard API**.
+  For `explain_field_access` and three of `get_platform_diagnostics`' four sources
+  the hardcoded whitelist is therefore the *entire* guarantee, not a second line of
+  defence.
+- Re-review the three pre-existing diagnostic Tools. `get_org_limits` and
+  `get_metadata_component_context` meet the boundary;
+  `run_diagnostic_tooling_query` meets it *in fact* but not §0.3.1's letter — its
+  free-form Tooling SOQL rests entirely on the platform's refusal with no
+  object check in our code. The narrow fix is specified in ADR-0029 §4b and
+  assigned to T2; T1 adds no Tool behaviour.
+- Decide the enablement surface honestly. The option "diagnostic Tools enableable
+  only on the DIAGNOSTIC route" **cannot be built**: enablement is global
+  (ADR-0027 already recorded this), the diagnostic identity is a single
+  deployment-wide row, and no caller-to-diagnostic binding exists. ADR-0029 accepts
+  the Console data-surface declaration + explicit Admin confirmation as P10's
+  governance form and specifies the per-caller entitlement as the structural
+  follow-up, stating plainly that until it lands **"business users cannot call
+  diagnostic Tools" is not true on this deployment**.
+- Keep the probe, rather than deleting it like P9's: `probe:p10` is re-runnable, its
+  write legs are gated on the org's own `IsSandbox` answer (the variable can only
+  force writes *off*, never on), and every write leg now re-reads to confirm the row
+  it created is gone — a check that exists because an earlier run reported
+  `cleanupSucceeded: true` on a `TraceFlag` that was still there.
+- **Open, and recorded as open:** the probe could only ever read `ApexLog` rows
+  belonging to the diagnostic identity itself, which is consistent with ownership
+  alone and does **not** demonstrate `View All Data`. Whether it can read another
+  user's logs is a production deployment check (prerequisite `A-1`), not an
+  established fact.
+
 # SFoA P9 Data Completeness (2026-09-29)
 
 - Add the `@sfoa/mcp-provider-sfoa-data` provider and its six read-only Tools —

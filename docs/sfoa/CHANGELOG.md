@@ -2,6 +2,91 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-30 — P10-T1: the diagnostic capability probe, ADR-0029, and the four facts that change the design
+
+P10 builds six Tools on the server-owned DIAGNOSTIC identity, and P9's lesson was that this identity's
+reach must be **measured before it is designed against** — `get_org_limits` had been written on a belief
+about what a routed identity could read, the live probe disproved it, and the Tool had to be re-homed
+(ADR-0027). T1 is therefore the prerequisite: a systematic live probe, its findings, and
+[ADR-0029](adr/ADR-0029-p10-diagnostic-identity-prerequisites.md).
+
+**The probe measures the Connection the Tools will use, not a convenient one.** It opens the scope
+through `snapshotDiagnosticRoute` over the runtime's own request-scope factory — the pairing
+`http-server.ts` uses for a DIAGNOSTIC `tools/call` — because measuring a differently-built Connection
+would answer a question nobody asked. Result: **36 `AVAILABLE` · 5 `DENIED` · 0 `ERROR`**, org
+`Base Edition` on instance `CHN5S` at API v68.0, `probeMode: SANDBOX_WRITE_ALLOWED`. The five refusals
+are all expected and four are the boundary evidence. Findings and inference are recorded in **separate
+columns** in [P10_T0_LIVE_PROBE_FINDINGS.md](P10_T0_LIVE_PROBE_FINDINGS.md); P9 had to correct an
+inference that had been written as fact, and the split is the structural fix for that.
+
+**Four measured facts change the design.** Each carries a 修订注记 into the affected T2–T5 prompt
+section with the original prompt text left intact:
+
+1. **`set_trace_flag` cannot be create-only.** Creating a `TraceFlag` for an entity already traced with
+   an overlapping window is refused with `FIELD_INTEGRITY_EXCEPTION`. The Tool's most ordinary call —
+   "trace this user for the next hour" — fails the second time it is used, so it must be
+   create-or-extend.
+2. **The log parser must follow the log's own header version.** The org answers v68.0 while serving log
+   bodies whose own headers read `54.0` and `56.0`.
+3. **No P10 Tool may match on a human-readable label.** `ApexLog.Status` matched 1 row as `'Success'`
+   and 8 as `'成功'`; `SetupAuditTrail.Section` and `Profile.Name` are translated too. Every one of
+   these failures is silent — fewer rows, no error — which is the same class of harm the degradation
+   contract addresses.
+4. **`SetupAuditTrail` counts live in `totalSize`.** `SELECT COUNT(Id)` is refused (`MALFORMED_QUERY`)
+   and `SELECT COUNT()` returns a record-less body, so code reading `records[0].expr0` would report
+   zero against a real 260 911.
+
+**What is available is mostly what the plan hoped — with one open question that is left open.** The
+identity can read `ApexLog` (13 fields, body as a separate string call), `TraceFlag` (23 fields),
+`DebugLevel`, `SetupAuditTrail`, `AsyncApexJob`, `CronTrigger`, the whole permission surface —
+`FieldPermissions`, `ObjectPermissions`, `PermissionSetAssignment`, `PermissionSet`, `Profile`,
+`RecordType` — and Metadata `listMetadata`. It can **create** a `CLASS_TRACING` flag on an `ApexClass`
+and a `DEVELOPER_LOG` flag on **another user**, and create a `DebugLevel`; each was verified deleted by
+re-reading. But the probe could only ever see `ApexLog` rows whose `LogUser` is the identity itself,
+which is consistent with ownership alone and **does not demonstrate `View All Data`**. Whether it can
+read another user's logs is written into the deployment list as prerequisite `A-1` rather than assumed
+— the same self-correction P9 made about `limits()`, applied before the mistake instead of after.
+
+**The red line is now measured on both halves, and only one of them is structural.** Through the
+Tooling API the platform refuses business objects: `Lead`, `Account`, `Value_Bill__c` and `Order__c`
+each answer `INVALID_TYPE` while `ApexClass` resolves as a control — and two of the four are **custom**
+objects, which matters because the Tooling API does document custom-object support. But the **same
+identity reads 955 `Lead` rows over the standard API**. So for `explain_field_access` and three of
+`get_platform_diagnostics`' four sources, the hardcoded, unit-tested whitelist is the *entire*
+guarantee rather than a second line of defence. That is why §0.3.1's rule is not stylistic.
+
+**Re-reviewing the three pre-existing diagnostic Tools found one gap.** `get_org_limits` (quota
+counters, no object or row) and `get_metadata_component_context` (hardcoded 8-type allowlist,
+unit-tested) meet the boundary — the latter with one description-vs-behaviour item to verify, since its
+description says "one component" while the retrieve may return dependent components. But
+`run_diagnostic_tooling_query` takes **free-form Tooling SOQL** and validates only the statement shape,
+never the object: it meets the red line in fact, because the platform refuses business objects, yet it
+fails §0.3.1's letter. The narrow fix — a `FROM`/`USING` object check as a first line, with the
+platform's refusal kept as the backstop, explicitly *not* a SOQL parser — is specified in ADR-0029 §4b
+and assigned to T2. T1 adds no Tool behaviour.
+
+**The enablement-surface decision says what is not true.** The option "diagnostic Tools enableable only
+on the DIAGNOSTIC route" cannot be built: enablement is global (ADR-0027 already recorded this), the
+diagnostic identity is a single deployment-wide row (`sfoa_diagnostic_config`, `id: '1'`), and no
+caller-to-diagnostic binding exists anywhere in the schema. ADR-0029 therefore accepts the Console
+data-surface declaration plus explicit Admin confirmation as P10's governance form, and specifies the
+per-caller entitlement as the structural follow-up — as an **entitlement grant**, not a criteria test,
+so a business-systems administrator is not silently excluded by holding a business route. Until it
+lands, **"business users cannot call diagnostic Tools" is not true on this deployment**, and that is
+stated rather than implied. The audit dual-identity requirement needs no new machinery: rows already
+carry the caller's `platformUserId`, `executionRole` and the `salesforceUsername` that actually
+executed, so ADR-0029 confirms it as a contract to assert at acceptance.
+
+**The probe is kept, not deleted like P9's, and it found a defect in itself.** `probe:p10` is
+re-runnable so a deployment can establish its own capability record. Its write legs are gated on the
+org's own `IsSandbox` answer — the `P10_PROBE_WRITE_PROBES` variable can only force writes *off*, never
+on — which is what makes a production run read-only by construction. Every write leg now re-reads to
+confirm the row it created is gone, a check added because an earlier run reported
+`cleanupSucceeded: true` on a `TraceFlag` that was still in the org, and the *next* run was then
+refused by the leftover. One such flag (`005…IAE`, tracing the diagnostic identity's own user, open
+until `2026-09-30T04:01:04Z`) was deliberately **not** deleted because it cannot be attributed with
+certainty; it expires on its own.
+
 ## 2026-09-29 — P9-T5: Playbook 1.10.0, the data-analysis Skill, and a second gate defect found by running the acceptance
 
 T5 closes the P9 plan. The seven Tools were already built and deployed; what was missing was the
