@@ -39,7 +39,7 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('Context Provider exposes ten GA Tools with stable output schemas and complete annotations', async () => {
+test('Context Provider exposes eleven GA Tools with stable output schemas and complete annotations', async () => {
   const tools = await new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
@@ -85,6 +85,13 @@ test('Context Provider exposes ten GA Tools with stable output schemas and compl
         truncated: false, logLength: 1, lastModifiedDate: null,
       }),
     },
+    fieldAccessExplainer: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', api: 'STANDARD', objectApiName: input.objectApiName,
+        requestedFieldCount: input.fieldApiNames.length, returnedFieldCount: input.fieldApiNames.length,
+        fields: [], truncated: false,
+      }),
+    },
   }).provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
   for (const tool of tools) {
@@ -112,6 +119,10 @@ test('Context Provider exposes ten GA Tools with stable output schemas and compl
     set_trace_flag: 'DIAGNOSTIC',
     get_apex_logs: 'DIAGNOSTIC',
     get_debug_log_body: 'DIAGNOSTIC',
+    // Reading the org's permission tables is the same class of read as the trace configuration above:
+    // `FieldPermissions`, `PermissionSetAssignment` and `Profile` are a Setup-layer surface business
+    // identities are not granted.
+    explain_field_access: 'DIAGNOSTIC',
   });
 });
 

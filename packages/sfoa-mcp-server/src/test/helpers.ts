@@ -221,6 +221,14 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
         return answer.body;
       },
       sobject: (objectApiName: string) => ({
+        // `SObject.describe()` is a real jsforce method and a distinct surface from the flat
+        // `connection.describe()` above: a Tool that reaches a caller-named object this way is reading
+        // metadata rather than a record, which is a distinction one diagnostic suite asserts on.
+        describe: async () => {
+          this.schemaCalls.push(`describe:${objectApiName}`);
+          if (this.schema.describeError) throw this.schema.describeError;
+          return (this.schema.describe ?? defaultDescribe)(objectApiName);
+        },
         create: async (record: Record<string, unknown>) => {
           this.dmlCalls.push({
             sequence,

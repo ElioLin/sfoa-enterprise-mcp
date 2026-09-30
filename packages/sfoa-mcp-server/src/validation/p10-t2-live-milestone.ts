@@ -1,14 +1,12 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Connection } from '@salesforce/core';
 import {
   createIdentityRuntime,
   JwtConnectionFactory,
   JsonLineRuntimeLogger,
   type RequestScope,
-  type SalesforceConnectionFactory,
-  type SalesforceIdentityRoute,
 } from '@sfoa/identity-runtime';
 import {
   AsyncAuditPipeline,
@@ -16,30 +14,56 @@ import {
   auditDatabaseConfig,
   createControlPlaneDatabase,
   DatabaseRuntimeLogger,
-  DEFAULT_AUDIT_FLUSH_TIMEOUT_MS,
-  freezeSnapshot,
   MySqlAuditBatchSink,
   MySqlControlPlaneStore,
   MySqlIdentityRepository,
-  type AuditPipelineHealth,
   type ControlPlaneDatabaseClient,
-  type RequestPolicySnapshot,
 } from '@sfoa/control-plane';
 import { DEBUG_LEVEL_TIER_PREFIX } from '@sfoa/mcp-provider-sfoa-context';
 import { loadRemoteRuntimeConfig } from '../config.js';
-import { startRemoteMcpServer, type GracefulShutdownResult } from '../http-server.js';
+import { startRemoteMcpServer } from '../http-server.js';
 import {
   MySqlRuntimeDiscoveryPolicySnapshotSource,
   MySqlRuntimePolicySnapshotSource,
   snapshotDiagnosticRoute,
-  type RuntimePolicySnapshotSource,
 } from '../policy-snapshot.js';
 import { createAttachmentIngress } from '../runtime.js';
+import { maskIdentifier, maskSalesforceId } from './p10-diagnostic-probe.js';
 import {
-  maskIdentifier,
-  maskSalesforceId,
-  P10_PROBE_PLATFORM_USER_VARIABLE,
-} from './p10-diagnostic-probe.js';
+  AdditiveToolPolicySnapshotSource,
+  MeasuringConnectionFactory,
+  asNumber,
+  call,
+  closeQuietly,
+  combine,
+  failGate,
+  flushAuditTrail,
+  gate,
+  maskedIdOf,
+  measuredSalesforceUsernames,
+  notTested,
+  outputOf,
+  readAccessToken,
+  readOrgFacts,
+  readRecords,
+  recordOf,
+  resolveMilestonePlatformUser,
+  runAuditPersistence,
+  runCredentialSafety,
+  runToolInventory,
+  salesforceErrorCodeOf,
+  sleep,
+  stringOrNull,
+  toolFailureDetail,
+  type P10LiveGate,
+  type P10LiveOrgFacts,
+} from './p10-live-support.js';
+
+/**
+ * Re-exported so the T2 report's own type stays readable from this file, which is where a reader looks for
+ * it. The definitions moved to `p10-live-support.ts` when T3 became the second consumer of them.
+ */
+export type { P10LiveGate, P10LiveStatus } from './p10-live-support.js';
 
 /**
  * The P10-T2 live milestone: GAP-M1's closed loop, measured on a live org.
@@ -157,13 +181,6 @@ const LOG_LIMIT = 50;
 const LOG_POLL_ATTEMPTS = 12;
 const LOG_POLL_INTERVAL_MS = 2_500;
 
-export type P10LiveStatus = 'PASS' | 'FAIL' | 'NOT TESTED';
-
-export type P10LiveGate = Readonly<{
-  status: P10LiveStatus;
-  detail: Readonly<Record<string, unknown>>;
-}>;
-
 export type P10T2LiveReport = Readonly<{
   phase: 'P10';
   task: 'T2';
@@ -178,12 +195,7 @@ export type P10T2LiveReport = Readonly<{
    */
   mode: 'CLOSED_LOOP' | 'READ_ONLY' | 'REFUSED';
   platformUserIdMasked: string;
-  org: Readonly<{
-    isSandbox: boolean | null;
-    instanceName: string | null;
-    apiVersion: string | null;
-    organizationIdMasked: string | null;
-  }>;
+  org: P10LiveOrgFacts;
   diagnosticIdentity: Readonly<{
     configured: boolean;
     enabled: boolean | null;
@@ -203,51 +215,6 @@ export type P10T2LiveReport = Readonly<{
   auditPersistence: P10LiveGate;
   overall: 'PASS' | 'PARTIAL' | 'FAIL';
 }>;
-
-type ConnectionMeasurement = Readonly<{
-  platformUserId: string;
-  salesforceUsername: string;
-  connection: Connection;
-}>;
-
-class MeasuringConnectionFactory implements SalesforceConnectionFactory {
-  public readonly measurements: ConnectionMeasurement[] = [];
-
-  public constructor(private readonly delegate: SalesforceConnectionFactory) {}
-
-  public async create(route: SalesforceIdentityRoute): Promise<Connection> {
-    const connection = await this.delegate.create(route);
-    this.measurements.push(Object.freeze({
-      platformUserId: route.platformUserId,
-      salesforceUsername: route.salesforceUsername,
-      connection,
-    }));
-    return connection;
-  }
-}
-
-/**
- * Enables the milestone's Tools without writing to the Control Plane.
- *
- * They ship default-disabled, exactly as T2 requires, and an Admin grant is what turns them on. Keeping
- * that grant out of the database means a live run never leaves the local Control Plane altered — and,
- * more importantly, means the run cannot pass by having quietly granted itself the Tools it is supposed
- * to prove can be granted.
- */
-class AdditiveToolPolicySnapshotSource implements RuntimePolicySnapshotSource {
-  public constructor(
-    private readonly delegate: RuntimePolicySnapshotSource,
-    private readonly extraToolNames: readonly string[],
-  ) {}
-
-  public async load(platformUserId: string): Promise<RequestPolicySnapshot> {
-    const snapshot = await this.delegate.load(platformUserId);
-    return freezeSnapshot({
-      ...snapshot,
-      enabledTools: [...new Set([...snapshot.enabledTools, ...this.extraToolNames])],
-    });
-  }
-}
 
 export async function runP10T2LiveMilestone(
   projectRoot: string,
@@ -384,7 +351,15 @@ export async function runP10T2LiveMilestone(
     await client.connect(transport);
     try {
       const listings = await client.listTools();
-      const toolInventory = runToolInventory(listings.tools, expectedNames);
+      const toolInventory = runToolInventory({
+        tools: listings.tools,
+        milestoneTools: P10_T2_TOOL_NAMES,
+        expectedNames,
+        inputKeys: P10_T2_TOOL_INPUT_KEYS,
+        // The one write in the debug-log set, and the one annotation that tells an Agent it is about to
+        // change Setup state rather than read it.
+        writeTools: ['set_trace_flag'],
+      });
 
       const before = await call(client, results, 'get_apex_logs', {
         timeWindowMinutes: LOG_WINDOW_MINUTES,
@@ -432,7 +407,6 @@ export async function runP10T2LiveMilestone(
         writeAllowed,
       });
       const credentialSafety = runCredentialSafety(results, clientToken, await readAccessToken(reproductionConnection));
-      const usernames = [...new Set(measuringFactory.measurements.map((entry) => entry.salesforceUsername))];
 
       await client.close().catch(() => undefined);
       const shutdown = await server.close().catch(() => undefined);
@@ -457,7 +431,7 @@ export async function runP10T2LiveMilestone(
         credentialSafety,
         connections: Object.freeze({
           total: measuringFactory.measurements.length,
-          distinctSalesforceUsernames: Object.freeze(usernames.map(maskIdentifier)),
+          distinctSalesforceUsernames: Object.freeze([...measuredSalesforceUsernames(measuringFactory)]),
         }),
         auditPersistence,
         overall: combine([
@@ -473,30 +447,6 @@ export async function runP10T2LiveMilestone(
     if (reproductionScope !== undefined) await reproductionScope.close().catch(() => undefined);
     await closeQuietly(store, database, auditDatabase, auditPipeline);
   }
-}
-
-/**
- * The platform user the milestone drives, resolved in-process rather than taken from a command line.
- *
- * Same rule as the T1 probe, and it shares the probe's variable: a real platform user id in shell history
- * and in the process listing is a disclosure this harness has no reason to make. An explicit
- * `P10_PROBE_PLATFORM_USER` still wins when an operator needs a specific route.
- */
-async function resolveMilestonePlatformUser(
-  store: MySqlControlPlaneStore,
-  environment: NodeJS.ProcessEnv,
-): Promise<string> {
-  const explicit = environment[P10_PROBE_PLATFORM_USER_VARIABLE]?.trim();
-  if (explicit) return explicit;
-  const page = await store.repositories.identityRoutes.list({ limit: 50, offset: 0 });
-  const enabled = page.items.find((route) => route.enabled);
-  if (!enabled) {
-    throw new Error(
-      'No enabled identity route exists in this Control Plane, so no platform user can be resolved for the milestone. '
-      + `Set ${P10_PROBE_PLATFORM_USER_VARIABLE} to name one explicitly.`,
-    );
-  }
-  return enabled.platformUserId;
 }
 
 function refusalReport(
@@ -527,61 +477,6 @@ function refusalReport(
     auditPersistence,
     overall: 'PARTIAL',
   });
-}
-
-/**
- * The Tool inventory gate.
- *
- * The milestone's value depends on the three Tools being *advertised* exactly as the grant says, so the
- * whole advertised set is compared rather than only the three: a Tool that appeared or disappeared is a
- * governance fact a live run should not be able to walk past. Input keys are compared as sorted sets so a
- * new accepted argument cannot ride along unseen, and the annotations are checked because the write's
- * `readOnlyHint: false` is the one thing in this milestone that tells an Agent it is about to change Setup
- * state.
- */
-function runToolInventory(
-  tools: readonly Readonly<{
-    name: string;
-    inputSchema?: Readonly<{ properties?: Record<string, unknown> }>;
-    annotations?: Readonly<Record<string, unknown>>;
-  }>[],
-  expectedNames: readonly string[],
-): P10LiveGate {
-  const advertised = tools.map((tool) => tool.name).sort();
-  const inspected = tools.filter((tool) => (P10_T2_TOOL_NAMES as readonly string[]).includes(tool.name));
-  const keyMismatches = inspected.flatMap((tool) => {
-    const actual = Object.keys(tool.inputSchema?.properties ?? {}).sort();
-    const expected = [...(P10_T2_TOOL_INPUT_KEYS[tool.name] ?? [])].sort();
-    return sameArray(actual, expected)
-      ? []
-      : [`${tool.name}: advertised ${actual.join(', ') || 'nothing'} but the contract defines ${expected.join(', ')}`];
-  });
-  const annotationMismatches = inspected.flatMap((tool) => {
-    const expectedReadOnly = tool.name !== 'set_trace_flag';
-    return tool.annotations?.readOnlyHint === expectedReadOnly
-      ? []
-      : [`${tool.name}: readOnlyHint is ${String(tool.annotations?.readOnlyHint)} but should be ${expectedReadOnly}`];
-  });
-  const missing = P10_T2_TOOL_NAMES.filter((name) => !advertised.includes(name));
-
-  return gate(
-    missing.length === 0 && sameArray(advertised, expectedNames)
-      && keyMismatches.length === 0 && annotationMismatches.length === 0,
-    Object.freeze({
-      advertised,
-      expectedFromSnapshot: expectedNames,
-      missingMilestoneTools: missing,
-      inputKeys: Object.fromEntries(inspected.map((tool) => [
-        tool.name,
-        Object.keys(tool.inputSchema?.properties ?? {}).sort(),
-      ])),
-      annotations: Object.fromEntries(inspected.map((tool) => [tool.name, tool.annotations ?? {}])),
-      keyMismatches,
-      annotationMismatches,
-    }),
-    'The advertised Tool inventory did not match the grant, a milestone Tool exposed an input key its contract '
-    + 'does not define, or a milestone Tool carried the wrong readOnlyHint.',
-  );
 }
 
 /**
@@ -1016,27 +911,6 @@ function runClosedLoop(input: Readonly<{
   }), 'The loop ran but did not close.');
 }
 
-function runCredentialSafety(
-  results: readonly CallToolResult[],
-  clientToken: string,
-  accessToken: string | null,
-): P10LiveGate {
-  const secrets = [clientToken, accessToken]
-    .filter((value): value is string => typeof value === 'string' && value.length > 0);
-  const offenders: string[] = [];
-  for (const result of results) {
-    const rendered = JSON.stringify(result);
-    for (const secret of secrets) {
-      if (rendered.includes(secret)) offenders.push('a Tool response carried a credential it was given');
-    }
-  }
-  return gate(offenders.length === 0, Object.freeze({
-    toolResponsesInspected: results.length,
-    secretsSearched: secrets.length,
-    offenders: [...new Set(offenders)],
-  }), 'A Tool response echoed a credential back into the transcript.');
-}
-
 /**
  * Waits for this run's logs to appear, and returns the listing that contains them.
  *
@@ -1154,41 +1028,11 @@ function readStatusesFrom(
   return new Map(entries);
 }
 
-async function readOrgFacts(connection: Connection): Promise<P10T2LiveReport['org']> {
-  const apiVersion = typeof connection.getApiVersion === 'function' ? connection.getApiVersion() : null;
-  try {
-    const payload = await connection.query(
-      'SELECT IsSandbox, InstanceName, OrganizationType, Id FROM Organization LIMIT 1',
-    ) as unknown as Readonly<{ records?: readonly Record<string, unknown>[] }>;
-    const row = readRecords(payload.records)[0] ?? {};
-    const organizationId = stringOrNull(row.Id);
-    return Object.freeze({
-      isSandbox: row.IsSandbox === true,
-      instanceName: stringOrNull(row.InstanceName),
-      apiVersion: typeof apiVersion === 'string' ? apiVersion : null,
-      organizationIdMasked: organizationId === null ? null : maskSalesforceId(organizationId),
-    });
-  } catch {
-    return Object.freeze({
-      isSandbox: null,
-      instanceName: null,
-      apiVersion: typeof apiVersion === 'string' ? apiVersion : null,
-      organizationIdMasked: null,
-    });
-  }
-}
-
 /** The traced entity, and the username it belongs to — the identity every log of this run is written by. */
 async function readSelfUser(connection: Connection): Promise<Readonly<{ userId: string; username: string | null }>> {
   const identity = await connection.identity() as unknown as Readonly<Record<string, unknown>>;
   const userId = stringOrNull(identity.user_id) ?? stringOrNull(identity.userId) ?? '';
   return Object.freeze({ userId, username: stringOrNull(identity.username) });
-}
-
-/** Read only to be searched for in the responses; never printed, and never written to the report. */
-async function readAccessToken(connection: Connection): Promise<string | null> {
-  const token = (connection as unknown as Readonly<Record<string, unknown>>).accessToken;
-  return typeof token === 'string' && token.length > 0 ? token : null;
 }
 
 /** The log ids a `get_apex_logs` answer carried, in the order the Tool returned them. */
@@ -1198,173 +1042,3 @@ function listedLogIds(result: CallToolResult | undefined): readonly string[] {
     .filter((id): id is string => id !== null);
 }
 
-async function call(
-  client: Client,
-  results: CallToolResult[],
-  name: string,
-  argumentsValue: Readonly<Record<string, unknown>>,
-): Promise<CallToolResult> {
-  const result = CallToolResultSchema.parse(await client.callTool({ name, arguments: argumentsValue }));
-  results.push(result);
-  return result;
-}
-
-function outputOf(result: CallToolResult | undefined): Record<string, unknown> | undefined {
-  return recordOf(result?.structuredContent);
-}
-
-function recordOf(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
-}
-
-function readRecords(value: unknown): readonly Record<string, unknown>[] {
-  return Array.isArray(value) ? value.flatMap((entry) => {
-    const record = recordOf(entry);
-    return record === undefined ? [] : [record];
-  }) : [];
-}
-
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-}
-
-function asNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/** Masked for the report: a Salesforce id is org configuration and is never printed whole. */
-function maskedIdOf(value: unknown): string | null {
-  const id = stringOrNull(value);
-  return id === null ? null : maskSalesforceId(id);
-}
-
-function salesforceErrorCodeOf(error: unknown): string | null {
-  const code = recordOf(error)?.errorCode;
-  return typeof code === 'string' && code.length > 0 ? code : null;
-}
-
-/**
- * A failed Tool's own account of why, carried into the gate detail.
- *
- * The executors build these four fields deliberately: the server-owned `errorCode`, the Salesforce code
- * behind it, a remediation `suggestion`, and — where ADR-0029 §2 applies — the missing `prerequisite`.
- * Keeping only the first is what made the first live run report `MCP_APEX_LOG_READ_FAILED` with no way to
- * tell *which* clause the platform had refused; the root cause had to be found afterwards with a throwaway
- * probe against the same scope. A report that costs a second investigation to read is not evidence, and
- * ADR-0029's degradation contract is precisely a claim about how a source reports itself, so the whole
- * record is quoted here rather than summarised.
- *
- * Salesforce ids inside the message are masked. A refusal names the rows involved — the overlapping
- * `TraceFlag` above all — and this report is written to a file that is kept beside the other `docs/sfoa`
- * evidence. The message itself is Tool-authored text, never a caller's, and the run's own credential-safety
- * gate scans every Tool output for the tokens that were live during it.
- */
-function toolFailureDetail(output: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
-  const message = stringOrNull(output.message);
-  return Object.freeze({
-    errorCode: stringOrNull(output.errorCode),
-    message: message === null ? null : maskIdsInText(message),
-    salesforceErrorCode: stringOrNull(output.salesforceErrorCode),
-    suggestion: stringOrNull(output.suggestion),
-    prerequisite: stringOrNull(output.prerequisite),
-  });
-}
-
-/** Salesforce ids inside free text, masked: 15 or 18 characters and letter-initial, as ids are. */
-function maskIdsInText(text: string): string {
-  return text.replace(/\b[A-Za-z][0-9A-Za-z]{14}(?:[0-9A-Za-z]{3})?\b/gu, (id) => maskSalesforceId(id));
-}
-
-function sleep(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
-  });
-}
-
-/**
- * The gate helpers, and why this file has its own copy.
- *
- * `p9-live-validation.ts` keeps an equivalent set module-private, and the two will be unified when T6 builds
- * `validate:p10` over both phases. Duplicating four small pure functions across two validation modules is
- * the smaller cost for now: exporting P9's would put a `P9LiveGate` type in a P10 report, and renaming it in
- * P9 would touch a file this task has no other reason to open.
- */
-function gate(condition: boolean, detail: Readonly<Record<string, unknown>>, failure: string): P10LiveGate {
-  return Object.freeze({
-    status: condition ? 'PASS' : 'FAIL',
-    detail: Object.freeze(condition ? detail : { ...detail, failureReason: failure }),
-  });
-}
-
-function failGate(failure: string, detail: Readonly<Record<string, unknown>> = {}): P10LiveGate {
-  return Object.freeze({
-    status: 'FAIL',
-    detail: Object.freeze({ ...detail, failureReason: failure }),
-  });
-}
-
-function notTested(reason: string, detail: Readonly<Record<string, unknown>> = {}): P10LiveGate {
-  return Object.freeze({ status: 'NOT TESTED', detail: Object.freeze({ ...detail, reason }) });
-}
-
-function combine(gates: readonly P10LiveGate[]): 'PASS' | 'PARTIAL' | 'FAIL' {
-  if (gates.every((entry) => entry.status === 'PASS')) return 'PASS';
-  if (gates.every((entry) => entry.status === 'FAIL')) return 'FAIL';
-  return gates.some((entry) => entry.status === 'FAIL') ? 'FAIL' : 'PARTIAL';
-}
-
-function sameArray(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-async function flushAuditTrail(
-  auditPipeline: AsyncAuditPipeline,
-): Promise<Readonly<{ flushed: boolean; dropped: number | null; health: AuditPipelineHealth }>> {
-  const outcome = await auditPipeline.close(DEFAULT_AUDIT_FLUSH_TIMEOUT_MS).catch(() => undefined);
-  return Object.freeze({
-    flushed: outcome?.flushed === true,
-    dropped: outcome === undefined ? null : outcome.dropped,
-    health: auditPipeline.getHealth(),
-  });
-}
-
-/**
- * The run's own trail, checked before its results are believed.
- *
- * The milestone's evidence for T2's audit requirement is the rows this run wrote, so a run that lost part of
- * its trail cannot report a clean `overall` — not because a Tool misbehaved, but because the record of what
- * it did is incomplete. The shutdown is checked too: `close()` races its drain against a grace timeout and
- * abandons what is left when it loses, so a clean flush can sit over a short trail. `null` means no server
- * was started and there was nothing to drain.
- */
-function runAuditPersistence(
-  audits: Readonly<{ flushed: boolean; dropped: number | null; health: AuditPipelineHealth }>,
-  shutdown: GracefulShutdownResult | null | undefined,
-): P10LiveGate {
-  return gate(
-    audits.flushed
-      && audits.dropped === 0
-      && audits.health.droppedSnapshots === 0
-      && audits.health.writerFailureCount === 0
-      && (shutdown === null || (shutdown !== undefined && shutdown.drained === true)),
-    Object.freeze({ ...audits, shutdown: shutdown ?? null }),
-    'The run did not persist the whole of its own audit trail, so the P7 evidence for this milestone is '
-    + 'incomplete. The live facts above still hold; what is missing is the record of them.',
-  );
-}
-
-async function closeQuietly(
-  store: MySqlControlPlaneStore,
-  database: ControlPlaneDatabaseClient,
-  auditDatabase: ControlPlaneDatabaseClient,
-  auditPipeline: AsyncAuditPipeline,
-): Promise<void> {
-  await auditPipeline.close(DEFAULT_AUDIT_FLUSH_TIMEOUT_MS).catch(() => undefined);
-  await store.close().catch(() => undefined);
-  await Promise.all([
-    database.destroy().catch(() => undefined),
-    auditDatabase.destroy().catch(() => undefined),
-  ]);
-}

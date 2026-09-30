@@ -813,7 +813,7 @@ test('the Tool input schemas expose no field a caller could use to choose an ide
   }
 });
 
-test('the Provider exposes all ten context Tools in the role map\'s own order, and the roles are total', async () => {
+test('the Provider exposes every context Tool in the role map\'s own order, and the roles are total', async () => {
   const provider = new SfoaContextMcpProvider({
     diagnosticQueryExecutor: { execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }) },
     metadataContextExecutor: {
@@ -828,14 +828,29 @@ test('the Provider exposes all ten context Tools in the role map\'s own order, a
     traceFlagExecutor: stubTraceFlagWriter(),
     apexLogsExecutor: stubApexLogReader(),
     debugLogBodyExecutor: stubDebugLogBodyReader(),
+    // `explain_field_access` is the one Tool added after this test was written, and it is required like
+    // every other — the count and the order below are what keep the role map and the advertised list from
+    // drifting apart as Tools are added.
+    fieldAccessExplainer: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', api: 'STANDARD', objectApiName: input.objectApiName,
+        requestedFieldCount: input.fieldApiNames.length, returnedFieldCount: input.fieldApiNames.length,
+        fields: [], truncated: false,
+      }),
+    },
   });
 
   const tools = await provider.provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
-  assert.equal(SFOA_CONTEXT_TOOL_NAMES.length, 10);
+  assert.equal(SFOA_CONTEXT_TOOL_NAMES.length, 11);
   // The three debug-log Tools are advertised together and in workflow order, because that order is
-  // what the chained hints assume and what an Agent walking them reads.
-  assert.deepEqual(SFOA_CONTEXT_TOOL_NAMES.slice(-3), ['set_trace_flag', 'get_apex_logs', 'get_debug_log_body']);
+  // what the chained hints assume and what an Agent walking them reads. Asserted as a contiguous run
+  // rather than a tail slice, so appending a Tool cannot silently break the invariant this protects.
+  const debugLogStart = SFOA_CONTEXT_TOOL_NAMES.indexOf('set_trace_flag');
+  assert.deepEqual(
+    SFOA_CONTEXT_TOOL_NAMES.slice(debugLogStart, debugLogStart + 3),
+    ['set_trace_flag', 'get_apex_logs', 'get_debug_log_body'],
+  );
   for (const name of ['set_trace_flag', 'get_apex_logs', 'get_debug_log_body'] as const) {
     assert.equal(SFOA_CONTEXT_TOOL_ROLES[name], 'DIAGNOSTIC');
   }
