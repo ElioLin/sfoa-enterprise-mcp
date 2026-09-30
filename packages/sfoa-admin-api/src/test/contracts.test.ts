@@ -146,3 +146,24 @@ test('every P9 Data Tool is enablable by an Admin even though it ships default-d
   assert.equal(enabledRecord?.enabled, true);
   assert.equal(enabledRecord?.status, 'AVAILABLE');
 });
+
+test('the debug log Toolset carries its own classification for the write, and is enablable', () => {
+  // `set_trace_flag` writes Setup-layer trace configuration, which is neither a business-record write
+  // (`MUTATION`) nor a permission change (`ADMIN`). An Administrator reads this column before
+  // enabling the Tool, so the classification has to say what is actually licensed rather than reuse a
+  // label that means something else in every other row of the same table (ADR-0030 §1).
+  const catalog = buildAdminToolCatalog([], upstreamPass);
+  const write = catalog.find((item) => item.toolName === 'set_trace_flag');
+  assert.ok(write !== undefined, 'set_trace_flag must appear in the Admin catalog');
+  assert.equal(write.classification, 'DIAGNOSTIC_WRITE');
+  assert.equal(write.executionRole, 'DIAGNOSTIC');
+  assert.equal(write.enableAllowed, true, 'set_trace_flag is SFoA-owned and independent of official Provider drift');
+
+  for (const toolName of ['get_apex_logs', 'get_debug_log_body']) {
+    const read = catalog.find((item) => item.toolName === toolName);
+    assert.ok(read !== undefined, `${toolName} must appear in the Admin catalog`);
+    assert.equal(read.classification, 'READ', `${toolName} reads and must not be classified as a write`);
+    assert.equal(read.executionRole, 'DIAGNOSTIC');
+    assert.equal(read.enableAllowed, true);
+  }
+});

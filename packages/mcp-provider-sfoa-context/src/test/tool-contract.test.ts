@@ -39,8 +39,8 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('Context Provider exposes seven GA Tools with stable output schemas and complete read-only annotations', async () => {
-  const provider = new SfoaContextMcpProvider({
+test('Context Provider exposes ten GA Tools with stable output schemas and complete annotations', async () => {
+  const tools = await new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
     },
@@ -61,18 +61,41 @@ test('Context Provider exposes seven GA Tools with stable output schemas and com
       }),
     },
     orgLimitsExecutor: { execute: async () => limitsOutput() },
-  });
-  const tools = await provider.provideTools(createServices());
+    traceFlagExecutor: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', api: 'TOOLING', traceFlagId: '7tf000000000001AAA',
+        tracedEntityKind: input.tracedEntityKind, tracedEntityId: input.tracedEntityId,
+        logType: input.tracedEntityKind === 'USER' ? 'DEVELOPER_LOG' : 'CLASS_TRACING',
+        debugLevelId: '7dl000000000001AAA', debugLevelDeveloperName: 'SFOA_P10_DEBUG', debugLevelTier: 'DEBUG',
+        debugLevelCreated: false, startDate: '2026-09-30T00:00:00.000Z', expirationDate: '2026-09-30T00:30:00.000Z',
+        previousExpirationDate: null, replacedExisting: false, requestedDurationMinutes: 30, verified: true,
+      }),
+    },
+    apexLogsExecutor: {
+      execute: async () => ({
+        success: true, executionRole: 'DIAGNOSTIC', api: 'TOOLING', logs: [], totalCount: 0, returnedCount: 0,
+        scannedCount: 0, truncated: false, timeWindowMinutes: 60, windowStartedAt: '2026-09-30T00:00:00.000Z',
+        observedStatuses: [],
+      }),
+    },
+    debugLogBodyExecutor: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', api: 'TOOLING', logId: input.logId, body: 'x',
+        totalBytes: 1, returnedBytes: 1, totalCharacters: 1, returnedCharacters: 1, maxCharacters: 60_000,
+        truncated: false, logLength: 1, lastModifiedDate: null,
+      }),
+    },
+  }).provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
   for (const tool of tools) {
     const config = tool.getConfig();
     assert.ok(config.outputSchema);
-    assert.deepEqual(config.annotations, {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: true,
-    });
+    // `set_trace_flag` is the provider's only write, so it is the one Tool that may not claim to be
+    // read-only or idempotent. Asserting the exact shape per Tool is what stops a later edit from
+    // quietly making a write look like a read to the Agent reading the annotations.
+    assert.deepEqual(config.annotations, tool.getName() === 'set_trace_flag'
+      ? { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+      : { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true });
     const inputNames = Object.keys(config.inputSchema ?? {});
     assert.deepEqual(inputNames.filter((name) => forbiddenFields.includes(name)), []);
   }
@@ -86,6 +109,9 @@ test('Context Provider exposes seven GA Tools with stable output schemas and com
     // Reading the limits resource is an org-configuration read the business identities in this
     // deployment are not granted, so the Tool belongs to the isolated diagnostic role.
     get_org_limits: 'DIAGNOSTIC',
+    set_trace_flag: 'DIAGNOSTIC',
+    get_apex_logs: 'DIAGNOSTIC',
+    get_debug_log_body: 'DIAGNOSTIC',
   });
 });
 
