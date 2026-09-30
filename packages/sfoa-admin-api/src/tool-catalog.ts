@@ -81,6 +81,17 @@ function contextToolDependencies(toolName: SfoaContextToolName, diagnostic: bool
       'Apex log retention long enough for the incident (A-2)',
     ];
   }
+  if (toolName === 'explain_field_access') {
+    // Named as the measured constraint rather than an ADR-0029 §2 letter, because §2's `A-1`…`A-4` are the
+    // places P10 had already identified as unmeasured and this Tool reads a surface none of them covers. The
+    // second entry is the boundary: without a route table the Tool can explain nobody's access but an
+    // explicit target's, and on a runtime with no routes at all it refuses rather than guessing.
+    return [
+      'enabled Diagnostic configuration',
+      'permission-table readability on the diagnostic account',
+      'enabled identity routes, for the targetUserId boundary',
+    ];
+  }
   return diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'];
 }
 

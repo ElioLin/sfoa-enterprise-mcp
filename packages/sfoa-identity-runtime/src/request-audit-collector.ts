@@ -145,6 +145,17 @@ export type SalesforceApiPurpose =
    */
   | 'DEBUG_LOG'
   | 'TRACE_FLAG'
+  /**
+   * The permission-evidence surface, named for what it reads rather than folded into
+   * `DIAGNOSTIC_TOOLING`. `explain_field_access` issues no Tooling query at all: it reads the
+   * standard API's permission tables (`FieldPermissions`, `ObjectPermissions`,
+   * `PermissionSetAssignment`, `PermissionSet`, `Profile`, `RecordType`, `User`) and one
+   * `describe`. Its own purpose is what makes "who looked up whose field access" answerable from
+   * the trail on its own, the same requirement ADR-0029 §4d places on the debug-log write — a row
+   * reading `DIAGNOSTIC_TOOLING` would place a standard-API permission read under a Tooling
+   * heading, which is a surface an investigator would then have to rule out by hand.
+   */
+  | 'PERMISSION_EXPLAIN'
   | 'UNKNOWN';
 export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
 export type SalesforceQueryType = 'DATA_SOQL' | 'TOOLING_SOQL';

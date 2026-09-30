@@ -22,6 +22,13 @@ export const CONTEXT_ERROR_CODES = [
   'MCP_DEBUG_LOG_BODY_INVALID',
   'MCP_DEBUG_LOG_BODY_READ_FAILED',
   'MCP_DEBUG_LOG_BODY_NOT_FOUND',
+  // T3's permission-evidence Tool. `MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED` is the boundary rather than a
+  // fault: it is raised when `targetUserId` names a Salesforce user this deployment has not configured
+  // as an identity route, and it is deliberately indistinct from "no such user" so the Tool cannot be
+  // used to probe which Ids exist.
+  'MCP_FIELD_ACCESS_INVALID',
+  'MCP_FIELD_ACCESS_READ_FAILED',
+  'MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED',
 ] as const;
 
 export type ContextErrorCode = (typeof CONTEXT_ERROR_CODES)[number];

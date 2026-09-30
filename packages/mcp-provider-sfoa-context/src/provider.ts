@@ -3,6 +3,7 @@ import type {
   ApexLogReader,
   DebugLogBodyReader,
   DiagnosticToolingQueryExecutor,
+  FieldAccessExplainer,
   MetadataComponentContextExecutor,
   OrgLimitsReader,
   TraceFlagWriter,
@@ -12,6 +13,7 @@ import { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
 import type { EffectiveUiOptions } from './effective-ui-contracts.js';
 import { RecordDisplayContextExecutor } from './record-display-executor.js';
 import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.js';
+import { ExplainFieldAccessMcpTool } from './tools/explain-field-access.js';
 import { GetApexLogsMcpTool } from './tools/get-apex-logs.js';
 import { GetDebugLogBodyMcpTool } from './tools/get-debug-log-body.js';
 import { GetOrgLimitsMcpTool } from './tools/get-org-limits.js';
@@ -45,6 +47,11 @@ export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   set_trace_flag: 'DIAGNOSTIC',
   get_apex_logs: 'DIAGNOSTIC',
   get_debug_log_body: 'DIAGNOSTIC',
+  // Reading the org's permission tables is the same class of read as the trace configuration above —
+  // `FieldPermissions`, `PermissionSetAssignment` and `Profile` are Setup-layer surfaces a business
+  // identity is not granted (ADR-0029 §1 measured a cross-user assignment read as AVAILABLE on the
+  // fixed account and on nothing else).
+  explain_field_access: 'DIAGNOSTIC',
 } as const);
 
 export type SfoaContextToolName = keyof typeof SFOA_CONTEXT_TOOL_ROLES;
@@ -67,6 +74,7 @@ export type SfoaContextProviderOptions = Readonly<{
   traceFlagExecutor?: TraceFlagWriter;
   apexLogsExecutor?: ApexLogReader;
   debugLogBodyExecutor?: DebugLogBodyReader;
+  fieldAccessExplainer?: FieldAccessExplainer;
 }>;
 
 export class SfoaContextMcpProvider extends McpProvider {
@@ -128,6 +136,12 @@ export class SfoaContextMcpProvider extends McpProvider {
         throw new Error('get_debug_log_body requires a debug log body executor.');
       }
       tools.push(new GetDebugLogBodyMcpTool(this.options.debugLogBodyExecutor));
+    }
+    if (requested.includes('explain_field_access')) {
+      if (!this.options.fieldAccessExplainer) {
+        throw new Error('explain_field_access requires a field access explainer.');
+      }
+      tools.push(new ExplainFieldAccessMcpTool(this.options.fieldAccessExplainer));
     }
     return Promise.resolve(tools);
   }

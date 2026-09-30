@@ -518,7 +518,7 @@ export const traceFlagInputSchema = z
   })
   .strict();
 
-const debugLogFailureFields = {
+const diagnosticFailureFields = {
   salesforceErrorCode: z.string().max(128).optional(),
   suggestion: z.string().max(2_000).optional(),
   /** ADR-0029 §3: the deployment prerequisite behind a refusal, by identifier. */
@@ -528,7 +528,7 @@ const debugLogFailureFields = {
 export const traceFlagOutputSchema = z
   .object({
     ...contextFailureFields,
-    ...debugLogFailureFields,
+    ...diagnosticFailureFields,
     executionRole: z.literal('DIAGNOSTIC').optional(),
     api: z.literal('TOOLING').optional(),
     traceFlagId: z.string().optional(),
@@ -639,7 +639,7 @@ const observedStatusSchema = z
 export const apexLogsOutputSchema = z
   .object({
     ...contextFailureFields,
-    ...debugLogFailureFields,
+    ...diagnosticFailureFields,
     executionRole: z.literal('DIAGNOSTIC').optional(),
     api: z.literal('TOOLING').optional(),
     logs: z.array(apexLogEntrySchema).optional(),
@@ -737,7 +737,7 @@ const apexLogHeaderSummarySchema = z
 export const debugLogBodyOutputSchema = z
   .object({
     ...contextFailureFields,
-    ...debugLogFailureFields,
+    ...diagnosticFailureFields,
     executionRole: z.literal('DIAGNOSTIC').optional(),
     api: z.literal('TOOLING').optional(),
     logId: z.string().optional(),
@@ -756,6 +756,227 @@ export const debugLogBodyOutputSchema = z
   })
   .strict();
 
+/**
+ * The field-name grammar, shared by every input that names a field rather than an object.
+ *
+ * A field API name is the same shape as an object API name and carries the same prohibition: a
+ * relationship path (`Owner.Name`) is a different thing from a field and would address a different
+ * column in `FieldPermissions`, so it is refused at the schema boundary rather than quietly returning
+ * nothing.
+ */
+const fieldApiNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(apiNamePattern, 'must be a Salesforce field API name without a relationship path');
+
+/** The tool's hard input bound. `fields × grants` grows as the product, and the budget is per response. */
+export const EXPLAIN_FIELD_ACCESS_MAX_FIELDS = 10;
+
+/**
+ * The third state of `conclusion.visible` / `conclusion.editable`.
+ *
+ * A string rather than a sentinel boolean, because "the layer that would have decided this could not
+ * be read" is not a value of the same type as an answer — and ADR-0029 §3 forbids collapsing it into
+ * `false`. Consumers must compare with `=== true` / `=== false`: the string is truthy, which is the one
+ * trap this shape carries and the reason the text renderer and the conclusion builder are both asserted
+ * against it.
+ */
+export const FIELD_ACCESS_INDETERMINATE = 'INDETERMINATE';
+
+/**
+ * The two kinds of owner a field-level grant can have.
+ *
+ * `Profile` is not a third kind: a profile's field permissions are stored on the permission set
+ * Salesforce creates for it, so a profile grant is a `PERMISSION_SET` grant with
+ * `isOwnedByProfile: true` and a profile name attached. The distinction is kept in the output because
+ * an administrator changes the two in different places in Setup.
+ */
+export const FIELD_ACCESS_PARENT_TYPES = Object.freeze(['PERMISSION_SET', 'PROFILE'] as const);
+
+export const EXPLAIN_FIELD_ACCESS_DEFAULT_RECORD_TYPE_CONTEXT = true;
+
+export const explainFieldAccessInputSchema = z
+  .object({
+    objectApiName: objectApiNameSchema,
+    fieldApiNames: z
+      .array(fieldApiNameSchema)
+      .min(1)
+      .max(EXPLAIN_FIELD_ACCESS_MAX_FIELDS)
+      .describe(
+        `One to ${EXPLAIN_FIELD_ACCESS_MAX_FIELDS} field API names on that object, for example Name or `
+        + 'SomeField__c. Never a relationship path and never a field value: the names are used as keys into the '
+        + 'org\'s permission configuration and nothing is read from the fields themselves. Repeating a name is '
+        + 'harmless — the set is deduplicated — but the bound applies to the list as sent.',
+      )
+      .transform((values) => [...new Set(values)]),
+    targetUserId: salesforceIdSchema.optional().describe(
+      'Whose access to explain, as a 15- or 18-character Salesforce User Id. Omit it to explain the requesting '
+      + 'user\'s own access. Only users this deployment has configured as identity routes may be named; any other '
+      + 'Id is refused, because a diagnostic Tool that accepted an arbitrary user Id would be an account-access '
+      + 'reconnaissance surface.',
+    ),
+    includeRecordTypeContext: z.boolean().optional().describe(
+      `Whether to report the object's record types alongside the field grants. Defaults to `
+      + `${EXPLAIN_FIELD_ACCESS_DEFAULT_RECORD_TYPE_CONTEXT}.`,
+    ),
+  })
+  .strict();
+
+const fieldAccessGrantSchema = z
+  .object({
+    parentType: z.enum(FIELD_ACCESS_PARENT_TYPES),
+    parentId: z.string(),
+    /** The permission set's API name — the stable key, and the one to quote back for a follow-up. */
+    parentName: z.string().nullable(),
+    /** The label as this org stores it, which may be translated. Reported, never matched on. */
+    parentLabel: z.string().nullable(),
+    permissionsRead: z.boolean(),
+    permissionsEdit: z.boolean(),
+  })
+  .strict();
+
+const fieldAccessDescribeFactsSchema = z
+  .object({
+    type: z.string().nullable(),
+    label: z.string().nullable(),
+    createable: z.boolean().nullable(),
+    updateable: z.boolean().nullable(),
+    accessible: z.boolean().nullable(),
+    /**
+     * Always true, and the flag exists so it cannot be forgotten.
+     *
+     * `describe` answers for the identity that called it, and the identity that calls this Tool is the
+     * deployment's fixed DIAGNOSTIC account. These facts are therefore that account's own field-level
+     * security and can never stand in for `targetUserId`'s — the probe measured this on a real org
+     * (`docs/sfoa/P10_T0_LIVE_PROBE_FINDINGS.md` §6) and named it the specific correctness trap this Tool
+     * has to avoid. They are returned because the caller asked about the field, never because they decide
+     * the conclusion.
+     */
+    executionIdentityView: z.literal(true),
+  })
+  .strict();
+
+const fieldAccessPermissionSetSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable(),
+    label: z.string().nullable(),
+    isOwnedByProfile: z.boolean(),
+    profileName: z.string().nullable(),
+  })
+  .strict();
+
+const fieldAccessObjectAccessSchema = z
+  .object({
+    read: z.boolean().nullable(),
+    edit: z.boolean().nullable(),
+    viewAllRecords: z.boolean().nullable(),
+    /**
+     * The subject's permission sets that had no readable `ObjectPermissions` row.
+     *
+     * An object-level denial is only a denial if the row was read; a parent listed here is a gap, and
+     * the conclusion that depends on it is `INDETERMINATE` rather than `false` (ADR-0029 §3).
+     */
+    unreadableParentIds: z.array(z.string()),
+  })
+  .strict();
+
+const fieldAccessUserContextSchema = z
+  .object({
+    userId: z.string(),
+    username: z.string().nullable(),
+    userName: z.string().nullable(),
+    isActive: z.boolean().nullable(),
+    /** True when the subject is the requesting user rather than a named `targetUserId`. */
+    isRequestingUser: z.boolean(),
+    permissionSets: z.array(fieldAccessPermissionSetSchema),
+    permissionSetsTruncated: z.boolean(),
+    objectAccess: fieldAccessObjectAccessSchema.nullable(),
+  })
+  .strict();
+
+const fieldAccessRecordTypeContextSchema = z
+  .object({
+    recordTypes: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            developerName: z.string().nullable(),
+            name: z.string().nullable(),
+            isActive: z.boolean().nullable(),
+          })
+          .strict(),
+      ),
+    truncated: z.boolean(),
+    /** The record type Ids the executing identity's own describe reports as available to it. */
+    availableToExecutionIdentity: z.array(z.string()),
+    /**
+     * Always `INDETERMINATE`, never `false`.
+     *
+     * Per-user record-type availability is a Profile/Layout metadata fact, and the diagnostic whitelist
+     * carries the `RecordType` object rather than the profile metadata that decides availability. So the
+     * object's record types are reported as facts and their availability to the subject is reported as a
+     * gap; answering `false` would read a layer that was never read as a denial, which is the failure
+     * ADR-0029 §3 exists to prevent.
+     */
+    availableToSubject: z.literal(FIELD_ACCESS_INDETERMINATE),
+    caveat: z.string(),
+  })
+  .strict();
+
+const fieldAccessConclusionSchema = z
+  .object({
+    visible: z.union([z.boolean(), z.literal(FIELD_ACCESS_INDETERMINATE)]),
+    editable: z.union([z.boolean(), z.literal(FIELD_ACCESS_INDETERMINATE)]),
+    /** The ordered facts the conclusion was derived from, each naming its layer. */
+    sourceChain: z.array(z.string()),
+    /** Where two layers disagree about the same field. */
+    conflicts: z.array(z.string()),
+    /** What this conclusion does not establish. */
+    caveats: z.array(z.string()),
+  })
+  .strict();
+
+const fieldAccessExplanationSchema = z
+  .object({
+    fieldApiName: z.string(),
+    describeFacts: fieldAccessDescribeFactsSchema.nullable(),
+    grants: z.array(fieldAccessGrantSchema),
+    /** True when this field's grants were cut to fit the response budget. */
+    grantsTruncated: z.boolean(),
+    conclusion: fieldAccessConclusionSchema,
+  })
+  .strict();
+
+export const explainFieldAccessOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    ...diagnosticFailureFields,
+    executionRole: z.literal('DIAGNOSTIC').optional(),
+    /** The standard API, not Tooling: every permission table read here is a standard-API query. */
+    api: z.literal('STANDARD').optional(),
+    objectApiName: z.string().optional(),
+    requestedFieldCount: z.number().int().nonnegative().optional(),
+    returnedFieldCount: z.number().int().nonnegative().optional(),
+    /**
+     * The subject of the whole call — one user for every field by construction.
+     *
+     * Carried once at the top level rather than inside each field entry, because it is a property of the
+     * request (one object, one subject) and not of a field: repeating a permission-set list ten times
+     * would spend the response budget restating the same facts, which is exactly the shape the
+     * truncation contract exists to avoid.
+     */
+    userContext: fieldAccessUserContextSchema.optional(),
+    recordTypeContext: fieldAccessRecordTypeContextSchema.optional(),
+    fields: z.array(fieldAccessExplanationSchema).optional(),
+    truncated: z.boolean().optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
 export type TracedEntityKind = z.infer<typeof traceFlagInputSchema>['tracedEntityKind'];
 export type TraceFlagInput = z.infer<typeof traceFlagInputSchema>;
 export type TraceFlagOutput = z.infer<typeof traceFlagOutputSchema>;
@@ -765,6 +986,14 @@ export type ApexLogEntry = z.infer<typeof apexLogEntrySchema>;
 export type DebugLogBodyInput = z.infer<typeof debugLogBodyInputSchema>;
 export type DebugLogBodyOutput = z.infer<typeof debugLogBodyOutputSchema>;
 export type DebugLogHeaderSummary = z.infer<typeof apexLogHeaderSummarySchema>;
+export type ExplainFieldAccessInput = z.infer<typeof explainFieldAccessInputSchema>;
+export type ExplainFieldAccessOutput = z.infer<typeof explainFieldAccessOutputSchema>;
+export type FieldAccessExplanation = z.infer<typeof fieldAccessExplanationSchema>;
+export type FieldAccessGrant = z.infer<typeof fieldAccessGrantSchema>;
+export type FieldAccessConclusion = z.infer<typeof fieldAccessConclusionSchema>;
+export type FieldAccessUserContext = z.infer<typeof fieldAccessUserContextSchema>;
+export type FieldAccessRecordTypeContext = z.infer<typeof fieldAccessRecordTypeContextSchema>;
+export type FieldAccessParentType = (typeof FIELD_ACCESS_PARENT_TYPES)[number];
 
 export type RecordActionContextInput = z.infer<typeof recordActionContextInputSchema>;
 export type RecordActionContextOutput = z.infer<typeof recordActionContextOutputSchema>;

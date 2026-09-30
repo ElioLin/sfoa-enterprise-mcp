@@ -66,6 +66,8 @@ import {
   ScopedDebugLogBodyExecutor,
   ScopedTraceFlagExecutor,
 } from './debug-log-context-executors.js';
+import { ScopedFieldAccessExplainer } from './field-access-context-executor.js';
+import type { FieldAccessTargetUsers } from './field-access-target-users.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
 import { ToolGovernancePolicy } from './tool-governance.js';
 import {
@@ -107,6 +109,15 @@ export type CreateGovernedMcpServerOptions = Readonly<{
    */
   attachmentIngress?: AttachmentIngress;
   managedDmlFieldRules?: readonly RuntimeManagedDmlFieldRule[];
+  /**
+   * The `targetUserId` boundary `explain_field_access` runs under, resolved by the request layer.
+   *
+   * Absent when the request did not need it (the Tool is not enabled, or the request is a USER-role one) and
+   * absent on the environment-configured runtime, which has no route table. It reaches the executor through
+   * the provider's `fieldAccessExplainer` option rather than being read here, because the boundary is a
+   * property of the *request* — which route the caller has — and this factory is per-request already.
+   */
+  fieldAccessTargetUsers?: FieldAccessTargetUsers;
   lightningBaseUrl?: string;
   requestAuditContext?: RequestAuditContextController;
   effectiveUi?: Omit<EffectiveUiOptions, 'audit' | 'managedFields'>;
@@ -389,6 +400,19 @@ export async function createGovernedMcpServer(
           : {}),
         ...(contextToolNames.includes('get_debug_log_body')
           ? { debugLogBodyExecutor: new ScopedDebugLogBodyExecutor(options.scope, options.initializedProvider.enabledTools) }
+          : {}),
+        // The permission explainer is the one executor that needs something the host alone knows: which
+        // Salesforce users this deployment explains access for. `fieldAccessTargetUsers` is absent whenever
+        // the request did not resolve a route set, and the executor treats that as a fail-closed boundary
+        // (see `field-access-target-users.ts`) rather than as "no boundary".
+        ...(contextToolNames.includes('explain_field_access')
+          ? {
+              fieldAccessExplainer: new ScopedFieldAccessExplainer(
+                options.scope,
+                options.initializedProvider.enabledTools,
+                options.fieldAccessTargetUsers ?? { selfSalesforceUsername: null, configuredSalesforceUsernames: [] },
+              ),
+            }
           : {}),
       });
       const contextTools = await contextProvider.provideTools(options.scope.services);

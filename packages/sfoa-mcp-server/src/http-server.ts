@@ -19,6 +19,7 @@ import {
   type EffectiveUiOptions,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
+  buildIdentityRoutes,
   formatRuntimeError,
   IdentityRuntimeError,
   RequestAuditContextController,
@@ -70,6 +71,7 @@ import {
   type RuntimeDiscoveryPolicySnapshotSource,
 } from './policy-snapshot.js';
 import { classifyMcpRequest, createDiscoveryMcpServer } from './discovery-server.js';
+import { envFieldAccessTargetUsers, type FieldAccessTargetUsers } from './field-access-target-users.js';
 import { readBoundedJsonBodySource } from './request-body.js';
 import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
@@ -637,6 +639,17 @@ async function executeMcpPost(
   let diagnosticReady = false;
   let managedDmlFieldRules: ReturnType<typeof snapshotManagedDmlFieldRules> = Object.freeze([]);
   let uiPolicies: EffectiveUiOptions['policies'] = [];
+  /**
+   * The `targetUserId` boundary for `explain_field_access`, resolved only for the requests that need it.
+   *
+   * Undefined on every other request, including every USER-role one: the route table is a whole-table read
+   * and putting it on the request path of Tools that do not use it would be a cost with no benefit. Both
+   * runtimes supply it, from the authoritative route source each one has — the identity-route table on the
+   * MySQL runtime, `buildIdentityRoutes()` on the environment-configured one — so the set this Tool bounds
+   * `targetUserId` to is the set the runtime actually routes calls through, rather than a parallel list
+   * that could drift from it.
+   */
+  let fieldAccessTargetUsers: FieldAccessTargetUsers | undefined;
   let integrationDefaultApp: string | undefined;
   let uiConfigurationError: string | undefined;
   let scope: RequestScope;
@@ -688,6 +701,21 @@ async function executeMcpPost(
         );
       }
       scope = await options.identityRuntime.scopeFactory.createForRoute(identity, diagnosticRoute);
+      // The requesting user's own route, plus the deployment's route table. The two together are the
+      // boundary: without the first a caller could not be explained their own access, and without the
+      // second a caller could name any user Id in the org.
+      if (initializedProvider.enabledTools.includes('explain_field_access')) {
+        // A source that cannot list its routes yields an empty set, which fails *closed*: every named
+        // `targetUserId` is then refused while a self-subject still resolves from the route above, so the
+        // common case keeps working and the dangerous direction is the one that closes. `selfSalesforceUsername`
+        // is the requesting user's own business route — the identity the caller is, not the DIAGNOSTIC account
+        // the Tool runs on, and the distinction is the whole reason the Tool asks the host for this.
+        const configured = await options.policySnapshotSource.listConfiguredSalesforceUsernames?.();
+        fieldAccessTargetUsers = Object.freeze({
+          selfSalesforceUsername: userRoute.salesforceUsername,
+          configuredSalesforceUsernames: configured ?? [],
+        });
+      }
     } else {
       scope = await options.identityRuntime.scopeFactory.createForRoute(identity, userRoute);
     }
@@ -705,6 +733,16 @@ async function executeMcpPost(
     scope = requestedRole === 'DIAGNOSTIC'
       ? await createDiagnosticScope(options.identityRuntime, identity)
       : await options.identityRuntime.scopeFactory.create(identity);
+    // Same facts as the MySQL branch above, from this runtime's authoritative source: the routes
+    // `createIdentityRuntime` itself built out of the identity config. Reading them back from the runtime
+    // rather than recomputing them from `primaryUsername`/`secondaryUsername` is what keeps the Tool's
+    // `targetUserId` bound equal to the set of users this deployment actually routes calls through.
+    if (requestedRole === 'DIAGNOSTIC' && initializedProvider.enabledTools.includes('explain_field_access')) {
+      fieldAccessTargetUsers = envFieldAccessTargetUsers(
+        buildIdentityRoutes(options.config.identity),
+        identity.platformUserId,
+      );
+    }
   }
   await resources.attachScope(scope);
   resources.assertAvailable(signal);
@@ -732,6 +770,7 @@ async function executeMcpPost(
     diagnosticReady,
     ...(options.attachmentIngress ? { attachmentIngress: options.attachmentIngress } : {}),
     managedDmlFieldRules,
+    ...(fieldAccessTargetUsers === undefined ? {} : { fieldAccessTargetUsers }),
     effectiveUi: {
       policies: uiPolicies, integrationDefaultApp,
       // App context is not an identity selector; validate access through the USER apps API.

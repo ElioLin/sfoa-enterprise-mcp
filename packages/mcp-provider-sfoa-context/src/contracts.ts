@@ -5,6 +5,8 @@ import type {
   DebugLogBodyOutput,
   DiagnosticQueryEvidence,
   DiagnosticQueryInput,
+  ExplainFieldAccessInput,
+  ExplainFieldAccessOutput,
   MetadataComponentContext,
   MetadataContextInput,
   OrgLimitsInput,
@@ -50,4 +52,19 @@ export interface ApexLogReader {
 
 export interface DebugLogBodyReader {
   execute(input: DebugLogBodyInput): Promise<DebugLogBodyOutput>;
+}
+
+/**
+ * Aggregates the org's permission facts for one object's fields, on the DIAGNOSTIC identity.
+ *
+ * Host-side for the same reason as the debug-log executors, plus one that is specific to this Tool:
+ * the `targetUserId` boundary is a fact about the platform's **identity routes**, and routes are the
+ * host's model, not the provider's. A provider-side implementation would be handed a Connection and
+ * nothing that could tell it which Salesforce users the deployment has configured — so it could either
+ * accept any Id (an account-access reconnaissance surface) or none (a Tool that cannot answer about
+ * anyone). Only the host can supply the third answer, which is why the boundary is injected into the
+ * implementation rather than derived inside it.
+ */
+export interface FieldAccessExplainer {
+  execute(input: ExplainFieldAccessInput): Promise<ExplainFieldAccessOutput>;
 }

@@ -1,4 +1,5 @@
 import {
+  createMySqlRepositories,
   loadMySqlRequestPolicySnapshot,
   loadMySqlDiscoveryPolicySnapshot,
   type RuntimeDiscoveryPolicySnapshot,
@@ -13,6 +14,24 @@ import { RemoteRuntimeError } from './errors.js';
 
 export interface RuntimePolicySnapshotSource {
   load(platformUserId: string): Promise<RequestPolicySnapshot>;
+  /**
+   * The Salesforce usernames this deployment has configured as enabled identity routes.
+   *
+   * Optional, and deliberately not part of `RequestPolicySnapshot`. It is not a per-request policy — it is
+   * the deployment's route *table*, the same for every caller — and folding it into the snapshot would put
+   * a whole-table read on the request path of every Tool to serve one. It is also not the requesting
+   * user's own route, which the snapshot does carry: the difference is the whole point, because
+   * `explain_field_access` needs to know which *other* users a caller may ask about, and the answer is
+   * this list rather than the caller's own row.
+   *
+   * Declared here rather than as a new constructor argument threaded through `runtime.ts`,
+   * `startRemoteMcpServer` and the request handler: the source is already the object that owns
+   * control-plane reads for a request, and a Tool-specific parameter would have to reach four layers
+   * before it reached the one that uses it. An environment-configured runtime implements no such method,
+   * which is exactly the signal `explain_field_access` needs to refuse a self-subject (see
+   * `field-access-target-users.ts`).
+   */
+  listConfiguredSalesforceUsernames?(): Promise<readonly string[]>;
 }
 
 export interface RuntimeDiscoveryPolicySnapshotSource {
@@ -32,6 +51,15 @@ export class MySqlRuntimePolicySnapshotSource implements RuntimePolicySnapshotSo
 
   public async load(platformUserId: string): Promise<RequestPolicySnapshot> {
     return loadMySqlRequestPolicySnapshot(this.database, platformUserId);
+  }
+
+  /**
+   * Read-only, and the same repository query the snapshot loader already uses for its own
+   * diagnostic/USER-username conflict check — so this adds no new query shape to the control plane and no
+   * new table access, only a second caller for one that exists.
+   */
+  public async listConfiguredSalesforceUsernames(): Promise<readonly string[]> {
+    return createMySqlRepositories(this.database).identityRoutes.listActiveSalesforceUsernames();
   }
 }
 

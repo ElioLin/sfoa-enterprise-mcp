@@ -10,6 +10,7 @@ import type {
 import type { McpTool, McpToolConfig } from '@salesforce/mcp-provider-api';
 import {
   ContextRuntimeError,
+  EXPLAIN_FIELD_ACCESS_DEFAULT_RECORD_TYPE_CONTEXT,
   SFOA_CONTEXT_TOOL_NAMES,
   SFOA_CONTEXT_TOOL_ROLES,
   contextExecutionErrorToolResult,
@@ -199,6 +200,12 @@ const CONTEXT_TOOL_PURPOSES: Readonly<Record<SfoaContextToolName, SalesforceApiP
   set_trace_flag: 'TRACE_FLAG',
   get_apex_logs: 'DEBUG_LOG',
   get_debug_log_body: 'DEBUG_LOG',
+  // Its own purpose rather than a fold into `DIAGNOSTIC_TOOLING`, even though both run on the DIAGNOSTIC
+  // identity. This Tool issues no Tooling query at all — every read it makes is a standard-API permission
+  // table — and the audit's question is a different one: "who looked up whose field access", which is a
+  // permission question about a *subject* and not a query question about a component. Folding it in would
+  // put a standard-API permission read under a Tooling heading and make the answer unreadable.
+  explain_field_access: 'PERMISSION_EXPLAIN',
 });
 
 function contextPurpose(toolName: string): SalesforceApiPurpose {
@@ -249,6 +256,28 @@ function safeContextRequestSummary(toolName: string, input: ToolInput): unknown 
       maxCharacters: typeof input.maxCharacters === 'number' ? input.maxCharacters : null,
     };
   }
+  if (toolName === 'explain_field_access') {
+    // ADR-0029 §4d's rule for the diagnostic set: what makes the row answerable is on it. Here that is
+    // *whose* access was explained and *which* fields were asked about — a permission explanation is only
+    // auditable if the subject is. The field names are metadata rather than data (they are keys into the
+    // permission configuration and no value is ever read from them), and there are at most ten of them.
+    const fieldApiNames = Array.isArray(input.fieldApiNames)
+      ? input.fieldApiNames.filter((name): name is string => typeof name === 'string')
+      : [];
+    return {
+      objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : null,
+      targetUserId: typeof input.targetUserId === 'string' ? input.targetUserId : null,
+      // As sent, and the schema's own bound is stated over the list as sent, so the count here is the
+      // count the caller could have got wrong. The effective record-type switch is the opposite case: an
+      // omitted argument is not "off", and a row reading `false` beside a response that carried
+      // `recordTypeContext` would describe a call that did not happen.
+      fieldApiNames,
+      fieldCount: fieldApiNames.length,
+      includeRecordTypeContext: input.includeRecordTypeContext === undefined
+        ? EXPLAIN_FIELD_ACCESS_DEFAULT_RECORD_TYPE_CONTEXT
+        : input.includeRecordTypeContext === true,
+    };
+  }
   if (toolName === 'get_record_display_context') {
     return {
       objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : null,
@@ -284,6 +313,11 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     ...(typeof content.verified === 'boolean' ? { verified: content.verified } : {}),
     ...(typeof content.replacedExisting === 'boolean' ? { replacedExisting: content.replacedExisting } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
+    // `explain_field_access`. `fieldCount` above already counts the returned fields; the requested count is
+    // recorded next to it because the two differ only when the budget cut the list, and an audit row that
+    // could not tell "ten fields were explained" from "ten of thirty were explained" would not answer the
+    // question it exists for.
+    ...(typeof content.requestedFieldCount === 'number' ? { requestedFieldCount: content.requestedFieldCount } : {}),
     ...(errorCode ? { errorCode } : {}),
   };
 }
