@@ -2,6 +2,67 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-09-30 — P10-T2: the debug log toolset, ADR-0030, and the two defects the live loop found
+
+T2 delivers GAP-M1 — the deterministic Apex/Flow exception chain — as three Tools on the fixed DIAGNOSTIC
+identity: `set_trace_flag` (the only write, bounded to one `TraceFlag` and one `DebugLevel`),
+`get_apex_logs`, and `get_debug_log_body`. All three are default-disabled, classified `DIAGNOSTIC`, and
+audited through P7; their hints compose into one path so an agent that knows nothing about Apex can get
+from "something threw" to a class and a line. [ADR-0030](adr/ADR-0030-p10-debug-log-toolset-governance-and-debuglevels.md)
+records the governance decisions: the new **`DIAGNOSTIC_WRITE`** classification (`MUTATION` writes business
+records, `ADMIN` changes who may do what — a Setup-layer diagnostic write is neither), three fixed
+`DebugLevel` tiers under a reserved prefix with resolve-or-create, and the versioned Blob read keyed off
+the log's **own** header version rather than the org's.
+
+**The live milestone ran twice, and the first run's failure is the more valuable half of the evidence.**
+Both runs remain in the audit trail, so audits `7699` (a correct write reported `verified: false`) and
+`7711` (`get_apex_logs` → `MCP_APEX_LOG_READ_FAILED`) sit beside `7713`–`7716`, the run that closed the
+loop with `overall = PASS` on all ten gates. The full record is
+[P10_T2_LIVE_EVIDENCE.md](P10_T2_LIVE_EVIDENCE.md).
+
+**Defect 1 — a `dateTime` filter was emitted as a quoted string literal.** `LastModifiedDate >= '…Z'` is a
+*string* literal, and this org's Tooling API refuses one where a `dateTime` belongs: `INVALID_FIELD` —
+"value of filter criterion for field 'LastModifiedDate' must be of type dateTime and should not be
+enclosed in quotes". This is the one `dateTime` filter in the Toolset; every other use of the string
+escaper quotes a real string or Id field and is correct. **The T0 probe could not have caught it**: its
+`ApexLog` query carried no `WHERE` clause at all, so no `dateTime` literal had ever been sent to this org.
+The Tool now emits the window bound through a `soqlDateTimeLiteral` helper that re-validates the shape and
+emits it unquoted — safety is structural, because the only values passed in are produced in-process from
+the clock, never from a caller or from org data.
+
+**Defect 2 — a correct write was reported as unverified.** The requested expiration carried milliseconds
+while Salesforce stores whole seconds and answers a re-read with the truncated value
+(`…:47.000+0000` against a requested `…:47.812Z`), so the verification comparison was false *by the
+sub-second remainder*. This is the mirror image of T1's finding — that run watched a write report success
+on a row that survived; this one watched a write report **unverified** on a row that was correct. The
+clock is now truncated to whole seconds so the request is expressible in the precision the platform keeps,
+and the comparison is left exact, because a tolerance would also accept a genuinely short trace.
+
+**The fixture was the reason both defects reached a live org**, which is the durable lesson: it echoed the
+Tool's payload byte for byte, so it answered *more precisely than production* and could not fail a
+comparison production fails. It now stores `TraceFlag` dates the way the org does — whole seconds, in the
+`+0000` offset notation — and the suite asserts that a seeded millisecond instant is normalized on
+storage, so no test can buy itself a kinder fixture.
+
+**Two measured facts beyond T0's**, both strengthening claims T1 could only assert: the DIAGNOSTIC
+identity **may run anonymous Apex** (never measured before, because the probe executed no code, and the
+milestone gates every write leg on it), and `ApexLog.Status` for a *failure* is **the exception's own
+text** — `Attempt to de-reference a null object` — not a localized label. So the status vocabulary is not
+a two-value translation table missing its English side; it is free text that varies with the failure. Any
+filter composed from a believed-in enum would drop the failing row silently, which is ADR-0029 §3's rule
+in its strongest form.
+
+**Audit separation is measured, not assumed.** `yarn ai:audit` shows all three Tools on the chain on
+`executionRole = DIAGNOSTIC`, with the write's Salesforce calls carrying `TRACE_FLAG` and both reads
+carrying `DEBUG_LOG` — the separation ADR-0029 §4d requires so the trail can answer "who opened a trace
+on whom" on its own. Six connections collapsed to one distinct identity, and no credential material
+appears in any row. `A-1` (cross-user `ApexLog` visibility) is still **not** exercised — the loop traces
+the diagnostic identity itself — and remains a production deployment check.
+
+`run_diagnostic_tooling_query` also gained the `FROM`/`USING` object check ADR-0029 §4b specified, on the
+diagnostic allowlist and ahead of the platform's own refusal, which T1 identified as the one place a
+pre-existing Tool met the §0.3.1 boundary in fact but not in letter.
+
 ## 2026-09-30 — P10-T1: the diagnostic capability probe, ADR-0029, and the four facts that change the design
 
 P10 builds six Tools on the server-owned DIAGNOSTIC identity, and P9's lesson was that this identity's

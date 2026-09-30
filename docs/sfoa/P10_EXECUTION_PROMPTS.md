@@ -142,6 +142,20 @@
 >
 > 另：**日志解析器必须按日志自身头部版本分发**（本 org API 为 v68.0，实测日志头部出现 54.0 与 56.0 两种）；**任何查询都不得按 `Status` 文本字面量过滤**（英文 `'Success'` 命中 1 条、本地化命中 8 条）。
 
+> **修订注记（T2 实施后加，2026-09-30；原 Prompt 原文保留不改）**
+>
+> 依据 `ADR-0030`，本任务有四处偏离原 Prompt 的写法，均有实测或已记录的依据：
+>
+> 1. **治理分类不是 `MUTATION`，而是新增的 `DIAGNOSTIC_WRITE`**（0.3 节建议名的采纳）。`MUTATION` 在本目录里指官方 DML 工具写业务记录，`ADMIN` 指改「谁可以做什么」；`set_trace_flag` 两者都不是——它写的是 Setup 层诊断配置，恰好是 `TraceFlag` 与 `DebugLevel` 两个 Tooling 对象。新增值只由 `contextToolClassification` 对 SFoA 原生工具产出，`P2_ALLOWED_CLASSIFICATIONS` 不变，因此不会漏进官方工具的 Agent 安全闸门。改动面四个文件：分类元组、Admin DTO 联合、控制台标签表、分类器本身。
+> 2. **`get_apex_logs` 的 `status` 不是枚举**（0.3/ADR-0029 的「不得按人类可读标签过滤」）。本 org `ApexLog.Status` 是本地化的，英文枚举会静默丢掉约 89% 的行。改为按 org 实际存储值做字面匹配，并在 `observedStatuses` 回报实际见到的取值。
+> 3. **日志条目拆成三个身份字段**（`logUserId` / `logUserName` / `logUserUsername`），取代原 Prompt 的单个 `logUser`：`userId` 过滤要的是 Id，而 `logUser` 这种写法会诱导调用方把显示名当标识使用。
+> 4. **默认档位不含 profiling。** 原 Prompt 把 `ApexProfiling` 列进默认档，实测取舍是把它拆成独立的 `PROFILING` 档：profiling 计数是日志体积的最大来源，把它放进默认档会让最常见的调用产出最容易溢出的日志——正是本工具组要避免的失败。
+>
+> **另附两处实测修正（不是偏离，是缺陷；记于 ADR-0030 §7，证据见 `P10_T2_LIVE_EVIDENCE.md`）**：
+>
+> 1. **SOQL 的 `dateTime` 过滤必须不带引号。** `get_apex_logs` 首次实跑以 `MCP_APEX_LOG_READ_FAILED` 失败，平台原话是 `INVALID_FIELD`——`LastModifiedDate` 是 dateTime，不接受被引号包成字符串字面量。T0 probe 的 `ApexLog` 查询没有 `WHERE` 子句，因此从没向本 org 发过 dateTime 字面量，测不到这一条。现由 `soqlDateTimeLiteral` 校验后不加引号发出；`LogUserId` 等 Id/字符串字段仍加引号。
+> 2. **`TraceFlag` 的日期在请求侧也是秒精度。** 首次实跑把一次正确的写报成 `verified: false`：请求带毫秒、平台只存整秒，判等差了亚秒余数。现把时钟截断到整秒后再算窗口，判等保持精确（不用容差，容差会连「真的短了」一起放过）。单测夹具同步改为按 org 的真实精度与 `+0000` 记法存储——夹具此前比生产「更精确」，因而无法失败在生产会失败的判等上，这正是两个缺陷能走到实跑的原因。
+
 ## 任务 T2 — Debug Log 三件套：set_trace_flag + get_apex_logs + get_debug_log_body（P10-1/2）
 
 ```

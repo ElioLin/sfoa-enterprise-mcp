@@ -1,3 +1,42 @@
+# SFoA P10 Diagnostic Depth — T2 debug log toolset and the live closed loop (2026-09-30)
+
+- Deliver **GAP-M1**: `set_trace_flag` (the write), `get_apex_logs` and
+  `get_debug_log_body`, all `DIAGNOSTIC`, all default-disabled, all audited through
+  P7, with hints that compose into one path — open a trace → reproduce → list → read
+  the body → land on a class and line. The write boundary is one `TraceFlag` and one
+  `DebugLevel`; there is no delete path and no other object is reachable.
+- Land [ADR-0030](docs/sfoa/adr/ADR-0030-p10-debug-log-toolset-governance-and-debuglevels.md):
+  a new `DIAGNOSTIC_WRITE` classification (`MUTATION` means "writes business
+  records" and `ADMIN` means "changes who may do what" — this is neither), three
+  fixed `DebugLevel` tiers under a reserved prefix, and the versioned Blob read
+  keyed off the log's **own** header version.
+- **The live milestone closes the loop on the sandbox, and finding it required
+  two real defects to be fixed first.** The first run failed and the second passed;
+  both runs remain in the audit trail, so audits `7699` (`verified: false` on a
+  correct write) and `7711` (`MCP_APEX_LOG_READ_FAILED`) sit beside `7713`–`7716`.
+  Recorded in
+  [P10_T2_LIVE_EVIDENCE.md](docs/sfoa/P10_T2_LIVE_EVIDENCE.md) with the audit rows.
+- **A SOQL `dateTime` filter must be emitted unquoted.** `LastModifiedDate >= '…Z'`
+  is a *string* literal, and the Tooling API refuses it: `INVALID_FIELD` — "should
+  not be enclosed in quotes". T0 could not have found this because its `ApexLog`
+  query carried **no `WHERE` clause**, so no `dateTime` literal had ever been sent.
+- **`TraceFlag` dates are second-precision on the request side too.** A request
+  carrying milliseconds is truncated by the platform, so `stored >= requested` failed
+  by the sub-second remainder and a correct write reported `verified: false`. The
+  clock is truncated to whole seconds and the comparison stays exact — a tolerance
+  would also accept a genuinely short trace. The unit fixture was corrected with it:
+  it had been echoing the payload byte for byte, answering **more precisely than the
+  org**, which is why a fixture could not guard a comparison production fails.
+- Two measured facts beyond T0's: the DIAGNOSTIC identity **may run anonymous Apex**
+  (never measured before, because the probe executed no code), and `ApexLog.Status`
+  for a failure is **the exception's own text** — `Attempt to de-reference a null
+  object` — not a localized label. The vocabulary is therefore free text that varies
+  with the failure, not a two-value translation table, which is the strongest form
+  of ADR-0029 §3's "never filter on a human-readable label".
+- `run_diagnostic_tooling_query`'s free-form Tooling SOQL now has the `FROM`/`USING`
+  object check ADR-0029 §4b specified, on the diagnostic allowlist, ahead of the
+  platform's own refusal.
+
 # SFoA P10 Diagnostic Depth — T1 prerequisite probe (2026-09-30)
 
 - Measure the diagnostic identity's real capability surface **before** building six
