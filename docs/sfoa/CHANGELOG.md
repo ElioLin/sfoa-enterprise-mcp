@@ -2,7 +2,77 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
-## 2026-09-30 — P10-T2: the debug log toolset, ADR-0030, and the two defects the live loop found
+## 2026-09-30 — P10-T3: `explain_field_access`, the permission-attribution boundary, and the two FLS mechanisms the org actually has
+
+T3 delivers GAP-M2: `explain_field_access`, a Tool that answers *why* a user can or cannot see or edit a
+field by aggregating the layers Salesforce actually stores — the object permission, the `FieldPermissions`
+rows and the permission sets that carry them, record-type visibility, and describe facts — into one
+`sourceChain`. It is **read-only evidence aggregation and not a permission engine**: it never simulates or
+predicts Salesforce's adjudication, it reports non-permission causes (a validation rule, a field
+dependency, a read-only layout) as *presence hints* only, and when a layer cannot be read it answers
+`INDETERMINATE` naming that layer rather than reporting absence as a denial.
+[ADR-0031](adr/ADR-0031-p10-permission-attribution-target-boundary-and-indeterminate.md) records the
+decisions, including the third state `INDETERMINATE` (`true | false | 'INDETERMINATE'`) and the
+`targetUserId` boundary.
+
+**The boundary is the subject query's scope, not a check before it.** `targetUserId` is admitted only for a
+Salesforce user the deployment has configured as an enabled identity route, or for the requester; membership
+is enforced by `Id = :id AND Username IN (:configured)` **inside** the query, so an Id outside the routes and
+an Id that exists nowhere produce byte-identical refusals — the live run measured both at `refusalLength:
+544`, `refusalTextsIdentical: true`, each costing exactly the one subject lookup. There is no branch that
+could drift and no way to ask the Tool which Ids exist.
+
+**The live milestone ran five times, and the three failures are the substance of the task.** Two mechanisms
+of the platform's field-level security were measured rather than assumed: a `FieldPermissions` row
+**cannot be created** with `PermissionsRead=false` (`FIELD_INTEGRITY_EXCEPTION`, "Read permission is required
+for: Account.TickerSymbol"), and clearing Read on an existing row makes the platform **remove** it. So
+"closing a field" is taking a row away, which is also the edit an administrator makes by unchecking Read in
+Setup. That makes the Tool's answer *definite* rather than `INDETERMINATE` on the ordinary real
+configuration — the profile is readable and has no row — which is why `profileBaselineReadable` is derived
+from the parent list rather than from the rows. The full record, including what the run does not prove, is
+[P10_T3_LIVE_EVIDENCE.md](P10_T3_LIVE_EVIDENCE.md).
+
+**One defect found only by the run, and it was in the harness rather than in the product.**
+`AdditiveToolPolicySnapshotSource` — the decorator the live milestone wraps the real policy snapshot source
+in to grant the Tool without writing the Control Plane — did not forward the optional
+`listConfiguredSalesforceUsernames`. Through the decorator the deployment therefore appeared to configure
+**no** identity routes, and the Tool correctly refused every named target with
+`MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED` before reading anything. Every unit test passed: fixtures call the
+source directly, and the decorator existed only in the composition production uses. The product code was
+right on both sides — the MySQL source implements the member, and defaulting an absent one to the empty set
+is the fail-closed direction — and what made the defect expensive is that the report read as **a fact about
+the deployment** rather than as a harness that had lost a method. An optional member on a policy interface
+is an invitation to exactly this, and a fail-closed default turns the invitation into a silent one: the
+wrong answer arrives wearing the shape of a correct one.
+
+**Three more harness defects, each of which would have let a wrong result pass.** The report recorded the
+platform's error *code* while dropping its message and jsforce's `errors[]`, which is what hid the
+measurement above until it was fixed. The cleanup comparison looked in **one** direction — it asked "what is
+here now that was not here before?", so a run that removed a row (207 snapshot lines → 206) reported
+`drift: []` on an org it had altered; snapshot equality now means set equality in both directions. And the
+restore had no way to put back a row the platform deleted, because it restored by an id that no longer
+existed — the revert now re-reads the row and re-creates it when it is gone. A fourth, the report archiving
+route usernames inside recorded SOQL, was fixed by masking at the point of recording; the audit deliberately
+keeps the unmasked statement, because that is the deployment's own internal record.
+
+**The §0.3 red line is measured on the wire, not asserted in a comment.** The milestone wraps the
+Connection it hands the runtime and checks every statement the Tool issued against the executor's
+Setup-layer whitelist: 25 statements over 5 windows, targets in
+`FieldPermissions`/`ObjectPermissions`/`PermissionSet`/`PermissionSetAssignment`/`RecordType`/`User`, **zero
+off-whitelist targets and zero business-object reads**. `fieldApiNames` is used only as a key into the
+permission configuration.
+
+**Final run: `overall = PASS`, exit 0, all fifteen gates `PASS`**, on the sandbox (CHN5S, API v68.0) with
+the org restored to its pre-write snapshot line for line. The Tool is `DIAGNOSTIC`, default-disabled, with
+`readOnlyHint: true`, and audited: twenty-eight rows across the five runs, every one
+`executionRole = DIAGNOSTIC`, with the Tool's Salesforce calls carrying `purpose = PERMISSION_EXPLAIN`. All
+twelve of its failure rows carry `MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED` — ten of them the boundary gate's own
+probes, which have to fail for the gate to pass — so a red row on this Tool means the boundary working
+rather than the Tool breaking. **Still owed**: the prompt's human Setup-page cross-check (the harness's is an
+independent machine read of the same tables), and any live leg for `INDETERMINATE`, which remains
+unit-tested only.
+
+
 
 T2 delivers GAP-M1 — the deterministic Apex/Flow exception chain — as three Tools on the fixed DIAGNOSTIC
 identity: `set_trace_flag` (the only write, bounded to one `TraceFlag` and one `DebugLevel`),

@@ -227,6 +227,21 @@
 > 1. **目标用户的 FLS 绝不能取 `describe`。** describe 回答的是调用身份（诊断账号）自己的权限——Account 252 字段。把它混进目标用户的解释里，等于把诊断管理员的权限报成用户的权限。
 > 2. **不得按本地化标签比较。** `Profile.Name` 在本 org 是中文（`系统管理员`、`标准用户`），`SetupAuditTrail.Section` 亦被翻译；`RecordType` 必须带 `IsActive` 事实（实测存在停用记录类型）。
 
+> **修订注记（T3 实施后加，2026-09-30；原 Prompt 原文保留不改）**
+>
+> 依据 `ADR-0031`，本任务有五处偏离原 Prompt 的写法，均有实测或结构性依据：
+>
+> 1. **`userContext` 与 `recordTypeContext` 放在顶层，不放每个 `fields[]` 条目里。** 原 Prompt 的输出草案把它们写在字段条目内。二者描述的是**被解释的主体对象**（主体是谁、他对本对象的读写、记录类型可见性），同一次调用内不可能因字段而异；按字段复制等于把一段相同字节乘以字段数，而字段数上限正是 10。字段条目只保留逐字段会变的事实：`fieldApiName` / `describeFacts` / `grants` / `conclusion`。
+> 2. **`includeRecordTypeContext: false` 时顶层键整个不出现**，而不是出现一个空数组。调用方必须能区分「我主动关掉了」与「我要求了但这一层读不到」——后者要落成 `availableToSubject: 'INDETERMINATE'`，并在 `sourceChain` 里点名缺的是哪一层。这正是本任务的 INDETERMINATE 语义。
+> 3. **对象层读不到 ⇒ 全部字段 INDETERMINATE，不是「无授权」。** 实测：主体的 profile-owned 集在本对象上若没有 `ObjectPermissions` 行，`objectAccess.read` 就是 `null`。原 Prompt 没规定这种输入下 `conclusion.visible` 取什么。本任务的取值是 `'INDETERMINATE'` 且 `sourceChain` 写明 `object-visibility: unreadable`——把「读不到」当「没有授权」是本任务禁止事项第 4 条，而对象层恰恰是最容易被漏掉的那一层。
+> 4. **`FieldPermissions.Field` 的两种存储拼写都发。** 本 org 实测存在只认裸名（`Name`）与只认限定名（`Account.Name`）两种存储；权限配置查询两种都发、再归一化回裸名，否则会静默漏掉一半的行。
+> 5. **实跑的正/反控制不写死字段名，先量后用。** 原 Prompt 假定存在一个「全开放字段」可以直接当正面控制。实测不能假设：本 org 的 `FieldPermissions` 可能根本没有 `Account.Name` 这一行，此时 Tool 报 `visible: false` **是对的**（`profileBaselineReadable` 取「该字段在 profile-owned 父上有行」），而把 `Account.Name` 写死进断言的里程碑会把**自己假设的失败**报成 Tool 的缺陷。因此实跑改为：反面字段取自 org 自己的 `read=false` 行、正面字段取自 org 自己的 `read=true && edit=true` 行；org 没有时，在 **sandbox** 上构造一条，连同 `ObjectPermissions` 读行一起由「写前/写后快照相等」回滚。`ObjectPermissions` 行本身也是必须建立的前提——它缺失会让每个字段都 INDETERMINATE。非 sandbox 上一律不写，两个控制降级为 `NOT TESTED` 并指名 `ADR-0029`，整体 `PARTIAL`——这是 ADR-0029 要的结果，不是一次需要重跑的失败。
+>
+> **另有三处非偏离、但必须在实现里钉死的边界（同记于 `ADR-0031`）**：
+>
+> 1. **`targetUserId` 的边界是 SOQL 子句，不是前置检查。** 「路由外 Id」与「不存在的 Id」返回**逐字节相同**的拒绝（`MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED`，不含 Id、不含 correlation），因为成员判定写在 `Username IN (…)` 里而不是先读后比。这样「某 Id 是否在本部署路由内」不能从两种拒绝的差异里被问出来，成本也固定为恰好一条查询。
+> 2. **目标用户的 FLS 绝不取 `describe`。** describe 回答的是调用身份（固定 DIAGNOSTIC 账号）自己的权限，把它混进目标用户的解释里等于把诊断管理员报成用户。字段级事实只来自权限配置表。
+> 3. **muting permission set 是本工具的已知盲区，且写在每一条结论上。** 只按 `PermissionSetAssignment` 求并集，不扣减 muting 集；`MUTING_CAVEAT` 出现在**所有**结论的 `caveats` 里而不是只在阳性结论上——一个读者必须先知道才去找的 caveat 等于没有 caveat。
 ## 任务 T3 — explain_field_access 权限归因（P10-3）
 
 ```

@@ -1,3 +1,64 @@
+# SFoA P10 Diagnostic Depth — T3 permission attribution and the target-user boundary (2026-09-30)
+
+- Deliver **GAP-M2**: `explain_field_access`, a read-only Tool that answers *why* a
+  user can or cannot see or edit a field by aggregating the layers Salesforce
+  actually stores — object permission, `FieldPermissions` rows and the permission
+  sets carrying them, record-type visibility, describe facts — into one
+  `sourceChain`. It is **evidence aggregation, not a permission engine**: it never
+  simulates or predicts Salesforce's adjudication, non-permission causes (validation
+  rule, field dependency, read-only layout) are *presence hints* only, and an
+  unreadable layer yields `INDETERMINATE` naming that layer rather than being
+  reported as a denial. `DIAGNOSTIC`, default-disabled, audited through P7.
+- Land [ADR-0031](docs/sfoa/adr/ADR-0031-p10-permission-attribution-target-boundary-and-indeterminate.md):
+  the `targetUserId` boundary, `INDETERMINATE` as a third state, the
+  Setup-layer query whitelist, and the rule that `describe` can never decide a
+  conclusion.
+- **The `targetUserId` boundary is the subject query's scope, not a check before
+  it.** Membership is enforced by `Id = :id AND Username IN (:configured)` inside
+  the query, so an Id outside the deployment's routes and an Id that exists nowhere
+  produce byte-identical refusals — measured live at `refusalLength: 544`,
+  `refusalTextsIdentical: true`, one subject lookup each. No branch can drift and
+  the Tool cannot be used to ask which Ids exist.
+- **The live milestone ran five times; the three failures are the substance of the
+  task.** Two FLS mechanisms were measured rather than assumed: a `FieldPermissions`
+  row **cannot be created** with `PermissionsRead=false`
+  (`FIELD_INTEGRITY_EXCEPTION`, "Read permission is required for:
+  Account.TickerSymbol"), and clearing Read on an existing row makes the platform
+  **remove** it. Closing a field is therefore taking a row away — the same edit an
+  administrator makes in Setup — which is why the answer stays *definite* on the
+  ordinary real configuration. Recorded in
+  [P10_T3_LIVE_EVIDENCE.md](docs/sfoa/P10_T3_LIVE_EVIDENCE.md), including what the
+  run does not prove.
+- **One defect, found only by the run — and it was in the harness, not the product.**
+  `AdditiveToolPolicySnapshotSource`, the decorator the milestone uses to grant the Tool
+  without writing the Control Plane, did not forward the optional
+  `listConfiguredSalesforceUsernames`, so through it the deployment appeared to configure
+  **no** identity routes and the Tool correctly refused every named target before reading
+  anything. Every unit test passed — fixtures call the source directly, and the decorator
+  existed only in the composition production uses. A fail-closed default turned the silent
+  loss into a report that read as a fact about the deployment.
+- **Three more harness defects, each of which would have let a wrong result pass.** The
+  report dropped the platform's own error message and jsforce's `errors[]`; the cleanup
+  comparison looked in one direction, so a run that **removed** a row (207 snapshot lines →
+  206) reported `drift: []` on an org it had altered; and the restore had no way back from a
+  row the platform deleted, because it restored by an id that no longer existed. A fourth —
+  route usernames archived inside recorded SOQL — was fixed by masking at the point of
+  recording, while the audit deliberately keeps the unmasked statement as its own internal
+  record.
+- **The §0.3 red line is measured on the wire.** The milestone wraps the Connection
+  it hands the runtime and checks every statement the Tool issued against the
+  executor's Setup-layer whitelist: 25 statements, 5 windows, zero off-whitelist
+  targets, zero business-object reads. `fieldApiNames` is only ever a key into the
+  permission configuration.
+- **Final run: `overall = PASS`, exit 0, all fifteen gates `PASS`** on the sandbox
+  (CHN5S, API v68.0), with the org restored to its pre-write snapshot line for line
+  and twenty-eight audit rows (`7833`–`7861`) all on `executionRole = DIAGNOSTIC`
+  with the Tool's calls carrying `purpose = PERMISSION_EXPLAIN`. All twelve of its
+  failure rows are `MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED`, ten of them the boundary
+  gate's own probes — they have to fail for the gate to pass, so a red row on this
+  Tool means the boundary working. **Still owed**: the prompt's human Setup-page
+  cross-check, and any live leg for `INDETERMINATE`.
+
 # SFoA P10 Diagnostic Depth — T2 debug log toolset and the live closed loop (2026-09-30)
 
 - Deliver **GAP-M1**: `set_trace_flag` (the write), `get_apex_logs` and
