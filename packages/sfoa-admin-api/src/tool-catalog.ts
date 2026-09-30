@@ -1,6 +1,6 @@
 import type { ToolControlRecord } from '@sfoa/control-plane';
 import { AGENT_INFRASTRUCTURE_TOOL_NAMES } from '@sfoa/agent-playbook';
-import { SFOA_CONTEXT_TOOL_NAMES, SFOA_CONTEXT_TOOL_ROLES } from '@sfoa/mcp-provider-sfoa-context';
+import { SFOA_CONTEXT_TOOL_NAMES, SFOA_CONTEXT_TOOL_ROLES, type SfoaContextToolName } from '@sfoa/mcp-provider-sfoa-context';
 import { SFOA_DATA_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-data';
 import { SFOA_DML_TOOL_NAMES } from '@sfoa/mcp-provider-sfoa-dml';
 import {
@@ -37,6 +37,51 @@ function resolveReleaseState(
 ): AdminToolRecord['releaseState'] {
   if (!policy.upstreamContract) return 'UNKNOWN';
   return policy.upstreamContract.releaseState === 'ga' ? 'GA' : 'NON_GA';
+}
+
+/**
+ * The classification an Admin surface shows for a Context Tool.
+ *
+ * `set_trace_flag` is the one Context Tool that **writes**, so it must not be listed as a read: this
+ * classification is what the Console's enablement declaration is built from (ADR-0029 §4c), and a
+ * write shown as a read is the specific misreading that declaration exists to prevent.
+ *
+ * Its own classification rather than `MUTATION`, because `MUTATION` in this catalog means an official
+ * DML Tool writing business records — that is what an Administrator who sees `MUTATION` has learned to
+ * expect, and it is false here. `DIAGNOSTIC_WRITE` says what is actually licensed: a write to
+ * Setup-layer diagnostic configuration, exactly `TraceFlag` and `DebugLevel`, with no delete path and
+ * no business sObject (ADR-0030 §1).
+ */
+function contextToolClassification(toolName: SfoaContextToolName): ToolClassification {
+  if (toolName === 'get_metadata_component_context') return 'METADATA_READ';
+  if (toolName === 'set_trace_flag') return 'DIAGNOSTIC_WRITE';
+  return 'READ';
+}
+
+/**
+ * What has to be true before a Context Tool works — the Console's declaration, per Tool.
+ *
+ * The debug-log entries name ADR-0029 §2's deployment prerequisites rather than a generic dependency,
+ * because for these three the prerequisite *is* the capability: a missing `A-1` or `A-3` does not make
+ * the Tool error out helpfully at enablement, it decides whether the Tool can answer at all. Naming the
+ * identifier here is what gives the Admin one thing to look up, which is the same reason the Tool's own
+ * errors carry it.
+ */
+function contextToolDependencies(toolName: SfoaContextToolName, diagnostic: boolean): readonly string[] {
+  if (toolName === 'set_trace_flag') {
+    return ['enabled Diagnostic configuration', 'trace administration on the diagnostic account (A-3)'];
+  }
+  if (toolName === 'get_apex_logs') {
+    return ['enabled Diagnostic configuration', 'ApexLog visibility on the diagnostic account (A-1)'];
+  }
+  if (toolName === 'get_debug_log_body') {
+    return [
+      'enabled Diagnostic configuration',
+      'ApexLog visibility on the diagnostic account (A-1)',
+      'Apex log retention long enough for the incident (A-2)',
+    ];
+  }
+  return diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'];
 }
 
 export function buildAdminToolCatalog(
@@ -124,12 +169,12 @@ export function buildAdminToolCatalog(
 
     records.push(toolRecord({
       toolName,
-      classification: toolName === 'get_metadata_component_context' ? 'METADATA_READ' : 'READ',
+      classification: contextToolClassification(toolName),
       executionRole: diagnostic ? 'DIAGNOSTIC' : 'USER',
       remoteCompatible: true,
       releaseState: 'GA',
       control,
-      dependencies: diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'],
+      dependencies: contextToolDependencies(toolName, diagnostic),
       enableAllowed,
       disabledReason: enableAllowed ? null : 'Upstream contract drift requires Maintainer review.',
     }));

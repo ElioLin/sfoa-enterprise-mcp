@@ -134,6 +134,17 @@ export type SalesforceApiPurpose =
    * purpose cannot be read as "every row here is a query".
    */
   | 'BULK_QUERY'
+  /**
+   * The debug-log set's two surfaces, and they are two because the *write* has to be
+   * distinguishable from the reads in the trail on its own. `DEBUG_LOG` covers reading the
+   * execution log — the `ApexLog` listing and the log body, which is an HTTP GET rather than a
+   * SOQL query; `TRACE_FLAG` covers opening or extending a trace, which is the only call in this
+   * server that writes Setup-layer configuration. Folding either into `DIAGNOSTIC_TOOLING` would
+   * make "who opened a trace on whom" unanswerable from the audit alone, which is the one question
+   * ADR-0029 §4d requires of the P10 write path.
+   */
+  | 'DEBUG_LOG'
+  | 'TRACE_FLAG'
   | 'UNKNOWN';
 export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
 export type SalesforceQueryType = 'DATA_SOQL' | 'TOOLING_SOQL';

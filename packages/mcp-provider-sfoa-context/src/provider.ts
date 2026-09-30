@@ -1,14 +1,24 @@
 import { McpProvider, type McpTool, type Services } from '@salesforce/mcp-provider-api';
-import type { DiagnosticToolingQueryExecutor, MetadataComponentContextExecutor, OrgLimitsReader } from './contracts.js';
+import type {
+  ApexLogReader,
+  DebugLogBodyReader,
+  DiagnosticToolingQueryExecutor,
+  MetadataComponentContextExecutor,
+  OrgLimitsReader,
+  TraceFlagWriter,
+} from './contracts.js';
 import { RecordActionContextExecutor } from './record-action-executor.js';
 import { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
 import type { EffectiveUiOptions } from './effective-ui-contracts.js';
 import { RecordDisplayContextExecutor } from './record-display-executor.js';
 import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.js';
+import { GetApexLogsMcpTool } from './tools/get-apex-logs.js';
+import { GetDebugLogBodyMcpTool } from './tools/get-debug-log-body.js';
 import { GetOrgLimitsMcpTool } from './tools/get-org-limits.js';
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
 import { RecordActionContextMcpTool } from './tools/record-action-context.js';
 import { RecordDisplayContextMcpTool } from './tools/record-display-context.js';
+import { SetTraceFlagMcpTool } from './tools/set-trace-flag.js';
 import { PresentationRelationshipExecutor } from './presentation-relationship.js';
 import { PresentationRelationshipMcpTool } from './tools/presentation-relationship.js';
 
@@ -24,6 +34,17 @@ export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   // Tooling/Metadata Tools above are DIAGNOSTIC. This map is what routes the call: the MCP server
   // derives the execution role from it, so moving this line would move the identity the Tool runs on.
   get_org_limits: 'DIAGNOSTIC',
+  // The debug-log set is DIAGNOSTIC for the same reason and, for `set_trace_flag`, a stronger one:
+  // it is this provider's only write. TraceFlag and DebugLevel are Setup-layer configuration reached
+  // through the Tooling API, and every Apex execution log belongs to the platform rather than to a
+  // business user — the deployment's fixed DIAGNOSTIC account is the only identity granted either.
+  //
+  // The three are listed as one block in the order the diagnostic workflow uses them, because that
+  // order is also the order `tools/list` advertises them in, and the hints that chain them are the
+  // mechanism GAP-M1 depends on: open a trace, reproduce, list, read the body, locate the line.
+  set_trace_flag: 'DIAGNOSTIC',
+  get_apex_logs: 'DIAGNOSTIC',
+  get_debug_log_body: 'DIAGNOSTIC',
 } as const);
 
 export type SfoaContextToolName = keyof typeof SFOA_CONTEXT_TOOL_ROLES;
@@ -43,6 +64,9 @@ export type SfoaContextProviderOptions = Readonly<{
   diagnosticQueryExecutor?: DiagnosticToolingQueryExecutor;
   metadataContextExecutor?: MetadataComponentContextExecutor;
   orgLimitsExecutor?: OrgLimitsReader;
+  traceFlagExecutor?: TraceFlagWriter;
+  apexLogsExecutor?: ApexLogReader;
+  debugLogBodyExecutor?: DebugLogBodyReader;
 }>;
 
 export class SfoaContextMcpProvider extends McpProvider {
@@ -86,6 +110,24 @@ export class SfoaContextMcpProvider extends McpProvider {
         throw new Error('get_org_limits requires an org limits executor.');
       }
       tools.push(new GetOrgLimitsMcpTool(this.options.orgLimitsExecutor));
+    }
+    if (requested.includes('set_trace_flag')) {
+      if (!this.options.traceFlagExecutor) {
+        throw new Error('set_trace_flag requires a trace flag executor.');
+      }
+      tools.push(new SetTraceFlagMcpTool(this.options.traceFlagExecutor));
+    }
+    if (requested.includes('get_apex_logs')) {
+      if (!this.options.apexLogsExecutor) {
+        throw new Error('get_apex_logs requires an apex log executor.');
+      }
+      tools.push(new GetApexLogsMcpTool(this.options.apexLogsExecutor));
+    }
+    if (requested.includes('get_debug_log_body')) {
+      if (!this.options.debugLogBodyExecutor) {
+        throw new Error('get_debug_log_body requires a debug log body executor.');
+      }
+      tools.push(new GetDebugLogBodyMcpTool(this.options.debugLogBodyExecutor));
     }
     return Promise.resolve(tools);
   }

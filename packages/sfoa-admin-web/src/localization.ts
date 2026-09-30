@@ -38,6 +38,7 @@ const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   GA: '正式可用',
   NON_GA: '非 GA',
   MUTATION: 'DML 操作',
+  DIAGNOSTIC_WRITE: '诊断写（仅 Setup 层）',
   ADMIN: '管理',
   LOCAL_DEV: '本地开发',
   YES: '是',

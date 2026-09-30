@@ -358,7 +358,12 @@ export type AdminIdentityCredentialResponse = Readonly<{
 
 export type AdminToolRecordDto = Readonly<{
   toolName: string;
-  classification: 'READ' | 'METADATA_READ' | 'MUTATION' | 'ADMIN' | 'LOCAL_DEV' | 'UNKNOWN';
+  /**
+   * `DIAGNOSTIC_WRITE` is the classification `set_trace_flag` carries: a write confined to Setup-layer
+   * diagnostic configuration (`TraceFlag`, `DebugLevel`), which is neither a business-record write
+   * (`MUTATION`) nor a change to who may do what (`ADMIN`). See ADR-0030 §1.
+   */
+  classification: 'READ' | 'METADATA_READ' | 'MUTATION' | 'ADMIN' | 'LOCAL_DEV' | 'DIAGNOSTIC_WRITE' | 'UNKNOWN';
   executionRole: 'USER' | 'DIAGNOSTIC';
   remoteCompatible: boolean;
   releaseState: 'GA' | 'NON_GA' | 'UNKNOWN';

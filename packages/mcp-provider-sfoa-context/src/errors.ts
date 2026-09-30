@@ -10,26 +10,54 @@ export const CONTEXT_ERROR_CODES = [
   'MCP_METADATA_CONTEXT_FAILED',
   'MCP_LIMITS_READ_FAILED',
   'MCP_LIMITS_ACCESS_DENIED',
+  // T2's debug-log Toolset. `MCP_DIAGNOSTIC_PREREQUISITE_MISSING` is the one ADR-0029 §3 makes a
+  // contract across every P10 Tool: a source that could not be read fails with the identifier of the
+  // deployment prerequisite that is missing, and never with a successful empty result.
+  'MCP_DIAGNOSTIC_PREREQUISITE_MISSING',
+  'MCP_DIAGNOSTIC_QUERY_OBJECT_NOT_ALLOWED',
+  'MCP_TRACE_FLAG_INVALID',
+  'MCP_TRACE_FLAG_WRITE_FAILED',
+  'MCP_APEX_LOG_INVALID',
+  'MCP_APEX_LOG_READ_FAILED',
+  'MCP_DEBUG_LOG_BODY_INVALID',
+  'MCP_DEBUG_LOG_BODY_READ_FAILED',
+  'MCP_DEBUG_LOG_BODY_NOT_FOUND',
 ] as const;
 
 export type ContextErrorCode = (typeof CONTEXT_ERROR_CODES)[number];
 
 export class ContextRuntimeError extends Error {
   /**
-   * `suggestion` and `salesforceErrorCode` are optional and only `get_org_limits` sets them, so an
-   * error raised by any other context Tool still renders as exactly `{success, errorCode, message}`.
+   * `suggestion`, `salesforceErrorCode` and `prerequisite` are optional, and only the Tools that need
+   * them set them, so an error raised by any other context Tool still renders as exactly
+   * `{success, errorCode, message}` — those output schemas are `.strict()`.
    */
   public readonly suggestion?: string;
   public readonly salesforceErrorCode?: string;
+  /**
+   * The deployment prerequisite that is missing, as a stable identifier from ADR-0029 §2's table
+   * (`A-1`, `A-2`, …) or the measured constraint it tripped.
+   *
+   * Present only on `MCP_DIAGNOSTIC_PREREQUISITE_MISSING`. It exists so an operator has exactly one
+   * thing to look up: the suggestion explains the remedy, and this identifier says which row of the
+   * deployment list the remedy lives on.
+   */
+  public readonly prerequisite?: string;
 
   public constructor(
     public readonly code: ContextErrorCode,
     message: string,
-    options: { cause?: unknown; suggestion?: string; salesforceErrorCode?: string } = {},
+    options: {
+      cause?: unknown;
+      suggestion?: string;
+      salesforceErrorCode?: string;
+      prerequisite?: string;
+    } = {},
   ) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'ContextRuntimeError';
     if (options.suggestion !== undefined) this.suggestion = options.suggestion;
     if (options.salesforceErrorCode !== undefined) this.salesforceErrorCode = options.salesforceErrorCode;
+    if (options.prerequisite !== undefined) this.prerequisite = options.prerequisite;
   }
 }

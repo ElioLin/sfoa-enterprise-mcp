@@ -192,6 +192,13 @@ const CONTEXT_TOOL_PURPOSES: Readonly<Record<SfoaContextToolName, SalesforceApiP
   resolve_field_display_values: 'OBJECT_SCHEMA',
   get_record_relationship_context: 'OBJECT_SCHEMA',
   get_org_limits: 'ORG_LIMITS',
+  // The debug-log set's two surfaces are separate purposes rather than one, because the audit has to
+  // answer "who opened a trace on whom" on its own (ADR-0029 §4d) — a write folded into the read
+  // purpose could not be told from a read, and an operator investigating a trace would be reading the
+  // log listing instead of the flag.
+  set_trace_flag: 'TRACE_FLAG',
+  get_apex_logs: 'DEBUG_LOG',
+  get_debug_log_body: 'DEBUG_LOG',
 });
 
 function contextPurpose(toolName: string): SalesforceApiPurpose {
@@ -215,6 +222,32 @@ function safeContextRequestSummary(toolName: string, input: ToolInput): unknown 
   if (toolName === 'get_org_limits') {
     // The only input is a presentation switch; there is no business data and no statement here.
     return { verbose: input.verbose === true };
+  }
+  if (toolName === 'set_trace_flag') {
+    // ADR-0029 §4d makes the traced entity part of the audit contract, not an optional extra: this is
+    // the only write in the provider, and "which entity was traced" is what makes the row answerable.
+    return {
+      tracedEntityKind: typeof input.tracedEntityKind === 'string' ? input.tracedEntityKind : null,
+      tracedEntityId: typeof input.tracedEntityId === 'string' ? input.tracedEntityId : null,
+      logLevel: typeof input.logLevel === 'string' ? input.logLevel : null,
+      durationMinutes: typeof input.durationMinutes === 'number' ? input.durationMinutes : null,
+    };
+  }
+  if (toolName === 'get_apex_logs') {
+    return {
+      timeWindowMinutes: typeof input.timeWindowMinutes === 'number' ? input.timeWindowMinutes : null,
+      userId: typeof input.userId === 'string' ? input.userId : null,
+      // Recorded verbatim because it is matched verbatim — a filter that found nothing is a vocabulary
+      // mismatch, and the audit is where the literal that was tried is legible.
+      status: typeof input.status === 'string' ? input.status : null,
+      limit: typeof input.limit === 'number' ? input.limit : null,
+    };
+  }
+  if (toolName === 'get_debug_log_body') {
+    return {
+      logId: typeof input.logId === 'string' ? input.logId : null,
+      maxCharacters: typeof input.maxCharacters === 'number' ? input.maxCharacters : null,
+    };
   }
   if (toolName === 'get_record_display_context') {
     return {
@@ -242,6 +275,14 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     ...(Array.isArray(content.managedDmlFields) ? { managedDmlFieldCount: content.managedDmlFields.length } : {}),
     ...(typeof content.totalLimits === 'number' ? { totalLimits: content.totalLimits } : {}),
     ...(typeof content.returnedLimits === 'number' ? { returnedLimits: content.returnedLimits } : {}),
+    // The debug-log set. `returnedCount` / `scannedCount` / `totalCount` are the three numbers that
+    // make a log listing checkable after the fact, and `verified` is the write's own claim — recorded
+    // so a false verification is visible in the trail rather than only in the response.
+    ...(typeof content.returnedCount === 'number' ? { returnedCount: content.returnedCount } : {}),
+    ...(typeof content.scannedCount === 'number' ? { scannedCount: content.scannedCount } : {}),
+    ...(typeof content.totalCount === 'number' ? { totalCount: content.totalCount } : {}),
+    ...(typeof content.verified === 'boolean' ? { verified: content.verified } : {}),
+    ...(typeof content.replacedExisting === 'boolean' ? { replacedExisting: content.replacedExisting } : {}),
     ...(typeof content.truncated === 'boolean' ? { truncated: content.truncated } : {}),
     ...(errorCode ? { errorCode } : {}),
   };

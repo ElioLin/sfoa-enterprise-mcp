@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEBUG_LEVEL_TIER_NAMES, DEBUG_LEVEL_VALUES } from './debug-levels.js';
 import { uiContextSchema, visibilityStateSchema } from './effective-ui-contracts.js';
 
 const apiNamePattern = /^[A-Za-z][A-Za-z0-9_]*$/u;
@@ -439,6 +440,331 @@ export type OrgLimitHighlight = z.infer<typeof orgLimitHighlightSchema>;
 export type OrgLimitHighlights = z.infer<typeof orgLimitHighlightsSchema>;
 export type OrgLimitsInput = z.infer<typeof orgLimitsInputSchema>;
 export type OrgLimitsOutput = z.infer<typeof orgLimitsOutputSchema>;
+
+/** `DebugLevel` tiers `set_trace_flag` resolves or creates, by name only — the catalog is in `debug-levels.ts`. */
+export const debugLevelTierSchema = z.enum(DEBUG_LEVEL_TIER_NAMES);
+const debugLevelValueSchema = z.enum(DEBUG_LEVEL_VALUES);
+
+/**
+ * The ten levels of a `DebugLevel`, written out in full.
+ *
+ * Generated from `DEBUG_LEVEL_FIELDS` this would be a `Record<string, …>`, which loses the only
+ * guarantee worth having: that all ten are present. Written out, dropping one is a compile error, and a
+ * unit test pins the key set to the field list so the two cannot drift.
+ */
+const debugLevelLevelsSchema = z
+  .object({
+    ApexCode: debugLevelValueSchema,
+    ApexProfiling: debugLevelValueSchema,
+    Callout: debugLevelValueSchema,
+    Database: debugLevelValueSchema,
+    NBA: debugLevelValueSchema,
+    System: debugLevelValueSchema,
+    Validation: debugLevelValueSchema,
+    Visualforce: debugLevelValueSchema,
+    Wave: debugLevelValueSchema,
+    Workflow: debugLevelValueSchema,
+  })
+  .strict();
+
+/**
+ * What a caller may trace, in this Tool's own words.
+ *
+ * The org's `TraceFlag.TracedEntityId` is one polymorphic field and `LogType` carries the kind, so the
+ * mapping below is not a relabelling — it is the derivation. `CLASS_TRACING` and `DEVELOPER_LOG` are
+ * the two values the T1 probe created successfully (one on an `ApexClass`, one on **another user**),
+ * which is why they are the only two this Tool offers.
+ */
+export const TRACED_ENTITY_KINDS = Object.freeze(['USER', 'APEX_CLASS'] as const);
+export const TRACE_FLAG_LOG_TYPES = Object.freeze(['DEVELOPER_LOG', 'CLASS_TRACING'] as const);
+export const TRACED_ENTITY_LOG_TYPES: Readonly<Record<(typeof TRACED_ENTITY_KINDS)[number],
+  (typeof TRACE_FLAG_LOG_TYPES)[number]>> = Object.freeze({
+    USER: 'DEVELOPER_LOG',
+    APEX_CLASS: 'CLASS_TRACING',
+  });
+
+export const TRACE_FLAG_MIN_DURATION_MINUTES = 1;
+export const TRACE_FLAG_DEFAULT_DURATION_MINUTES = 30;
+/** Hard cap, deliberately short: a trace flag is a write with an operational cost on a live org. */
+export const TRACE_FLAG_MAX_DURATION_MINUTES = 60;
+
+export const traceFlagInputSchema = z
+  .object({
+    tracedEntityKind: z
+      .enum(TRACED_ENTITY_KINDS)
+      .describe('What to trace: a USER (a developer-log flag) or an APEX_CLASS (a class-tracing flag).'),
+    tracedEntityId: salesforceIdSchema.describe(
+      'The 15- or 18-character Salesforce Id of the user or ApexClass to trace. Never a username or a class name.',
+    ),
+    durationMinutes: z
+      .number()
+      .int()
+      .min(TRACE_FLAG_MIN_DURATION_MINUTES)
+      .max(TRACE_FLAG_MAX_DURATION_MINUTES)
+      .optional()
+      .describe(
+        `How long the trace should stay active, from now. Defaults to ${TRACE_FLAG_DEFAULT_DURATION_MINUTES} and `
+        + `may not exceed ${TRACE_FLAG_MAX_DURATION_MINUTES}. A trace already active for this entity is never `
+        + 'shortened, so asking for less than its remaining time leaves it as it is.',
+      ),
+    logLevel: debugLevelTierSchema
+      .optional()
+      .describe(
+        `Which prebuilt DebugLevel to attach: ${DEBUG_LEVEL_TIER_NAMES.join(', ')}. Defaults to `
+        + 'DEBUG. MINIMAL writes the smallest log and is the tier to use when a full log would be too large '
+        + 'to read; PROFILING adds the Apex profiling counters that this org\'s only stored level samples at '
+        + 'INFO instead.',
+      ),
+  })
+  .strict();
+
+const debugLogFailureFields = {
+  salesforceErrorCode: z.string().max(128).optional(),
+  suggestion: z.string().max(2_000).optional(),
+  /** ADR-0029 §3: the deployment prerequisite behind a refusal, by identifier. */
+  prerequisite: z.string().max(128).optional(),
+};
+
+export const traceFlagOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    ...debugLogFailureFields,
+    executionRole: z.literal('DIAGNOSTIC').optional(),
+    api: z.literal('TOOLING').optional(),
+    traceFlagId: z.string().optional(),
+    tracedEntityKind: z.enum(TRACED_ENTITY_KINDS).optional(),
+    tracedEntityId: z.string().optional(),
+    logType: z.enum(TRACE_FLAG_LOG_TYPES).optional(),
+    debugLevelId: z.string().optional(),
+    debugLevelDeveloperName: z.string().optional(),
+    debugLevelTier: debugLevelTierSchema.optional(),
+    /** True when this call created the level; false when an existing one was reused. */
+    debugLevelCreated: z.boolean().optional(),
+    /** The level's ten fields as the org reports them — for a reused level, as stored, not as intended. */
+    debugLevelLevels: debugLevelLevelsSchema.optional(),
+    startDate: z.string().optional(),
+    expirationDate: z.string().optional(),
+    /** What the flag expired at before this call, or null when there was no flag to replace. */
+    previousExpirationDate: z.string().nullable().optional(),
+    /** True when an existing flag for this entity was reused and extended rather than a new one created. */
+    replacedExisting: z.boolean().optional(),
+    requestedDurationMinutes: z.number().int().positive().optional(),
+    /**
+     * Whether a re-read of the row confirmed the reported expiration. The T1 probe's own cleanup once
+     * reported success on a row that survived, so a write's answer is verified rather than trusted.
+     */
+    verified: z.boolean().optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
+export const APEX_LOG_DEFAULT_TIME_WINDOW_MINUTES = 60;
+export const APEX_LOG_MAX_TIME_WINDOW_MINUTES = 1_440;
+export const APEX_LOG_DEFAULT_LIMIT = 20;
+export const APEX_LOG_MAX_LIMIT = 100;
+
+export const apexLogsInputSchema = z
+  .object({
+    timeWindowMinutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(APEX_LOG_MAX_TIME_WINDOW_MINUTES)
+      .optional()
+      .describe(
+        `How far back to look, from now. Defaults to ${APEX_LOG_DEFAULT_TIME_WINDOW_MINUTES} and may not exceed `
+        + `${APEX_LOG_MAX_TIME_WINDOW_MINUTES} (24 hours).`,
+      ),
+    userId: salesforceIdSchema
+      .optional()
+      .describe('Only logs written by this Salesforce user. The user Id, never a username.'),
+    /**
+     * Deliberately **not** an enum, and the reason is measured rather than stylistic.
+     *
+     * `ApexLog.Status` is translated on this org: of 9 retained rows, `Status = 'Success'` matched 1 and
+     * the localized literal matched 8 (`docs/sfoa/P10_T0_LIVE_PROBE_FINDINGS.md` §1). A closed enum of
+     * English values would therefore be a filter that silently drops most of its rows — the exact defect
+     * the T2 section's revision note forbids. So the value is matched against what the org actually
+     * stores, the answer reports the values it saw, and a mismatch is visible instead of quiet.
+     */
+    status: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe(
+        'Only logs whose Status equals this value exactly. Matched against the value this org stores, which '
+        + 'may be localized — check structuredContent.observedStatuses for the values actually present. The '
+        + 'filter narrows the rows this call already fetched; it does not widen the fetch.',
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(APEX_LOG_MAX_LIMIT)
+      .optional()
+      .describe(
+        `How many of the most recent logs to return. Defaults to ${APEX_LOG_DEFAULT_LIMIT} and may not exceed `
+        + `${APEX_LOG_MAX_LIMIT}.`,
+      ),
+  })
+  .strict();
+
+const apexLogEntrySchema = z
+  .object({
+    id: z.string(),
+    logUserId: z.string().nullable(),
+    /** `LogUser.Name` — the person whose transaction was logged, not the identity that read the row. */
+    logUserName: z.string().nullable(),
+    logUserUsername: z.string().nullable(),
+    application: z.string().nullable(),
+    operation: z.string().nullable(),
+    /** As the org stores it, verbatim and untranslated by this Tool. */
+    status: z.string().nullable(),
+    durationMilliseconds: z.number().nonnegative().nullable(),
+    logLength: z.number().nonnegative().nullable(),
+    startTime: z.string().nullable(),
+    lastModifiedDate: z.string().nullable(),
+  })
+  .strict();
+
+const observedStatusSchema = z
+  .object({
+    status: z.string(),
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const apexLogsOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    ...debugLogFailureFields,
+    executionRole: z.literal('DIAGNOSTIC').optional(),
+    api: z.literal('TOOLING').optional(),
+    logs: z.array(apexLogEntrySchema).optional(),
+    /** Every log in the window, not only the returned ones — null when the count could not be read. */
+    totalCount: z.number().int().nonnegative().nullable().optional(),
+    returnedCount: z.number().int().nonnegative().optional(),
+    /** How many rows this call actually examined; the reach of the `status` filter. */
+    scannedCount: z.number().int().nonnegative().optional(),
+    truncated: z.boolean().optional(),
+    timeWindowMinutes: z.number().int().positive().optional(),
+    /** The oldest `LastModifiedDate` the query accepted, so the window is checkable rather than implied. */
+    windowStartedAt: z.string().optional(),
+    statusFilter: z.string().optional(),
+    observedStatuses: z.array(observedStatusSchema).optional(),
+    /**
+     * A deployment prerequisite that bounds how this answer should be read, on a successful call.
+     *
+     * This is where ADR-0029 §2's `A-1` surfaces: cross-user `ApexLog` visibility was never established,
+     * so a filtered query that returns nothing may be a permission boundary rather than a quiet org, and
+     * the caller is told which. An empty list here is a result — §3 keeps the failure case for a source
+     * that could not be read at all — but an *ambiguous* empty list still has to say so.
+     */
+    caveat: z.string().max(2_000).optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
+export const DEBUG_LOG_BODY_DEFAULT_MAX_CHARACTERS = 60_000;
+/**
+ * A schema-level sanity bound, not the effective ceiling.
+ *
+ * The host applies the deployment's response-byte budget on top of this, so the body a caller actually
+ * receives is the smaller of the two. The cap exists so a request cannot ask for an unbounded string;
+ * the budget exists because the answer has to fit alongside everything else in one response.
+ */
+export const DEBUG_LOG_BODY_MAX_CHARACTERS = 120_000;
+
+export const debugLogBodyInputSchema = z
+  .object({
+    logId: salesforceIdSchema.describe('The 15- or 18-character ApexLog Id, as returned by get_apex_logs.'),
+    maxCharacters: z
+      .number()
+      .int()
+      .min(1_000)
+      .max(DEBUG_LOG_BODY_MAX_CHARACTERS)
+      .optional()
+      .describe(
+        `Maximum characters of log text to return. Defaults to ${DEBUG_LOG_BODY_DEFAULT_MAX_CHARACTERS}; the `
+        + 'server may return fewer to stay inside its response budget, and says so in truncated.',
+      ),
+  })
+  .strict();
+
+const apexLogStackFrameSchema = z
+  .object({
+    apexClass: z.string(),
+    method: z.string().nullable(),
+    lineNumber: z.number().int().nonnegative().nullable(),
+    columnNumber: z.number().int().nonnegative().nullable(),
+    raw: z.string(),
+  })
+  .strict();
+
+const apexLogCategorySchema = z
+  .object({
+    token: z.string(),
+    level: z.string(),
+    /** The `DebugLevel` field this token configures, or null for a token this parser does not know. */
+    field: z.string().nullable(),
+  })
+  .strict();
+
+const apexLogHeaderSummarySchema = z
+  .object({
+    parseStatus: z.enum(['PARSED', 'NOT_A_LOG']),
+    /** The version the log itself declares, which is not the org's. Null when nothing was parsed. */
+    logApiVersion: z.string().nullable(),
+    logApiVersionMajor: z.number().int().nonnegative().nullable(),
+    /** False when the log's version is outside the measured set: parsed, but by an unmeasured format. */
+    validated: z.boolean(),
+    categories: z.array(apexLogCategorySchema),
+    fatalError: z.string().nullable(),
+    exceptionType: z.string().nullable(),
+    exceptionMessage: z.string().nullable(),
+    apexClass: z.string().nullable(),
+    lineNumber: z.number().int().nonnegative().nullable(),
+    columnNumber: z.number().int().nonnegative().nullable(),
+    stackSummary: z.array(apexLogStackFrameSchema),
+    thrownExceptions: z.array(z.string()),
+    userDebugLineCount: z.number().int().nonnegative(),
+    executionFinished: z.boolean(),
+  })
+  .strict();
+
+export const debugLogBodyOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    ...debugLogFailureFields,
+    executionRole: z.literal('DIAGNOSTIC').optional(),
+    api: z.literal('TOOLING').optional(),
+    logId: z.string().optional(),
+    headerSummary: apexLogHeaderSummarySchema.optional(),
+    /** The log text, from its start, cut to the returned length. Never reordered or rewritten. */
+    body: z.string().optional(),
+    totalBytes: z.number().int().nonnegative().optional(),
+    returnedBytes: z.number().int().nonnegative().optional(),
+    totalCharacters: z.number().int().nonnegative().optional(),
+    returnedCharacters: z.number().int().nonnegative().optional(),
+    maxCharacters: z.number().int().positive().optional(),
+    truncated: z.boolean().optional(),
+    logLength: z.number().nonnegative().nullable().optional(),
+    lastModifiedDate: z.string().nullable().optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
+export type TracedEntityKind = z.infer<typeof traceFlagInputSchema>['tracedEntityKind'];
+export type TraceFlagInput = z.infer<typeof traceFlagInputSchema>;
+export type TraceFlagOutput = z.infer<typeof traceFlagOutputSchema>;
+export type ApexLogsInput = z.infer<typeof apexLogsInputSchema>;
+export type ApexLogsOutput = z.infer<typeof apexLogsOutputSchema>;
+export type ApexLogEntry = z.infer<typeof apexLogEntrySchema>;
+export type DebugLogBodyInput = z.infer<typeof debugLogBodyInputSchema>;
+export type DebugLogBodyOutput = z.infer<typeof debugLogBodyOutputSchema>;
+export type DebugLogHeaderSummary = z.infer<typeof apexLogHeaderSummarySchema>;
 
 export type RecordActionContextInput = z.infer<typeof recordActionContextInputSchema>;
 export type RecordActionContextOutput = z.infer<typeof recordActionContextOutputSchema>;

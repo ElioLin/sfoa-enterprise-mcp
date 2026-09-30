@@ -4,6 +4,19 @@ export const TOOL_CLASSIFICATIONS = [
   'MUTATION',
   'ADMIN',
   'LOCAL_DEV',
+  /**
+   * A write confined to Setup-layer diagnostic configuration, and the only classification that is
+   * narrower than it sounds.
+   *
+   * `set_trace_flag` cannot be `MUTATION`: `MUTATION` in this catalog means an official DML Tool that
+   * writes business records, and a trace flag is not a business record. It cannot be `ADMIN` either:
+   * `ADMIN` means "changes who may do what" (permission sets, profiles, users), and a trace flag
+   * changes what gets *logged*. What the classification licenses is exactly two Tooling sObjects —
+   * `TraceFlag` and `DebugLevel` — which is why it is named for the surface rather than for the verb,
+   * and why the Admin Console can show an Administrator a write that is neither a record write nor a
+   * permission change (ADR-0030 §1).
+   */
+  'DIAGNOSTIC_WRITE',
   'UNKNOWN',
 ] as const;
 

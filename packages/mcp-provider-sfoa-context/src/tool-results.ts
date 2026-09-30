@@ -27,6 +27,10 @@ export function contextExecutionErrorToolResult(error: unknown, inputErrorCode: 
     ...(runtimeError.suggestion === undefined
       ? {}
       : { suggestion: sanitizeText(runtimeError.suggestion, 2_000) }),
+    // ADR-0029 §3's contract, emitted only by the P10 Tools that raise it.
+    ...(runtimeError.prerequisite === undefined
+      ? {}
+      : { prerequisite: sanitizeText(runtimeError.prerequisite, 128) }),
   };
   return {
     isError: true,

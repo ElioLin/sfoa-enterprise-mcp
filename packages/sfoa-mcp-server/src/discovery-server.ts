@@ -172,6 +172,9 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
         diagnosticQueryExecutor: { execute: forbidden },
         metadataContextExecutor: { execute: forbidden },
         orgLimitsExecutor: { execute: forbidden },
+        traceFlagExecutor: { execute: forbidden },
+        apexLogsExecutor: { execute: forbidden },
+        debugLogBodyExecutor: { execute: forbidden },
       }).provideTools(services),
       // Data Tools read schema through the request-scoped USER Connection, which discovery
       // does not have. Only their descriptors are built here so that an enabled Data Tool is

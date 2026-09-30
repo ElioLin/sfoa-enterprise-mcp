@@ -61,6 +61,11 @@ import { DmlToolFacade } from './dml-tool-facade.js';
 import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { DmlToolGovernancePolicy } from './dml-tool-governance.js';
 import { ScopedOrgLimitsExecutor } from './org-limits-context-executor.js';
+import {
+  ScopedApexLogExecutor,
+  ScopedDebugLogBodyExecutor,
+  ScopedTraceFlagExecutor,
+} from './debug-log-context-executors.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
 import { ToolGovernancePolicy } from './tool-governance.js';
 import {
@@ -372,6 +377,18 @@ export async function createGovernedMcpServer(
         // `RequestScope` that proves which identity the request was routed to.
         ...(contextToolNames.includes('get_org_limits')
           ? { orgLimitsExecutor: new ScopedOrgLimitsExecutor(options.scope) }
+          : {}),
+        // The debug-log set, wired the same way and each gated on its own enabled name — the three are
+        // enabled independently, which is exactly why every hint is gated on the advertised set rather
+        // than on the set this provider was asked for.
+        ...(contextToolNames.includes('set_trace_flag')
+          ? { traceFlagExecutor: new ScopedTraceFlagExecutor(options.scope, options.initializedProvider.enabledTools) }
+          : {}),
+        ...(contextToolNames.includes('get_apex_logs')
+          ? { apexLogsExecutor: new ScopedApexLogExecutor(options.scope, options.initializedProvider.enabledTools) }
+          : {}),
+        ...(contextToolNames.includes('get_debug_log_body')
+          ? { debugLogBodyExecutor: new ScopedDebugLogBodyExecutor(options.scope, options.initializedProvider.enabledTools) }
           : {}),
       });
       const contextTools = await contextProvider.provideTools(options.scope.services);
