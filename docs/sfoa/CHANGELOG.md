@@ -2,6 +2,20 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — P10 activation incident: the console 500 from a skipped `restorecon`, fixed and recorded
+
+The P10 activation rebuilt the admin-web bundle; the rebuild skipped the `restorecon` step that
+[TEST_SERVER_DEPLOYMENT.md](TEST_SERVER_DEPLOYMENT.md) §9.1 makes standing for every admin-web rebuild,
+and for nineteen minutes nginx answered **500 on every path**. The error log's
+`stat() ".../dist/index.html" failed (13: Permission denied)` plus `rewrite or internal redirection
+cycle` is the SPA fallback amplifying an Enforcing-SELinux denial — not a server fault, and not a
+property of the deep link that was reported. `chown -R root:root` plus `restorecon -R` restored the
+`httpd_sys_content_t` labels with the content untouched (`index.html` sha256 `0480fa94…` before and
+after), and `/`, `/agent-integration` and an asset verify 200 both through `:9000` with the public Host
+and from `http://crmmcptest.runner-corp.com.cn:9000`. [P10_ACCEPTANCE_REPORT.md](P10_ACCEPTANCE_REPORT.md)
+§9 carries the incident beside the activation it followed, and the deployment guide now documents the
+500 signature next to the original 403 one.
+
 ## 2026-10-09 — P10 post-acceptance activation: the six Tools enabled on `crm-ex-test02`, the Skill published to OpenClaw, and the ordinary-caller leg §7 owed
 
 The P10 acceptance report's §7 named one deployment step as still owed: enabling a P10 Tool through the

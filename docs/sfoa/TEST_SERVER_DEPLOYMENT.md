@@ -4,6 +4,19 @@
 
 ---
 
+## 部署记录 · P10 激活后控制台 500 修复（admin-web dist 重打标签，2026-10-09）
+
+| 项 | 值 |
+| --- | --- |
+| 背景 | P10 收口激活于 15:54 以 `df6a889` 重建并替换 admin-web `dist`（归档 `incoming/admin-web-dist-df6a889.tar.gz`；旧包备份 `backup/admin-web-dist-pre-df6a889-20261009-155432.tar.gz`）。替换时**漏跑 §9.1 的 `restorecon`**——该步对每次重建都是必须的。新文件标签留在 `default_t`，属主还是 Windows 侧归档解包带入的数字 uid/gid `1651478:1049089`（本机无此账号；旧包内为 `root/root`） |
+| 症状 | 15:54–16:13 经 nginx `:9000` 的**所有**路径 500（SPA 深链、静态资源、`/health` 均在内）。`error.log`：`stat() ".../dist/index.html" failed (13: Permission denied)` → `rewrite or internal redirection cycle while internally redirecting to "/index.html"`。DAC 位（目录 `r-x`、文件 `r--`）本身可读，拒绝来自 Enforcing SELinux |
+| 修复 | `chown -R root:root <dist>` + `restorecon -R <dist>`（全部回到 `httpd_sys_content_t`）。内容未动：`index.html` sha256 `0480fa94…` 修复前后一致 |
+| 验证 | 服务器侧带公网 Host 打 `:9000`：`/` 200、`/agent-integration` 200、`/assets/AgentIntegrationPage-Dx3zDIH4.js` 200、`/admin/api/health` 200；`:80` 301 保留；公网 `http://crmmcptest.runner-corp.com.cn:9000` 直连 `/` 与 `/agent-integration` 均 200 |
+| 记录 | P10 报告 §9 追加事件段；§9.1 增加「同一原因在 SPA 上表现为 500」的判别说明 |
+
+> 教训：dist 替换流程里 `restorecon` 不是可选项；从 Windows 侧归档解包还会带入不存在的数字属主，
+> 一并 `chown -R root:root` 对齐。§9.1 的「每次重建后必跑」规则不变——本次是**漏执行**，不是规则缺失。
+
 ## 部署记录 · Skill-02C 附件上传能力（2026-09-16）
 
 | 项 | 值 |
@@ -695,6 +708,15 @@ ls -lZ /data/sfoa-enterprise-mcp/app/packages/sfoa-admin-web/dist/index.html
 
 > `semanage: command not found` 时先 `dnf install -y policycoreutils-python-utils`。
 > 以后**每次重新构建 admin-web** 都要再跑一次 `restorecon -Rv`（新文件 context 又会退回 `default_t`）。
+>
+> ⚠️ 同一原因在 SPA 上通常表现为 **500 而不是 403**：`location /` 的 `try_files $uri $uri/ /index.html`
+> 一旦读不了 `index.html` 就形成重写死循环，`error.log` 里是
+> `stat() ".../dist/index.html" failed (13: Permission denied)` +
+> `rewrite or internal redirection cycle`。看日志像服务端故障，实际仍是标签问题——先 grep error log
+> 的 `Permission denied`。（2026-10-09 实例见顶部「P10 激活后控制台 500 修复」记录。）
+>
+> 另外，dist 若是从 Windows 侧归档解包上来的，文件属主会是本机不存在的数字 uid/gid（如
+> `1651478:1049089`），先 `chown -R root:root dist` 对齐再 `restorecon`。
 
 ### 9.2 反代 502（nginx 连不上 8080/8081）
 

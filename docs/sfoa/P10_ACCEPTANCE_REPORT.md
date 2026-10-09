@@ -538,3 +538,18 @@ caveats are the discriminator.
 Both live calls (the E2E call and the probe) wrote their own `get_platform_diagnostics` audit rows; a
 reader re-measuring audit counts inside the retention window will find those two on top of the phase
 run's own rows.
+
+**The console answered 500 on every path for the nineteen minutes it took to catch one skipped deploy
+step, and the record keeps it.** The rebuilt bundle went live at 15:54 without the step this project's
+own deployment guide makes standing for every admin-web rebuild (`restorecon`;
+`TEST_SERVER_DEPLOYMENT.md` §9.1), so the new files kept `default_t` SELinux labels and a nonexistent
+Windows-mapped owner (`1651478:1049089`; the pre-swap backup is `root/root`). Enforcing SELinux denies
+nginx (`httpd_t`) the `stat()` on `index.html`, and the SPA fallback turned that denial into
+`rewrite or internal redirection cycle while internally redirecting to "/index.html"` — so every path
+500'd, the deep link reported from the browser included, until the fix at 16:13. The tell is the error
+log's `stat() "…/dist/index.html" failed (13: Permission denied)`; an in-session reading of a
+`:9000/health` 500 as "expected" was this same fault, not a property of that path. Fixed with
+`chown -R root:root` plus `restorecon -R`, the content untouched (`index.html` sha256 `0480fa94…`
+before and after), and verified 200 for `/`, `/agent-integration` and an asset through `:9000` with the
+public Host, the `:80` 301 intact, and again from `http://crmmcptest.runner-corp.com.cn:9000` for both
+paths.

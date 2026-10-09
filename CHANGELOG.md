@@ -1,3 +1,20 @@
+# SFoA P10 activation incident — the console 500 from a skipped `restorecon`, fixed and recorded (2026-10-09)
+
+- **The symptom pointed at the wrong layer.** After the activation rebuilt the admin-web bundle, nginx
+  answered **500 on every path** (`/`, SPA deep links, assets, even `:9000/health`); the error log reads
+  `stat() ".../dist/index.html" failed (13: Permission denied)` plus
+  `rewrite or internal redirection cycle`, which looks like a server fault. The cause was the one step
+  this repository's deployment guide makes standing for every admin-web rebuild —
+  [`TEST_SERVER_DEPLOYMENT.md`](docs/sfoa/TEST_SERVER_DEPLOYMENT.md) §9.1 `restorecon`. The new files
+  kept `default_t` labels (and a nonexistent Windows-mapped owner, `1651478:1049089`), Enforcing
+  SELinux denied nginx the `stat()`, and the SPA fallback amplified the denial into the 500.
+- **Fixed, verified, and recorded rather than smoothed over.** `chown -R root:root` + `restorecon -R`
+  restored `httpd_sys_content_t` with the content untouched (`index.html` sha256 `0480fa94…` unchanged);
+  `/`, `/agent-integration` and an asset answer 200 through `:9000` with the public Host and again from
+  `http://crmmcptest.runner-corp.com.cn:9000`. The incident is recorded in the P10 report §9, and the
+  deployment guide now carries the 500 signature beside the original 403 one — the "every rebuild" rule
+  was skipped, not missing.
+
 # SFoA P10 post-acceptance activation — the six Tools enabled on `crm-ex-test02`, the Skill published to OpenClaw, and the ordinary-caller leg §7 owed (2026-10-09)
 
 - **The deployment runs the accepted tree.** The app tree on `crm-ex-test02` is byte-identical to
