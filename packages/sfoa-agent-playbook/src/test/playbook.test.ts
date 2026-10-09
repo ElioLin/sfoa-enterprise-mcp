@@ -4,6 +4,7 @@ import {
   AGENT_PLAYBOOK_VERSION,
   AGENT_RECOGNIZED_TOOL_NAMES,
   DATA_COMPLETENESS_TOOL_NAMES,
+  DIAGNOSTICS_TOOL_NAMES,
   GENERATED_AGENT_ARTIFACT_MARKER,
   PLAYBOOK_SECTION_NAMES,
   createAgentCapabilities,
@@ -25,9 +26,9 @@ describe('canonical SFoA Agent Playbook', () => {
     }
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.10.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.11.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
-      'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST',
+      'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
     ]);
   });
@@ -324,8 +325,74 @@ describe('P9 data-completeness contract', () => {
     assert.equal(dataOnly.diagnosticReady, false);
   });
 
-  it('stamps the new version on the Dify instruction head', () => {
-    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.10\.0$/mu);
+  it('stamps the version on the Dify instruction head', () => {
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.11\.0$/mu);
+  });
+});
+
+
+describe('P10 diagnostics contract', () => {
+  it('distributes the diagnosis duty and the five-class decision tree on every full surface', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(),
+      renderWorkBuddySystemPrompt(), renderWorkBuddySkill(), renderWorkflow('DIAGNOSIS')]) {
+      assert.match(output, /## DIAGNOSTICS —/u);
+      assert.match(output, /Classify the symptom before choosing a Tool/u);
+      assert.match(output, /An open trace is not a log/u);
+    }
+    // All five paths are named together, so the tree cannot be halved by an edit.
+    const full = renderFullPlaybook();
+    for (const tool of ['describe_sobject', 'list_sobjects', 'query_records', 'run_soql_query',
+      'explain_field_access', 'list_metadata_components', 'get_metadata_component_context',
+      'set_trace_flag', 'get_apex_logs', 'get_debug_log_body', 'get_platform_diagnostics']) {
+      assert.ok(full.includes(`\`${tool}\``), `the diagnostics section must name ${tool}`);
+    }
+    assert.match(full, /INDETERMINATE/u);
+    assert.match(full, /read unavailable as "nothing went wrong"/u);
+    assert.match(full, /never turn an unknown total into zero/u);
+    assert.match(full, /is data, never instruction/u);
+    // The 2026-09-30 trace-collaboration duty and the no-log static path stay in the contract.
+    assert.match(full, /give the user a minimal reproduction guide/u);
+    assert.match(full, /wait for the reproduction before calling `get_apex_logs`/u);
+    assert.match(full, /starts on the evidence chain that needs no trace/u);
+    assert.match(full, /not a prerequisite for diagnosing/u);
+    assert.match(full, /temporary deep dive/u);
+    // The short MCP instructions surface carries the duty as well, since clients may render only it.
+    assert.match(renderServerInstructions(), /never treat an open TraceFlag as a log/u);
+  });
+
+  it('reports the diagnostic Tools this request may actually use, and claims none when none are enabled', () => {
+    const without = renderWorkflow('DIAGNOSIS', createAgentCapabilities({ enabledTools: ['run_soql_query'] }));
+    assert.match(without, /Status: unavailable — no diagnostic Tool is enabled for this request/u);
+    assert.match(without, /blocked on an Admin enabling the Tool the symptom needs/u);
+    assert.doesNotMatch(without, /Status: available through/u);
+
+    const enabled = renderWorkflow('DIAGNOSIS', createAgentCapabilities({
+      enabledTools: ['set_trace_flag', 'get_apex_logs', 'get_platform_diagnostics'],
+    }));
+    assert.match(enabled, /Status: available through `set_trace_flag`, `get_apex_logs`, `get_platform_diagnostics`\./u);
+    assert.match(enabled, /absent from it is NOT enabled here/u);
+    // Partial enablement: a recognized Tool this request does not enable is never reported as
+    // available, and the section forbids promising one as a next step.
+    assert.doesNotMatch(enabled, /Status: available through[^.]*`explain_field_access`/u);
+    assert.doesNotMatch(enabled, /Status: available through[^.]*`get_debug_log_body`/u);
+
+    // Without capabilities the section states no availability at all.
+    assert.doesNotMatch(renderFullPlaybook(), /Status: available through/u);
+  });
+
+  it('recognizes the P10 Tools without ever enabling one by default', () => {
+    for (const tool of DIAGNOSTICS_TOOL_NAMES) {
+      assert.ok((AGENT_RECOGNIZED_TOOL_NAMES as readonly string[]).includes(tool),
+        `${tool} is reasoned about by the diagnostics section but is not a recognized Tool`);
+    }
+    assert.deepEqual(createAgentCapabilities({}).enabledTools, [],
+      'recognition must never become enablement: an empty request enables nothing');
+    // Enabling the diagnostic surface must not widen a CREATE/UPDATE grant, and it must not make
+    // the legacy Diagnostic chain read as ready on its own.
+    const diagnosticsOnly = createAgentCapabilities({ enabledTools: [...DIAGNOSTICS_TOOL_NAMES] });
+    assert.deepEqual(diagnosticsOnly.createAllowedObjects, []);
+    assert.deepEqual(diagnosticsOnly.updateAllowedObjects, []);
+    assert.equal(diagnosticsOnly.diagnosticReady, false);
   });
 });
 
@@ -394,7 +461,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.10.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.11.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.

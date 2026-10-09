@@ -33,10 +33,43 @@ export const AGENT_RECOGNIZED_TOOL_NAMES = [
   'submit_bulk_query',
   'get_bulk_query_results',
   'get_org_limits',
+  // P10 diagnostic-depth Tools. Recognized here for the same reason the P9 block above is: the
+  // Playbook's DIAGNOSTICS contract recommends a diagnostic path, and a path whose Tools the
+  // capability list cannot report would be unverifiable to the Agent reading it. Recognition is
+  // not enablement — every one of these Tools stays out of DEFAULT_ENABLED_TOOLS and is enabled
+  // per route by an Admin. `set_trace_flag` is the only one that writes (a bounded TraceFlag and
+  // its DebugLevel, on the DIAGNOSTIC identity); the other five are read-only.
+  'set_trace_flag',
+  'get_apex_logs',
+  'get_debug_log_body',
+  'explain_field_access',
+  'list_metadata_components',
+  'get_platform_diagnostics',
   ...AGENT_INFRASTRUCTURE_TOOL_NAMES,
 ] as const;
 
 export type AgentRecognizedToolName = (typeof AGENT_RECOGNIZED_TOOL_NAMES)[number];
+
+/**
+ * The diagnostic Tools the `DIAGNOSTICS` section reasons about: the bounded trace-flag write and
+ * the log pair that closes the code path, the field-access attribution, the metadata component
+ * pair, the platform timeline, and the raw read-only Tooling query that predates them. Kept as its
+ * own list so the section's status line can report exactly which of them this request may use —
+ * the diagnostic surface is enabled per route, so a request may hold any subset of it — and
+ * drift-checked against `AGENT_RECOGNIZED_TOOL_NAMES` by the package's own suite.
+ */
+export const DIAGNOSTICS_TOOL_NAMES = [
+  'run_diagnostic_tooling_query',
+  'get_metadata_component_context',
+  'set_trace_flag',
+  'get_apex_logs',
+  'get_debug_log_body',
+  'explain_field_access',
+  'list_metadata_components',
+  'get_platform_diagnostics',
+] as const;
+
+export type DiagnosticsToolName = (typeof DIAGNOSTICS_TOOL_NAMES)[number];
 
 /**
  * The read Tools the `DATA_COMPLETENESS` section reasons about: object/schema discovery, the

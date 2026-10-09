@@ -65,6 +65,12 @@ export const TOOL_PRESENTATION = Object.freeze({
   submit_bulk_query: { group: '数据', purpose: 'Bulk API 2.0 查询作业提交，返回 jobId（服务端不保存作业状态）' },
   get_bulk_query_results: { group: '数据', purpose: 'Bulk 查询作业状态与结果页读取（一次一页 + 游标）' },
   get_org_limits: { group: '诊断', purpose: 'org limits 快照（API/Bulk 配额），由 DIAGNOSTIC 身份执行' },
+  set_trace_flag: { group: '诊断', purpose: '为指定用户或类开启限时 Apex trace（诊断面唯一写入：仅 TraceFlag 与 DebugLevel）' },
+  get_apex_logs: { group: '诊断', purpose: '按时间窗/用户/状态列出 Apex 调试日志（只列目录，不读正文）' },
+  get_debug_log_body: { group: '诊断', purpose: '读取单条日志正文，并从整条日志解析异常类型、类与行号（有界截断）' },
+  explain_field_access: { group: '诊断', purpose: '字段可见/可编辑归因与授权来源链（只读证据聚合，非权限引擎）' },
+  list_metadata_components: { group: '诊断', purpose: '按元数据类型列出组件 fullName/状态/最后修改（类型白名单 + 有界）' },
+  get_platform_diagnostics: { group: '诊断', purpose: '最近 N 小时的变更、异步失败与计划任务合并时间线（按节声明读/不可用）' },
   get_agent_playbook: { group: '基础设施', purpose: '当前 Playbook 与能力快照' },
   get_record_links: { group: '基础设施', purpose: '可信记录链接；不猜测或拼接 Salesforce URL' },
 });

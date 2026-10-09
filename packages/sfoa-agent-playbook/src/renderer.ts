@@ -1,4 +1,4 @@
-import { DATA_COMPLETENESS_TOOL_NAMES, type AgentCapabilities, type AgentRecognizedToolName } from './capabilities.js';
+import { DATA_COMPLETENESS_TOOL_NAMES, DIAGNOSTICS_TOOL_NAMES, type AgentCapabilities, type AgentRecognizedToolName } from './capabilities.js';
 import {
   AGENT_WORKFLOWS,
   PLAYBOOK_DEFINITION,
@@ -22,6 +22,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
     'PLATFORM_IDENTITY and AI_CREATED_MARKER are server-owned: do not ask for, recommend, derive, or override them; omit them from mutation payloads. PLATFORM_IDENTITY_FALLBACK permits explicit user values after LOOKUP resolution. On CREATE, match action-context required/editable facts: required and absent means ask once, explain the current-user default and wait; optional and absent means omit without asking. A default choice means omit; do not query the current-user Lookup. Fallback is CREATE-only: never default it on UPDATE; use normal UPDATE + LOOKUP only for an explicit requested change.',
     'Return trusted Salesforce record links through `get_record_links` when enabled; keep raw Salesforce Record IDs internal in normal business answers.',
     'Read at the scale each population claim needs, among the enabled Tools: a single batch, the cursor-paging `query_records`, or the Bulk export pair. State the coverage every time (`fetched` against `totalSize`, or `truncated`), and never present a partial or sampled result as the whole population.',
+    'Diagnose from evidence, not from substitutes: classify the symptom first (data, permission, configuration, code, or platform), take that class\'s deterministic Tool path, and cite the component fullName, log line number or audit timestamp behind every conclusion. Relay INDETERMINATE or an unavailable source as itself instead of filling the gap, and never treat an open TraceFlag as a log — a trace only records executions after it opens.',
     'Normal business answers use current Salesforce display labels; raw API values remain the DML/filter/Audit evidence. Prefer enabled bounded batch Tools for multiple same-object records. One intent can span records and dependent phases: root success alone is not business intent completion. Reconcile every requested item before reporting complete; stop on UNKNOWN.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
     'Attach files with `upload_files_to_record` only when it is enabled and the object is attachment-enabled; pass only `objectApiName`, `recordId` and the `attachmentRefs` the Ingress issued to this user. Never send file bytes, base64, a filesystem path, or a URL, and never attach to a record whose CREATE ended OUTCOME_UNKNOWN.',
@@ -81,7 +82,7 @@ export function renderWorkBuddySkill(): string {
     '2. Before mutation or diagnosis, read [references/safety-boundaries.md](references/safety-boundaries.md).',
     '3. Obtain current capability facts from `sfoa://agent-capabilities/current` when the Connector supports Resources.',
     '4. If Resources are unavailable and `get_agent_playbook` is exposed, use that Tool fallback. Never call an absent Tool.',
-    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST', 'DATA_COMPLETENESS'], undefined),
+    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST', 'DATA_COMPLETENESS', 'DIAGNOSTICS'], undefined),
     '',
     '## WorkBuddy identity',
     '',
@@ -209,7 +210,7 @@ export function renderSafetyReference(): string {
 export function renderWorkflowReference(): string {
   return renderSelectedReference(
     'SFoA Tool Workflows',
-    ['READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
+    ['READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
   );
 }
 
@@ -300,6 +301,12 @@ function sectionStatusLines(
     return available.length > 0
       ? [`- Status: available through ${codeList(available)}. Any Tool named in this section but absent from that list is NOT enabled here — do not call it, and do not describe a query path this request cannot take.`]
       : ['- Status: unavailable — no schema-discovery, cursor-paging, Bulk export or quota Tool is enabled, so `run_soql_query` is the only read path and it answers in a single batch. Bound the question to one batch and state that coverage as the coverage; do not claim a population you could not read.'];
+  }
+  if (name === 'DIAGNOSTICS') {
+    const available = DIAGNOSTICS_TOOL_NAMES.filter((tool) => capabilities.enabledTools.includes(tool));
+    return available.length > 0
+      ? [`- Status: available through ${codeList(available)}. The diagnostic surface is enabled per route, so that list is the whole of it for this request: any Tool named in this section but absent from it is NOT enabled here — do not call it, do not promise it as a next step, and do not describe a diagnostic path this request cannot take. Report a missing Tool as something an Admin must enable for this route.`]
+      : ['- Status: unavailable — no diagnostic Tool is enabled for this request, so no path in this section can be taken. Report the diagnosis as blocked on an Admin enabling the Tool the symptom needs, name what that Tool would have answered, and keep every conclusion reached without it explicitly weaker. Never hand-build a long read query as a substitute for a deterministic diagnostic Tool, and never let an open trace stand in for a log.'];
   }
   if (name === 'RESPONSE_FORMAT' && !capabilities.enabledTools.includes('get_record_links')) {
     return ['- Record-link status: unavailable — do not invent a Salesforce URL; identify records by their display/name field and give a Record ID only when the user asks or a technical diagnosis needs it.'];
