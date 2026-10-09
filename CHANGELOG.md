@@ -1,3 +1,36 @@
+# SFoA P10 post-acceptance activation — the six Tools enabled on `crm-ex-test02`, the Skill published to OpenClaw, and the ordinary-caller leg §7 owed (2026-10-09)
+
+- **The deployment runs the accepted tree.** The app tree on `crm-ex-test02` is byte-identical to
+  `df6a889`, both services were restarted onto it (graceful drain; `:8080/health` and
+  `:8081/admin/api/health` UP), and the admin-web bundle was rebuilt from the same commit and deployed
+  over the 2026-09-29 build, so the console UI now serves the P10 build (previous bundle kept in
+  `backup/`).
+- **`sfoa-org-diagnostics` is published to the test server's OpenClaw** (2026.9.5). `runtime-sync`
+  copied the Skill into `/data/openclaw/workspace/skills/` (`SKILL.md` sha256 `3dec5151…`, the
+  repository's own bytes), one validated `openclaw config patch` added it to **both** allowlists
+  (`skills.entries` and `agents.entries.main.skills`) and reported the change applies **without a
+  gateway restart**, `runtime-check` reports `drift: []` for all four business Skills, and
+  `openclaw skills check --agent main` lists it among the seven Skills ready and visible to the model.
+- **All six Tools are enabled through the Control Plane.** The dry read first reproduced the report's
+  claim exactly — no `sfoa_tool_control` row for any of the six — and each was then enabled through the
+  Admin API the console itself calls (`PUT /admin/api/tools/<toolName>`), returning `enabled: true` with
+  `rowVersion: "1"` and an `UPDATE_TOOL_CONTROL` admin-audit row. The enablement is global and read
+  **per request**, so no restart was involved.
+- **The ordinary-caller leg §7 owed is executed, against the deployed gateway.** One MCP session as the
+  `USER_BOUND` credential of an existing enabled identity route (token and platform id never printed):
+  `tools/list` advertised **29 Tools with all six P10 Tools present**; disabling `get_debug_log_body`
+  through the Control Plane removed it from the **next** `tools/list` with no restart and re-enabling
+  restored it, which is the proof that the Control Plane is the only grant source; `get_platform_diagnostics {}`
+  returned `isError: false`, `success: true`, `executionRole: DIAGNOSTIC`, 3 sections read, 0
+  unavailable; and the call's own audit row landed (`MCP_TOOL_CALL`, `PASS`/`SUCCESS`,
+  `identitySource: USER_BOUND_TOKEN`).
+- **`truncated: true` appeared for the first time and was read to its cause rather than reported as the
+  budget ladder.** The probe shows the caller's own default cap, not a budget cut: 25 entries of a
+  `totalCount: 659` window, an answer of **17 112 of 262 144 bytes** and **2 235 of 60 000 characters**,
+  and no budget caveat on any section. §7's budget-ladder item therefore stays unexecuted. Recorded with
+  it: the top-level hint names the response budget for either cause, so the per-section caveats are the
+  discriminator. Report §9 carries the activation; §7 and §8 are left as history.
+
 # SFoA P10 Diagnostic Depth — T6 the diagnostics Skill, Playbook 1.11.0, and an acceptance run that measured the platform (2026-10-09)
 
 - Deliver **GAP-M6**: `sfoa-org-diagnostics`, the methodology the six P10 Tools exist to serve. Five

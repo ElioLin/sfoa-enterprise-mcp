@@ -475,3 +475,66 @@ marked delivered with its ADR numbers, and both CHANGELOGs. The pre-existing fai
 measured (§5): the p7 gate fails under battery load and passes solo on both trees, `validate:p2`/`p3`
 still stop at the missing second identity, and lint's 47 upstream errors are untouched. None of them is
 in P10's surface.
+
+## 9. Post-acceptance activation (2026-10-09)
+
+§7's first item — the one it called "the one that matters most" — was executed after this report was
+committed (`df6a889`). This section records the activation. §7 and §8 above are left as the history they
+are, and **every other §7 item still stands as not executed**.
+
+**The deployment now runs the accepted tree.** `crm-ex-test02`'s app tree is byte-identical to `df6a889`
+(the code tree already matched `5aa270c`; the four docs that `df6a889` changed were shipped and
+hash-verified in both directions), `sfoa-mcp-server.service` and `sfoa-admin-api.service` were restarted
+onto it (graceful drain, both health endpoints UP), and the admin-web bundle was rebuilt from the same
+commit and deployed over the 2026-09-29 build — the previous bundle is kept at
+`backup/admin-web-dist-pre-df6a889-20261009-155432.tar.gz` — so the console UI now serves the P10 build.
+
+**The Skill is published to the test server's OpenClaw** (2026.9.5 / `ec9c1a1`). `runtime-sync` copied
+`sfoa-org-diagnostics` into `/data/openclaw/workspace/skills/` (7 files; `SKILL.md` sha256
+`3dec5151…`, the repository's own bytes), and one validated `openclaw config patch` added it to **both**
+allowlists — `skills.entries` and `agents.entries.main.skills` — reporting that the change applies
+**without restarting the gateway**. `runtime-check` then reported `drift: []` for all four business
+Skills, and `openclaw skills check --agent main` lists `sfoa-org-diagnostics` among the seven Skills
+ready and visible to the model.
+
+**All six Tools are enabled through the Control Plane, not in memory.** A dry read first reproduced
+§7's claim exactly: no `sfoa_tool_control` row existed for any of the six (`rowVersion: null`,
+`status: DISABLED`). Each was then enabled through the Admin API the console itself calls
+(`PUT /admin/api/tools/<toolName>`; script `/data/sfoa-enterprise-mcp/p10-enable-tools.mjs`, sha256
+`6c0153ae…`), each returning a row with `enabled: true` and `rowVersion: "1"`. The writes are in the
+admin audit trail as `UPDATE_TOOL_CONTROL`.
+
+**The ordinary-caller leg ran against the deployed gateway.** Script
+`/data/sfoa-enterprise-mcp/p10-live-e2e.mjs` (sha256 `81ad356e…`) authenticated as an ordinary caller —
+the `USER_BOUND` credential of an existing enabled identity route, read through the Admin API, with the
+token and the platform id never printed — and drove one MCP session against the deployed endpoint
+(`http://127.0.0.1:8080/mcp`), with no in-process grant anywhere in the path:
+
+- `tools/list` advertised **29 Tools, all six P10 Tools among them**.
+- **The Control Plane is the only grant source, and it is read per request.** Disabling
+  `get_debug_log_body` through the Control Plane removed it from the next `tools/list` **without a
+  restart** (`rowVersion` 2), re-enabling restored it (`rowVersion` 3), and the other five were
+  unaffected throughout.
+- `get_platform_diagnostics {}` returned `isError: false`, `success: true`,
+  `executionRole: DIAGNOSTIC`, three sections read and none unavailable — the DIAGNOSTIC-role Tool
+  resolving its diagnostic identity for an ordinary caller, on the real gateway.
+- The call's own audit row landed: `auditKind: MCP_TOOL_CALL`, `result: PASS`, `outcome: SUCCESS`,
+  `identitySource: USER_BOUND_TOKEN`, `occurredAt 2026-10-09T08:02:51.209Z`, `correlationId
+  898ff525-bc3c-44e3-a5ad-727ef096c7a8`.
+
+**One reading needed a second look, and the second look kept §7 honest.** That call answered
+`truncated: true` — the same word §7 lists as never observed. The follow-up probe
+(`/data/sfoa-enterprise-mcp/p10-truncation-probe.mjs`, sha256 `bace233a…`) shows the cause was **the
+caller's own default cap, not a budget ladder**: `setupChanges` carried 25 entries of a `totalCount: 659`
+window, `asyncFailures` 3 of 3 and `scheduledJobs` 0 of 0, and the answer measured **17 112 of 262 144
+bytes** and **2 235 of 60 000 characters**. No budget caveat was present — the executor distinguishes
+the two causes in the per-section `caveats` ("The response budget kept N of this section's M entries"),
+and the only caveat this run wrote was `scheduledJobs`' zero-row note. The budget ladders therefore
+remain unexercised and §7's item stands as written. One wording note is recorded rather than smoothed
+over: the top-level `hint` attributes a `truncated: true` to "the server's response budget" for *either*
+cause, so its first sentence should not be read as a budget-cut finding on its own — the per-section
+caveats are the discriminator.
+
+Both live calls (the E2E call and the probe) wrote their own `get_platform_diagnostics` audit rows; a
+reader re-measuring audit counts inside the retention window will find those two on top of the phase
+run's own rows.
