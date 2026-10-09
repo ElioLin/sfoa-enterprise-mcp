@@ -81,7 +81,7 @@ export const diagnosticQueryInputSchema = z
  * reader can see which family a type belongs to and which family a new entry would join.
  */
 export const METADATA_CONTEXT_TYPES = [
-  // Code and UI, the original eight.
+  // Code and UI: the original eight, plus EmailTemplate.
   'CustomObject',
   'CustomField',
   'ValidationRule',
