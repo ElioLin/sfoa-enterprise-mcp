@@ -215,10 +215,18 @@ async function verifyPackageCompleteness({ projectRoot, canonicalDir }) {
  * 普通业务 Agent 可见的 Skill 白名单。
  *
  * 这是 Runtime Copy 的唯一授权来源：只有显式列在这里的 Skill 才允许发布到
- * OpenClaw workspace。`sfoa-mcp-maintainer` 是开发/运维 Skill，永远不得进入
+ * OpenClaw workspace。开发侧 Skill（DEVELOPER_SKILL_NAMES）永远不得进入
  * 这个列表，也不得因为「方便同步」而把整个 `skills/*` 复制到 Runtime。
  */
 export const BUSINESS_SKILL_ALLOWLIST = Object.freeze(['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis']);
+
+/**
+ * 开发侧 Skill：随 `skill:sync` 复制到三个开发客户端根目录，但永远不发布到业务
+ * Runtime。与 BUSINESS_SKILL_ALLOWLIST 一起构成 `skills/*` 的完整划分——
+ * `toolkit.test.mjs` 让「两边都不属于」的 canonical Skill 直接失败，也让开发侧
+ * Skill 永远无法被 `skill:runtime:sync` 选中。
+ */
+export const DEVELOPER_SKILL_NAMES = Object.freeze(['mcp-builder', 'sfoa-mcp-maintainer']);
 
 /** Runtime Copy 中禁止出现的文件特征：凭据、版本库元数据与可执行脚本。 */
 const RUNTIME_FORBIDDEN_SEGMENTS = Object.freeze(['.git', '.ssh', 'secrets', 'node_modules', '__pycache__']);

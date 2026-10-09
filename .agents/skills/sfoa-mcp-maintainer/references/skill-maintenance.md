@@ -17,6 +17,18 @@ Use `--canonical skills/<name>` for a single Skill; custom `--output` requires a
 single selection. Existing single-Skill function defaults and root command names
 remain compatible. Future Skills require no copied management scripts.
 
+`skills/mcp-builder` is the imported developer Skill (2026-10-09, from the
+maintainer's local Codex Skill library): guidance for designing MCP servers and
+Tools — schemas, annotations, pagination, error messages and the evaluation
+question set. It is upstream guidance under Apache-2.0 (`LICENSE.txt` carries
+`Copyright 2026 Anthropic, PBC`; `PROVENANCE.md` records the imported files and
+their SHA-256), advisory like this Skill, and the repository's contracts, current
+code and this Skill outrank it. It syncs to the three development-client roots like
+any canonical Skill but belongs to `DEVELOPER_SKILL_NAMES` in `manage.mjs`, so
+`skill:runtime:sync` can never publish it to a business workspace. Developer Skills
+and `BUSINESS_SKILL_ALLOWLIST` partition `skills/*`; `toolkit.test.mjs` fails when a
+canonical Skill belongs to neither, or when a developer Skill is allowlisted.
+
 `skills/sfoa-crm-core` is business guidance for OpenClaw. Its runtime destination
 is `/data/openclaw/workspace/skills/sfoa-crm-core`; deploy from canonical bytes,
 back up existing Skills/configuration, verify the current OpenClaw configuration

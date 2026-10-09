@@ -2,6 +2,25 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — the `mcp-builder` developer Skill, and an explicit partition of `skills/*`
+
+`skills/mcp-builder` imports the MCP server development guide from the maintainer's local Codex Skill
+library: guidance for designing MCP servers and Tools — input/output schemas, annotations, pagination,
+error messages, and an evaluation question set. The ten upstream files are byte-identical to the imported
+source; `LICENSE.txt` retains `Copyright 2026 Anthropic, PBC` (Apache-2.0) and `PROVENANCE.md` records
+their SHA-256 so the directory can be re-diffed against upstream. The Skill is advisory exactly the way
+the maintainer Skill is — repository contracts, current code, and the maintainer Skill outrank it — and
+`CLAUDE.md` and `AGENTS.md` route MCP server and Tool design work through it.
+
+The suite invariant "every non-maintainer canonical Skill must be in `BUSINESS_SKILL_ALLOWLIST`" could not
+hold two developer Skills, so the model is generalized instead of special-cased: `manage.mjs` names
+`DEVELOPER_SKILL_NAMES` (`mcp-builder`, `sfoa-mcp-maintainer`), and `toolkit.test.mjs` now enforces that
+`skills/*` partitions into developer Skills and the business allowlist, that every developer Skill stays
+canonical, and that `assertBusinessSkillAllowed` refuses each one by name. A developer Skill still syncs
+to the three development-client roots; `skill:runtime:sync` can never publish it to a business workspace.
+The suite policy file `skills/sfoa-mcp-maintainer/references/skill-maintenance.md` documents the
+partition, the provenance record, and the update procedure.
+
 ## 2026-10-09 — P10-T4: the metadata listing pair, two type names corrected by measurement, and a degradation contract that was dead on arrival
 
 T4 delivers the metadata pair: `list_metadata_components`, a read-only Tool that enumerates a type's

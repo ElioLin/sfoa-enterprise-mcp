@@ -8,7 +8,7 @@ import { AuditTraceNotFoundError, reconstructTrace, requireAuditRows } from './a
 import { assertReadOnlySql } from './shared/db.mjs';
 import { exists, loadProjectEnvironment, parseEnvText, sanitizeForOutput } from './shared/project.mjs';
 import { checkSkill, deliveryCheck, discoverSkills, packageSkill, platformSkillPaths, syncSkill, validateSkill,
-  BUSINESS_SKILL_ALLOWLIST, assertBusinessSkillAllowed, checkRuntimeSkill, syncRuntimeSkill } from './manage.mjs';
+  BUSINESS_SKILL_ALLOWLIST, DEVELOPER_SKILL_NAMES, assertBusinessSkillAllowed, checkRuntimeSkill, syncRuntimeSkill } from './manage.mjs';
 import { runDoctor } from './doctor.mjs';
 import {
   CAPABILITIES_RELATIVE_PATH, PLAYBOOK_VERSION_RELATIVE_PATH, TOOL_PRESENTATION, TRUSTED_LINK_TOOL_NAMES,
@@ -487,13 +487,23 @@ test('record change Skill keeps retired tools and company identifiers out of its
   }
 });
 
-test('the business runtime allowlist matches the discovered non-maintainer Skills', async () => {
+test('the business runtime allowlist matches the discovered non-developer Skills', async () => {
   const business = (await discoverSkills(projectRoot))
     .map((dir) => path.basename(dir))
-    .filter((name) => name !== 'sfoa-mcp-maintainer');
+    .filter((name) => !DEVELOPER_SKILL_NAMES.includes(name));
   // A new business Skill must be an explicit runtime-allowlist decision, never an accident.
   assert.deepEqual([...business].sort(), [...BUSINESS_SKILL_ALLOWLIST].sort(),
-    'every non-maintainer canonical Skill needs an explicit business runtime allowlist entry');
+    'every canonical Skill outside DEVELOPER_SKILL_NAMES needs an explicit business runtime allowlist entry');
+});
+
+test('developer Skills are synced to clients but can never reach a business runtime', async () => {
+  const discovered = (await discoverSkills(projectRoot)).map((dir) => path.basename(dir));
+  for (const name of DEVELOPER_SKILL_NAMES) {
+    assert.ok(discovered.includes(name), `developer Skill ${name} must stay canonical`);
+    assert.ok(!BUSINESS_SKILL_ALLOWLIST.includes(name), `${name} must never join the business runtime allowlist`);
+    assert.throws(() => assertBusinessSkillAllowed(name), /allowlist/u,
+      `${name} must be refused by the runtime publication guard`);
+  }
 });
 
 test('runtime copy publishes only the allowlist, refuses credentials and stays drift-checkable', async (context) => {

@@ -4,6 +4,8 @@ This repository is `sfoa-enterprise-mcp`, an SFoA-owned enterprise runtime exten
 
 For development, review, debugging, testing, deployment, operations, MySQL, Salesforce, identity, governance, DML, or P7 Audit work, read the project Skill at `.agents/skills/sfoa-mcp-maintainer/SKILL.md` and only the references relevant to the task.
 
+For MCP server, Tool, or Tool-contract design work, first read `.agents/skills/mcp-builder/SKILL.md` and use it as the design checklist. It is imported upstream guidance; the project's own contracts, current code, and the maintainer Skill outrank it.
+
 The Skill is advisory context, not a reasoning boundary. Current source code, runtime behavior, database state, logs, P7 Audit evidence, Salesforce API responses, and tests are the facts. Investigate conflicts; do not blindly follow stale guidance.
 
 Before planning or editing, also read:

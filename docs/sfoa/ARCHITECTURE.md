@@ -13,7 +13,8 @@ Salesforce permissions or execute a deterministic workflow. `sfoa-crm-core`
 supplies the common boundaries and `sfoa-record-change` adds the evidence-based
 CREATE readiness doctrine; further specialized Skills supplement them. The
 maintainer Skill remains a development/operations artifact and is excluded from
-the ordinary business Agent. See [Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md).
+the ordinary business Agent, as is the imported developer Skill `mcp-builder`
+(MCP server and Tool design guidance). See [Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md).
 
 P8-07 adds plural DML execution at the existing Provider seam and USER-only
 presentation/relationship context. See [ADR-0021](adr/ADR-0021-runtime-batch-orchestration.md).
