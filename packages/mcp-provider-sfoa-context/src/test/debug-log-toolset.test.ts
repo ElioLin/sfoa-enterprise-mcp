@@ -845,11 +845,16 @@ test('the Provider exposes every context Tool in the role map\'s own order, and 
         fields: [], truncated: false,
       }),
     },
+    // `get_platform_diagnostics` is the same kind of arrival: a Tool added after this test was written,
+    // required like every other. Its aggregation has its own Toolset test; here it needs only to exist.
+    platformDiagnosticsReader: {
+      execute: async () => ({ success: true, executionRole: 'DIAGNOSTIC', api: 'STANDARD' }),
+    },
   });
 
   const tools = await provider.provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
-  assert.equal(SFOA_CONTEXT_TOOL_NAMES.length, 12);
+  assert.equal(SFOA_CONTEXT_TOOL_NAMES.length, 13);
   // The three debug-log Tools are advertised together and in workflow order, because that order is
   // what the chained hints assume and what an Agent walking them reads. Asserted as a contiguous run
   // rather than a tail slice, so appending a Tool cannot silently break the invariant this protects.

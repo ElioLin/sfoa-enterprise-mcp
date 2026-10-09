@@ -948,7 +948,11 @@ async function probeTraceFlagWrites(
 }
 
 /** The platform-status surface P10-6 (`get_platform_diagnostics`) aggregates. */
-async function probePlatformStatus(recorder: ProbeRecorder, connection: ProbeConnection): Promise<void> {
+async function probePlatformStatus(
+  recorder: ProbeRecorder,
+  connection: ProbeConnection,
+  salesforceUsername: string,
+): Promise<void> {
   await recorder.record(
     'STANDARD_SETUP_AUDIT_TRAIL_QUERY',
     'PLATFORM',
@@ -1063,6 +1067,288 @@ async function probePlatformStatus(recorder: ProbeRecorder, connection: ProbeCon
             nextFireTime: asString(record.NextFireTime),
             previousFireTime: asString(record.PreviousFireTime),
           })),
+        },
+      };
+    },
+  );
+
+  // The P10-T5 acceptance asks for a *constructed* `Failed` `AsyncApexJob`, and this org holds none, so the
+  // leg that proves the failure section can hit hinges on a fact nobody has measured: whether the diagnostic
+  // identity may author the Apex that would produce one. One measurement already landed on the first draft of
+  // this step: `User.PermissionsAuthorApex` — the field name a permission *set* carries — is not a queryable
+  // column on `User`, and the org answered `INVALID_FIELD`. The grants are therefore read where Salesforce
+  // stores them: on the identity's permission sets, after describing the object and querying only the fields
+  // this API version actually carries.
+  await recorder.record(
+    'STANDARD_IDENTITY_AUTHORING_PERMISSIONS',
+    'PLATFORM',
+    'May the diagnostic identity itself author the Apex that would construct a Failed AsyncApexJob — or does '
+      + 'that leg of the P10-T5 acceptance need a second identity?',
+    'STANDARD',
+    'SELECT Id, Name, IsOwnedByProfile, PermissionsAuthorApex, PermissionsApiEnabled, PermissionsModifyAllData, '
+      + 'PermissionsCustomizeApplication FROM PermissionSet WHERE Id IN (SELECT PermissionSetId FROM '
+      + "PermissionSetAssignment WHERE AssigneeId = '<diagnostic user id>')",
+    async () => {
+      const fields = await readFieldNames(connection, 'PermissionSet', false);
+      const wanted = Object.freeze([
+        'PermissionsAuthorApex', 'PermissionsApiEnabled', 'PermissionsModifyAllData', 'PermissionsCustomizeApplication',
+      ]);
+      const presence = fieldPresence(fields, wanted);
+      const selectable = wanted.filter((name) => presence[name] === true);
+      const ownUserId = await resolveOwnUserId(connection, salesforceUsername);
+      if (ownUserId === null) {
+        return {
+          outcome: 'SKIPPED',
+          facts: {
+            reason: 'The diagnostic identity could not resolve its own User row, so its grants cannot be read.',
+            permissionsAuthorApexOnPermissionSet: presence.PermissionsAuthorApex,
+          },
+        };
+      }
+      if (selectable.length === 0) {
+        return {
+          outcome: 'SKIPPED',
+          facts: {
+            reason: 'This API version carries none of the authoring permission fields on PermissionSet.',
+            permissionFieldPresence: presence,
+          },
+        };
+      }
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT Id, Name, IsOwnedByProfile, ${selectable.join(', ')} FROM PermissionSet WHERE Id IN `
+          + `(SELECT PermissionSetId FROM PermissionSetAssignment WHERE AssigneeId = ${quoteSoqlLiteral(ownUserId)})`,
+      );
+      const granted = (field: string): string[] => outcome.records
+        .filter((record) => record[field] === true)
+        .map((record) => asString(record.Name) ?? 'unnamed')
+        .slice(0, 10);
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          permissionFieldPresence: presence,
+          permissionSetsHeld: outcome.records.length,
+          permissionSetsByProfile: outcome.records.filter((record) => record.IsOwnedByProfile === true).length,
+          // The two the construction needs: `Author Apex` gates the Tooling-API `ApexClass` create, `API
+          // Enabled` gates `executeAnonymous`. The sets that grant them are named, because a `false` here is
+          // only actionable if a reader can see which grants were consulted.
+          authorApex: granted('PermissionsAuthorApex'),
+          apiEnabled: granted('PermissionsApiEnabled'),
+          noAuthoringPermissionAnywhere: selectable.includes('PermissionsAuthorApex')
+            && granted('PermissionsAuthorApex').length === 0,
+          modifyAllData: granted('PermissionsModifyAllData'),
+          customizeApplication: granted('PermissionsCustomizeApplication'),
+        },
+      };
+    },
+  );
+}
+
+/**
+ * The windowed shapes P10-T5 (`get_platform_diagnostics`) sends, which T1's own steps do not cover.
+ *
+ * T1 measured that each of the three sources is *readable*. What it did not measure is the form the Tool
+ * sends them in, and on this org those are different shapes:
+ *
+ * - T1's `SetupAuditTrail` steps used no date filter at all; the Tool narrows on `CreatedDate >= <literal>`.
+ *   A date **literal** (`LAST_N_DAYS:90`) and a bare `dateTime` literal are different SOQL shapes, and only
+ *   the second is what a window computed from the clock produces.
+ * - `AsyncApexJob.CreatedDate` filterability had never been measured, which is why the Tool windowed that
+ *   section in memory and said so. These steps settle it either way, and then measure the *conjunction* the
+ *   Tool sends — the status filter and the date filter together, which two separately-filterable fields do
+ *   not guarantee — plus the count over that conjunction. The code comment naming the filter unmeasured is
+ *   only honest while it is true, and the same applies to a query shape nobody has sent yet.
+ * - `CronTrigger` held zero rows, so its `State` vocabulary could not be measured; the aggregate form the
+ *   Tool uses for the *other* table's vocabulary is measured here on this one, so a future org with rows
+ *   does not discover the shape is refused.
+ *
+ * The window literal is computed exactly as the Tool computes it — `Date#toISOString()` on a 24-hour
+ * window, emitted unquoted — because a quoted one is a *string* literal and the platform refuses it with
+ * `INVALID_FIELD`. A probe that sent the quoted form would be measuring a query the Tool never sends.
+ */
+async function probePlatformDiagnosticsWindows(
+  recorder: ProbeRecorder,
+  connection: ProbeConnection,
+): Promise<void> {
+  const windowFrom = new Date(Date.now() - 24 * 3_600_000).toISOString();
+
+  await recorder.record(
+    'STANDARD_SETUP_AUDIT_TRAIL_WINDOW_QUERY',
+    'PLATFORM',
+    'Does the exact windowed SetupAuditTrail query P10-T5 sends — a bare dateTime literal, newest first — '
+      + 'return rows on this org?',
+    'STANDARD',
+    `SELECT Id, Action, CreatedBy.Name, CreatedDate, Section, Display, DelegateUser FROM SetupAuditTrail `
+      + `WHERE CreatedDate >= ${windowFrom} ORDER BY CreatedDate DESC LIMIT 25`,
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT Id, Action, CreatedBy.Name, CreatedDate, Section, Display, DelegateUser FROM SetupAuditTrail `
+          + `WHERE CreatedDate >= ${windowFrom} ORDER BY CreatedDate DESC LIMIT 25`,
+      );
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          windowFrom,
+          returned: outcome.records.length,
+          newestAt: outcome.records[0] === undefined ? null : asString(outcome.records[0].CreatedDate),
+          oldestInPage: outcome.records.at(-1) === undefined ? null : asString(outcome.records.at(-1)?.CreatedDate),
+          note: 'The bare (unquoted) dateTime literal is the shape the Tool sends; a quoted one is a string literal '
+            + 'and is refused with INVALID_FIELD.',
+        },
+      };
+    },
+  );
+
+  await recorder.record(
+    'STANDARD_SETUP_AUDIT_TRAIL_WINDOW_COUNT',
+    'PLATFORM',
+    'Can the windowed row count be read with the argument-less COUNT() form P10-T5 counts with?',
+    'STANDARD',
+    `SELECT COUNT() FROM SetupAuditTrail WHERE CreatedDate >= ${windowFrom}`,
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT COUNT() FROM SetupAuditTrail WHERE CreatedDate >= ${windowFrom}`,
+      );
+      // The measured form: an empty `records` array with the number in `totalSize`. A synthetic alias is
+      // not guaranteed, which is why the Tool reads whichever numeric field the row carries and falls back
+      // to `totalSize` — recording both here is what makes that fallback a measurement.
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          totalSize: outcome.totalSize,
+          returned: outcome.records.length,
+          recordKeys: outcome.records[0] === undefined ? [] : Object.keys(outcome.records[0]),
+        },
+      };
+    },
+  );
+
+  await recorder.record(
+    'STANDARD_ASYNC_APEX_JOB_CREATED_DATE_FILTER',
+    'PLATFORM',
+    'Is AsyncApexJob.CreatedDate filterable — the filter P10-T5 pushes the failure section\'s window into, and '
+      + 'the one whose absence made it window those rows in memory?',
+    'STANDARD',
+    `SELECT Id, Status, CreatedDate FROM AsyncApexJob WHERE CreatedDate >= ${windowFrom} `
+      + 'ORDER BY CreatedDate DESC LIMIT 1',
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT Id, Status, CreatedDate FROM AsyncApexJob WHERE CreatedDate >= ${windowFrom} `
+          + 'ORDER BY CreatedDate DESC LIMIT 1',
+      );
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          windowFrom,
+          totalSize: outcome.totalSize,
+          returned: outcome.records.length,
+          newestAt: outcome.records[0] === undefined ? null : asString(outcome.records[0].CreatedDate),
+        },
+      };
+    },
+  );
+
+  await recorder.record(
+    'STANDARD_ASYNC_APEX_JOB_WINDOW_COUNT',
+    'PLATFORM',
+    'Can the failure window be counted in SOQL over the date filter alone — the read that separates "the window '
+      + 'is empty" from "the window could not be counted"?',
+    'STANDARD',
+    `SELECT COUNT() FROM AsyncApexJob WHERE CreatedDate >= ${windowFrom}`,
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT COUNT() FROM AsyncApexJob WHERE CreatedDate >= ${windowFrom}`,
+      );
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          totalSize: outcome.totalSize,
+          returned: outcome.records.length,
+          recordKeys: outcome.records[0] === undefined ? [] : Object.keys(outcome.records[0]),
+        },
+      };
+    },
+  );
+
+  // The two shapes above measure each filter on its own. These two measure the conjunction, because that is
+  // what the Tool actually sends: a status filter and a date filter that are each filterable are not thereby
+  // filterable together, and a refusal here is an INVALID_FIELD the whole section would answer with.
+  await recorder.record(
+    'STANDARD_ASYNC_APEX_JOB_WINDOWED_FAILURE_QUERY',
+    'PLATFORM',
+    'Does the exact wrapped statement P10-T5 sends — the Failed/Aborted status filter and the window date '
+      + 'filter joined, newest first — answer on this org?',
+    'STANDARD',
+    `SELECT Id, Status, JobType, ApexClass.Name, NumberOfErrors, ExtendedStatus, CreatedDate FROM AsyncApexJob `
+      + `WHERE Status IN ('Failed','Aborted') AND CreatedDate >= ${windowFrom} ORDER BY CreatedDate DESC LIMIT 25`,
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT Id, Status, JobType, ApexClass.Name, NumberOfErrors, ExtendedStatus, CreatedDate FROM AsyncApexJob `
+          + `WHERE Status IN ('Failed','Aborted') AND CreatedDate >= ${windowFrom} ORDER BY CreatedDate DESC LIMIT 25`,
+      );
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          windowFrom,
+          totalSize: outcome.totalSize,
+          returned: outcome.records.length,
+          oldestInPage: outcome.records.length === 0
+            ? null
+            : asString(outcome.records[outcome.records.length - 1]?.CreatedDate),
+          note: 'Zero rows is the expected answer on the reference org: it holds no Failed or Aborted job, which is '
+            + 'a fact about the org rather than a refusal of the conjunction.',
+        },
+      };
+    },
+  );
+
+  await recorder.record(
+    'STANDARD_ASYNC_APEX_JOB_WINDOWED_FAILURE_COUNT',
+    'PLATFORM',
+    'Can the wrapped failure query be counted in SOQL — the read that makes the section report the window\'s own '
+      + 'count instead of what a bounded scan could establish?',
+    'STANDARD',
+    `SELECT COUNT() FROM AsyncApexJob WHERE Status IN ('Failed','Aborted') AND CreatedDate >= ${windowFrom}`,
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        `SELECT COUNT() FROM AsyncApexJob WHERE Status IN ('Failed','Aborted') AND CreatedDate >= ${windowFrom}`,
+      );
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          totalSize: outcome.totalSize,
+          returned: outcome.records.length,
+          recordKeys: outcome.records[0] === undefined ? [] : Object.keys(outcome.records[0]),
+        },
+      };
+    },
+  );
+
+  await recorder.record(
+    'STANDARD_CRON_TRIGGER_STATE_VOCABULARY',
+    'PLATFORM',
+    'Does the aggregate form P10-T5 reads a status vocabulary with work on CronTrigger, whose State literals '
+      + 'this org could not show because the table is empty?',
+    'STANDARD',
+    'SELECT State, COUNT(Id) total FROM CronTrigger GROUP BY State',
+    async () => {
+      const outcome = await runStandardQuery(
+        connection,
+        'SELECT State, COUNT(Id) total FROM CronTrigger GROUP BY State',
+      );
+      return {
+        outcome: 'AVAILABLE',
+        facts: {
+          groups: outcome.records.length,
+          states: summarizeValues(outcome.records.map((record) => asString(record.State))),
+          note: 'Zero groups is the expected answer on the reference org: it holds no CronTrigger row, which is a '
+            + 'fact about the org rather than a refusal of this shape.',
         },
       };
     },
@@ -1723,7 +2009,8 @@ export async function runP10DiagnosticProbe(
     const mayWrite = writeProbesAllowed(environment, org.isSandbox);
     await probeRootResources(recorder, connection);
     await probeDebugLogSurface(recorder, connection, diagnosticRoute.salesforceUsername, mayWrite);
-    await probePlatformStatus(recorder, connection);
+    await probePlatformStatus(recorder, connection, diagnosticRoute.salesforceUsername);
+    await probePlatformDiagnosticsWindows(recorder, connection);
     await probePermissionSurface(recorder, connection, diagnosticRoute.salesforceUsername);
     await probeMetadataSurface(recorder, connection);
     await probeLocalization(recorder, connection);

@@ -39,7 +39,7 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('Context Provider exposes twelve GA Tools with stable output schemas and complete annotations', async () => {
+test('Context Provider exposes thirteen GA Tools with stable output schemas and complete annotations', async () => {
   const tools = await new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
@@ -99,6 +99,12 @@ test('Context Provider exposes twelve GA Tools with stable output schemas and co
         fields: [], truncated: false,
       }),
     },
+    platformDiagnosticsReader: {
+      // Deliberately the smallest shape the output schema admits: this test asserts what the Provider
+      // *builds*, and the aggregation's own behaviour is covered by the dedicated Toolset test. The one
+      // thing it must carry is the DIAGNOSTIC role literal, because that is what the Agent reads.
+      execute: async () => ({ success: true, executionRole: 'DIAGNOSTIC', api: 'STANDARD' }),
+    },
   }).provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
   for (const tool of tools) {
@@ -133,6 +139,9 @@ test('Context Provider exposes twelve GA Tools with stable output schemas and co
     // `FieldPermissions`, `PermissionSetAssignment` and `Profile` are a Setup-layer surface business
     // identities are not granted.
     explain_field_access: 'DIAGNOSTIC',
+    // The platform-status aggregation, last because it is the Tool an incident starts with and the ones
+    // above are the ones it hands off to.
+    get_platform_diagnostics: 'DIAGNOSTIC',
   });
 });
 
