@@ -32,12 +32,16 @@ import {
 import type { MetadataComponentLister } from '../contracts.js';
 
 /**
- * The 22 types P10-T4 declared, written out rather than derived.
+ * The 21 types P10-T4 declared, written out rather than derived.
  *
  * Derived from `METADATA_CONTEXT_TYPES` this would pass no matter what the allowlist became, and the
  * whole point of the assertion is that widening an authorization allowlist is a reviewed act — the
  * ADR's table and this list have to be changed together. The eight leading entries are the ones the
  * allowlist carried before T4, kept in place so the widening is visible as the tail it is.
+ *
+ * The prompt named twenty-two and the live run corrected two of them (ADR-0032 §8): `SharingRule` came
+ * back `INVALID_TYPE: Unknown type` and is `SharingRules` in the Metadata API, and `CustomSetting` is not
+ * a Metadata API type at all. Both names are absent here on purpose, so a silent re-addition fails.
  */
 const EXPECTED_CONTEXT_TYPES = [
   'CustomObject',
@@ -51,14 +55,13 @@ const EXPECTED_CONTEXT_TYPES = [
   'EmailTemplate',
   'NamedCredential',
   'CustomMetadata',
-  'CustomSetting',
   'QuickAction',
   'RecordType',
   'DuplicateRule',
   'AssignmentRule',
   'AutoResponseRule',
   'EscalationRule',
-  'SharingRule',
+  'SharingRules',
   'Workflow',
   'PermissionSet',
   'Profile',
@@ -80,9 +83,9 @@ function stubLister(): MetadataComponentLister {
   };
 }
 
-test('the metadata type allowlist is exactly the 22 types T4 declared, with no duplicates', () => {
+test('the metadata type allowlist is exactly the 21 types T4 declared, with no duplicates', () => {
   assert.deepEqual([...METADATA_CONTEXT_TYPES], [...EXPECTED_CONTEXT_TYPES]);
-  assert.equal(METADATA_CONTEXT_TYPES.length, 22);
+  assert.equal(METADATA_CONTEXT_TYPES.length, 21);
   assert.equal(new Set(METADATA_CONTEXT_TYPES).size, METADATA_CONTEXT_TYPES.length);
 });
 

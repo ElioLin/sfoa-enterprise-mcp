@@ -63,12 +63,19 @@ export const diagnosticQueryInputSchema = z
  * It is also why the two Tools can be DIAGNOSTIC without becoming a route into business data — Metadata
  * API payloads are component definitions, and a component definition never carries a record row.
  *
- * **P10-T4 widened this from 8 to 22 types, and the widening is per-type evidence rather than a guess.**
- * T0's probe measured three of them (`ValidationRule`, `NamedCredential`, `Profile`); the remaining 19 were
+ * **P10-T4 widened this from 8 to 21 types, and the widening is per-type evidence rather than a guess.**
+ * T0's probe measured three of them (`ValidationRule`, `NamedCredential`, `Profile`); the remaining 18 were
  * each measured on this deployment before being added, because "listMetadata works" is a per-type
  * authorization fact and not a property of the API. `ADR-0032` records what each type returned, and
  * `P10_T4_LIVE_EVIDENCE.md` holds the raw measurements. A type that this org does not serve is not in the
  * list: an allowlist entry that always fails would advertise a capability the deployment does not have.
+ *
+ * Two names from the prompt's list did not survive that measurement, and both are corrections rather than
+ * omissions (ADR-0032 §8). `SharingRule` is `SharingRules` in the Metadata API: the singular name answers
+ * `INVALID_TYPE: Unknown type` on this org, while `SharingRules` lists 210 components. `CustomSetting` is not
+ * a Metadata API type at all — this org declares 204 types and that name is not among them — and the
+ * capability it was meant to serve is already covered by `CustomObject`, which carries all 8 of this org's
+ * custom settings.
  *
  * The order is grouped rather than alphabetical — code, configuration, rules, security, automation — so a
  * reader can see which family a type belongs to and which family a new entry would join.
@@ -87,7 +94,6 @@ export const METADATA_CONTEXT_TYPES = [
   // Named configuration and secrets: what the org calls out to, and what it stores as data.
   'NamedCredential',
   'CustomMetadata',
-  'CustomSetting',
   'QuickAction',
   'RecordType',
   // Rules that fire without a user pressing anything.
@@ -96,7 +102,7 @@ export const METADATA_CONTEXT_TYPES = [
   'AutoResponseRule',
   'EscalationRule',
   // Access shape and automation definitions.
-  'SharingRule',
+  'SharingRules',
   'Workflow',
   'PermissionSet',
   'Profile',

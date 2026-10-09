@@ -265,7 +265,7 @@ test('diagnostic query is SELECT-only and has no Tooling or identity switch', ()
 
 test('metadata context enforces the type allowlist and rejects client paths/traversal', () => {
   assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'ValidationRule', fullName: 'Lead.Rule_Name' }).success, true);
-  // P10-T4 widened the allowlist from 8 to 22 types, so `Profile` is now served — the case that used to
+  // P10-T4 widened the allowlist from 8 to 21 types, so `Profile` is now served — the case that used to
   // be the allowlist's negative example. The type that is still refused is one no widening admitted.
   assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'Profile', fullName: 'Admin' }).success, true);
   assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'Dashboard', fullName: 'Sales' }).success, false);
