@@ -117,6 +117,12 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
   public readonly limitsCalls: LimitsCall[] = [];
   /** SOSL statements sent through `search()`, in order. */
   public readonly searchCalls: string[] = [];
+  /**
+   * Metadata API `list` calls, in order, by the type each asked for. The type is the fact an assertion
+   * has to read: the P10-T4 listing is allowlisted by type, so "which type did this call enumerate" is
+   * that boundary as it appears on the wire.
+   */
+  public readonly metadataListCalls: string[] = [];
   /** Bulk API 2.0 calls, in order. Every P9 Bulk request goes through `request()`. */
   public readonly bulkCalls: BulkCall[] = [];
   public instanceUrlForRoute = (route: SalesforceIdentityRoute): string =>
@@ -220,6 +226,16 @@ export class RecordingConnectionFactory implements SalesforceConnectionFactory {
         activePending.emit(answer.headers);
         return answer.body;
       },
+      // `metadata.list` is the one Metadata API surface the P10-T4 listing reads. It is refused by
+      // default for the same reason a Bulk request is: only a Tool a test deliberately enabled ever
+      // reaches it, so a fixture that answered anyway would let a stray call pass unnoticed.
+      metadata: {
+        list: async (queries: readonly { type: string }[]) => {
+          for (const query of queries) this.metadataListCalls.push(query.type);
+          if (this.schema.metadataListError) throw this.schema.metadataListError;
+          return (this.schema.metadataList ?? refuseMetadataList)(queries);
+        },
+      },
       sobject: (objectApiName: string) => ({
         // `SObject.describe()` is a real jsforce method and a distinct surface from the flat
         // `connection.describe()` above: a Tool that reaches a caller-named object this way is reading
@@ -294,6 +310,14 @@ export type RecordingSchemaOptions = Readonly<{
   /** Answers a SOSL call. The default returns one Account record per statement. */
   search?: (statement: string) => unknown;
   searchError?: unknown;
+  /**
+   * Answers a Metadata API `list` call. Like `bulk`, the default refuses one: the listing Tools are
+   * reached only through a Tool the test deliberately enabled, and the shape the wire actually returns
+   * is per-type — an array for most types, a single entry for some — so the answer is scripted rather
+   * than synthesized.
+   */
+  metadataList?: (queries: readonly { type: string }[]) => unknown;
+  metadataListError?: unknown;
   /**
    * Answers a Bulk API 2.0 call. The default refuses one: a Bulk request is only ever made by a
    * Tool the test deliberately enabled, so a fixture that answered it anyway would let a stray
@@ -406,6 +430,10 @@ export function bulkRows(count: number, prefix = 'r'): Record<string, string>[] 
 
 function refuseBulk(call: BulkCall): never {
   throw new Error(`Unexpected Bulk API call ${call.method} ${call.url}`);
+}
+
+function refuseMetadataList(queries: readonly { type: string }[]): never {
+  throw new Error(`Unexpected Metadata API list call for ${queries.map((query) => query.type).join(', ')}`);
 }
 
 /** A request body is JSON by construction; a test asserting on it wants the object, not the text. */

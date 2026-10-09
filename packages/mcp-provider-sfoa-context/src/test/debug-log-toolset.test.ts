@@ -816,6 +816,13 @@ test('the Tool input schemas expose no field a caller could use to choose an ide
 test('the Provider exposes every context Tool in the role map\'s own order, and the roles are total', async () => {
   const provider = new SfoaContextMcpProvider({
     diagnosticQueryExecutor: { execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }) },
+    metadataListExecutor: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', metadataType: input.metadataType, components: [],
+        totalCount: 0, returnedCount: 0, truncated: false, includeInactive: input.includeInactive === true,
+        hint: 'no components',
+      }),
+    },
     metadataContextExecutor: {
       execute: async (input) => ({
         success: true, executionRole: 'DIAGNOSTIC', metadataType: input.metadataType, fullName: input.fullName,
@@ -842,7 +849,7 @@ test('the Provider exposes every context Tool in the role map\'s own order, and 
 
   const tools = await provider.provideTools(createServices());
   assert.deepEqual(tools.map((tool) => tool.getName()), [...SFOA_CONTEXT_TOOL_NAMES]);
-  assert.equal(SFOA_CONTEXT_TOOL_NAMES.length, 11);
+  assert.equal(SFOA_CONTEXT_TOOL_NAMES.length, 12);
   // The three debug-log Tools are advertised together and in workflow order, because that order is
   // what the chained hints assume and what an Agent walking them reads. Asserted as a contiguous run
   // rather than a tail slice, so appending a Tool cannot silently break the invariant this protects.

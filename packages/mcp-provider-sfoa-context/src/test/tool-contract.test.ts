@@ -39,10 +39,17 @@ const forbiddenFields = [
   'arbitraryRestUrl',
 ];
 
-test('Context Provider exposes eleven GA Tools with stable output schemas and complete annotations', async () => {
+test('Context Provider exposes twelve GA Tools with stable output schemas and complete annotations', async () => {
   const tools = await new SfoaContextMcpProvider({
     diagnosticQueryExecutor: {
       execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }),
+    },
+    metadataListExecutor: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', metadataType: input.metadataType, components: [],
+        totalCount: 0, returnedCount: 0, truncated: false, includeInactive: input.includeInactive === true,
+        hint: 'no components',
+      }),
     },
     metadataContextExecutor: {
       execute: async (input) => ({
@@ -109,6 +116,9 @@ test('Context Provider exposes eleven GA Tools with stable output schemas and co
   assert.deepEqual(SFOA_CONTEXT_TOOL_ROLES, {
     get_record_action_context: 'USER',
     run_diagnostic_tooling_query: 'DIAGNOSTIC',
+    // The metadata pair, in the order they are walked: enumerate a type, then read one component. Both are
+    // DIAGNOSTIC because both are Metadata API calls on Setup-layer component definitions.
+    list_metadata_components: 'DIAGNOSTIC',
     get_metadata_component_context: 'DIAGNOSTIC',
     get_record_display_context: 'USER',
     resolve_field_display_values: 'USER',
@@ -129,6 +139,13 @@ test('Context Provider exposes eleven GA Tools with stable output schemas and co
 test('get_org_limits refuses to be built without an executor rather than advertising a dead Tool', async () => {
   const provider = new SfoaContextMcpProvider({
     diagnosticQueryExecutor: { execute: async () => ({ records: [], totalSize: 0, returnedRecords: 0, done: true, truncated: false }) },
+    metadataListExecutor: {
+      execute: async (input) => ({
+        success: true, executionRole: 'DIAGNOSTIC', metadataType: input.metadataType, components: [],
+        totalCount: 0, returnedCount: 0, truncated: false, includeInactive: input.includeInactive === true,
+        hint: 'no components',
+      }),
+    },
     metadataContextExecutor: {
       execute: async (input) => ({
         success: true, executionRole: 'DIAGNOSTIC', metadataType: input.metadataType, fullName: input.fullName,
@@ -248,7 +265,13 @@ test('diagnostic query is SELECT-only and has no Tooling or identity switch', ()
 
 test('metadata context enforces the type allowlist and rejects client paths/traversal', () => {
   assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'ValidationRule', fullName: 'Lead.Rule_Name' }).success, true);
-  assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'Profile', fullName: 'Admin' }).success, false);
+  // P10-T4 widened the allowlist from 8 to 22 types, so `Profile` is now served — the case that used to
+  // be the allowlist's negative example. The type that is still refused is one no widening admitted.
+  assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'Profile', fullName: 'Admin' }).success, true);
+  assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'Dashboard', fullName: 'Sales' }).success, false);
+  // A separator is refused even inside a type the widening admitted, because the escaped form (`%2F`) is
+  // the one the org stores and the literal `/` addresses a different component.
+  assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'EmailTemplate', fullName: 'unfiled/Welcome' }).success, false);
   assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'ApexClass', fullName: '../Secret' }).success, false);
   assert.equal(metadataContextInputSchema.safeParse({ metadataType: 'ApexClass', fullName: 'Good', directory: 'C:\\temp' }).success, false);
 });

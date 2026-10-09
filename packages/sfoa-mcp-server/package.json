@@ -30,6 +30,7 @@
     "probe:p10": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-probe-main.js",
     "milestone:p10-t2": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t2-live-main.js",
     "milestone:p10-t3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t3-live-main.js",
+    "milestone:p10-t4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t4-live-main.js",
     "validate:inspector": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/inspector-gate.js"
   },
   "dependencies": {

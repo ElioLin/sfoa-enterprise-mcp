@@ -26,6 +26,7 @@ import {
   METADATA_CONTEXT_LIMITS,
   OfficialDiagnosticToolingQueryExecutor,
   OfficialMetadataComponentContextExecutor,
+  OfficialMetadataComponentLister,
 } from '../diagnostic-context-adapters.js';
 
 const diagnosticUsername = 'fixed-diagnostic@example.test';
@@ -119,6 +120,185 @@ test('concurrent official metadata calls are serialized by the accepted process 
   }
 });
 
+/**
+ * The listing half of the metadata pair, on a scripted connection.
+ *
+ * Every assertion here is about a decision the *host* makes rather than the provider: which identity the
+ * Connection belongs to, which entries survive the filters, which the limit and the budget drop, and
+ * whether the hint may name a Tool this session advertises. The provider cannot see any of that, which is
+ * why the executor lives here.
+ */
+test('the metadata lister enumerates one type on the fixed identity, filters, sorts, and echoes the effective switches', async () => {
+  const factory = new ScriptedMetadataListConnectionFactory([
+    // Deliberately unsorted, and carrying the shapes T0 measured: a localized name, an escaped name, a
+    // `deleted` component, and one entry with no provenance at all (the `Profile` shape).
+    { fullName: '风控负责', manageableState: 'released', lastModifiedByName: 'Wang', fileName: 'profiles/a.profile' },
+    { fullName: 'WRN业务员%2F业务主管%2F市场开发', manageableState: 'released', lastModifiedByName: 'Li' },
+    { fullName: 'Admin' },
+    { fullName: 'Binned', manageableState: 'deleted', lastModifiedByName: 'Zhao' },
+    { fullName: 'Alpha', manageableState: 'released', lastModifiedByName: 'Chen', lastModifiedDate: '2026-09-01T00:00:00.000Z' },
+  ]);
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    const output = await new OfficialMetadataComponentLister(fixture.scope, ['list_metadata_components'])
+      .execute({ metadataType: 'Profile' });
+
+    // One call, for the one requested type, on the request's own Connection — never a shared one.
+    assert.deepEqual(factory.listCalls, [{ type: 'Profile' }]);
+    assert.equal(output.executionRole, 'DIAGNOSTIC');
+    assert.equal(output.metadataType, 'Profile');
+    assert.equal(output.includeInactive, false);
+    // `deleted` is dropped by the default, so the matched count is 4 and nothing was truncated.
+    assert.equal(output.totalCount, 4);
+    assert.equal(output.returnedCount, 4);
+    assert.equal(output.truncated, false);
+    assert.equal(output.developerNamePrefix, undefined);
+    // Sorted by full name, so the same call drops the same entries when the limit binds.
+    assert.deepEqual(output.components?.map((component) => component.fullName),
+      ['Admin', 'Alpha', 'WRN业务员%2F业务主管%2F市场开发', '风控负责']);
+    // Byte-exact, both the escaped and the localized name: a decoded form addresses another component.
+    assert.ok(output.components?.some((component) => component.fullName === 'WRN业务员%2F业务主管%2F市场开发'));
+    assert.ok(output.components?.some((component) => component.fullName === '风控负责'));
+    // `lastModifiedBy` comes from whatever the listing carries, and a missing field is absent rather
+    // than empty — `Profile` carries no `manageableState` at all, and that is not a contract violation.
+    assert.equal(output.components?.[1]?.lastModifiedBy, 'Chen');
+    assert.equal(output.components?.[1]?.lastModifiedDate, '2026-09-01T00:00:00.000Z');
+    assert.deepEqual(output.components?.[0], { fullName: 'Admin' });
+    assert.match(output.hint ?? '', /4 component/u);
+    // The reader is not advertised here, so the hint must not name it.
+    assert.doesNotMatch(output.hint ?? '', /get_metadata_component_context/u);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('the metadata lister keeps a deleted component only when the caller asks, and says so in the response', async () => {
+  const factory = new ScriptedMetadataListConnectionFactory([
+    { fullName: 'Admin' },
+    { fullName: 'Binned', manageableState: 'deleted' },
+    // Not `deleted`: every other manageable state is live, so a wider definition of "inactive" would
+    // drop a component the org still enforces.
+    { fullName: 'Deprecated', manageableState: 'deprecated' },
+  ]);
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    const output = await new OfficialMetadataComponentLister(fixture.scope, ['get_metadata_component_context'])
+      .execute({ metadataType: 'Profile', includeInactive: true });
+    assert.equal(output.includeInactive, true);
+    assert.deepEqual(output.components?.map((component) => component.fullName),
+      ['Admin', 'Binned', 'Deprecated']);
+    assert.equal(output.totalCount, 3);
+    // The reader *is* advertised here, so the hint may name it — and must say "verbatim".
+    assert.match(output.hint ?? '', /get_metadata_component_context/u);
+    assert.match(output.hint ?? '', /verbatim/u);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('the metadata lister applies the prefix locally and reports the matched count separately from what it returns', async () => {
+  const factory = new ScriptedMetadataListConnectionFactory(
+    ['SHRN工程管理总监%2F项目经理', 'SHRN工程管理总监', 'SHRN其他', 'Other'].map((fullName) => ({ fullName })),
+  );
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    const lister = new OfficialMetadataComponentLister(fixture.scope, ['list_metadata_components']);
+    const prefixed = await lister.execute({ metadataType: 'Profile', developerNamePrefix: 'SHRN', limit: 2 });
+    // The filter is local: the Connection still sees exactly one query, and the count is post-filter.
+    assert.deepEqual(factory.listCalls, [{ type: 'Profile' }]);
+    assert.equal(prefixed.developerNamePrefix, 'SHRN');
+    assert.equal(prefixed.totalCount, 3);
+    assert.equal(prefixed.returnedCount, 2);
+    // The limit cut the list, so this is incomplete — and incomplete by the caller's own bound, which
+    // the hint has to say rather than blaming the response budget.
+    assert.equal(prefixed.truncated, true);
+    assert.match(prefixed.hint ?? '', /2 of 3/u);
+    assert.match(prefixed.hint ?? '', /developerNamePrefix/u);
+
+    const missed = await lister.execute({ metadataType: 'Profile', developerNamePrefix: '不存在的' });
+    assert.equal(missed.totalCount, 0);
+    assert.equal(missed.returnedCount, 0);
+    assert.equal(missed.truncated, false);
+    // "Your prefix matched nothing" is a statement about the prefix, not about the org.
+    assert.doesNotMatch(missed.hint ?? '', /no component of this type/u);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('an org that refuses to list a type produces the A-4 refusal rather than an empty inventory', async () => {
+  const factory = new ScriptedMetadataListConnectionFactory(
+    Object.assign(new Error('denied'), { errorCode: 'INSUFFICIENT_ACCESS' }),
+  );
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    // The distinction this asserts is the whole of ADR-0029 §3: an empty list would read as "this org
+    // has no PermissionSet", which is a claim the Tool never earned.
+    await assert.rejects(
+      async () => new OfficialMetadataComponentLister(fixture.scope, []).execute({ metadataType: 'PermissionSet' }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        const contextError = error as Error & { code?: string; prerequisite?: string; salesforceErrorCode?: string };
+        assert.equal(contextError.code, 'MCP_METADATA_TYPE_UNAVAILABLE');
+        assert.equal(contextError.prerequisite, 'A-4');
+        assert.equal(contextError.salesforceErrorCode, 'INSUFFICIENT_ACCESS');
+        assert.match(contextError.message, /PermissionSet/u);
+        return true;
+      },
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('an unrecognized Salesforce failure is reported as a failure, not as a missing prerequisite', async () => {
+  const factory = new ScriptedMetadataListConnectionFactory(
+    Object.assign(new Error('gateway'), { errorCode: 'SERVER_UNAVAILABLE' }),
+  );
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    await assert.rejects(
+      async () => new OfficialMetadataComponentLister(fixture.scope, []).execute({ metadataType: 'Flow' }),
+      (error: unknown) => {
+        const contextError = error as Error & { code?: string; prerequisite?: string };
+        assert.equal(contextError.code, 'MCP_METADATA_LIST_FAILED');
+        // No `prerequisite`: nothing was measured about this deployment, so naming A-4 would send an
+        // operator to look for a per-type authorization fact that was never in question.
+        assert.equal(contextError.prerequisite, undefined);
+        return true;
+      },
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('the metadata lister refuses a business-identity scope before it opens a Connection', async () => {
+  const factory = new ScriptedMetadataListConnectionFactory([{ fullName: 'Admin' }]);
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    // The executor holds the scope, so it is the last point that can prove the identity. A lister that
+    // ran here would enumerate the org's access shape on a business identity.
+    const userScope = await fixture.runtime.scopeFactory.create({ platformUserId: 'user-a', correlationId: 'meta-user' });
+    try {
+      await assert.rejects(
+        async () => new OfficialMetadataComponentLister(userScope, []).execute({ metadataType: 'Profile' }),
+        (error: unknown) => {
+          const contextError = error as Error & { code?: string };
+          assert.equal(contextError.code, 'MCP_DIAGNOSTIC_TOOL_NOT_ALLOWED');
+          assert.match(contextError.message, /list_metadata_components/u);
+          return true;
+        },
+      );
+      assert.deepEqual(factory.listCalls, []);
+    } finally {
+      await userScope.close();
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
 const queryInputSchema = z.object({
   query: z.string(),
   usernameOrAlias: z.string(),
@@ -197,7 +377,9 @@ class FakeRetrieveTool extends McpTool<typeof retrieveInputSchema.shape> {
   }
 }
 
-async function createDiagnosticFixture(): Promise<{
+async function createDiagnosticFixture(
+  connectionFactory: SalesforceConnectionFactory = new TestConnectionFactory(),
+): Promise<{
   scope: RequestScope;
   runtime: ReturnType<typeof createIdentityRuntime>;
   close(): Promise<void>;
@@ -205,7 +387,7 @@ async function createDiagnosticFixture(): Promise<{
   const testRoot = await mkdtemp(path.join(tmpdir(), 'sfoa-p4-diagnostic-adapter-'));
   const workspaceFactory = new RequestWorkspaceFactory({ baseRoot: path.join(testRoot, 'requests') });
   const runtime = createIdentityRuntime(identityConfig(testRoot), {
-    connectionFactory: new TestConnectionFactory(),
+    connectionFactory,
     workspaceFactory,
     logger: new NoopRuntimeLogger(),
   });
@@ -237,6 +419,32 @@ function createAdapter(scope: RequestScope, cwdGuard: CwdExecutionGuard): Reques
 class TestConnectionFactory implements SalesforceConnectionFactory {
   public async create(_route: SalesforceIdentityRoute): Promise<Connection> {
     return { getApiVersion: () => '67.0' } as unknown as Connection;
+  }
+}
+
+/**
+ * A Connection whose `metadata.list` returns a scripted listing — or throws a scripted failure.
+ *
+ * It records the queries it was given so a test can assert *what the Tool asked Salesforce for*, which is
+ * the half of the contract a response alone cannot prove: a Tool that filtered server-side and a Tool that
+ * filtered locally produce the same list, and only the recorded query tells them apart.
+ */
+class ScriptedMetadataListConnectionFactory implements SalesforceConnectionFactory {
+  public readonly listCalls: Array<{ type: string }> = [];
+
+  public constructor(private readonly listed: unknown) {}
+
+  public async create(_route: SalesforceIdentityRoute): Promise<Connection> {
+    return {
+      getApiVersion: () => '67.0',
+      metadata: {
+        list: async (queries: readonly { type: string }[]): Promise<unknown> => {
+          this.listCalls.push(...queries.map((query) => ({ type: query.type })));
+          if (this.listed instanceof Error) throw this.listed;
+          return this.listed;
+        },
+      },
+    } as unknown as Connection;
   }
 }
 

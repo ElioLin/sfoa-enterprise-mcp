@@ -13,6 +13,7 @@ import {
   type RequestScope,
 } from '@sfoa/identity-runtime';
 import { readSalesforceFailure } from '@sfoa/mcp-provider-sfoa-data';
+import { METADATA_CONTEXT_TYPES } from '@sfoa/mcp-provider-sfoa-context';
 import { loadRemoteRuntimeConfig } from '../config.js';
 import { MySqlRuntimePolicySnapshotSource, snapshotDiagnosticRoute } from '../policy-snapshot.js';
 
@@ -1344,7 +1345,15 @@ async function probeMetadataSurface(recorder: ProbeRecorder, connection: ProbeCo
       async () => {
         const listed = await connection.metadata.list([{ type }]);
         const entries = (Array.isArray(listed) ? listed : [listed]).filter(isRecord);
-        const first = entries[0];
+        // Across every entry rather than the first one: a type whose first entry happens to lack
+        // `manageableState` says nothing about the type, and this fact is what ADR-0032's per-type table is
+        // built from. `deleted` is counted separately because it is the one state the listing Tool has to
+        // filter, so "which types can even produce an inactive entry" is a fact with a consequence.
+        // Read through a record view because the key is a runtime string: the point is to ask whether *any*
+        // entry carries the field at all, and `FileProperties` declares only the ones this SDK version knows
+        // about, so a type's extra provenance field would be invisible to a keyof-typed lookup.
+        const carries = (key: string): boolean =>
+          entries.some((entry) => asString((entry as Readonly<Record<string, unknown>>)[key]) !== null);
         return {
           outcome: 'AVAILABLE',
           facts: {
@@ -1353,21 +1362,45 @@ async function probeMetadataSurface(recorder: ProbeRecorder, connection: ProbeCo
             // The provenance fields are the reason P10-4 prefers the Metadata API over a describe: a
             // component inventory without `lastModifiedBy` cannot answer "what changed". Whether this
             // org's listing carries them is a fact, so it is recorded rather than assumed.
-            carriesLastModified: first !== undefined
-              && (asString(first.lastModifiedDate) !== null || asString(first.lastModifiedByName) !== null),
-            carriesManageableState: first !== undefined && asString(first.manageableState) !== null,
-            carriesFileName: first !== undefined && asString(first.fileName) !== null,
+            carriesLastModified: carries('lastModifiedDate') || carries('lastModifiedByName'),
+            carriesManageableState: carries('manageableState'),
+            carriesFileName: carries('fileName'),
+            deletedEntryCount: entries.filter((entry) => asString(entry.manageableState) === 'deleted').length,
           },
         };
       },
     );
   };
 
-  // One type per P10-4 category question: a rule type, a secrets type, and the type whose volume is
-  // the reason the allowlist is bounded at all.
-  await listType('ValidationRule');
-  await listType('NamedCredential');
-  await listType('Profile');
+  // **Every** type the allowlist admits, measured individually — never extrapolated from a sample.
+  //
+  // T0 probed three types (`ValidationRule`, `NamedCredential`, `Profile`) and the T4 allowlist was widened
+  // by fourteen more on the strength of that sample. A type's listability is a per-type authorization fact
+  // (ADR-0029 §3, prerequisite A-4), so the sample was an argument for *trying* the others, not for assuming
+  // them. Iterating the Tool's own exported constant is what ties this coverage to the decision it checks:
+  // a later widening extends the probe with it, and a type that is listed here but refused by the org shows
+  // up as its own `METADATA_LIST_*` step rather than hiding inside a total.
+  //
+  // The loop is one recorded step per type on purpose. A single step wrapping all of them could report only
+  // the first refusal, and "which type did the org decline" is the whole finding.
+  for (const type of METADATA_CONTEXT_TYPES) {
+    await listType(type);
+  }
+
+  await recorder.record(
+    'METADATA_ALLOWLIST_COVERAGE',
+    'METADATA',
+    'Which allowlist did this probe cover, and how many types did the org actually list?',
+    'METADATA',
+    'the allowlist the listing Tool enforces, read from the provider package',
+    async () => ({
+      outcome: 'AVAILABLE',
+      facts: {
+        allowlistSize: METADATA_CONTEXT_TYPES.length,
+        allowlist: [...METADATA_CONTEXT_TYPES],
+      },
+    }),
+  );
 
   // The Tooling route is the fallback when the Metadata API will not list a type, and it is the one
   // that carries `LastModifiedBy`, so both routes are measured for a type both can serve.
