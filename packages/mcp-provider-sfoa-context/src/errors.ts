@@ -29,6 +29,12 @@ export const CONTEXT_ERROR_CODES = [
   'MCP_FIELD_ACCESS_INVALID',
   'MCP_FIELD_ACCESS_READ_FAILED',
   'MCP_FIELD_ACCESS_TARGET_NOT_ALLOWED',
+  // T4's metadata inventory. `MCP_METADATA_TYPE_UNAVAILABLE` is the ADR-0029 §3 contract applied to a
+  // listing: a type this org's Metadata API will not serve fails as a named, structured answer rather
+  // than as an empty component list, because an agent reads an empty list as "the org has none of these"
+  // — the one conclusion that is certainly wrong when the listing itself never happened.
+  'MCP_METADATA_LIST_FAILED',
+  'MCP_METADATA_TYPE_UNAVAILABLE',
 ] as const;
 
 export type ContextErrorCode = (typeof CONTEXT_ERROR_CODES)[number];

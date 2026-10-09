@@ -55,7 +55,26 @@ export const diagnosticQueryInputSchema = z
   })
   .strict();
 
+/**
+ * The Metadata API types both metadata Tools are allowed to name.
+ *
+ * This is the §0.3 red line as data, not as prose: the allowlist is hardcoded here and asserted by unit
+ * test, so a type outside it is refused before a manifest is generated or a `listMetadata` call is made.
+ * It is also why the two Tools can be DIAGNOSTIC without becoming a route into business data — Metadata
+ * API payloads are component definitions, and a component definition never carries a record row.
+ *
+ * **P10-T4 widened this from 8 to 22 types, and the widening is per-type evidence rather than a guess.**
+ * T0's probe measured three of them (`ValidationRule`, `NamedCredential`, `Profile`); the remaining 19 were
+ * each measured on this deployment before being added, because "listMetadata works" is a per-type
+ * authorization fact and not a property of the API. `ADR-0032` records what each type returned, and
+ * `P10_T4_LIVE_EVIDENCE.md` holds the raw measurements. A type that this org does not serve is not in the
+ * list: an allowlist entry that always fails would advertise a capability the deployment does not have.
+ *
+ * The order is grouped rather than alphabetical — code, configuration, rules, security, automation — so a
+ * reader can see which family a type belongs to and which family a new entry would join.
+ */
 export const METADATA_CONTEXT_TYPES = [
+  // Code and UI, the original eight.
   'CustomObject',
   'CustomField',
   'ValidationRule',
@@ -64,18 +83,61 @@ export const METADATA_CONTEXT_TYPES = [
   'ApexTrigger',
   'Layout',
   'FlexiPage',
+  'EmailTemplate',
+  // Named configuration and secrets: what the org calls out to, and what it stores as data.
+  'NamedCredential',
+  'CustomMetadata',
+  'CustomSetting',
+  'QuickAction',
+  'RecordType',
+  // Rules that fire without a user pressing anything.
+  'DuplicateRule',
+  'AssignmentRule',
+  'AutoResponseRule',
+  'EscalationRule',
+  // Access shape and automation definitions.
+  'SharingRule',
+  'Workflow',
+  'PermissionSet',
+  'Profile',
 ] as const;
 
 export const metadataTypeSchema = z.enum(METADATA_CONTEXT_TYPES);
+/**
+ * The exact component name, validated for safety rather than for shape.
+ *
+ * This was an ASCII-only whitelist until P10-T4, and that whitelist broke the pair it exists to serve:
+ * `list_metadata_components` returns this org's component names verbatim, and T0 measured them to be
+ * localized and URL-escaped (`风控负责`, `WRN业务员%2F业务主管%2F市场开发`), so the names the listing hands
+ * back were exactly the names this schema refused — the hint's "pass it back verbatim" step could not run.
+ *
+ * The constraints the task actually names are kept: no traversal sequence, no filesystem separator, no
+ * control character. **The name never becomes a path** — it is XML-escaped into a manifest written at a
+ * fixed relative path, and every file read back is separately re-checked against the workspace root by
+ * `assertWithin` — so the shape whitelist was never the security boundary and removing it relaxes no
+ * safety property. `%2F` is deliberately *not* decoded to `/`: the separator refusal stays, so a decoded
+ * name is refused rather than silently addressing a different component.
+ *
+ * `.trim()` is retained from the original contract. No real component name carries leading or trailing
+ * whitespace, and trimming an argument cannot change which component is addressed.
+ */
 export const metadataFullNameSchema = z
   .string()
   .trim()
   .min(1)
   .max(255)
-  .regex(/^[A-Za-z0-9_][A-Za-z0-9_. -]*$/u, 'contains characters outside the supported Metadata API full-name set')
   .refine((value) => !value.includes('..'), 'must not contain a path traversal sequence')
   .refine((value) => !/[\\/]/u.test(value), 'must not contain a filesystem separator')
-  .describe('Exact Metadata API full name. This is a component name, never a filesystem path.');
+  .refine(
+    (value) => !/[\u0000-\u001f\u007f]/u.test(value),
+    'must not contain control characters',
+  )
+  .describe(
+    'Exact Metadata API full name, byte-for-byte as a listing returned it. Component names in this org are '
+    + 'localized and may be URL-escaped (`%2F` where the name contains a separator), and a decoded form '
+    + 'addresses a different component, so pass the name back verbatim rather than retyping or decoding it. '
+    + 'This is a component name, never a filesystem path.',
+  );
 
 export const metadataContextInputSchema = z
   .object({
@@ -88,6 +150,19 @@ const contextFailureFields = {
   success: z.boolean(),
   errorCode: z.string().max(128).optional(),
   message: z.string().max(2_000).optional(),
+};
+
+/**
+ * The extra fields a DIAGNOSTIC Tool's *error* result may carry. Declared beside `contextFailureFields`
+ * rather than further down because every output schema that spreads them is `.strict()`, so a schema
+ * missing one rejects the very error result the raiser was built to produce — `prerequisite` names the
+ * ADR-0029 §3 prerequisite and only the diagnostic Tools raise it.
+ */
+const diagnosticFailureFields = {
+  salesforceErrorCode: z.string().max(128).optional(),
+  suggestion: z.string().max(2_000).optional(),
+  /** ADR-0029 §3: the deployment prerequisite behind a refusal, by identifier. */
+  prerequisite: z.string().max(128).optional(),
 };
 
 const picklistValueSchema = z
@@ -309,6 +384,99 @@ export const metadataContextOutputSchema = z
   })
   .strict();
 
+/**
+ * The listing half of the metadata pair: `list_metadata_components` answers "which components of this type
+ * exist", and `get_metadata_component_context` answers "what does this one contain". The split is the same
+ * one P9 established for `list_sobjects` / `describe_sobject`, and it is deliberate — a listing whose every
+ * entry also carried the component's definition would be a listing no budget could bound.
+ *
+ * The component entry is **per-type optional by measurement, not by defensiveness**. T0's probe found
+ * `ValidationRule` and `NamedCredential` entries carrying `lastModifiedByName`, `fileName` and
+ * `manageableState` while `Profile` entries carried no `manageableState` — so a schema declaring
+ * `manageableState` required would fail on a type the allowlist is required to serve. `ADR-0032` records
+ * which types carry which fields on this deployment; the schema stays permissive because that measurement
+ * is a property of this org at this API version, and a stricter schema would turn a future org's extra
+ * field into a contract violation rather than a fact to report.
+ */
+export const METADATA_LIST_DEFAULT_LIMIT = 50;
+export const METADATA_LIST_MAX_LIMIT = 200;
+
+/**
+ * The filter is matched against component names that are **localized and URL-escaped** (`风控负责`,
+ * `WRN业务员%2F业务主管%2F市场开发`), so it cannot reuse `metadataFullNameSchema`'s ASCII-only pattern: that
+ * pattern would refuse every prefix a Chinese-language org's profile names would need.
+ *
+ * It is therefore validated for safety rather than for shape — no control characters, no traversal
+ * sequence — and never for the characters a legitimate component name may contain. The value is also only
+ * ever a local filter: it is never interpolated into a manifest, a path, or a query.
+ */
+export const metadataNamePrefixSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .refine((value) => !value.includes('..'), 'must not contain a path traversal sequence')
+  .refine(
+    (value) => !/[\u0000-\u001f\u007f]/u.test(value),
+    'must not contain control characters',
+  )
+  .describe(
+    'Case-sensitive prefix matched against component full names. Component names are localized and may be '
+    + 'URL-escaped in this org, so match the exact text a previous listing returned rather than a decoded form.',
+  );
+
+export const metadataListInputSchema = z
+  .object({
+    metadataType: metadataTypeSchema.describe('Allowlisted diagnostic Metadata API type to enumerate.'),
+    developerNamePrefix: metadataNamePrefixSchema.optional(),
+    includeInactive: z
+      .boolean()
+      .optional()
+      .describe(
+        'Set true to keep components the listing marks as not active. Defaults to false, and the effective '
+        + 'value is echoed in the response, because a listing narrowed by a default the caller did not choose '
+        + 'is the silent-short-list failure this Toolset exists to avoid.',
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(METADATA_LIST_MAX_LIMIT)
+      .optional()
+      .describe(`Maximum components to return. Defaults to ${METADATA_LIST_DEFAULT_LIMIT}, maximum ${METADATA_LIST_MAX_LIMIT}.`),
+  })
+  .strict();
+
+const metadataListComponentSchema = z
+  .object({
+    // Returned byte-for-byte as the listing produced it. A caller that passes a decoded form back to
+    // `get_metadata_component_context` addresses a different component, so nothing here normalizes it.
+    fullName: z.string(),
+    manageableState: z.string().optional(),
+    lastModifiedBy: z.string().optional(),
+    lastModifiedDate: z.string().optional(),
+    fileName: z.string().optional(),
+  })
+  .strict();
+
+export const metadataListOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    ...diagnosticFailureFields,
+    executionRole: z.literal('DIAGNOSTIC').optional(),
+    metadataType: metadataTypeSchema.optional(),
+    components: z.array(metadataListComponentSchema).optional(),
+    totalCount: z.number().int().nonnegative().optional(),
+    returnedCount: z.number().int().nonnegative().optional(),
+    truncated: z.boolean().optional(),
+    hint: z.string().max(1_000).optional(),
+    // Echoed so the counts above are interpretable: `totalCount` is the count *after* these two filters,
+    // and a caller who reads it without them would take a narrowed listing for the whole org.
+    includeInactive: z.boolean().optional(),
+    developerNamePrefix: z.string().optional(),
+  })
+  .strict();
+
 export const orgLimitsInputSchema = z
   .object({
     verbose: z
@@ -517,13 +685,6 @@ export const traceFlagInputSchema = z
       ),
   })
   .strict();
-
-const diagnosticFailureFields = {
-  salesforceErrorCode: z.string().max(128).optional(),
-  suggestion: z.string().max(2_000).optional(),
-  /** ADR-0029 §3: the deployment prerequisite behind a refusal, by identifier. */
-  prerequisite: z.string().max(128).optional(),
-};
 
 export const traceFlagOutputSchema = z
   .object({
@@ -1009,3 +1170,6 @@ export type DiagnosticQueryEvidence = Readonly<{
 }>;
 export type MetadataContextInput = z.infer<typeof metadataContextInputSchema>;
 export type MetadataComponentContext = z.infer<typeof metadataContextOutputSchema>;
+export type MetadataListInput = z.infer<typeof metadataListInputSchema>;
+export type MetadataListOutput = z.infer<typeof metadataListOutputSchema>;
+export type MetadataListComponent = z.infer<typeof metadataListComponentSchema>;

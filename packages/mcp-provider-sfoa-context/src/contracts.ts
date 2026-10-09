@@ -9,6 +9,8 @@ import type {
   ExplainFieldAccessOutput,
   MetadataComponentContext,
   MetadataContextInput,
+  MetadataListInput,
+  MetadataListOutput,
   OrgLimitsInput,
   OrgLimitsOutput,
   TraceFlagInput,
@@ -21,6 +23,18 @@ export interface DiagnosticToolingQueryExecutor {
 
 export interface MetadataComponentContextExecutor {
   execute(input: MetadataContextInput): Promise<MetadataComponentContext>;
+}
+
+/**
+ * Enumerates the components of one allowlisted Metadata API type, on the DIAGNOSTIC identity.
+ *
+ * Host-side for the same reason as `MetadataComponentContextExecutor`: the request scope that carries the
+ * fixed DIAGNOSTIC route is the host's model, and `assertDiagnosticScope` is the only check that can prove
+ * which identity a Connection was opened for. The provider owns the contract, the type allowlist and the
+ * hint; the host owns the identity guard, the Connection and the response budget.
+ */
+export interface MetadataComponentLister {
+  execute(input: MetadataListInput): Promise<MetadataListOutput>;
 }
 
 /**

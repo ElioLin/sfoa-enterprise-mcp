@@ -37,7 +37,16 @@ export class MetadataComponentContextMcpTool extends McpTool<InputShape, OutputS
     return {
       title: 'Get Metadata Component Context',
       description:
-        'Retrieves one allowlisted Salesforce metadata component with the fixed server-owned DIAGNOSTIC identity. The server generates the manifest, delegates to the official retrieve_metadata Tool, reads only its request workspace, and returns bounded UTF-8 evidence with explicit truncation. No filesystem path, identity, token, URL, wildcard, deployment, or arbitrary package manifest is accepted.',
+        'Reads one allowlisted Salesforce metadata component, addressed by its exact full name, with the fixed '
+        + 'server-owned DIAGNOSTIC identity. The server generates a single-member manifest for the requested '
+        + 'component, delegates to the official retrieve_metadata Tool, reads only its request workspace, and '
+        + 'returns the bounded UTF-8 metadata source files that retrieve produced, with explicit truncation (at '
+        + 'most 40 files / 256 KiB). Because the response is the retrieve\'s own output rather than a per-component '
+        + 'projection, one request can yield more than one file — a composite type returns its parts — and the '
+        + 'response does not re-verify that every returned file belongs to the named component. Pair it with '
+        + 'list_metadata_components to find a component\'s exact full name first: names here are localized and may '
+        + 'be URL-escaped, and must be passed back verbatim. No filesystem path, identity, token, URL, wildcard, '
+        + 'deployment, or arbitrary package manifest is accepted.',
       inputSchema: metadataContextInputSchema.shape,
       outputSchema: metadataContextOutputSchema.shape,
       annotations: {

@@ -54,6 +54,10 @@ function resolveReleaseState(
  */
 function contextToolClassification(toolName: SfoaContextToolName): ToolClassification {
   if (toolName === 'get_metadata_component_context') return 'METADATA_READ';
+  // The listing half of the metadata pair. `METADATA_READ` rather than `READ` because that is what the
+  // Console's classification is read for: both halves read Setup-layer component definitions through the
+  // Metadata API, and an Administrator deciding whether to enable one wants the same answer for both.
+  if (toolName === 'list_metadata_components') return 'METADATA_READ';
   if (toolName === 'set_trace_flag') return 'DIAGNOSTIC_WRITE';
   return 'READ';
 }
@@ -90,6 +94,16 @@ function contextToolDependencies(toolName: SfoaContextToolName, diagnostic: bool
       'enabled Diagnostic configuration',
       'permission-table readability on the diagnostic account',
       'enabled identity routes, for the targetUserId boundary',
+    ];
+  }
+  if (toolName === 'list_metadata_components') {
+    // The one Tool whose prerequisite is per *value* rather than per Tool: A-4 asks whether the metadata
+    // types beyond T0's three are retrievable by this identity, and the answer is a fact about each type.
+    // So the declaration names A-4 rather than a generic dependency — that identifier is the one thing an
+    // Admin can look up — and the Tool's own refusal carries the same identifier per type.
+    return [
+      'enabled Diagnostic configuration',
+      'per-type readability of the allowlisted metadata types (A-4)',
     ];
   }
   return diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'];

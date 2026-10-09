@@ -115,6 +115,17 @@ export type SalesforceApiPurpose =
   | 'ATTACHMENT_UPLOAD'
   | 'DIAGNOSTIC_TOOLING'
   | 'METADATA_RETRIEVE'
+  /**
+   * The Metadata API's *listing* operation, kept apart from `METADATA_RETRIEVE` because they are two
+   * different calls with two different audit questions. `listMetadata` answers "which components of
+   * this type exist", and it is the call that enumerates an org's permission sets, profiles and
+   * validation rules; `retrieve` fetches one named component's content. A row reading
+   * `METADATA_RETRIEVE` for a listing would name an operation that did not happen, and the question an
+   * investigator actually asks of this surface — who enumerated the org's access shape — would be
+   * unanswerable from the trail. Both are `METADATA_API` on the wire, so the category cannot separate
+   * them; the purpose is the only field that can.
+   */
+  | 'METADATA_LIST'
   | 'OBJECT_SCHEMA'
   /**
    * `ORG_LIMITS` and `SOSL_SEARCH` are capability-named for the same reason the other specific

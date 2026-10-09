@@ -188,6 +188,12 @@ export class ContextToolFacade {
 const CONTEXT_TOOL_PURPOSES: Readonly<Record<SfoaContextToolName, SalesforceApiPurpose>> = Object.freeze({
   get_record_action_context: 'RECORD_ACTION_CONTEXT',
   run_diagnostic_tooling_query: 'DIAGNOSTIC_TOOLING',
+  // The metadata pair, on two purposes because they are two Metadata API operations: `listMetadata`
+  // enumerates a type, `retrieve` fetches one component. Folding the listing into `METADATA_RETRIEVE`
+  // would make "who enumerated this org's permission sets" unanswerable — the one question this pair's
+  // audit exists to answer — and the wire category (`METADATA_API`) is the same for both, so the purpose
+  // is the only field that can tell them apart.
+  list_metadata_components: 'METADATA_LIST',
   get_metadata_component_context: 'METADATA_RETRIEVE',
   get_record_display_context: 'OBJECT_SCHEMA',
   resolve_field_display_values: 'OBJECT_SCHEMA',
@@ -218,6 +224,22 @@ function safeContextRequestSummary(toolName: string, input: ToolInput): unknown 
     return {
       querySha256: createHash('sha256').update(query).digest('hex'),
       queryLength: query.length,
+    };
+  }
+  if (toolName === 'list_metadata_components') {
+    // ADR-0029 §4d's rule for the diagnostic set: the row has to answer its own question. Here that is
+    // *which type was enumerated, and with what filter* — the enumeration is the call this purpose exists
+    // to make visible, and "who listed every Profile" is unanswerable from a row that recorded only the
+    // type. The prefix is a component-name filter (Setup-layer metadata, never a record value) and is
+    // recorded verbatim for the same reason `get_apex_logs` records `status`: a filter that matched
+    // nothing is a vocabulary mismatch, and the literal that was tried is what makes that legible.
+    return {
+      metadataType: typeof input.metadataType === 'string' ? input.metadataType : null,
+      developerNamePrefix: typeof input.developerNamePrefix === 'string' ? input.developerNamePrefix : null,
+      // `false` is the effective value when the argument is omitted, so recording it here states what
+      // ran. The counts the response carries are post-filter, which is what makes them interpretable.
+      includeInactive: input.includeInactive === true,
+      limit: typeof input.limit === 'number' ? input.limit : null,
     };
   }
   if (toolName === 'get_metadata_component_context') {

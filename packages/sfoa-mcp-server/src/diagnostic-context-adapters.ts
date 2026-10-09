@@ -3,14 +3,21 @@ import path from 'node:path';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { McpTool } from '@salesforce/mcp-provider-api';
+import { readSalesforceFailure, trimToByteBudget } from '@sfoa/mcp-provider-sfoa-data';
 import {
   ContextRuntimeError,
+  METADATA_LIST_DEFAULT_LIMIT,
+  metadataListHint,
   type DiagnosticQueryEvidence,
   type DiagnosticQueryInput,
   type DiagnosticToolingQueryExecutor,
   type MetadataComponentContext,
   type MetadataComponentContextExecutor,
+  type MetadataComponentLister,
   type MetadataContextInput,
+  type MetadataListComponent,
+  type MetadataListInput,
+  type MetadataListOutput,
 } from '@sfoa/mcp-provider-sfoa-context';
 import type {
   RequestScope,
@@ -173,6 +180,188 @@ export class OfficialMetadataComponentContextExecutor implements MetadataCompone
     }
     return readBoundedMetadataContext(input, sourceRoot, candidates);
   }
+}
+
+/**
+ * The listing half of the metadata pair, on the request's fixed DIAGNOSTIC identity.
+ *
+ * This lives in the host for the same reason `ScopedOrgLimitsExecutor` does, and one reason of its own:
+ * the response `hint` must only name a Tool `tools/list` advertises, and the advertised set is a property
+ * of *this request's* composition — which Tools the Console enabled for this route — that the provider
+ * cannot see. The executor is therefore handed the session's advertised names and passes them to the pure
+ * hint builder, so a deployment with the reader switched off gets a hint that names no Tool instead of a
+ * dangling reference.
+ *
+ * `fullName` is never normalized. This org stores localized, URL-escaped component names
+ * (`风控负责`, `WRN业务员%2F业务主管%2F市场开发`), and the whole point of the pair is that one of them is
+ * copied verbatim into `get_metadata_component_context`. Decoding `%2F` here would hand the caller a name
+ * that addresses a different component — or none — so the string is carried exactly as the listing gave it.
+ */
+export class OfficialMetadataComponentLister implements MetadataComponentLister {
+  private readonly advertised: ReadonlySet<string>;
+
+  public constructor(
+    private readonly scope: RequestScope,
+    advertisedToolNames: readonly string[],
+  ) {
+    this.advertised = new Set(advertisedToolNames);
+  }
+
+  public async execute(input: MetadataListInput): Promise<MetadataListOutput> {
+    assertDiagnosticScope(this.scope, 'list_metadata_components');
+    const includeInactive = input.includeInactive === true;
+    const prefix = input.developerNamePrefix;
+    const limit = input.limit ?? METADATA_LIST_DEFAULT_LIMIT;
+    try {
+      const connection = await this.scope.getConnection();
+      const listed: unknown = await connection.metadata.list([{ type: input.metadataType }]);
+      const matched = readMetadataListEntries(listed).filter(
+        (entry) =>
+          (includeInactive || !isInactiveMetadataEntry(entry))
+          && (prefix === undefined || entry.fullName.startsWith(prefix)),
+      );
+      // `limit` caps what is considered at all; the byte budget then decides what fits, because a limit
+      // alone cannot bound a response whose every entry carries a caller-visible name of unknown length.
+      const candidates = matched.slice(0, limit);
+      const build = (kept: readonly MetadataListComponent[]): MetadataListOutput => {
+        // Strict `>`: equal counts mean nothing was dropped, whichever mechanism did the dropping.
+        const truncated = kept.length < matched.length;
+        return {
+          success: true,
+          executionRole: 'DIAGNOSTIC',
+          metadataType: input.metadataType,
+          components: [...kept],
+          // Post-filter, pre-slice: the count a caller would see if neither the limit nor the budget applied.
+          // Reporting the type's *org-wide* size here would make `truncated` meaningless, since a filtered
+          // listing is narrowed by the caller's own filter rather than by this Tool.
+          totalCount: matched.length,
+          returnedCount: kept.length,
+          truncated,
+          includeInactive,
+          ...(prefix === undefined ? {} : { developerNamePrefix: prefix }),
+          hint: metadataListHint(this.advertised, {
+            returnedCount: kept.length,
+            totalCount: matched.length,
+            truncated,
+            includeInactive,
+            prefixApplied: prefix !== undefined,
+          }),
+        };
+      };
+      return build(trimToByteBudget(candidates, MAX_DIAGNOSTIC_RESULT_BYTES, build).kept);
+    } catch (error) {
+      throw mapMetadataListFailure(error, input.metadataType);
+    }
+  }
+}
+
+/**
+ * Normalizes whatever `metadata.list` returned into entries this Tool can describe.
+ *
+ * jsforce types the call as an array, but the wire form is per-type and a single-type request is the kind
+ * of call that comes back unwrapped, so both shapes are accepted. An entry with no usable `fullName` is
+ * skipped rather than emitted with an empty name: a nameless component is not actionable — it cannot be
+ * passed to the reader — and a blank `fullName` in the list would read as a component that exists.
+ */
+function readMetadataListEntries(listed: unknown): readonly MetadataListComponent[] {
+  const raw = Array.isArray(listed) ? listed : [listed];
+  const entries: MetadataListComponent[] = [];
+  for (const candidate of raw) {
+    if (!isRecord(candidate)) continue;
+    const fullName = nonEmptyString(candidate.fullName);
+    if (fullName === undefined) continue;
+    const manageableState = nonEmptyString(candidate.manageableState);
+    const lastModifiedBy = nonEmptyString(candidate.lastModifiedByName) ?? nonEmptyString(candidate.lastModifiedById);
+    const lastModifiedDate = nonEmptyString(candidate.lastModifiedDate);
+    const fileName = nonEmptyString(candidate.fileName);
+    entries.push({
+      fullName,
+      ...(manageableState === undefined ? {} : { manageableState }),
+      ...(lastModifiedBy === undefined ? {} : { lastModifiedBy }),
+      ...(lastModifiedDate === undefined ? {} : { lastModifiedDate }),
+      ...(fileName === undefined ? {} : { fileName }),
+    });
+  }
+  // Sorted so that the entries the limit and the budget drop are the same ones on every run: an
+  // inventory whose membership changes between identical calls is not evidence a caller can cite.
+  return entries.sort((left, right) => (left.fullName < right.fullName ? -1 : left.fullName > right.fullName ? 1 : 0));
+}
+
+/**
+ * The Metadata API's one "this component is not active" signal in a listing.
+ *
+ * `manageableState: 'deleted'` is a component sitting in the org's recycle bin — the entry is still
+ * listed, so a caller who wanted "the validation rules this org enforces" would otherwise be handed a
+ * rule that no longer runs. `released`/`installed`/`unmanaged`/`deprecated`/`beta` are all live states and
+ * are not dropped. This is the narrow reading on purpose, and it is the reading the live probe measures:
+ * per ADR-0032 only some types carry `manageableState` at all (`Profile` carries none), so an entry
+ * without the field is treated as active rather than as unknown.
+ */
+const INACTIVE_MANAGEABLE_STATES: ReadonlySet<string> = new Set(['deleted']);
+
+function isInactiveMetadataEntry(entry: MetadataListComponent): boolean {
+  return entry.manageableState !== undefined && INACTIVE_MANAGEABLE_STATES.has(entry.manageableState);
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** Salesforce codes that mean "this org will not list this type to this identity". */
+const METADATA_LIST_UNAVAILABLE_CODES = [
+  'INSUFFICIENT_ACCESS',
+  'INSUFFICIENT_ACCESS_OR_READONLY',
+  'INSUFFICIENT_PRIVILEGES',
+  'API_DISABLED_FOR_ORG',
+  'NOT_FOUND',
+  'INVALID_TYPE',
+  'UNKNOWN_EXCEPTION',
+] as const;
+
+/**
+ * ADR-0029 §3's degradation contract, applied per type: a type this org will not list is a **structured
+ * error naming the missing prerequisite**, never an empty list. An empty `components` array would be
+ * indistinguishable from "this org holds no component of this type", which is a claim about the org the
+ * Tool has not earned — and the two readings have opposite operational consequences.
+ *
+ * The `prerequisite` is `A-4` because that is the prerequisite `ADR-0029` names for the T4 types: "the
+ * metadata types beyond the three probed are retrievable by this identity". It is emitted per type, which
+ * is what A-4 demands, and the message names the type so a reader can tell which entry of the widened
+ * allowlist the deployment does not actually serve.
+ */
+function mapMetadataListFailure(error: unknown, metadataType: string): ContextRuntimeError {
+  if (error instanceof ContextRuntimeError) return error;
+  const failure = readSalesforceFailure(error);
+  const normalized = failure.code?.toLocaleUpperCase('en-US');
+  const unavailable = normalized !== undefined
+    && METADATA_LIST_UNAVAILABLE_CODES.some((code) => code === normalized);
+  if (!unavailable) {
+    return new ContextRuntimeError(
+      'MCP_METADATA_LIST_FAILED',
+      `Salesforce could not list ${metadataType} components for this request.`,
+      {
+        cause: error,
+        ...(failure.code === null ? {} : { salesforceErrorCode: failure.code }),
+        suggestion: 'Retry once; if it fails again the diagnostic identity or the org\'s API access needs to be '
+          + 'checked. This affects the metadata listing only: other Salesforce Tools are unaffected.',
+      },
+    );
+  }
+  return new ContextRuntimeError(
+    'MCP_METADATA_TYPE_UNAVAILABLE',
+    `This org did not list ${metadataType} components to the fixed DIAGNOSTIC identity this Tool runs on.`,
+    {
+      cause: error,
+      ...(failure.code === null ? {} : { salesforceErrorCode: failure.code }),
+      prerequisite: 'A-4',
+      suggestion: `The empty result is not "this org has no ${metadataType}": it is that the type could not be `
+        + 'listed at all, so treat the inventory as unknown rather than as zero. The type is on the allowlist '
+        + 'because it was measured as retrievable on the deployment this allowlist was built from, so a refusal '
+        + 'here means this org differs per type — that is a per-type authorization fact, not an API outage. '
+        + 'Widening a business integration identity to see Setup is not the remedy. Read the inventory from '
+        + 'Salesforce Setup instead of retrying, and record the type in ADR-0032.',
+    },
+  );
 }
 
 type MetadataCandidate = Readonly<{

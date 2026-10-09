@@ -56,6 +56,7 @@ import { DataToolFacade } from './data-tool-facade.js';
 import {
   OfficialDiagnosticToolingQueryExecutor,
   OfficialMetadataComponentContextExecutor,
+  OfficialMetadataComponentLister,
 } from './diagnostic-context-adapters.js';
 import { DmlToolFacade } from './dml-tool-facade.js';
 import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
@@ -371,6 +372,19 @@ export async function createGovernedMcpServer(
                 options.scope,
                 adapter,
                 officialQueryTool,
+              ),
+            }
+          : {}),
+        // The listing half of the metadata pair. It needs no official primitive — it calls
+        // `metadata.list` on the request's own DIAGNOSTIC Connection, like the limits executor below —
+        // so it is gated on its own enabled name rather than on `retrieve_metadata` being present. It
+        // does need the request's advertised Tool set, because its hint may only name a Tool this
+        // session's `tools/list` actually carries.
+        ...(contextToolNames.includes('list_metadata_components')
+          ? {
+              metadataListExecutor: new OfficialMetadataComponentLister(
+                options.scope,
+                options.initializedProvider.enabledTools,
               ),
             }
           : {}),

@@ -5,6 +5,7 @@ import type {
   DiagnosticToolingQueryExecutor,
   FieldAccessExplainer,
   MetadataComponentContextExecutor,
+  MetadataComponentLister,
   OrgLimitsReader,
   TraceFlagWriter,
 } from './contracts.js';
@@ -17,6 +18,7 @@ import { ExplainFieldAccessMcpTool } from './tools/explain-field-access.js';
 import { GetApexLogsMcpTool } from './tools/get-apex-logs.js';
 import { GetDebugLogBodyMcpTool } from './tools/get-debug-log-body.js';
 import { GetOrgLimitsMcpTool } from './tools/get-org-limits.js';
+import { ListMetadataComponentsMcpTool } from './tools/list-metadata-components.js';
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
 import { RecordActionContextMcpTool } from './tools/record-action-context.js';
 import { RecordDisplayContextMcpTool } from './tools/record-display-context.js';
@@ -27,6 +29,11 @@ import { PresentationRelationshipMcpTool } from './tools/presentation-relationsh
 export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   get_record_action_context: 'USER',
   run_diagnostic_tooling_query: 'DIAGNOSTIC',
+  // The metadata pair, listed in the order they are meant to be walked: enumerate a type, then read one
+  // component's content. Both are DIAGNOSTIC because both are Metadata API calls on Setup-layer component
+  // definitions, which no business identity in this deployment is granted. `list_metadata_components` is
+  // new in T4 and is the only P10 Tool whose sibling this map already carried.
+  list_metadata_components: 'DIAGNOSTIC',
   get_metadata_component_context: 'DIAGNOSTIC',
   get_record_display_context: 'USER',
   resolve_field_display_values: 'USER',
@@ -69,6 +76,7 @@ export type SfoaContextProviderOptions = Readonly<{
   effectiveUi?: EffectiveUiOptions;
   toolNames?: readonly SfoaContextToolName[];
   diagnosticQueryExecutor?: DiagnosticToolingQueryExecutor;
+  metadataListExecutor?: MetadataComponentLister;
   metadataContextExecutor?: MetadataComponentContextExecutor;
   orgLimitsExecutor?: OrgLimitsReader;
   traceFlagExecutor?: TraceFlagWriter;
@@ -99,6 +107,12 @@ export class SfoaContextMcpProvider extends McpProvider {
         throw new Error('run_diagnostic_tooling_query requires a diagnostic query executor.');
       }
       tools.push(new DiagnosticToolingQueryMcpTool(this.options.diagnosticQueryExecutor));
+    }
+    if (requested.includes('list_metadata_components')) {
+      if (!this.options.metadataListExecutor) {
+        throw new Error('list_metadata_components requires a metadata list executor.');
+      }
+      tools.push(new ListMetadataComponentsMcpTool(this.options.metadataListExecutor));
     }
     if (requested.includes('get_metadata_component_context')) {
       if (!this.options.metadataContextExecutor) {

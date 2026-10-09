@@ -170,6 +170,7 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
         // build a diagnostic Tool without an executor — and a Provider that throws would take the
         // whole inventory down, making `initialize` fail for every Tool, not just the enabled one.
         diagnosticQueryExecutor: { execute: forbidden },
+        metadataListExecutor: { execute: forbidden },
         metadataContextExecutor: { execute: forbidden },
         orgLimitsExecutor: { execute: forbidden },
         traceFlagExecutor: { execute: forbidden },
