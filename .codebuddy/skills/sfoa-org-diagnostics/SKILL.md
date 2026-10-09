@@ -25,7 +25,7 @@ description: Salesforce 组织异常诊断方法论：症状先分类（数据/�
 
 5. **A Missing Source Degrades, It Does Not Vanish** — Tool 报 `INDETERMINATE`、`unavailable` / `UNAVAILABLE`，或聚合结果里某一节缺失时，**MUST** 如实转述并**指出缺失的前提**（哪个对象读不到、哪个权限没有、哪个来源本身为空）；**MUST NOT** 把不可用读成「没有异常」、把空白读成健康、把 `totalCount: null` 读成 `0`，也 **MUST NOT** 为缺口补一个看起来合理的值。状态对照表见 [degradation-and-indeterminate.md](references/degradation-and-indeterminate.md)。
 
-6. **Trace Only Sees The Future** — `set_trace_flag` 只对**开启之后**发生的执行生效，历史异常不可回溯。**MUST** 在开启后给出最小复现指引并等待用户复现，复现之后再 `get_apex_logs`；**MUST NOT** 开了 trace 就宣称「日志已就绪」，也 **MUST NOT** 在没有任何新执行的情况下反复拉日志并解释为什么是空的。闭环见 [trace-and-reproduction.md](references/trace-and-reproduction.md)。
+6. **Trace Only Sees The Future** — `set_trace_flag` 只对**开启之后**发生的执行生效，历史异常不可回溯。而且**开启之后并不等于立刻生效**：新建的 trace 有一段生效延迟，紧跟着开启动作发生的执行可能根本没被记录。因此「开启 → 用户立刻复现 → 列表为空」**MUST NOT** 被读成「没有异常」或「复现路径不对」，**MUST** 先让用户把同一个动作再复现一次。**MUST** 在开启后给出最小复现指引并等待用户复现，复现之后再 `get_apex_logs`；**MUST NOT** 开了 trace 就宣称「日志已就绪」，也 **MUST NOT** 在没有任何新执行的情况下反复拉日志并解释为什么是空的。闭环见 [trace-and-reproduction.md](references/trace-and-reproduction.md)。
 
 7. **No Log Is Not No Evidence** — 无法复现的历史问题，**MUST** 先走不依赖日志的证据链：`get_platform_diagnostics`（异步失败记录与变更时间线都不需要 trace）→ `get_metadata_component_context` 读代码/配置 → `explain_field_access` 做权限归因；同步报错时，用户看到的错误消息本身（校验规则名、类名、字段名）就是定位起点。日志是五类证据之一，不是诊断的前提。
 
