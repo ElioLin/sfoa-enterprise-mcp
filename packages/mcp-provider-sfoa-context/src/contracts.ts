@@ -13,6 +13,8 @@ import type {
   MetadataListOutput,
   OrgLimitsInput,
   OrgLimitsOutput,
+  PlatformDiagnosticsInput,
+  PlatformDiagnosticsOutput,
   TraceFlagInput,
   TraceFlagOutput,
 } from './schemas.js';
@@ -66,6 +68,22 @@ export interface ApexLogReader {
 
 export interface DebugLogBodyReader {
   execute(input: DebugLogBodyInput): Promise<DebugLogBodyOutput>;
+}
+
+/**
+ * Aggregates the platform's own change, failure and schedule evidence, on the DIAGNOSTIC identity.
+ *
+ * Host-side for the same reason as the debug-log executors, plus the reason this Tool is the one that
+ * makes the §0.3 red line binding. Three of its sources are standard-API reads — `SetupAuditTrail`,
+ * `AsyncApexJob`, `CronTrigger` — and ADR-0029 §4a records that **nothing in the org stops the
+ * DIAGNOSTIC identity from reading a business object through the standard API** (measured: the same
+ * identity read 955 `Lead` rows). The whitelist that keeps this Tool on platform-status objects is
+ * therefore entirely this code's own, and a provider-side implementation would be handed a Connection
+ * whose identity it cannot attest. Only the host holds the `RequestScope` that proves which route a
+ * Connection was opened for, which is what `assertDiagnosticScope` checks before anything is read.
+ */
+export interface PlatformDiagnosticsReader {
+  execute(input: PlatformDiagnosticsInput): Promise<PlatformDiagnosticsOutput>;
 }
 
 /**

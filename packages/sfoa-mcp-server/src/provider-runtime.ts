@@ -69,6 +69,7 @@ import {
 } from './debug-log-context-executors.js';
 import { ScopedFieldAccessExplainer } from './field-access-context-executor.js';
 import type { FieldAccessTargetUsers } from './field-access-target-users.js';
+import { ScopedPlatformDiagnosticsReader } from './platform-diagnostics-executor.js';
 import { RemoteToolFacade } from './remote-tool-facade.js';
 import { ToolGovernancePolicy } from './tool-governance.js';
 import {
@@ -425,6 +426,18 @@ export async function createGovernedMcpServer(
                 options.scope,
                 options.initializedProvider.enabledTools,
                 options.fieldAccessTargetUsers ?? { selfSalesforceUsername: null, configuredSalesforceUsernames: [] },
+              ),
+            }
+          : {}),
+        // The platform-status aggregator, host-side for the reason the metadata pair above is not: three of
+        // its sources are standard-API reads, and ADR-0029 §4a records that the org enforces nothing on that
+        // surface — the query whitelist is the whole guarantee, so it lives beside the `RequestScope` that
+        // proves which identity the Connection was opened for.
+        ...(contextToolNames.includes('get_platform_diagnostics')
+          ? {
+              platformDiagnosticsReader: new ScopedPlatformDiagnosticsReader(
+                options.scope,
+                options.initializedProvider.enabledTools,
               ),
             }
           : {}),

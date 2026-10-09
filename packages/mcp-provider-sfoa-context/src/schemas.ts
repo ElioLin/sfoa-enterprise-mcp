@@ -1144,6 +1144,279 @@ export const explainFieldAccessOutputSchema = z
   })
   .strict();
 
+// ---------------------------------------------------------------------------------------------
+// get_platform_diagnostics (T5): three platform sources, one window, one merged timeline.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The three sections, in the order the Tool reads and reports them.
+ *
+ * The order is fixed rather than the caller's: two readouts of the same incident have to be comparable,
+ * and a caller that asks for `['SCHEDULED_JOBS','SETUP_CHANGES']` must not get a differently-ordered
+ * payload from one that asks for the reverse. The input schema below normalizes the caller's order and
+ * repetitions away, and the output's `sections` object always carries this order.
+ */
+export const PLATFORM_DIAGNOSTIC_SECTIONS = Object.freeze([
+  'SETUP_CHANGES',
+  'ASYNC_FAILURES',
+  'SCHEDULED_JOBS',
+] as const);
+
+export type PlatformDiagnosticSection = (typeof PLATFORM_DIAGNOSTIC_SECTIONS)[number];
+
+/** The window default, and the hard bounds. 168 hours is the prompt's hard maximum (one week). */
+export const PLATFORM_DIAGNOSTICS_DEFAULT_WINDOW_HOURS = 24;
+export const PLATFORM_DIAGNOSTICS_MIN_WINDOW_HOURS = 1;
+export const PLATFORM_DIAGNOSTICS_MAX_WINDOW_HOURS = 168;
+
+/** Per-section entry default and hard maximum. The bound is per section; three sections share one budget. */
+export const PLATFORM_DIAGNOSTICS_DEFAULT_LIMIT_PER_SECTION = 25;
+export const PLATFORM_DIAGNOSTICS_MAX_LIMIT_PER_SECTION = 100;
+
+/**
+ * The character budget for the rendered text, this Tool's own copy of the P9 Data Tools' budget.
+ *
+ * The dual budget is the same idea as everywhere else in this runtime: the structured payload is bounded
+ * in bytes (`DATA_MAX_RESPONSE_BYTES`, applied by the host executor) and the text an Agent actually reads
+ * is bounded in characters. The number is 60 000 for the same reason `DATA_MAX_QUERY_TEXT_CHARACTERS` is:
+ * it is a context budget, not a transport one.
+ */
+export const PLATFORM_DIAGNOSTICS_MAX_TEXT_CHARACTERS = 60_000;
+
+/**
+ * The per-section state ADR-0029 §3 requires of an aggregating Tool.
+ *
+ * `UNAVAILABLE` is not a synonym for "no rows": it means the source could not be read, and the section
+ * then carries the prerequisite identifier and the reason instead of a count. A genuinely empty source is
+ * `READ` with `totalCount: 0` — the distinction the `CronTrigger` measurement (`P10_T0_LIVE_PROBE_FINDINGS`
+ * §5: 0 rows on this org) made the reason for this shape.
+ */
+export const PLATFORM_DIAGNOSTIC_SECTION_STATES = Object.freeze(['READ', 'UNAVAILABLE'] as const);
+
+/**
+ * The three states of the conservative stall assessment — never a boolean.
+ *
+ * A scheduled job is *suspected* stalled when the platform's own state and clock say so under the
+ * documented rule (ADR-0033), *not* suspected when the platform reports it as running or complete, and
+ * `INDETERMINATE` when the rule cannot be applied at all — an unrecognized `State` literal (the
+ * vocabulary was not measurable on the reference org, which holds no `CronTrigger` rows), a missing
+ * `NextFireTime`, or an unparseable timestamp. The third state is not a hedge: it is what keeps a
+ * vocabulary this Tool does not recognize from being read as "healthy".
+ */
+export const SCHEDULED_JOB_STALL_ASSESSMENTS = Object.freeze([
+  'SUSPECTED',
+  'NOT_SUSPECTED',
+  'INDETERMINATE',
+] as const);
+
+export const platformDiagnosticsInputSchema = z
+  .object({
+    windowHours: z
+      .number()
+      .int()
+      .min(PLATFORM_DIAGNOSTICS_MIN_WINDOW_HOURS)
+      .max(PLATFORM_DIAGNOSTICS_MAX_WINDOW_HOURS)
+      .optional()
+      .describe(
+        `How far back the change and failure sections are read, in hours. Defaults to `
+        + `${PLATFORM_DIAGNOSTICS_DEFAULT_WINDOW_HOURS}; the hard bounds are `
+        + `${PLATFORM_DIAGNOSTICS_MIN_WINDOW_HOURS} to ${PLATFORM_DIAGNOSTICS_MAX_WINDOW_HOURS} (one week). `
+        + 'The window ends at the moment of the call. It bounds SETUP_CHANGES and ASYNC_FAILURES by their '
+        + 'creation time; SCHEDULED_JOBS is the org\'s current scheduling state rather than a history, and enters '
+        + 'the timeline at each job\'s last fire time, so a window cannot make it report a *past* stall.',
+      ),
+    sections: z
+      .array(z.enum(PLATFORM_DIAGNOSTIC_SECTIONS))
+      .min(1)
+      // No `.max()`: the bound is enforced by the transform below rather than by the array's length, because
+      // a caller that repeats a section has asked for three sections or fewer and should be normalized
+      // rather than refused. A `.max()` here would count the *repeats*, so `['A','A','B']` would be refused
+      // for asking for three sections while `['A','B']` was accepted — a refusal that teaches nothing.
+      .optional()
+      .describe(
+        'Which evidence sections to read. Defaults to all three. SETUP_CHANGES is the setup audit trail (who '
+        + 'changed what), ASYNC_FAILURES the failed and aborted asynchronous jobs, SCHEDULED_JOBS the scheduled '
+        + 'jobs with a conservative suspected-stall assessment. Repeats are dropped and the reported order is '
+        + 'fixed, so the same set of sections always produces the same payload shape.',
+      )
+      .transform((values) => values === undefined
+        ? undefined
+        : PLATFORM_DIAGNOSTIC_SECTIONS.filter((section) => values.includes(section))),
+    limitPerSection: z
+      .number()
+      .int()
+      .min(1)
+      .max(PLATFORM_DIAGNOSTICS_MAX_LIMIT_PER_SECTION)
+      .optional()
+      .describe(
+        `The most entries one section may return. Defaults to ${PLATFORM_DIAGNOSTICS_DEFAULT_LIMIT_PER_SECTION}, `
+        + `hard maximum ${PLATFORM_DIAGNOSTICS_MAX_LIMIT_PER_SECTION}. Each section reports its own total count and `
+        + 'whether it was cut, and the three sections together share one response budget, so entries can be '
+        + 'trimmed below this number when the payload would otherwise not fit.',
+      ),
+  })
+  .strict();
+
+const platformDiagnosticWindowSchema = z
+  .object({
+    from: z.string(),
+    to: z.string(),
+    hours: z.number().int().positive(),
+  })
+  .strict();
+
+/**
+ * The shared status header of every section.
+ *
+ * `totalCount` is nullable and `null` on `UNAVAILABLE`, never 0: this is the one place where a wrong type
+ * would defeat the whole contract, because a consumer that reads `totalCount === 0` as "there were none"
+ * would turn an unreadable source back into a silent empty result.
+ */
+const platformDiagnosticSectionStatusFields = {
+  status: z.enum(PLATFORM_DIAGNOSTIC_SECTION_STATES),
+  totalCount: z.number().int().nonnegative().nullable(),
+  truncated: z.boolean(),
+  /** Present only on `UNAVAILABLE`: the prerequisite identifier ADR-0029 §3 requires. */
+  prerequisite: z.string().max(128).optional(),
+  errorCode: z.string().max(128).optional(),
+  /** Present only on `UNAVAILABLE`: the human-readable reason, safe to show an operator. */
+  unavailableReason: z.string().max(2_000).optional(),
+  /** Facts a reader needs and must not infer — dropped fields, vocabulary findings, an unreadable bound. */
+  caveats: z.array(z.string()),
+};
+
+const setupChangeEntrySchema = z
+  .object({
+    id: z.string(),
+    occurredAt: z.string(),
+    /**
+     * The `SetupAuditTrail.Action` API enum — a stable English literal such as `changedApexClass`.
+     *
+     * Returned as a fact and matched only inside the query. `section` and `display` below are the org's
+     * localized labels; they are reported because a reader wants them and are never compared against
+     * anything, because `Section` is not even filterable on this object (measured: `INVALID_FIELD`).
+     */
+    action: z.string().nullable(),
+    section: z.string().nullable(),
+    display: z.string().nullable(),
+    createdBy: z.string().nullable(),
+    delegateUser: z.string().nullable(),
+  })
+  .strict();
+
+const setupChangesSectionSchema = z
+  .object({
+    ...platformDiagnosticSectionStatusFields,
+    section: z.literal('SETUP_CHANGES'),
+    entries: z.array(setupChangeEntrySchema),
+    /**
+     * The oldest row this org still retains, read with a bounded query.
+     *
+     * Salesforce does not expose `SetupAuditTrail` retention to SOQL, so this is the only honest bound on
+     * how far back the trail reaches. `null` when the bound itself could not be read — the section still
+     * answers, the bound is missing, and the caveat says so.
+     */
+    oldestRetainedAt: z.string().nullable(),
+  })
+  .strict();
+
+const asyncFailureEntrySchema = z
+  .object({
+    id: z.string(),
+    occurredAt: z.string(),
+    status: z.string().nullable(),
+    jobType: z.string().nullable(),
+    apexClass: z.string().nullable(),
+    numberOfErrors: z.number().int().nonnegative().nullable(),
+    extendedStatus: z.string().nullable(),
+  })
+  .strict();
+
+const asyncFailuresSectionSchema = z
+  .object({
+    ...platformDiagnosticSectionStatusFields,
+    section: z.literal('ASYNC_FAILURES'),
+    entries: z.array(asyncFailureEntrySchema),
+    /**
+     * The status literals this org's `AsyncApexJob` table actually holds, with their counts.
+     *
+     * Present so a zero-entry answer is *evidenced* rather than silent: the section filters on the API
+     * literals `Failed` and `Aborted`, and this is the readout that shows the filter ran against a real,
+     * readable table. `null` when the vocabulary read failed — and a failed vocabulary read next to zero
+     * entries is exactly the combination that makes the section `UNAVAILABLE` instead, because then
+     * nothing establishes that the zero is a fact.
+     */
+    observedStatusCounts: z.record(z.number().int().nonnegative()).nullable(),
+  })
+  .strict();
+
+const scheduledJobEntrySchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable(),
+    jobType: z.string().nullable(),
+    state: z.string().nullable(),
+    nextFireTime: z.string().nullable(),
+    previousFireTime: z.string().nullable(),
+    timesTriggered: z.number().int().nonnegative().nullable(),
+    /** ADR-0033's conservative rule. `SUSPECTED` is a flag to investigate, never a diagnosis. */
+    stallAssessment: z.enum(SCHEDULED_JOB_STALL_ASSESSMENTS),
+    stallReasons: z.array(z.string()),
+  })
+  .strict();
+
+const scheduledJobsSectionSchema = z
+  .object({
+    ...platformDiagnosticSectionStatusFields,
+    section: z.literal('SCHEDULED_JOBS'),
+    entries: z.array(scheduledJobEntrySchema),
+    suspectedStallCount: z.number().int().nonnegative().nullable(),
+  })
+  .strict();
+
+const platformDiagnosticTimelineEntrySchema = z
+  .object({
+    occurredAt: z.string(),
+    section: z.enum(PLATFORM_DIAGNOSTIC_SECTIONS),
+    entryId: z.string(),
+    /** One line: what happened, in the section's own vocabulary. Deliberately short — see the budget note. */
+    summary: z.string(),
+  })
+  .strict();
+
+const platformDiagnosticAlignmentSchema = z
+  .object({
+    timeline: z.array(platformDiagnosticTimelineEntrySchema),
+    /** What the merge does and does not establish — including whether a section is missing from it. */
+    note: z.string(),
+  })
+  .strict();
+
+export const platformDiagnosticsOutputSchema = z
+  .object({
+    ...contextFailureFields,
+    ...diagnosticFailureFields,
+    executionRole: z.literal('DIAGNOSTIC').optional(),
+    /** The standard API: all three sources are standard-API reads. */
+    api: z.literal('STANDARD').optional(),
+    window: platformDiagnosticWindowSchema.optional(),
+    sections: z
+      .object({
+        setupChanges: setupChangesSectionSchema.optional(),
+        asyncFailures: asyncFailuresSectionSchema.optional(),
+        scheduledJobs: scheduledJobsSectionSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    alignment: platformDiagnosticAlignmentSchema.optional(),
+    /** How many of the requested sections were read — the count a reader must not have to recompute. */
+    readSectionCount: z.number().int().nonnegative().optional(),
+    unavailableSectionCount: z.number().int().nonnegative().optional(),
+    truncated: z.boolean().optional(),
+    hint: z.string().max(1_000).optional(),
+  })
+  .strict();
+
 export type TracedEntityKind = z.infer<typeof traceFlagInputSchema>['tracedEntityKind'];
 export type TraceFlagInput = z.infer<typeof traceFlagInputSchema>;
 export type TraceFlagOutput = z.infer<typeof traceFlagOutputSchema>;
@@ -1179,3 +1452,14 @@ export type MetadataComponentContext = z.infer<typeof metadataContextOutputSchem
 export type MetadataListInput = z.infer<typeof metadataListInputSchema>;
 export type MetadataListOutput = z.infer<typeof metadataListOutputSchema>;
 export type MetadataListComponent = z.infer<typeof metadataListComponentSchema>;
+export type PlatformDiagnosticsInput = z.infer<typeof platformDiagnosticsInputSchema>;
+export type PlatformDiagnosticsOutput = z.infer<typeof platformDiagnosticsOutputSchema>;
+export type PlatformDiagnosticSectionState = (typeof PLATFORM_DIAGNOSTIC_SECTION_STATES)[number];
+export type ScheduledJobStallAssessment = (typeof SCHEDULED_JOB_STALL_ASSESSMENTS)[number];
+export type SetupChangesSection = z.infer<typeof setupChangesSectionSchema>;
+export type AsyncFailuresSection = z.infer<typeof asyncFailuresSectionSchema>;
+export type ScheduledJobsSection = z.infer<typeof scheduledJobsSectionSchema>;
+export type SetupChangeEntry = z.infer<typeof setupChangeEntrySchema>;
+export type AsyncFailureEntry = z.infer<typeof asyncFailureEntrySchema>;
+export type ScheduledJobEntry = z.infer<typeof scheduledJobEntrySchema>;
+export type PlatformDiagnosticTimelineEntry = z.infer<typeof platformDiagnosticTimelineEntrySchema>;

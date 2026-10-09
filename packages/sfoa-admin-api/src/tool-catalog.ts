@@ -106,6 +106,16 @@ function contextToolDependencies(toolName: SfoaContextToolName, diagnostic: bool
       'per-type readability of the allowlisted metadata types (A-4)',
     ];
   }
+  if (toolName === 'get_platform_diagnostics') {
+    // Three sources, and the declaration names the measured constraint rather than an ADR-0029 §2 letter:
+    // §2's `A-1`…`A-4` are the Tooling log surface and the Metadata API, and this Tool reads neither. The
+    // point an Admin needs is that the three are independently readable — one refusal degrades one section
+    // of the answer rather than the Tool, which is why all three are listed instead of one summary line.
+    return [
+      'enabled Diagnostic configuration',
+      'SetupAuditTrail, AsyncApexJob and CronTrigger readability on the diagnostic account',
+    ];
+  }
   return diagnostic ? ['enabled Diagnostic configuration', 'audited official Tool contract'] : ['USER identity route'];
 }
 

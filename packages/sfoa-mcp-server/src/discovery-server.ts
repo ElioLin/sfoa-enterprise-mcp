@@ -176,6 +176,12 @@ export async function createDiscoveryMcpServer(options: DiscoveryServerOptions):
         traceFlagExecutor: { execute: forbidden },
         apexLogsExecutor: { execute: forbidden },
         debugLogBodyExecutor: { execute: forbidden },
+        // Same rule for the two executors that need a `RequestScope` the discovery server does not have.
+        // `explain_field_access` was missing its entry here, which was not a gap in a Tool but a gap in
+        // *every* Tool: the Provider throws while composing, so enabling that one Tool made `initialize`
+        // fail for the whole inventory. The forbidden stub is what keeps a governance snapshot renderable.
+        fieldAccessExplainer: { execute: forbidden },
+        platformDiagnosticsReader: { execute: forbidden },
       }).provideTools(services),
       // Data Tools read schema through the request-scoped USER Connection, which discovery
       // does not have. Only their descriptors are built here so that an enabled Data Tool is

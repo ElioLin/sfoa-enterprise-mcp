@@ -212,6 +212,13 @@ const CONTEXT_TOOL_PURPOSES: Readonly<Record<SfoaContextToolName, SalesforceApiP
   // permission question about a *subject* and not a query question about a component. Folding it in would
   // put a standard-API permission read under a Tooling heading and make the answer unreadable.
   explain_field_access: 'PERMISSION_EXPLAIN',
+  // And its own purpose for the same reason, one step further: this Tool reads three standard-API
+  // platform-status objects in one call — `SetupAuditTrail`, `AsyncApexJob`, `CronTrigger` — and none of
+  // them is a Tooling query, a debug log or a permission table. Folding it into `PERMISSION_EXPLAIN`
+  // would put a *change and failure* read under a permission heading; folding it into `DIAGNOSTIC_TOOLING`
+  // would name a Tooling call that never happened. What the operator asks of this row is "who asked the
+  // platform what had recently changed and failed", which only its own purpose answers.
+  get_platform_diagnostics: 'PLATFORM_DIAGNOSTICS',
 });
 
 function contextPurpose(toolName: string): SalesforceApiPurpose {
@@ -300,6 +307,24 @@ function safeContextRequestSummary(toolName: string, input: ToolInput): unknown 
         : input.includeRecordTypeContext === true,
     };
   }
+  if (toolName === 'get_platform_diagnostics') {
+    // ADR-0029 §4d's rule for the diagnostic set: what makes the row answerable is on it. Here that is
+    // *how far back the read reached and which sections were asked for* — the window is the call's whole
+    // scope, and a row that recorded only the Tool name could not tell a one-hour incident read from a
+    // week-long one. The sections are recorded as sent, so a call that asked for all three and got two
+    // is legible against the response's own per-section states.
+    const sections = Array.isArray(input.sections)
+      ? input.sections.filter((section): section is string => typeof section === 'string')
+      : [];
+    return {
+      windowHours: typeof input.windowHours === 'number' ? input.windowHours : null,
+      sections,
+      // As sent, like `explain_field_access`'s field list: an omitted argument is not a value the caller
+      // chose, and the resolved defaults are visible in the response's own `window` and section set.
+      sectionCount: sections.length,
+      limitPerSection: typeof input.limitPerSection === 'number' ? input.limitPerSection : null,
+    };
+  }
   if (toolName === 'get_record_display_context') {
     return {
       objectApiName: typeof input.objectApiName === 'string' ? input.objectApiName : null,
@@ -340,8 +365,32 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     // could not tell "ten fields were explained" from "ten of thirty were explained" would not answer the
     // question it exists for.
     ...(typeof content.requestedFieldCount === 'number' ? { requestedFieldCount: content.requestedFieldCount } : {}),
+    // `get_platform_diagnostics`. The two section counts are the audit's own answer to ADR-0029 §3's
+    // aggregator clause: `success: true` on this Tool means the aggregation ran, not that every source was
+    // read, so a row that recorded the success alone would describe a partial timeline as a whole one.
+    // `timelineEntryCount` is read from `alignment` rather than from a top-level count, because the
+    // timeline is the artifact an incident is read from and its length is what says how much of it exists.
+    ...(typeof content.readSectionCount === 'number' ? { readSectionCount: content.readSectionCount } : {}),
+    ...(typeof content.unavailableSectionCount === 'number'
+      ? { unavailableSectionCount: content.unavailableSectionCount }
+      : {}),
+    ...(timelineEntryCount(content) === null ? {} : { timelineEntryCount: timelineEntryCount(content) }),
     ...(errorCode ? { errorCode } : {}),
   };
+}
+
+/**
+ * How many entries the merged timeline carried, or `null` when the response has no timeline at all.
+ *
+ * `structuredContent` is typed as an open record on this side — it is whatever the Tool returned, and the
+ * facade deliberately does not re-validate a payload the Tool's own output schema already validated — so
+ * the nested read is spelled out here once rather than inlined as a cast inside the summary literal.
+ */
+function timelineEntryCount(content: Record<string, unknown>): number | null {
+  const alignment = content.alignment;
+  if (typeof alignment !== 'object' || alignment === null || Array.isArray(alignment)) return null;
+  const timeline = (alignment as { timeline?: unknown }).timeline;
+  return Array.isArray(timeline) ? timeline.length : null;
 }
 
 /** Fails loudly if the purpose map and the role map ever disagree about which Tools exist. */

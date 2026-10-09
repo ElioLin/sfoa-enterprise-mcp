@@ -7,6 +7,7 @@ import type {
   MetadataComponentContextExecutor,
   MetadataComponentLister,
   OrgLimitsReader,
+  PlatformDiagnosticsReader,
   TraceFlagWriter,
 } from './contracts.js';
 import { RecordActionContextExecutor } from './record-action-executor.js';
@@ -18,6 +19,7 @@ import { ExplainFieldAccessMcpTool } from './tools/explain-field-access.js';
 import { GetApexLogsMcpTool } from './tools/get-apex-logs.js';
 import { GetDebugLogBodyMcpTool } from './tools/get-debug-log-body.js';
 import { GetOrgLimitsMcpTool } from './tools/get-org-limits.js';
+import { GetPlatformDiagnosticsMcpTool } from './tools/get-platform-diagnostics.js';
 import { ListMetadataComponentsMcpTool } from './tools/list-metadata-components.js';
 import { MetadataComponentContextMcpTool } from './tools/metadata-component-context.js';
 import { RecordActionContextMcpTool } from './tools/record-action-context.js';
@@ -59,6 +61,13 @@ export const SFOA_CONTEXT_TOOL_ROLES = Object.freeze({
   // identity is not granted (ADR-0029 §1 measured a cross-user assignment read as AVAILABLE on the
   // fixed account and on nothing else).
   explain_field_access: 'DIAGNOSTIC',
+  // The platform-status aggregator, listed last because it is the Tool an incident *starts* with and
+  // the other diagnostic Tools are the ones it hands off to. DIAGNOSTIC because all three of its
+  // sources are platform-status surfaces a business identity is not granted — and, for its three
+  // standard-API sources, because ADR-0029 §4a records that the org enforces nothing on that surface:
+  // the whitelist in the host executor is the entire guarantee, which is why this name is in this map
+  // and not in a provider-side implementation.
+  get_platform_diagnostics: 'DIAGNOSTIC',
 } as const);
 
 export type SfoaContextToolName = keyof typeof SFOA_CONTEXT_TOOL_ROLES;
@@ -83,6 +92,7 @@ export type SfoaContextProviderOptions = Readonly<{
   apexLogsExecutor?: ApexLogReader;
   debugLogBodyExecutor?: DebugLogBodyReader;
   fieldAccessExplainer?: FieldAccessExplainer;
+  platformDiagnosticsReader?: PlatformDiagnosticsReader;
 }>;
 
 export class SfoaContextMcpProvider extends McpProvider {
@@ -156,6 +166,14 @@ export class SfoaContextMcpProvider extends McpProvider {
         throw new Error('explain_field_access requires a field access explainer.');
       }
       tools.push(new ExplainFieldAccessMcpTool(this.options.fieldAccessExplainer));
+    }
+    // Last, matching the role map above: this is the Tool an incident starts with, and the ones before
+    // it are the ones it hands off to.
+    if (requested.includes('get_platform_diagnostics')) {
+      if (!this.options.platformDiagnosticsReader) {
+        throw new Error('get_platform_diagnostics requires a platform diagnostics reader.');
+      }
+      tools.push(new GetPlatformDiagnosticsMcpTool(this.options.platformDiagnosticsReader));
     }
     return Promise.resolve(tools);
   }

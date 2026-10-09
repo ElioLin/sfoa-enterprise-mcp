@@ -167,6 +167,18 @@ export type SalesforceApiPurpose =
    * heading, which is a surface an investigator would then have to rule out by hand.
    */
   | 'PERMISSION_EXPLAIN'
+  /**
+   * The platform-status aggregation. Its own purpose rather than a fold into any of the three
+   * surfaces it reads, because it reads all three at once and none of them is the answer: one call
+   * issues a standard-API `SetupAuditTrail` query, a standard-API `AsyncApexJob` query (whose status
+   * *is* Apex execution), and a standard-API `CronTrigger` query — plus two aggregate reads. A row
+   * reading `DIAGNOSTIC_TOOLING` would name a Tooling query that never happened; a row reading
+   * `DEBUG_LOG` would say an execution log was read when only the job's status was. The question this
+   * purpose answers is "who asked what the org had recently changed and failed", which is an incident
+   * question about the platform rather than a query question about a component — the same
+   * self-answering requirement ADR-0029 §4d places on every other diagnostic purpose.
+   */
+  | 'PLATFORM_DIAGNOSTICS'
   | 'UNKNOWN';
 export type SalesforceApiCallResult = 'SUCCESS' | 'FAILED';
 export type SalesforceQueryType = 'DATA_SOQL' | 'TOOLING_SOQL';

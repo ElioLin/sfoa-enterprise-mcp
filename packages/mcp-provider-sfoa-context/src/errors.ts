@@ -35,6 +35,13 @@ export const CONTEXT_ERROR_CODES = [
   // — the one conclusion that is certainly wrong when the listing itself never happened.
   'MCP_METADATA_LIST_FAILED',
   'MCP_METADATA_TYPE_UNAVAILABLE',
+  // T5's platform-diagnostics aggregation. `MCP_PLATFORM_DIAGNOSTICS_READ_FAILED` is the *whole-call*
+  // failure — the connection or the aggregation itself — and it is deliberately not the code a section's
+  // degradation carries: a source that could not be read is a per-section `UNAVAILABLE` state inside a
+  // successful result (ADR-0029 §3's aggregator clause), and only a failure of the call as a whole is an
+  // error result. The section-level state reuses `MCP_DIAGNOSTIC_PREREQUISITE_MISSING`, which is the code
+  // §3 declares for a missing prerequisite wherever it is raised.
+  'MCP_PLATFORM_DIAGNOSTICS_READ_FAILED',
 ] as const;
 
 export type ContextErrorCode = (typeof CONTEXT_ERROR_CODES)[number];
