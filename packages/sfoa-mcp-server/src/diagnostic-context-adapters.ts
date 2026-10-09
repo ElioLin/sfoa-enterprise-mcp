@@ -329,10 +329,43 @@ const METADATA_LIST_UNAVAILABLE_CODES = [
  * is what A-4 demands, and the message names the type so a reader can tell which entry of the widened
  * allowlist the deployment does not actually serve.
  */
+/** The namespace jsforce puts in front of a Metadata API error code: `sf:INVALID_TYPE`. */
+const SALESFORCE_CODE_NAMESPACE = /^sf:/iu;
+
+/**
+ * The bare Salesforce code behind `error`, or `null` when there is none to read.
+ *
+ * `readSalesforceFailure` is the shared sanitizer and it drops a namespaced code to `null` rather than
+ * echoing a string its identifier-only safety pattern cannot vouch for (`ERROR_CODE_PATTERN` in
+ * `salesforce-errors.ts` admits no colon). That is the right call for a reader four other Tools depend on,
+ * but it would leave this classifier blind: every code in `METADATA_LIST_UNAVAILABLE_CODES` would be
+ * unreachable, so a type this org will not list would come back as a generic retryable failure with no
+ * `prerequisite` — the one outcome ADR-0029 §3 exists to forbid, arriving silently.
+ *
+ * Measured on the test org rather than assumed: `listMetadata` for a type the org does not know answers
+ * `errorCode: 'sf:INVALID_TYPE'` at the top level and again under `data`, and the live run's first attempt
+ * reported it as `MCP_METADATA_LIST_FAILED` with a null code. The namespace is stripped here, at the one
+ * place that has to classify, instead of widening a sanitizer the other providers share.
+ */
+function metadataListFailureCode(error: unknown): string | null {
+  const failure = readSalesforceFailure(error);
+  if (failure.code !== null) return failure.code;
+  for (const candidate of [error, isRecord(error) ? error.data : undefined]) {
+    if (!isRecord(candidate)) continue;
+    for (const key of ['errorCode', 'code'] as const) {
+      const value = candidate[key];
+      if (typeof value !== 'string') continue;
+      const stripped = value.trim().replace(SALESFORCE_CODE_NAMESPACE, '');
+      if (stripped.length > 0) return stripped;
+    }
+  }
+  return null;
+}
+
 function mapMetadataListFailure(error: unknown, metadataType: string): ContextRuntimeError {
   if (error instanceof ContextRuntimeError) return error;
-  const failure = readSalesforceFailure(error);
-  const normalized = failure.code?.toLocaleUpperCase('en-US');
+  const failureCode = metadataListFailureCode(error);
+  const normalized = failureCode?.toLocaleUpperCase('en-US');
   const unavailable = normalized !== undefined
     && METADATA_LIST_UNAVAILABLE_CODES.some((code) => code === normalized);
   if (!unavailable) {
@@ -341,7 +374,7 @@ function mapMetadataListFailure(error: unknown, metadataType: string): ContextRu
       `Salesforce could not list ${metadataType} components for this request.`,
       {
         cause: error,
-        ...(failure.code === null ? {} : { salesforceErrorCode: failure.code }),
+        ...(failureCode === null ? {} : { salesforceErrorCode: failureCode }),
         suggestion: 'Retry once; if it fails again the diagnostic identity or the org\'s API access needs to be '
           + 'checked. This affects the metadata listing only: other Salesforce Tools are unaffected.',
       },
@@ -352,7 +385,7 @@ function mapMetadataListFailure(error: unknown, metadataType: string): ContextRu
     `This org did not list ${metadataType} components to the fixed DIAGNOSTIC identity this Tool runs on.`,
     {
       cause: error,
-      ...(failure.code === null ? {} : { salesforceErrorCode: failure.code }),
+      ...(failureCode === null ? {} : { salesforceErrorCode: failureCode }),
       prerequisite: 'A-4',
       suggestion: `The empty result is not "this org has no ${metadataType}": it is that the type could not be `
         + 'listed at all, so treat the inventory as unknown rather than as zero. The type is on the allowlist '

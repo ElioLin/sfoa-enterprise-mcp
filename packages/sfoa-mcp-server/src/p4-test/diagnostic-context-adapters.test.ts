@@ -251,6 +251,60 @@ test('an org that refuses to list a type produces the A-4 refusal rather than an
   }
 });
 
+test('a jsforce-namespaced code still classifies as the A-4 refusal, not as an API failure', async () => {
+  // The shape is the one the test org actually threw, not a convenient one: the Metadata API answers a
+  // type it does not know with `errorCode: 'sf:INVALID_TYPE'` at the top level and again under `data`, and
+  // the shared reader's identifier-only safety pattern drops a colon-bearing code to null. Before this was
+  // handled, that combination made every code in METADATA_LIST_UNAVAILABLE_CODES unreachable and reported
+  // a per-type authorization fact as a generic retryable failure — the live run found it, the unit tests
+  // had not, because they threw bare codes.
+  const factory = new ScriptedMetadataListConnectionFactory(Object.assign(new Error('Invalid type'), {
+    name: 'sf:INVALID_TYPE',
+    errorCode: 'sf:INVALID_TYPE',
+    data: { errorCode: 'sf:INVALID_TYPE', message: 'INVALID_TYPE: Unknown type:CustomSetting' },
+  }));
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    await assert.rejects(
+      async () => new OfficialMetadataComponentLister(fixture.scope, []).execute({ metadataType: 'PermissionSet' }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        const contextError = error as Error & { code?: string; prerequisite?: string; salesforceErrorCode?: string };
+        assert.equal(contextError.code, 'MCP_METADATA_TYPE_UNAVAILABLE');
+        assert.equal(contextError.prerequisite, 'A-4');
+        // The bare code, not jsforce's namespace: the field is what an operator searches Salesforce for.
+        assert.equal(contextError.salesforceErrorCode, 'INVALID_TYPE');
+        return true;
+      },
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('a namespaced code the allowlist does not classify stays a plain failure', async () => {
+  // The namespace strip must not turn every SOAP fault into a per-type authorization fact: only the codes
+  // METADATA_LIST_UNAVAILABLE_CODES names may carry `prerequisite`, whatever prefix they arrived with.
+  const factory = new ScriptedMetadataListConnectionFactory(
+    Object.assign(new Error('boom'), { errorCode: 'sf:UNKNOWN_FAULT' }),
+  );
+  const fixture = await createDiagnosticFixture(factory);
+  try {
+    await assert.rejects(
+      async () => new OfficialMetadataComponentLister(fixture.scope, []).execute({ metadataType: 'Flow' }),
+      (error: unknown) => {
+        const contextError = error as Error & { code?: string; prerequisite?: string; salesforceErrorCode?: string };
+        assert.equal(contextError.code, 'MCP_METADATA_LIST_FAILED');
+        assert.equal(contextError.prerequisite, undefined);
+        assert.equal(contextError.salesforceErrorCode, 'UNKNOWN_FAULT');
+        return true;
+      },
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('an unrecognized Salesforce failure is reported as a failure, not as a missing prerequisite', async () => {
   const factory = new ScriptedMetadataListConnectionFactory(
     Object.assign(new Error('gateway'), { errorCode: 'SERVER_UNAVAILABLE' }),
