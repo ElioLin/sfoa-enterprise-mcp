@@ -1,3 +1,37 @@
+# SFoA production deployment — P10 on `crm-mcp-prod`, 29 Tools live, and a byte-aligned OpenClaw (2026-10-09)
+
+- **The production server jumped 123 commits to `main` @ `1dca49a`.** P8-07 → Skill-02C → P9 → P10
+  with Agent Playbook **1.11.0**; migration `014_skill02c_attachment_upload.sql` (purely additive)
+  applied **before** the restarts — both services assert a fully migrated ledger at startup, so
+  migrations-before-restart is a hard rule. Eleven packages rebuilt in dependency order (the new
+  `mcp-provider-sfoa-data` added to the documented order in
+  [`PROD_SERVER_DEPLOYMENT.md`](docs/sfoa/PROD_SERVER_DEPLOYMENT.md) §6), admin-web built last so it
+  inlines 1.11.0, then `chown` + `restorecon` — the exact step whose skip caused the 2026-09-09
+  test-server 500.
+- **The Tool face is 29/29, enabled through the Control Plane** (eighteen new rows + two flips via
+  `PUT /admin/api/tools/<name>`, the same Admin API the console calls), matching `crm-ex-test02`
+  exactly. Turning on `upload_files_to_record` surfaced the attachment governance gate the hard way —
+  with no DML row carrying `attachmentEnabled=true`, **every** MCP POST fails closed
+  (`MCP_ATTACHMENT_CONFIGURATION_INVALID`), a production outage until `Lead` was set
+  `attachmentEnabled=true` through `PUT /admin/api/dml-policies/1`. The gate is now pitfall #16 and the
+  six `MCP_ATTACHMENT_*` keys it needs are backfilled into `.env.example`.
+- **Verified as an ordinary caller, not from inside the harness.** A Control-Plane-issued `USER_BOUND`
+  credential (never printed) saw 29 Tools advertised and executed `list_sobjects` against the real org,
+  leaving its own `MCP_TOOL_CALL`/`PASS`/`SUCCESS`/`USER_BOUND_TOKEN` audit row; `/admin/api/ready` UP
+  on 8.0.39, console served, `GET /mcp` → 405 as the healthy GET signature.
+- **OpenClaw arrived on production as the test server's byte-aligned twin**: 2026.9.5 (`ec9c1a1`) on
+  pinned Node v24.19.0, identical systemd unit + sandbox drop-ins, the same SELinux `bin_t` rules (no
+  AVCs) and 18789/tcp open on the LAN; adapter + patched WeCom/parallel plugin trees copied
+  byte-for-byte; four business Skills identical, with the `sfoa` connector freshly exported at 1.11.0
+  (the test server's 1.10.0 copy is a deliberate difference). A masked diff shows 198 config keys with
+  exactly **8 intended differences**; the WeCom channel sits at `enabled:false` +
+  `pendingOperatorCredentials:true` until the production robot's `botId`/`secret` land, and its
+  credential path already probes clean (`MCP_PLATFORM_USER_REQUIRED` after client auth; a forged token
+  gets `MCP_BUNTU_TOKEN_INVALID`). The model path answers HTTP 200 from production via the
+  provider-block key — `credentials.json.modelApiKey` is stale on **both** servers and must not be
+  trusted for rotation decisions. Still owed: the bot credentials, `SFOA_DIAGNOSTIC_USERNAME`, and
+  human UAT.
+
 # SFoA P10 activation incident — the console 500 from a skipped `restorecon`, fixed and recorded (2026-10-09)
 
 - **The symptom pointed at the wrong layer.** After the activation rebuilt the admin-web bundle, nginx

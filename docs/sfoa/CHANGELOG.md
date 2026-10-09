@@ -2,6 +2,51 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — Production deployment: P10 lands on `crm-mcp-prod`, the 29-Tool face goes live, and the server gains a byte-aligned OpenClaw
+
+`crm-mcp-prod` (192.168.155.207) was upgraded from P8-06 HOTFIX01 (`5c623ef`) to `main` @ `1dca49a` —
+123 commits of P8-07 → Skill-02C → P9 → P10, with Agent Playbook **1.11.0** — and migration **014**
+(`014_skill02c_attachment_upload.sql`, purely additive) applied to the production MySQL. The tree was
+packaged with `git -c core.autocrlf=false archive`, delivered over an `ssh 'cat >'` pipe because `scp`
+hangs on these hosts, rebuilt in dependency order across **eleven** packages (the new
+`mcp-provider-sfoa-data` added to the documented build order), and both services restarted with the
+migrations already applied — the startup assertion that refuses an unmigrated database makes that
+ordering a hard rule, not a preference. The admin-web bundle was rebuilt last (Playbook 1.11.0 inlined)
+and relabeled with `chown -R root:root` + `restorecon -Rv`, the step [PROD_SERVER_DEPLOYMENT.md](PROD_SERVER_DEPLOYMENT.md)
+documents beside the 2026-09-09 test-server 500.
+
+**The Tool face reached 29/29 through the Control Plane itself** — eighteen new rows and two flips via
+`PUT /admin/api/tools/<name>`, the same Admin API the console calls — ending with an enabled set
+identical to `crm-ex-test02`. Enabling `upload_files_to_record` walked into the
+AttachmentToolGovernancePolicy gate: with `attachmentEnabled=false` on every DML policy row, **every**
+MCP POST fails closed with `MCP_ATTACHMENT_CONFIGURATION_INVALID`, so production MCP went down the
+moment that Tool was switched on. The fix mirrors the test server exactly — `Lead` (production's only
+DML object) set `attachmentEnabled=true` through `PUT /admin/api/dml-policies/1` — and the guide now
+carries the gate as pitfall #16 plus the six `MCP_ATTACHMENT_*` keys that `.env.example` had been
+missing.
+
+**Verification is the ordinary-caller leg, not a harness injection.** A `USER_BOUND` credential issued
+by the Control Plane (token and platform id never printed) saw `tools/list` advertise **29 Tools** and
+executed `list_sobjects` against the real org (61 Account-prefix objects, five returned), leaving its
+own `MCP_TOOL_CALL` / `PASS` / `SUCCESS` / `USER_BOUND_TOKEN` audit row. `/admin/api/ready` reports UP
+on 8.0.39, nginx serves the console, and `GET /mcp` answers 405 as the healthy GET signature.
+
+**OpenClaw is installed on production as a byte-aligned twin of the test server** — 2026.9.5
+(`ec9c1a1`) on a pinned Node v24.19.0, the same systemd unit and sandbox drop-ins, the same SELinux
+`bin_t` rules (zero AVCs after start), 18789/tcp open to the LAN, and the plugin trees (self-built
+adapter plus the patched `@wecom/wecom-openclaw-plugin@2026.9.15`) copied byte-for-byte. A masked deep
+diff of the two `openclaw.json` files shows 198 keys with exactly **eight deliberate differences**:
+bind host, control-UI origin, identity name, the production MCP token, and the WeCom channel held at
+`enabled:false` + `pendingOperatorCredentials:true` until the production robot's `botId`/`secret`
+arrive. The channel's credential path was probed to its edge: the production `MCP_WECOM_CLIENT_TOKEN`
+passes client authentication and stops at `MCP_PLATFORM_USER_REQUIRED` (the adapter injects the
+requester per message; a forged token gets `MCP_BUNTU_TOKEN_INVALID` instead), and the model path
+answers HTTP 200 from production — through the key embedded in the provider block, since
+`credentials.json.modelApiKey` is a **stale key on both servers**. `SFOA_DIAGNOSTIC_USERNAME` is the
+one production input still owed; the six diagnostic Tools are enabled but fail closed until it is set.
+Human WeCom UAT and the attachment file leg remain open, as does P10 acceptance's §7 ledger — this
+deployment does not close what it did not execute.
+
 ## 2026-10-09 — P10 activation incident: the console 500 from a skipped `restorecon`, fixed and recorded
 
 The P10 activation rebuilt the admin-web bundle; the rebuild skipped the `restorecon` step that
