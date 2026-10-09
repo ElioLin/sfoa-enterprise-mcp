@@ -1,3 +1,52 @@
+# SFoA P10 Diagnostic Depth — T5 `get_platform_diagnostics`: a merged evidence timeline, and a batch fixture that measured the platform (2026-10-09)
+
+- Deliver **GAP-M5**: `get_platform_diagnostics`, the read-only Tool an incident starts
+  with (`DIAGNOSTIC`, default-disabled, audited at its own `purpose =
+  PLATFORM_DIAGNOSTICS`). One call reads `SetupAuditTrail` (what changed),
+  `AsyncApexJob` `Failed`/`Aborted` (what broke) and `CronTrigger` (what stopped
+  firing), and merges them onto **one clock** in `alignment.timeline` — "the nearest
+  change above the symptom" becomes a position in a list instead of three calls and
+  three renderings reconciled by hand.
+- Land [ADR-0033](docs/sfoa/adr/ADR-0033-p10-platform-diagnostics-stall-rule-and-degradation-matrix.md):
+  the **stall rule** (`SUSPECTED` needs a waiting literal *and* a fire time more than
+  30 minutes past; an unfamiliar state is `INDETERMINATE`, never healthy, because this
+  org holds zero `CronTrigger` rows and the vocabulary was never measured), the
+  **degradation matrix** (per-section `READ`/`UNAVAILABLE`, `totalCount: null` — never
+  `0` — on unavailable), and the **whitelist**, narrowed from ADR-0029 §4a's four
+  objects to the three standard-API ones (`ApexLog` dropped: the log surface belongs to
+  the Tooling Tools and the hint points at `get_apex_logs` by name).
+- **A zero-entry section has to be *evidenced*.** The failure section carries a
+  window-independent status-vocabulary read beside its entries, so a zero-match filter
+  is visibly a filter that ran against a real table; a failed vocabulary read beside a
+  zero match degrades the section to `UNAVAILABLE`. The setup section carries the
+  trail's **oldest retained row** (`2026-04-13`) as a measured bound in the hint,
+  because the prompt's "~90 days" is not exposed to SOQL.
+- **The live milestone's middle run is the more valuable half.** The 04:06 UTC run's
+  `constructedFailure` gate failed with four problems: the fixture threw from
+  `Database.Batchable.execute` and the platform answered `Status: Completed` with
+  `NumberOfErrors: 2` — the framework contains a chunk's exception. A failure raised in
+  `start` produces the real `Failed` row (`ExtendedStatus` carries the first error), and
+  that measurement now lives in the fixture's doc comment and ADR-0033 §10. The 04:08
+  UTC re-run is `overall = PASS`, fifteen of fifteen gates; the 03:45 run predates the
+  constructed leg and carries fourteen. All three reports are archived unedited in
+  [P10_T5_LIVE_EVIDENCE.md](docs/sfoa/P10_T5_LIVE_EVIDENCE.md).
+- **The whitelist is the entire guarantee on the standard API.** ADR-0029 §4a measured
+  it — the DIAGNOSTIC identity that cannot see a `Lead` through Tooling read 955 rows
+  of one through the standard API — so the whitelist is hardcoded host-side beside the
+  `RequestScope`, a unit test scans the compiled executor for every `FROM` target, and
+  the live gate brackets all four Tool calls: 23 statements, exactly three distinct
+  targets, `offWhitelist: []`, `dml: []`.
+- **The second clock is now a measured fact.** The org's clock runs **14.7 s behind the
+  host's** (an unauthenticated HTTP `Date` read; the run's own stamps agree). That is
+  why a job the fixture submitted carries an org-side `CreatedDate` earlier than the
+  host-side calls that preceded the fixture — and why the answer's note names the two
+  clocks rather than promising a window boundary.
+- **Still owed**: a live positive case for the stall rule (needs a populated
+  `CronTrigger`), a live leg for the `UNAVAILABLE`/`totalCount: null` branch and for
+  both budget ladders (the widest answer sat at 61 533 B of 262 144), the `Aborted`
+  literal (never observed in a vocabulary read), and the Console enablement path (no
+  `sfoa_tool_control` row exists for this Tool).
+
 # SFoA P10 Diagnostic Depth — T4 metadata listing pair, and the type allowlist corrected by measurement (2026-10-09)
 
 - Deliver the metadata pair: `list_metadata_components`, a read-only Tool that

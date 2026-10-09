@@ -382,6 +382,19 @@
 > 3. **`CronTrigger` 在本 org 确实是 0 行**（无任何计划任务），这是**事实而非故障**。因此本工具必须**分源声明状态**（`READ` + 行数 / `UNAVAILABLE` + 缺失前提标识），不能用一个全局 `success: true` 覆盖"某一段其实没读到"。这正是 ADR-0029 §3 降级契约要区分的那一格。
 > 4. 溯源窗口的诚实边界：`SetupAuditTrail` 现存最旧一行 `2026-04-08`，Salesforce 不向 SOQL 暴露保留策略；`AsyncApexJob` 实测可读（152 条 Completed、0 条 Failed/Aborted）。
 
+> **修订注记（T5 实施后加，2026-10-09；原 Prompt 原文保留不改）**
+>
+> 依据 `ADR-0033` 与 `docs/sfoa/P10_T5_LIVE_EVIDENCE.md`，本任务有六处偏离原 Prompt 的字段名或写法，均有实测或结构性依据：
+>
+> 1. **`ExtendedErrorStatus` 的真实字段名是 `ExtendedStatus`。** 原 Prompt 的 b) 节字段清单里没有 `ExtendedErrorStatus` 这个字段；实测构造出的 Failed job 返回 `ExtendedStatus = "First error: Assertion Failed: …"`。按 `ExtendedStatus` 实现（并纳入字段裁剪名单，500 字符）。
+> 2. **`AsyncApexJob` 的窗口移入查询，节总数不再来自有界扫描。** 首版实现只按实测可过滤的 `Status` 过滤、在内存里开窗，并把该节总数描述为「有界扫描能建立的量」。T5 probe 实测 `CreatedDate` 可过滤（24 小时窗口 93 行），且原样的 `Status IN ('Failed','Aborted') AND CreatedDate >= …` 合取与它的计数都被接受，于是窗口移入 SOQL、总数为窗口自身的计数——两个字段各自可过滤并不自动使合取可过滤，所以 probe 直接发了这个合取。相关 probe 步骤留在 `probe:p10`：换一个部署重新测量，而不是继承本 org 的答案。
+> 3. **「构造一个 Failed 的 AsyncApexJob（如抛异常的 batch 测试类）」：在 `execute` 里抛异常不会产生 Failed。** 实测：两个 chunk 抛异常，job 状态仍是 `Completed`、`NumberOfErrors = 2`、`ExtendedStatus = null` —— 框架把 chunk 的异常收在 job 内部；在 `start` 里失败才产生 `Status = 'Failed'`（`NumberOfErrors = 1` + 首错 `ExtendedStatus`）。里程碑 fixture 因此写成在 `start` 中断言失败，并把这次测量记在 doc comment 与 ADR §10，防止后来者把它「简化」回 `execute` 形态。
+> 4. **白名单收窄为三个标准 API 对象，`ApexLog` 从 ADR-0029 §4a 的 T5 行里有意去掉。** 日志面已由 `get_apex_logs` / `get_debug_log_body` 拥有（Tooling，结构性强制），合并时间线不该为它花掉与三节共享的预算；hint 在 `get_apex_logs` 已广告时按名指向它。三个对象全是标准 API 读取，而 §4a 已实测标准 API 上「白名单就是全部保证」（同一身份 Tooling 读不到 `Lead`、标准 API 读到 955 行），所以白名单硬编码在 host 侧、与 `RequestScope` 同处，并由单测扫描编译产物里的每个 `FROM` 目标 + live 门禁包围该次运行的每一次调用断言「无白名单外对象、无写语句」。
+> 5. **卡滞判定规则（原 Prompt 交由实现定义）：`SUSPECTED` 需要「等待类字面量 + 超过 30 分钟未发火」两条同时成立，`INDETERMINATE` 是默认档。** 本 org `CronTrigger` 0 行意味着状态词表从未被实测，因此不认识的 `State`、缺失或不可解析的 `NextFireTime`、`PAUSED` 类一律 `INDETERMINATE`（报为空白，而不是读成健康）；规则不跨调用比对 `TimesTriggered`、不把缺失的 `PreviousFireTime` 当证据。代价如实记录：本 org 上这条规则是空转的——三档都有单测 fixture，没有一条 live 正例。
+> 6. **保留期提示按实测的最旧一行上界给出，而不是假定「约 90 天」。** 改进空间第 3 条的前提（probe 发现保留期短）不成立：Salesforce 不向 SOQL 暴露保留策略，能实测的是最旧一行（`2026-04-13T01:02:03.000+0000`）。hint 把窗口与这个上界的关系说出来——这是被测量的界，不是被假设的常数。
+>
+> **另有一处非偏离、但沿用了原 Prompt 的建议**：审计 purpose 采用独立值 `PLATFORM_DIAGNOSTICS`。三节 `apiCategory` 都是 `STANDARD`，并入 `DIAGNOSTIC_TOOLING` 会命名一次并未发生的 Tooling 调用，并入 `PERMISSION_EXPLAIN` 则让「变更与失败读取」挂在权限标题下（ADR-0029 §4d 的自答性检验）。
+
 ## 任务 T5 — get_platform_diagnostics 变更溯源聚合（P10-6）
 
 ```

@@ -2,6 +2,51 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — P10-T5: `get_platform_diagnostics`, a merged evidence timeline and a batch fixture that measured the platform
+
+T5 delivers **GAP-M5**, the Tool an incident starts with. `get_platform_diagnostics` reads three
+platform-status sources in one call — `SetupAuditTrail` (what changed), `AsyncApexJob` failed and aborted
+(what broke), `CronTrigger` (what stopped firing) — and merges them onto **one clock** in
+`alignment.timeline`, so "the nearest change above the symptom" is a position in a list instead of three
+calls and three renderings reconciled by hand.
+[ADR-0033](adr/ADR-0033-p10-platform-diagnostics-stall-rule-and-degradation-matrix.md) records the three
+decisions the task left to the implementation: the **stall rule** (`SUSPECTED` requires a waiting literal
+*and* a fire time more than 30 minutes past; an unfamiliar state is `INDETERMINATE` rather than healthy,
+because this org holds zero `CronTrigger` rows and the vocabulary was never measured), the
+**degradation matrix** (per-section `READ`/`UNAVAILABLE`, `totalCount: null` on unavailable — never 0),
+and the **whitelist**, narrowed from ADR-0029 §4a's four objects to three standard-API ones.
+
+**A zero-entry section has to be *evidenced*, or it is just a quiet lie.** The failure section carries a
+window-independent status-vocabulary read beside its entries, so a zero-match filter is visibly a filter
+that ran against a real table; a failed vocabulary read beside a zero match degrades the section to
+`UNAVAILABLE`. The setup section carries the trail's **oldest retained row** as a measured bound — the
+prompt's "~90 days" is not exposed to SOQL, so the hint states the line this org can actually show
+(2026-04-13) instead of an assumed policy number.
+
+**The live milestone's first failure is the most valuable thing in it.** The 04:06 UTC run's
+`constructedFailure` gate failed with four problems because the fixture threw from
+`Database.Batchable.execute` and the platform answered `Status: Completed` with `NumberOfErrors: 2` —
+the framework contains a chunk's exception. Failing in `start` produces the real `Failed` row
+(`ExtendedStatus` carries the first error), and that measurement now lives in the fixture's doc comment
+and ADR-0033 §10. The 04:08 UTC re-run is `overall: PASS` with all fifteen gates `PASS`: 25 setup
+changes of 450 in the window reproduced row-for-row (actor and action included), 25 timeline entries the
+harness rebuilt identically, the widest input the schemas admit (168 hours, `limitPerSection: 100`)
+answered inside both budgets (61 533 B of 262 144; 34 780 of 60 000 characters) with its truncation
+declared per section, and the constructed `Failed` job reported with the right id, class, timestamp and
+error count. Eleven audited calls over 24 hours are all `PASS`/`SUCCESS` under
+`executionRole = DIAGNOSTIC` with `dmlRows = 0`, and the new `PLATFORM_DIAGNOSTICS` purpose sits beside
+the identity layer's own rows and nothing else. The three runs are named by their UTC start time
+throughout (03:45, 04:06, 04:08); their reports are the three `p10-t5-milestone-20261009-*.json` files
+on the host, archived unedited and read out in
+[`P10_T5_LIVE_EVIDENCE.md`](P10_T5_LIVE_EVIDENCE.md).
+
+**ADR-0029 is revised rather than left stale.** §4a's T5 row now names the three objects and states the
+narrowing, §5's T5 cell points at ADR-0033, and the prompt's T5 section gains a 修订注记 that records the
+six corrections and definitions measurement forced: `ExtendedErrorStatus` is `ExtendedStatus`, the
+`AsyncApexJob` window belongs in the query now that `CreatedDate` is measured filterable, a `Failed`
+fixture must fail in `start`, `ApexLog` left the whitelist, the stall rule's conservative ladder
+(`INDETERMINATE` as the default), and the retention hint's measured bound instead of an assumed ~90 days.
+
 ## 2026-10-09 — the `mcp-builder` developer Skill, and an explicit partition of `skills/*`
 
 `skills/mcp-builder` imports the MCP server development guide from the maintainer's local Codex Skill

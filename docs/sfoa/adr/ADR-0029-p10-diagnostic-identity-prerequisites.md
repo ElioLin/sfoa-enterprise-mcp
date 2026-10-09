@@ -151,7 +151,7 @@ narrowing.
 | `get_apex_logs`, `get_debug_log_body` | `ApexLog` | Tooling | Tooling API (measured) + whitelist |
 | `set_trace_flag` | **write:** `TraceFlag`, `DebugLevel`; **read:** `ApexClass`, `User` | Tooling | Tooling API (measured) + whitelist; DML is structurally confined to two Tooling types ≤60 min |
 | `explain_field_access` | `FieldPermissions`, `ObjectPermissions`, `PermissionSetAssignment`, `PermissionSet`, `Profile`, `RecordType`, `User` | Standard | **whitelist only** — see below |
-| `get_platform_diagnostics` | `AsyncApexJob`, `CronTrigger`, `SetupAuditTrail`, `ApexLog` | Standard + Tooling | **whitelist only** for the standard-API three |
+| `get_platform_diagnostics` | `AsyncApexJob`, `CronTrigger`, `SetupAuditTrail` (**narrowed from four by ADR-0033** — see §5) | Standard | **whitelist only** |
 | `list_metadata_components`, `get_metadata_component_context` | Metadata API types from a fixed allowlist | Metadata | Metadata carries component definitions, not records |
 | `run_diagnostic_tooling_query` | any Tooling type | Tooling | Tooling API (measured) — **no whitelist in code; see 4b** |
 | `get_org_limits` | none (quota counters) | REST `/limits` | No object, field, row or id in the payload |
@@ -165,7 +165,7 @@ narrowing.
   document custom-object support — the refusals are not a standard-object accident.
 - **Through the standard API, nothing enforces it but our code.** The same identity read **955 `Lead`
   rows** over the standard API. The identity is not weak; the Tooling API is narrow. So for the Tools
-  that use the standard API — `explain_field_access` and three of `get_platform_diagnostics`' four
+  that use the standard API — `explain_field_access` and all three of `get_platform_diagnostics`'
   sources — the whitelist **is** the entire guarantee, and a future code path that reached the standard
   API with a business object would be stopped by nothing the org does.
 
@@ -291,7 +291,7 @@ Per §0.3, the original prompt text stays intact and each affected section gains
 | T2 (`get_apex_logs`, `get_debug_log_body`) | The log parser must dispatch on the **log's own header version** (54.0 and 56.0 both observed against a v68.0 org). Neither Tool may filter on a `Status` literal. |
 | T3 (`explain_field_access`) | `targetUserId` is **permitted by the org** (cross-user `PermissionSetAssignment` read proven non-zero), so its boundary is a design choice to make explicitly, not a permission wall. `describe` must never be used for a target user's FLS — it answers for the caller. |
 | T4 (`list_metadata_components`) | Metadata entry shape is per type: `Profile` carries no `manageableState`. `fullName` values are localized and `%2F`-escaped and must round-trip unmodified. Each of the 19 new types must be measured, not assumed from the three probed. |
-| T5 (`get_platform_diagnostics`) | Filter on `Action`, never `Section` (not filterable). Counts come from `totalSize`; `COUNT(Id)` is refused. Per-source status per §3, so a genuinely-empty `CronTrigger` is distinguishable from an unreadable one. |
+| T5 (`get_platform_diagnostics`) | Filter on `Action`, never `Section` (not filterable). Counts come from `totalSize`; `COUNT(Id)` is refused. Per-source status per §3, so a genuinely-empty `CronTrigger` is distinguishable from an unreadable one. **Implemented per ADR-0033**, which narrows the §4a whitelist to three standard-API objects (`ApexLog` dropped: the log surface belongs to the Tooling Tools), moves the `AsyncApexJob` window into SOQL now that `CreatedDate` is measured filterable, and corrects the prompt's `ExtendedErrorStatus` to `ExtendedStatus`. Its stall rule is conservative by construction: `SUSPECTED` needs a waiting literal *and* a fire time more than 30 minutes past, and an unfamiliar state is `INDETERMINATE` rather than healthy. A `Failed` fixture must fail in `start` — a throw from `execute` leaves the job `Completed`. |
 
 ## Consequences
 
