@@ -1,3 +1,60 @@
+# SFoA P10 Diagnostic Depth — T4 metadata listing pair, and the type allowlist corrected by measurement (2026-10-09)
+
+- Deliver the metadata pair: `list_metadata_components`, a read-only Tool that
+  enumerates a type's components (`METADATA_READ`, default-disabled, audited at
+  its own `purpose = METADATA_LIST`), and a widened
+  `get_metadata_component_context` allowlist, 8 → 21 types. The listing never
+  returns content and the reader never enumerates; each answer's hint names the
+  other half by the name `tools/list` actually advertises.
+- Land [ADR-0032](docs/sfoa/adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md):
+  Metadata API `listMetadata` as the source for every type (no Tooling object
+  enumerates configuration uniformly, and `describe` answers for the *calling
+  identity*, not the org), `manageableState` as the per-type-optional liveness
+  field, and one global byte budget instead of a 22-row table of unmeasured
+  numbers.
+- **Two of the prompt's type names are not this API's names.** `SharingRule`
+  answers `INVALID_TYPE`; this org's `describeMetadata` declares **204** types and
+  the plural `SharingRules` is among them, listing 210 components. `CustomSetting`
+  is not a Metadata API type at all — the capability is already served by
+  `CustomObject`, and the org's 8 custom settings appear 8-of-8 in that listing.
+  The allowlist is **twenty-one**, and both corrections are recorded rather than
+  applied silently.
+- **The per-type refusal branch was dead code, and only a refusing type could say
+  so.** jsforce namespaces Metadata API error codes (`sf:INVALID_TYPE`, at the top
+  level and again under `data`), and the shared `readSalesforceFailure` rejects
+  the colon and returns `null` — so every code in `METADATA_LIST_UNAVAILABLE_CODES`
+  classified as `null` and the ADR-0029 §3 degradation contract could never fire.
+  Run 1 reported both refusals as `MCP_METADATA_LIST_FAILED` with
+  `prerequisite: null`: a per-type authorization fact reported as a retryable API
+  failure. Fixed inside `mapMetadataListFailure` (namespace stripped at the one
+  place that must classify, not by widening a sanitizer four other providers
+  depend on), with unit tests pinned to the measured error shape.
+- **The live milestone ran twice; run 1's `FAIL` is the more valuable half.** Run 1
+  (22 prompt types) failed `allowlistCoverage` at 20 served; run 2 (21 corrected
+  types, classifier fixed) is `overall = PARTIAL`, ten of eleven gates `PASS` and
+  `inactiveDefault` `NOT TESTED` — this org holds no component in a `deleted`
+  manageable state. Both reports are archived unedited in
+  [P10_T4_LIVE_EVIDENCE.md](docs/sfoa/P10_T4_LIVE_EVIDENCE.md), which also records
+  the host as **Node v22.23.1** and corrects the T3 page's v24.19.0 claim.
+- **The pair is measured on the org's own bytes.** 245 `ValidationRule` components
+  matched against an independent read by membership *and* order; round trip of
+  `APIS管理组%2F业务员` — chosen because it carries an escaped separator —
+  byte-exact, with the escaped name intact in the returned path; a missing
+  component is a structured refusal, never an empty success; the byte budget
+  measured on a real Profile (5 763 bytes, `truncated: false`, declared limits
+  equal to reported); **zero SOQL** across every Tool-call window.
+- **Audit separates the halves by `purpose` alone** — both Tools call
+  `/services/Soap/m/68.0` v68.0 with `apiCategory = METADATA_API`, so
+  `METADATA_LIST` against `METADATA_RETRIEVE` is the only distinguishing field.
+  Every row is `executionRole = DIAGNOSTIC` / `identitySource =
+  INTERNAL_SERVICE_HEADER`; the two `ERROR` rows are the missing-component gate's
+  designed refusals. `sfoa_tool_control` holds no row for this Tool (nor for T3's
+  `explain_field_access`), so both runs grant it in memory.
+- **Still owed**: the prompt's human Setup-page count cross-check, a live leg for
+  `includeInactive`'s default (needs a recycled component), a live truncation on
+  an over-budget Profile, and a second evidence source for `EscalationRule`'s
+  `totalCount: 0`.
+
 # SFoA P10 Diagnostic Depth — T3 permission attribution and the target-user boundary (2026-09-30)
 
 - Deliver **GAP-M2**: `explain_field_access`, a read-only Tool that answers *why* a

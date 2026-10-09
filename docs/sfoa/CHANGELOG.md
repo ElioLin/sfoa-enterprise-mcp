@@ -2,6 +2,67 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — P10-T4: the metadata listing pair, two type names corrected by measurement, and a degradation contract that was dead on arrival
+
+T4 delivers the metadata pair: `list_metadata_components`, a read-only Tool that enumerates a type's
+components, and a widened `get_metadata_component_context`, whose `METADATA_CONTEXT_TYPES` allowlist grows
+from eight types to twenty-one. The listing never returns content and the reader never enumerates; each
+answer's hint names the other half by the name `tools/list` actually advertises.
+[ADR-0032](adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md) records the two decisions
+the task needed: the data source is Metadata API `listMetadata` for every type — the Tooling API has no
+object that enumerates configuration uniformly, and `describe` answers for the *calling identity*, not the
+org — and the budget is one global byte ceiling plus the reader's existing limits rather than a 22-row
+per-type table of unmeasured numbers.
+
+**The live milestone ran twice, and the first run failed — which is the most valuable thing in it.** Run 1
+admitted the twenty-two types the prompt named and the org refused two: `allowlistCoverage` `FAIL`, 20
+served. Run 2, with the allowlist corrected and a classifier fixed, is `overall = PARTIAL` with ten of
+eleven gates `PASS`; `inactiveDefault` is `NOT TESTED` because this org holds no component in a `deleted`
+manageable state. Both reports are kept, unedited
+([`P10_T4_LIVE_EVIDENCE.md`](P10_T4_LIVE_EVIDENCE.md)).
+
+**Two of the prompt's type names are not this API's names, and the run said so.** `SharingRule` answers
+`INVALID_TYPE`; this org's `describeMetadata` declares **204** types and the plural `SharingRules` is among
+them, listing 210 components. `CustomSetting` is not a Metadata API type at all — the capability it was
+named for is already served by `CustomObject`, and the org's 8 custom settings appear 8-of-8 in the
+`CustomObject` listing, so the removal is verified rather than assumed convenient. The allowlist is
+therefore **twenty-one**, and ADR-0032 §8 records both corrections instead of applying them silently.
+
+**The per-type refusal branch was dead code, and only a refusing type could say so.** jsforce namespaces
+Metadata API error codes (`sf:INVALID_TYPE`, at the top level and again under `data`), and the shared
+`readSalesforceFailure` validates codes against an identifier-shaped pattern that rejects the colon and
+returns `null` rather than echo a string it cannot vouch for. So every code in
+`METADATA_LIST_UNAVAILABLE_CODES` classified as `null`: run 1 reported both refusals as
+`MCP_METADATA_LIST_FAILED` with `prerequisite: null` — a per-type authorization fact reported as a retryable
+API failure. The degradation contract of ADR-0029 §3 was written, reviewed, unit-tested and **dead on
+arrival**; its tests passed because they threw the shape the author had in mind. The fix strips the `sf:`
+namespace inside `mapMetadataListFailure` — not by widening a sanitizer four other providers depend on — and
+the unit tests now throw the measured shape (`errorCode` at the top level **and** under `data`), so the
+namespace cannot be dropped again unnoticed.
+
+**The pair is measured on the org's own bytes.** `listedInventory` compares the Tool's `ValidationRule`
+listing (245 components) against an independent read on the same identity, by membership **and** order;
+`pairRoundTrip` lists and reads back `APIS管理组%2F业务员` — chosen because it carries an escaped separator —
+byte-exact, with the escaped name intact in the returned file path, because a decoded name addresses a
+different component or none. A missing component is a structured refusal, never an empty success: the
+failure that reads as "this component is empty". The byte budget is measured on a real Profile (5 763
+bytes, `truncated: false`, declared limits equal to reported), and the surface gate counts **zero SOQL**
+across every Tool-call window — the Metadata API is the only surface reached.
+
+**The audit trail separates the halves by `purpose` alone.** `apiCategory` is `METADATA_API` for both Tools
+and both call `/services/Soap/m/68.0` v68.0, so `METADATA_LIST` against `METADATA_RETRIEVE` is the only
+field a P7 reader can use — which is why the listing carries its own value instead of reusing the reader's.
+Every audited row is `executionRole = DIAGNOSTIC` / `identitySource = INTERNAL_SERVICE_HEADER`, and the two
+reader rows that read `ERROR` are the missing-component gate's own probes, one per run: they have to fail
+for the gate to pass. `sfoa_tool_control` holds no row for this Tool (nor for T3's `explain_field_access`),
+so both runs grant it in memory rather than through the Console — recorded as an open item, not smoothed
+over.
+
+**Still owed**: the prompt's human Setup-page count cross-check (the machine half is done), a live leg for
+`includeInactive`'s default (needs an org with a recycled component), a live truncation on an over-budget
+Profile, and a second evidence source for `EscalationRule`'s `totalCount: 0`, which rests on `listMetadata`
+alone because the Tooling API has no matching object on this org.
+
 ## 2026-09-30 — P10-T3: `explain_field_access`, the permission-attribution boundary, and the two FLS mechanisms the org actually has
 
 T3 delivers GAP-M2: `explain_field_access`, a Tool that answers *why* a user can or cannot see or edit a
@@ -72,7 +133,7 @@ rather than the Tool breaking. **Still owed**: the prompt's human Setup-page cro
 independent machine read of the same tables), and any live leg for `INDETERMINATE`, which remains
 unit-tested only.
 
-
+## 2026-09-30 — P10-T2: the debug log toolset, and two defects only a live org could find
 
 T2 delivers GAP-M1 — the deterministic Apex/Flow exception chain — as three Tools on the fixed DIAGNOSTIC
 identity: `set_trace_flag` (the only write, bounded to one `TraceFlag` and one `DebugLevel`),

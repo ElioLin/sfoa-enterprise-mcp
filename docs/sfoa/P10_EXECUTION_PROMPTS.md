@@ -52,7 +52,7 @@
 - Upstream-first：全部经官方 SDK（jsforce Tooling API / Metadata API），不修改任何官方文件。
 - 契约标准对齐 P9 产出（可直接参照其实现）：strict Zod 输入、annotations、`outputSchema` + `structuredContent`、双响应预算（byte/character）、`truncated` + 可执行 hint、结构化错误（errorCode + suggestion）、**hint 只能点名本会话 `tools/list` 实际广告的工具**（参照 sfoa-data 的 advertisedToolNames 模式）。
 - 每任务测试层：单元（Zod/截断/错误映射/权限拒绝）+ 协议（未启用不可见、启用可调用）+ live SFoA + 审计验证（`yarn ai:audit`）+ 回归。提交规范 `type(scope): description` 小写。
-- 任何与原设计的偏离：必须 ① 有实测依据 ② 写 ADR（编号顺延，当前至 ADR-0028）③ 在本文档对应任务节前加"修订注记"（**保留原 Prompt 原文不改**）④ CHANGELOG 记录。这是 P9 验证过的有效模式。
+- 任何与原设计的偏离：必须 ① 有实测依据 ② 写 ADR（编号顺延，当前至 ADR-0032）③ 在本文档对应任务节前加"修订注记"（**保留原 Prompt 原文不改**）④ CHANGELOG 记录。这是 P9 验证过的有效模式。
 - **测试环境**：本仓库单测必须用系统 Node 24（`D:/software/node.exe` 或 yarn 默认链路）；受管 Node 22 的 node:test 与 timeout 类测试不兼容（P9 验收期间实测：同一文件 Node 22 下 47/47 挂起、Node 24 下 47/47 PASS）。
 
 ### 0.4 Claude Code 自主权（用户明确授权）
@@ -305,6 +305,26 @@
 > 2. **`fullName` 是本地化的、且经过 URL 转义**（实测：`风控负责`、`WRN业务员%2F业务主管%2F市场开发`、`SHRN工程管理总监%2F项目经理`）。任何把 `fullName` 原样回传给后续 retrieve 的路径都必须逐字传递——把 `%2F` 解码成 `/` 会指向另一个组件。
 > 3. **新增的 19 个类型必须逐个实测，不能从已探的 3 个外推。** 本次只探了 `ValidationRule`(245) / `NamedCredential`(3) / `Profile`(65)；每种类型的可读性是逐类型的授权事实。
 > 4. **`get_metadata_component_context` 有一处描述与行为待核对**（ADR-0029 §4b）：其 description 说读取「一个白名单组件」，而实现会返回官方 retrieve 在 `force-app/main/default` 下产出的**全部**元数据文件（上限 40 文件 / 256 KiB）。若 retrieve 会带出依赖组件，则实际返回不止一个组件。这是描述与行为的不一致，需核实并修正（元数据仍属 Setup 层，不构成红线问题）。
+
+> **修订注记（T4 实施后加，2026-10-09；原 Prompt 原文保留不改）**
+>
+> 依据 `ADR-0032`，本任务有八处偏离原 Prompt 的写法，均有实测或结构性依据：
+>
+> 1. **数据源固定为 Metadata API `listMetadata`，不做「按类型选 Tooling 或 listMetadata」。** 原 Prompt 把选择留给逐类型实测；实测与结构事实都指向同一个答案：Tooling 侧没有能统一枚举配置的对象（22 类会变成 22 套 schema 依赖），而 `describe` 回答的是**调用身份**的视角（T0 §6：`Account` describe 报 252 字段/199 createable，那是管理员账号的 FLS，不是 org 的配置）。`lastModifiedByName`/`fileName` 这类溯源字段也只有 listMetadata 给。代价被明确记录：逐类型可列性（A-4）与每次调用一次 Metadata API 往返。
+> 2. **输出的 `state/active` 换成 `manageableState`，且按类型可选。** org 实际返回的字段名是 `manageableState`，且 **`Profile` 条目根本没有这个字段**（T0 §7）。`includeInactive` 的语义因此被钉死为 `manageableState === 'deleted'` 一条（`released`/`installed`/`unmanaged`/`deprecated`/`beta` 都是活状态），无该字段按「活」处理——这是唯一在 Profile 类上安全的读法。
+> 3. **`developerNamePrefix` 不再沿用 `metadataFullNameSchema` 的 ASCII 形状校验。** 原 Prompt 的必读 2 要求「扩展时保持同等约束」，禁止事项也要求「禁止放宽 fullName 安全校验」。但那条 ASCII 白名单**拒绝本 org 实际存储的每一个名字**（`风控负责` 不是 ASCII），照搬会让本工具只能被喂一个真实 org 永远产不出的名字。改为**只校验安全性、不校验形状**（无控制字符、无 `..` 穿越、长度上限）；禁止事项在本意上被完整满足：prefix 只是对已列出条目的本地 `startsWith` 比较，永不进入 manifest、路径或查询，所以它放宽的字符集没有任何通往边界的路径。`fullName` 侧同理：逐字传递，永不解码。
+> 4. **没有实现「类型专属预算（每类 maxBytes 可配置，Profile 类收紧）」。** 一张 22 类的预算表会是 22 个未经测量的数字。实际实现是一条全局字节预算（`MAX_DIAGNOSTIC_RESULT_BYTES`）加上读取侧既有的 `METADATA_CONTEXT_LIMITS`，并由 T4 live 里程碑在**真实 Profile** 上实测这两条边界（含超预算时的结构化拒绝），把「Profile 类尤其」这条禁令变成一条被测量的断言而不是一个常量。
+> 5. **「Admin 编目：照 T2 模式」拆成两件事，一件已满足、一件是尚未做出的决定。**
+>    - **控制台目录（admin-web）：已照 T2 模式落地。** `buildAdminToolCatalog` 从 `SFOA_CONTEXT_TOOL_NAMES` 结构性生成条目，`contextToolClassification()` 把它归为 `METADATA_READ`，`contextToolDependencies()` 声明其前置为「enabled Diagnostic configuration」与「per-type readability of the allowlisted metadata types (A-4)」；同时 `configureProviderRuntime` 把 SFOA context 工具滤出**官方目录查找**，因此它可按名字启用、无需改官方目录源。
+>    - **Playbook／生成的 Agent 指令：不进入。** `deriveDifyInstructionFacts` 的 `availableTools` 由 `AGENT_RECOGNIZED_TOOL_NAMES` 过滤，该工具不在其中，所以 Dify/企微 侧生成的指令里没有它（T1/T2/T3 的三个工具同样如此）。是否把它加入 Playbook 的识别清单是**另一个尚未做出的决定**，本轮不替它作答。
+>    - **本部署实测**：`sfoa_tool_control` 里没有 `list_metadata_components` 行（T3 的 `explain_field_access` 也没有，T2 的 `get_metadata_component_context` 行来自 2026-08-26 的种子），即默认关闭且未经控制台启用；两个 live 里程碑都在内存里授予快照后验证，未写控制面。
+> 6. **原 Prompt 的两个类型名经实测被更正，白名单是 8 → 21 而不是 8 → 22。**（上一版修订注记把 `SharingRule` 列为「待实测项」，这里是实测结果。）
+>    - **`SharingRule` → `SharingRules`。** 单数名实测返回 `INVALID_TYPE: Unknown type:SharingRule`；org 的 `describeMetadata` 声明的是 `SharingRules`，列出 **210** 条（`CXG__DataLibrary__c`、`Project_Proposal__c`…）。按修订注记的约定更正而非静默改名。
+>    - **`CustomSetting` 移除。** 该名字不是 Metadata API 类型：`INVALID_TYPE: Unknown type:CustomSetting`，且 org 声明的 **204** 个类型里没有它。它想覆盖的能力（自定义设置清单）**已由 `CustomObject` 提供**——实测 org 有 8 个自定义设置（`GlobalSetting__c`、`SkipTrigger__c`、`OAToken__c`…），**8/8 都出现在 `CustomObject` 列表里**。另找一个类型来凑满 22 会被否决：那会超出原 Prompt 的类型清单，且没有它要回答的问题。
+> 7. **`MCP_METADATA_TYPE_UNAVAILABLE` 的分类在实跑首次失败，缺陷已修。** jsforce 给 Metadata API 的错误码加了命名空间（`errorCode: 'sf:INVALID_TYPE'`，顶层与 `data` 各一份），而共享的 `readSalesforceFailure` 按其 `ERROR_CODE_PATTERN`（标识符形状，不含冒号）把带命名空间的码降为 `null`——于是 `METADATA_LIST_UNAVAILABLE_CODES` **一个都匹配不上**，逐类型的授权事实被报成可重试的通用失败、且不带 `prerequisite`。修法是在 `mapMetadataListFailure` 内剥掉 `sf:` 前缀（不拓宽那个四个 provider 共用的清洗器），并由单测用实测到的错误形状钉住。
+> 8. **首次实跑的覆盖门禁即为 FAIL，且这个 FAIL 是设计要的结果。** 22 个类型里 20 个被服务、2 个被结构化拒绝，门禁判定「白名单声称了一个本部署不满足的逐类型授权事实」并失败——正是它该说的话。`EscalationRule` 的 `totalCount: 0` 只有单一证据来源（见证据页「本次运行不能证明什么」）。
+>
+> **另有一处非偏离、但沿用了原 Prompt 的建议**：审计 purpose 采用独立值 `METADATA_LIST`（与读取侧的 `METADATA_RETRIEVE` 相对）。因为两者 `apiCategory` 都是 `METADATA_API`，purpose 是审计里唯一能区分「列表」与「读取」的字段。
 
 ## 任务 T4 — list_metadata_components + get_metadata_component_context 类型扩展（P10-4/5）
 
