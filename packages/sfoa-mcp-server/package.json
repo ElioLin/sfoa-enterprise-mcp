@@ -27,6 +27,7 @@
     "validate:p3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p3-main.js",
     "validate:p4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p4-main.js",
     "validate:p9": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p9-main.js",
+    "validate:p10": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-main.js",
     "probe:p10": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-probe-main.js",
     "milestone:p10-t2": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t2-live-main.js",
     "milestone:p10-t3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t3-live-main.js",

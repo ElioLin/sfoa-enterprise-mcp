@@ -120,7 +120,7 @@ export const P10_T2_TOOL_NAMES = Object.freeze(['set_trace_flag', 'get_apex_logs
  * is a contract change that has to be seen. A forbidden-name scan would pass a new `salesforceAlias` key;
  * this cannot.
  */
-const P10_T2_TOOL_INPUT_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+export const P10_T2_TOOL_INPUT_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   set_trace_flag: Object.freeze(['durationMinutes', 'logLevel', 'tracedEntityId', 'tracedEntityKind']),
   get_apex_logs: Object.freeze(['limit', 'status', 'timeWindowMinutes', 'userId']),
   get_debug_log_body: Object.freeze(['logId', 'maxCharacters']),

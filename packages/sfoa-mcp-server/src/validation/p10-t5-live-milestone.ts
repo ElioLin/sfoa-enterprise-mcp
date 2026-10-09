@@ -126,7 +126,7 @@ export const P10_T5_TOOL_NAMES = Object.freeze(['get_platform_diagnostics']);
  * field a scan tuned to a list of known-bad names would miss. Nothing here selects an identity or a query: the
  * three keys are a window, a section subset and a per-section bound.
  */
-const P10_T5_TOOL_INPUT_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+export const P10_T5_TOOL_INPUT_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   get_platform_diagnostics: Object.freeze(['limitPerSection', 'sections', 'windowHours']),
 });
 
