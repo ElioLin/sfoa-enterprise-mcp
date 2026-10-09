@@ -144,18 +144,34 @@ Standard 服务器固定工具集：
 
 ### 阶段 P10：诊断深化（对应目标 2）
 
+> **P10 已交付**（分支 `feature/p10-diagnostic-depth`，2026-10-09）。八个交付项落成六个工具 + 一个
+> skill + 一份权限前提 ADR：`set_trace_flag`、`get_apex_logs`、`get_debug_log_body`
+> （[ADR-0030](adr/ADR-0030-p10-debug-log-toolset-governance-and-debuglevels.md)）、
+> `explain_field_access`（[ADR-0031](adr/ADR-0031-p10-permission-attribution-target-boundary-and-indeterminate.md)）、
+> `list_metadata_components` 与扩展后的 `get_metadata_component_context`
+> （[ADR-0032](adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md)）、
+> `get_platform_diagnostics`（[ADR-0033](adr/ADR-0033-p10-platform-diagnostics-stall-rule-and-degradation-matrix.md)）。
+> 六个工具**全部默认禁用**，落在既有 `@sfoa/mcp-provider-sfoa-context`（P9 的 `get_org_limits` 是同一
+> 包的先例），P10 未新增包；写路径仅 `set_trace_flag` 一条，且结构性限定在 `TraceFlag`/`DebugLevel`
+> 两个对象内、带 ≤60 分钟到期。
+> [ADR-0029](adr/ADR-0029-p10-diagnostic-identity-prerequisites.md) 是 P10-0 的交付物：把诊断身份所需
+> 权限写成**按来源逐项复核**的清单，生产部署须重新测量而不是继承本 org 的结论。`sfoa-org-diagnostics`
+> skill（GAP-M6）与 Playbook 1.11.0 随 T6 一并交付。
+
 | # | 交付项 | 设计要点 | 角色/治理 | 上游策略 |
 | --- | --- | --- | --- | --- |
-| P10-0 | DIAGNOSTIC 账号权限清单扩展（前置） | 为 Debug Log 链路定义最小权限：View All Data（ApexLog 可见）、View Setup、为指定用户设置 TraceFlag 所需权限；ADR 记录与生产启用前提 | — | — |
-| P10-1 | `set_trace_flag` | 为指定平台用户或 ApexClass 设置限时（≤60min）TraceFlag + 预置 DebugLevel（映射 Salesforce Developer Name）；自动清理过期 flag 的只读检查 | DIAGNOSTIC / METADATA 类 | Tooling API（官方 SDK） |
-| P10-2 | `get_apex_logs` + `get_debug_log_body` | 按时间窗/用户/状态列 ApexLog；单条 log 全文有界截断返回；输出含异常类/堆栈行号的结构化摘要（服务端解析 log 头部） | DIAGNOSTIC | Tooling API |
-| P10-3 | `explain_field_access` | 输入 objectApiName + fieldName(s)（可选 targetUserId，仅限路由内已配置用户）；一次聚合 describe createable/updateable + FieldPermissions + PermissionSet/Profile 归属 + RecordType 可见性；输出"可见/可编辑结论 + 授权来源链 + 冲突说明"；只读证据聚合，不做权限模拟引擎 | DIAGNOSTIC | Tooling API 聚合 |
-| P10-4 | `list_metadata_components` | 按 metadataType 列组件（fullName、状态、lastModifiedBy/Date）；类型白名单可配置；有界分页 | DIAGNOSTIC | Metadata API listMetadata / Tooling query |
-| P10-5 | `get_metadata_component_context` 类型扩展 | 增补 NamedCredential、CustomMetadata、CustomSetting、QuickAction、RecordType、EmailTemplate、DuplicateRule、AssignmentRule、AutoResponseRule、EscalationRule、SharingRule、Workflow、PermissionSet、Profile | DIAGNOSTIC | 沿用现有机制 |
-| P10-6 | `get_platform_diagnostics` | 单调用聚合最近 N 小时（默认 24h，≤168h）：SetupAuditTrail（配置/权限变更溯源）、AsyncApexJob 失败清单、CronTrigger/QUEUED/SCHEDULED 卡滞、最近部署/变更；输出按时间线对齐的证据表 | DIAGNOSTIC | 标准 + Tooling API 聚合 |
-| P10-7 | `sfoa-org-diagnostics` skill | 诊断决策树：症状分类（数据/权限/配置/代码/平台）→ 每类确定性工具路径 → 假设树 → 结论必须引用元数据证据（组件 fullName、log 行、审计条目）；含"异常时间点 × SetupAuditTrail 变更对齐"标准套路；与 P7 审计 Workbench 的 MCP 侧证据衔接 | — | — |
+| P10-0 | DIAGNOSTIC 账号权限清单扩展（前置）**已交付**（T1，[ADR-0029](adr/ADR-0029-p10-diagnostic-identity-prerequisites.md)） | 为 Debug Log 链路定义最小权限：View All Data（ApexLog 可见）、View Setup、为指定用户设置 TraceFlag 所需权限；ADR 记录与生产启用前提 | — | — |
+| P10-1 | `set_trace_flag` **已交付**（T2，[ADR-0030](adr/ADR-0030-p10-debug-log-toolset-governance-and-debuglevels.md)） | 为指定平台用户或 ApexClass 设置限时（≤60min）TraceFlag + 预置 DebugLevel（映射 Salesforce Developer Name）；自动清理过期 flag 的只读检查 | DIAGNOSTIC / METADATA 类 | Tooling API（官方 SDK） |
+| P10-2 | `get_apex_logs` + `get_debug_log_body` **已交付**（T2，[ADR-0030](adr/ADR-0030-p10-debug-log-toolset-governance-and-debuglevels.md)） | 按时间窗/用户/状态列 ApexLog；单条 log 全文有界截断返回；输出含异常类/堆栈行号的结构化摘要（服务端解析 log 头部） | DIAGNOSTIC | Tooling API |
+| P10-3 | `explain_field_access` **已交付**（T3，[ADR-0031](adr/ADR-0031-p10-permission-attribution-target-boundary-and-indeterminate.md)） | 输入 objectApiName + fieldName(s)（可选 targetUserId，仅限路由内已配置用户）；一次聚合 describe createable/updateable + FieldPermissions + PermissionSet/Profile 归属 + RecordType 可见性；输出"可见/可编辑结论 + 授权来源链 + 冲突说明"；只读证据聚合，不做权限模拟引擎 | DIAGNOSTIC | Tooling API 聚合 |
+| P10-4 | `list_metadata_components` **已交付**（T4，[ADR-0032](adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md)） | 按 metadataType 列组件（fullName、状态、lastModifiedBy/Date）；类型白名单可配置；有界分页 | DIAGNOSTIC | Metadata API listMetadata / Tooling query |
+| P10-5 | `get_metadata_component_context` 类型扩展 **已交付**（T4，[ADR-0032](adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md)） | 增补 NamedCredential、CustomMetadata、CustomSetting、QuickAction、RecordType、EmailTemplate、DuplicateRule、AssignmentRule、AutoResponseRule、EscalationRule、SharingRule、Workflow、PermissionSet、Profile | DIAGNOSTIC | 沿用现有机制 |
+| P10-6 | `get_platform_diagnostics` **已交付**（T5，[ADR-0033](adr/ADR-0033-p10-platform-diagnostics-stall-rule-and-degradation-matrix.md)） | 单调用聚合最近 N 小时（默认 24h，≤168h）：SetupAuditTrail（配置/权限变更溯源）、AsyncApexJob 失败清单、CronTrigger/QUEUED/SCHEDULED 卡滞、最近部署/变更；输出按时间线对齐的证据表 | DIAGNOSTIC | 标准 + Tooling API 聚合 |
+| P10-7 | `sfoa-org-diagnostics` skill **已交付**（T6） | 诊断决策树：症状分类（数据/权限/配置/代码/平台）→ 每类确定性工具路径 → 假设树 → 结论必须引用元数据证据（组件 fullName、log 行、审计条目）；含"异常时间点 × SetupAuditTrail 变更对齐"标准套路；与 P7 审计 Workbench 的 MCP 侧证据衔接 | — | — |
 
 **P10 里程碑验收**：三条真实诊断场景闭环——(a) Apex 运行时异常：开 trace → 复现 → 拉 log → 定位类/行号；(b) 字段不可见：explain_field_access 输出授权来源链且结论与人工核对一致；(c) "昨天起流程行为异常"：SetupAuditTrail 时间线对齐出变更记录。
+
+**验收结果（2026-10-09）**：三条场景全部闭环并在 live 证据上成立——(a) `System.NullPointerException` / `AnonymousBlock` 第 3 行 == `expectedLine: 3`，闭环比对恰好 2 条新 log；(b) `explain_field_access` 给出完整授权来源链（`conflicts: []`），且被拒目标与不存在目标的拒绝文本逐字节相同；(c) `get_platform_diagnostics` 的 25 条 SetupAuditTrail 变更与 `totalCount: 654` 对独立读回逐条相符，27 条合并时间线 `disagreements: []`。整体 `overall: PARTIAL`：唯一未通过项是 `list_metadata_components` 的 `includeInactive`——需要 org 里存在被回收的组件，本 org 没有，如实记为 **NOT TESTED** 而非通过。另有一条仍未执行的部署级步骤：六个工具都尚未经控制面在任一真实路由上启用（里程碑用进程内授权快照）。完整验收、未执行项与本次验收发现并修复的 **TraceFlag 生效延迟**见 [P10_ACCEPTANCE_REPORT.md](P10_ACCEPTANCE_REPORT.md)。
 
 ### 阶段 P11：分析体验与长线项
 

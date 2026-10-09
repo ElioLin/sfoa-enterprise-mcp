@@ -2,6 +2,94 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — P10-T6: the diagnostics Skill, Playbook 1.11.0, and the trace activation delay the acceptance run measured
+
+T6 closes P10. It delivers the `sfoa-org-diagnostics` Skill (GAP-M6), publishes Playbook 1.11.0 with the
+diagnostics contract, and runs the phase-level acceptance whose results are recorded in
+[P10_ACCEPTANCE_REPORT.md](P10_ACCEPTANCE_REPORT.md). The P10 table in
+[MCP_CAPABILITY_GAP_ANALYSIS_2026-09.md](MCP_CAPABILITY_GAP_ANALYSIS_2026-09.md) now marks all eight
+items 已交付 with their ADR numbers.
+
+**The Skill is a decision procedure, not a tool index.** `skills/sfoa-org-diagnostics/SKILL.md` carries
+twelve Hard Rules; the load-bearing ones are the five-class classification that must be spoken before a
+Tool is chosen, the single deterministic evidence path per class (data → `describe_sobject` /
+`query_records`; permission → `explain_field_access`; configuration → `list_metadata_components` +
+`get_metadata_component_context`; code → `set_trace_flag` → reproduce → `get_apex_logs` →
+`get_debug_log_body`; platform → `get_platform_diagnostics`), the evidence-citation duty, the
+time-alignment rule that makes "when did it start" the first question rather than the last, and the
+degradation semantics that forbid reading `INDETERMINATE` as healthy or `totalCount: null` as zero. Six
+references carry the depth — the decision tree, evidence forms and citation minimums, time alignment and
+clock domains, the trace lifecycle, degradation and indeterminacy, and tool availability — because a
+single file with all of it would be skimmed rather than followed. It inherits sfoa-crm-core's identity,
+governance, mutation and untrusted-content rules by declaration and adds no rule of its own about them.
+The Skill is synced to all four client locations by the repository's own mechanism (`yarn skill:sync`),
+never by hand.
+
+**Playbook 1.11.0** adds the DIAGNOSTICS section — the same tree in Agent-facing form — and registers the
+six P10 Tools as recognition without enablement, the pattern P9 set. `yarn agent:sync` regenerated all
+five artifacts, `docs/agent/DIFY_AGENT_INSTRUCTION.md`'s header now reads 1.11.0, and `yarn agent:check`
+passes over all five.
+
+**The acceptance run's first full pass failed, and the failure was worth more than a green run.** The
+`05:54:06Z` phase run returned `overall: FAIL` with T2's `listLeg`, `bodyLeg`, `hintChain`,
+`statusContrast` and `closedLoop` failing, and `get_debug_log_body` consequently the only Tool missing
+from `auditCoverage`. Taken at face value, `get_apex_logs` had refuted a claim about the org. It had not.
+A throwaway script reading the same `ApexLog` table through the same diagnostic route showed the flag
+created at `05:54:19`, the two executions a second later leaving **no rows at all** — not late, never —
+while an execution 86 seconds later under the same flag was captured, and the standalone T2 re-run
+extended that same flag and passed end-to-end.
+
+**A newly created `TraceFlag` does not begin capturing immediately.** The activation delay is real, it is
+not exposed by the Tool, the Schema or SOQL, and it is long enough to lose a run whose reproduction
+executes one second after the write leg returns — which is exactly what the milestone did. A longer poll
+at the listing end could not have fixed it: a log the platform never wrote is not a slow log. The fix is
+therefore in the harness and nowhere else (`ecb992a`). A `traceActivation` leg now sits between the write
+leg and everything measured: it runs a throwaway `System.debug` anonymous block and waits for that
+execution's own row to appear in `get_apex_logs`' listing (up to two rounds of up to eighteen polls, five
+seconds apart), and it re-runs the probe per round rather than extending the wait, because a warm-up
+execution that itself ran before activation is never logged and proves nothing by staying silent. The
+listing is re-taken after activation, so the warm-up's rows fall on the *before* side of the measurement
+and disturb neither the exact-two-new-rows assertion nor the body leg's search for the one fatal row. The
+Tool contract is untouched by design: a human or an agent taking seconds to minutes between "open the
+trace" and "do it again" never meets the window, and the harness was the unrealistic caller.
+
+**"Never captured" is `NOT TESTED`, and the reason carries the measurement.** When activation does not
+happen, the gate reports `rounds`, `pollAttempts`, `waitedMs` and `activation: NEVER_CAPTURED`, and the
+legs below it report `NOT TESTED` rather than cascading `FAIL`s — the milestone's doctrine applied
+honestly, since no Tool was asked anything and a `FAIL` would blame `get_apex_logs` for a log the platform
+never wrote. The same edit closed a latent false `FAIL` on production orgs, where the read-only path
+previously ran the body and status legs against an empty candidate set after the write leg had been
+correctly declined. Four unit tests (`src/test/p10-trace-activation.test.ts`) cover the captured,
+never-captured and refused branches; the last is the write-on-a-production-org case ADR-0029 forbids.
+
+**The operational half went into the Skill, because the same trap is waiting for an agent.** Hard Rule 6
+already said a trace sees only the future; it now also says a fresh trace does not capture immediately,
+and `references/trace-and-reproduction.md` gained §2.5 and a pitfall row: an empty listing right after
+opening a trace is the **activation delay** first, not "no exception" and not "the reproduction missed" —
+ask the user to repeat the same action once more before reading anything into it. It is phrased
+qualitatively, because Hard Rule 12 forbids thresholds and environment-specific values in the Skill.
+
+**The acceptance is recorded in [P10_ACCEPTANCE_REPORT.md](P10_ACCEPTANCE_REPORT.md), and its one non-PASS
+is a documented gap.** The cold phase run (`06:40:30Z`, the second full pass) ended `overall: PARTIAL`
+for a single reason: T4's `inactiveDefault` is `NOT TESTED` because this org holds no recycled component
+to make it measurable. Everything else passed — T2 11/11, T3 15/15, T5 15/15; partial-enablement 9/9,
+including the **cross-Tool hint gate** (a hint naming a Tool the same request does not advertise is an
+offender; `offenders: []`); `auditCoverage` 6/6 Tools counted above the run's own watermark;
+the credential-pattern scan 16 readings at zero hits; the persistence barrier `drained: true` with
+nothing dropped. The activation leg measured the delay it exists for — two rounds, nineteen polls,
+**103 635 ms** — and the measured pair and the body leg passed behind it. The three required scenarios
+closed on live evidence: the Apex exception loop (`System.NullPointerException` in `AnonymousBlock` at
+line 3 == `expectedLine`), the field attribution chain (`SicDesc` with a constructed permission set,
+`conflicts: []`, and byte-identical refusals for an out-of-route and a nonexistent target), and the
+change-timeline alignment (25 setup changes and `totalCount: 654` matching an independent read, a
+27-entry merged timeline with `disagreements: []`). The local battery's green rows are `build`, the root
+and mcp-server suites, `test:p3`/`p4`/`p5`, `validate:p4`, `validate:upstream`, `agent:check` and
+`skill:check`; the four that are not — `test:p7` (fails under battery load; solo re-runs pass on the
+branch tip and on `main`), `validate:p2`, `validate:p3`, `lint` — are pre-existing
+and separated in the report's §5. The report's §7 is the honest roll-up of everything not executed, and
+it leads with the deployment-level item: no P10 Tool has yet been enabled through the Control Plane
+console, so the milestones prove the Tools and the grant path rather than any one route's configuration.
+
 ## 2026-10-09 — P10-T5: `get_platform_diagnostics`, a merged evidence timeline and a batch fixture that measured the platform
 
 T5 delivers **GAP-M5**, the Tool an incident starts with. `get_platform_diagnostics` reads three

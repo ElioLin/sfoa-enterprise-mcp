@@ -1,3 +1,67 @@
+# SFoA P10 Diagnostic Depth — T6 the diagnostics Skill, Playbook 1.11.0, and an acceptance run that measured the platform (2026-10-09)
+
+- Deliver **GAP-M6**: `sfoa-org-diagnostics`, the methodology the six P10 Tools exist to serve. Five
+  symptom classes (data / permission / configuration / code / platform), **one deterministic evidence
+  path per class**, and the duties that make a diagnosis checkable: cite the component `fullName`, the
+  log line, the audit timestamp or the authorization chain — a conclusion without one is not a
+  conclusion; ask *when it started* and align that instant against `get_platform_diagnostics` as the
+  **first** move rather than the last; treat `INDETERMINATE`, `unavailable` and `totalCount: null` as
+  what they say and never as health or zero. Six references beside `SKILL.md`, synced to `skills/`,
+  `.agents/`, `.claude/` and `.codebuddy/`.
+- Publish **Playbook 1.11.0** with the DIAGNOSTICS section and the six P10 Tools registered as
+  recognition without enablement. `agent:sync` regenerated all five artifacts — `docs/agent/DIFY_AGENT_INSTRUCTION.md`
+  now carries 1.11.0 — and `agent:check` passes.
+- **The phase gate failed before it passed, and the failure was the harness's.** The first `validate:p10`
+  run (`05:54:06Z`) came back `overall: FAIL`: T2's `listLeg`, `bodyLeg`, `hintChain`, `statusContrast`
+  and `closedLoop` all failed, and `get_debug_log_body` was the one Tool missing from `auditCoverage`.
+  Read at face value it said the listing Tool had refuted a claim about the org. A throwaway script
+  reading the same `ApexLog` table through the same diagnostic route said otherwise: the flag was
+  created at `05:54:19`, the two executions a second later had left **no rows at all** — not late,
+  never — while an execution 86 s later under the same flag *was* captured, and the standalone T2
+  re-run extended that same flag and passed end-to-end.
+- **A fresh `TraceFlag` does not capture immediately, and the milestone was reproducing inside that
+  window.** The delay is real, invisible to the Tool, the Schema and SOQL, and no longer a poll at the
+  listing end can recover a log the platform never wrote. The fix is in the harness and nowhere else
+  (`ecb992a`): a `traceActivation` leg runs a throwaway `System.debug` block, waits for its row to
+  appear in `get_apex_logs`' own listing (≤2 rounds, ≤18 polls each, 5 s apart — a round re-runs the
+  probe rather than waiting longer, because a warm-up that itself ran too early can never appear), and
+  re-takes the listing so the warm-up's rows fall on the *before* side of the measurement. The Tool
+  contract is untouched by design: a caller taking seconds to minutes between "open the trace" and "do
+  it again" never meets the window.
+- **"Never captured" is `NOT TESTED`, with the measurement in the reason.** No Tool was asked anything
+  when the platform wrote no log, so nothing was refuted — the gate reports `rounds`, `pollAttempts`,
+  `waitedMs` and `activation: NEVER_CAPTURED` and the downstream legs degrade instead of cascading
+  `FAIL`s that would blame `get_apex_logs`. The same edit closed a latent false `FAIL` on a production
+  org, where the read-only path previously ran the body and status legs against an empty candidate set
+  after the write leg had been correctly declined. Four unit tests cover captured / never-captured /
+  refused.
+- **The operational half went into the Skill, because the same trap is waiting for an agent.** Hard
+  Rule 6 now says a fresh trace does not capture immediately, and `trace-and-reproduction.md` gained
+  §2.5 plus a pitfall row: an empty listing right after opening a trace is the **activation delay**
+  first — ask the user to do the same thing once more before reading anything into it. Phrased
+  qualitatively; Hard Rule 12 forbids thresholds and environment-specific values in the Skill.
+- **The acceptance ran, and it is green everywhere it could run.** The cold `validate:p10` phase run
+  (`06:40:30Z`, `p10-validation-20261009-144019.json`) ended `overall: PARTIAL` for exactly one
+  reason — T4's documented `inactiveDefault` gap, reported as `NOT TESTED` because this org has no
+  recycled component to make it measurable. T2 11/11, T3 15/15 and T5 15/15 PASS; partial-enablement
+  9/9 including the **cross-Tool hint gate** (a hint may only name a Tool the same request
+  advertises); `auditCoverage` 6/6 Tools on the run's own watermark; the credential scan 16 readings,
+  0 hits; the persistence barrier `drained: true`, `dropped: 0`. The activation leg measured the very
+  delay it was written for: **2 rounds, 19 polls, 103 635 ms** before the trace was demonstrably
+  capturing, with the measured pair and the body leg then passing behind it. Local gates: `build`,
+  `test` (root), `test` (mcp-server), `test:p3`/`p4`/`p5`, `validate:p4`, `validate:upstream`,
+  `agent:check`, `skill:check` all exit 0; the four that are not green — `test:p7` (fails under
+  battery load; solo re-runs pass on the branch tip and on `main`), `validate:p2`, `validate:p3`,
+  `lint` — are pre-existing and kept separate in §5. The three required scenarios
+  (Apex exception closed loop, field attribution, change-timeline alignment) each closed on live
+  evidence. Full report: [P10_ACCEPTANCE_REPORT.md](docs/sfoa/P10_ACCEPTANCE_REPORT.md).
+- **Still owed** (the P9 standard: named, not absorbed): no P10 Tool has been enabled through the
+  Control Plane console — all six are granted in memory by the milestones; `A-1`, cross-user `ApexLog`
+  visibility, remains a production check; the stall rule's positive case, the
+  `UNAVAILABLE`/`totalCount: null` branch, both budget ladders and the `Aborted` literal still have no
+  live leg; and the human halves of T3's and T4's Setup-page cross-checks are owed by construction.
+  The full list is §7 of [P10_ACCEPTANCE_REPORT.md](docs/sfoa/P10_ACCEPTANCE_REPORT.md).
+
 # SFoA P10 Diagnostic Depth — T5 `get_platform_diagnostics`: a merged evidence timeline, and a batch fixture that measured the platform (2026-10-09)
 
 - Deliver **GAP-M5**: `get_platform_diagnostics`, the read-only Tool an incident starts
