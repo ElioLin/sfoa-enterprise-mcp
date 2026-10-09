@@ -1,3 +1,40 @@
+# SFoA production activation closed out — WeCom live, diagnostic Tools fired for real, and a DML gate taken down by a console click (2026-10-09)
+
+- **The production WeCom channel is live.** The robot's `botId`/`secret` were patched into the two
+  600-mode files in place (credential piped over an `ssh 'cat >'` stdin, `umask 077` temp file deleted
+  immediately, `*.bak-pre-wecom-*` backups kept), `pendingOperatorCredentials` removed, gateway
+  restarted. The log shows `WebSocket 已连接 → 认证成功 → 已认证` against
+  `wss://openws.work.weixin.qq.com` with a 30-second heartbeat; `wecom-openclaw-plugin` flipped to
+  enabled and the `wecom-send-*` Skills turned ready. Guide finding: `channels.wecom.*` is a
+  **hot-reload prefix** — the gateway judged the change reloadable without a restart, which was still
+  taken for a clean state — and
+  `state/wecom-cli` initializes lazily (absent at activation time is not an anomaly).
+- **The P10 §7 production self-verification leg is now fact.** On mysql mode the diagnostic identity
+  lives in the database, not in `SFOA_DIAGNOSTIC_USERNAME` (that key is `env`-mode only,
+  `config.ts:332`) — production's `diagnostic` config (id 1, `crm_admin2@runner-corp.com.cn`) was
+  already enabled and `PASS`. An ordinary `USER_BOUND` caller then ran five read-only diagnostic Tools
+  on the production gateway: `get_org_limits` (72 limits, 0 unreadable), `get_platform_diagnostics`
+  (3/3 sections), `explain_field_access`, `list_metadata_components` (1,437 ApexClasses),
+  `get_apex_logs` (the read executed; the window held zero rows) — every one PASS with
+  `executionRole=DIAGNOSTIC` and its own audit row. `set_trace_flag` stays uncalled on production per
+  ADR-0029, and `A-1` cross-user `ApexLog` visibility still stands as an enablement check — an empty
+  window is not an ownership finding.
+- **One console click bricked the whole MCP endpoint, and the trail found it.** Between the
+  deployment's passing verification and the diagnostic run, **every** authenticated MCP POST returned
+  500 `MCP_DML_CONFIGURATION_INVALID`. nginx's access log, an `ADMIN_ACTION` audit sweep and
+  `rowVersion` arithmetic place the cause: a console administrator (172.70.1.156, the console's DML
+  page) disabled production's only DML policy row at 17:42 CST. The DML governance whitelist is
+  rebuilt from the database on every request and fails the endpoint closed when an enabled DML Tool
+  has no matching operation — one unchecked 启用 box took reads and writes down together, and the
+  console wrote that state without a warning. Restored the same evening (`enabled:true`, rowVersion
+  4→5, audited, everything re-verified green). Recorded as pitfall #17, with the governance-correct
+  alternative: to forbid production writes, disable `create_record`/`update_record` in Tool
+  governance — not all DML rows.
+- **Also observed and recorded:** identity routes needed no switch-on (18/18 enabled, 0 disabled, all
+  credentials ACTIVE); the same source IP probed the gateway's :18789 three times without a token and
+  was refused each time (`unauthorized conn`). Still owed: human UAT (WeCom message → reply → SFOA
+  Tool → audit row, plus one attachment message).
+
 # SFoA production deployment — P10 on `crm-mcp-prod`, 29 Tools live, and a byte-aligned OpenClaw (2026-10-09)
 
 - **The production server jumped 123 commits to `main` @ `1dca49a`.** P8-07 → Skill-02C → P9 → P10

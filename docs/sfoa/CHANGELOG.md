@@ -2,6 +2,38 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-09 — Production activation: the WeCom channel goes live, the diagnostic Tools run against the production org, and the DML gate's failure mode gets a name
+
+The production activation recorded at the top of [PROD_SERVER_DEPLOYMENT.md](PROD_SERVER_DEPLOYMENT.md)
+closed two of the deployment's owed items and produced three durable facts.
+
+**The WeCom channel is live on `crm-mcp-prod`.** The robot credentials were patched into
+`state/openclaw.json` + `secrets/credentials.json` in place (600-mode, backed up first, temp file
+cleared), and the gateway reaches `WebSocket 已连接 → 认证成功 → 已认证` against
+`wss://openws.work.weixin.qq.com` with a 30-second heartbeat; the plugin and `wecom-send-*` Skills are
+enabled. New guide knowledge: `channels.wecom.*` is a **hot-reload prefix** — the gateway judged the
+change reloadable without a restart (which was still taken for a clean state) — and `state/wecom-cli`
+initializes lazily (its absence at activation time, as on the test server, is not an anomaly).
+
+**The diagnostic identity is a database object in mysql mode.** `SFOA_DIAGNOSTIC_USERNAME` is required
+only when `controlPlane.mode === 'env'` (`config.ts:332`); production's identity is the `diagnostic`
+config row (id 1, `crm_admin2@runner-corp.com.cn`, enabled, `verificationStatus: PASS`). An ordinary
+`USER_BOUND` caller exercised five read-only diagnostic Tools against the production org — all PASS
+with `executionRole=DIAGNOSTIC` and their own audit rows — advancing §7's production-readability leg
+in [P10_ACCEPTANCE_REPORT.md](P10_ACCEPTANCE_REPORT.md) **§10** while leaving `A-1` cross-user ApexLog
+visibility open (the log window was empty). `set_trace_flag` is not called outside a sandbox
+(ADR-0029).
+
+**The DML governance gate is per-request and fails the whole endpoint closed — and the console will
+happily write the state that does it.** Every authenticated MCP POST 500'd with
+`MCP_DML_CONFIGURATION_INVALID` after a console administrator disabled production's only DML policy
+row; the cause was found through the nginx access log + `ADMIN_ACTION` audit sweep + `rowVersion`
+arithmetic, the row was restored through the same Admin API within the hour (audited, re-verified
+green), and the failure mode is now pitfall #17 in the deployment guide with the correct alternative
+for a write-restricted production: disable `create_record`/`update_record` in Tool governance, not the
+DML rows. The same administrator's same-evening `VERIFY_DIAGNOSTIC_CONFIG` (PASS) is the
+`lastVerifiedAt` on the diagnostic row.
+
 ## 2026-10-09 — Production deployment: P10 lands on `crm-mcp-prod`, the 29-Tool face goes live, and the server gains a byte-aligned OpenClaw
 
 `crm-mcp-prod` (192.168.155.207) was upgraded from P8-06 HOTFIX01 (`5c623ef`) to `main` @ `1dca49a` —

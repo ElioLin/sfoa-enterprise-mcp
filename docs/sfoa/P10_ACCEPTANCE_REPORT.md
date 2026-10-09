@@ -553,3 +553,50 @@ log's `stat() "…/dist/index.html" failed (13: Permission denied)`; an in-sessi
 before and after), and verified 200 for `/`, `/agent-integration` and an asset through `:9000` with the
 public Host, the `:80` 301 intact, and again from `http://crmmcptest.runner-corp.com.cn:9000` for both
 paths.
+
+## 10. The production org answers for itself (2026-10-09)
+
+The same tree was deployed to `crm-mcp-prod` (192.168.155.207) on 2026-10-09; the deployment record is
+[PROD_SERVER_DEPLOYMENT.md](PROD_SERVER_DEPLOYMENT.md) and is not repeated here. Two of §7's open legs
+were advanced on production that evening, and the rest still stand.
+
+**All P10 Tools are enabled through the production Control Plane**, with the rest of the 29-Tool face
+(eighteen new `sfoa_tool_control` rows and two flips via `PUT /admin/api/tools/<toolName>`; the admin
+audit carries the twenty `UPDATE_TOOL_CONTROL` rows from 09:19:51–52Z). No in-memory grant exists on
+this deployment.
+
+**The ordinary-caller leg ran on the production gateway, against the production org.** A `USER_BOUND`
+credential of an existing enabled route (token and platform id never printed) drove one MCP session
+against `http://127.0.0.1:8080/mcp`; `tools/list` advertised 29 Tools. Five read-only diagnostic Tools
+were called — `set_trace_flag` deliberately not among them, per ADR-0029 — and every call returned
+`isError: false`, `success: true`, `executionRole: DIAGNOSTIC`, each with its own
+`MCP_TOOL_CALL`/`PASS`/`SUCCESS`/`USER_BOUND_TOKEN` audit row (09:57:24–45Z):
+
+- `get_org_limits {}` — 72 limits read, 0 unreadable. §7 records business identities denied this read;
+  the diagnostic identity on production is not one of them.
+- `get_platform_diagnostics {}` — 3 of 3 sections read, none unavailable, `truncated: true` under the
+  caller's own caps.
+- `explain_field_access {Account, [Name]}` — one field explained, the deciding grants named.
+- `list_metadata_components {ApexClass}` — 1,437 components matched, 5 returned under the asked limit.
+- `get_apex_logs {60min}` — the read executed and found **zero** rows in the window.
+
+**What this advances in §7, precisely.** "Production readability of every P10 data source" now has a
+first production reading for the org-limits, diagnostics and metadata surfaces, and the ApexLog *read
+path* executed — but an empty window is not an ownership finding, so **`A-1` cross-user `ApexLog`
+visibility still stands as a production enablement check**, as does everything else §7 lists: the
+trace-flag write probe (forbidden outside a sandbox), the stall rule's positive case, the `UNAVAILABLE`
+branch, `INDETERMINATE`, both budget ladders, `includeInactive`, the over-budget truncation, the
+`Aborted` literal, the human Setup halves and the phase-level audit walk.
+
+**One production incident belongs in this record, in §9's voice.** Between the deployment's passing
+verification and the diagnostic run, **every** authenticated MCP POST began failing with HTTP 500
+`MCP_DML_CONFIGURATION_INVALID`. The nginx access log and an `ADMIN_ACTION` audit sweep place the
+cause: at 17:42:02 CST (09:42:02Z, correlationId `84176742-…`) a console administrator (source
+172.70.1.156, on the console's DML page) saved the deployment's only DML policy row with `enabled`
+cleared. The DML governance whitelist is rebuilt from the database on **every request** and fails the
+whole endpoint closed when an enabled DML Tool has no matching operation anywhere in it — reads and
+writes went down together, and the console wrote that state without a warning. The row was restored
+through the same Admin API (`enabled: true`, rowVersion 4→5, `UPDATE_DML_POLICY` audited, 09:57:19Z,
+correlationId `90ebdfba-…`) and everything re-verified green. Recorded as pitfall #17 in
+PROD_SERVER_DEPLOYMENT.md, with the governance-correct alternative for a "no writes on production"
+policy: disable `create_record`/`update_record` in Tool governance rather than all DML rows.

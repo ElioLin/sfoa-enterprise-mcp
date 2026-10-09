@@ -4,6 +4,20 @@
 
 ---
 
+## 部署记录 · 生产激活收尾：企微通道上线 + 诊断工具实弹验证（2026-10-09 晚）
+
+| 项 | 值 |
+| --- | --- |
+| 企微通道 | 按 §16.5 激活（用户提供的生产机器人 botId/secret，经 600 临时文件 + `ssh 'cat >'` 就地补丁）：`channels.wecom.enabled=true`、移除 `pendingOperatorCredentials`、`credentials.json` 补 `wecomBotId/wecomBotSecret`、双文件先备份 600。网关**先判定 `channels.wecom.*` 变更属热重载**（改配置即生效），本次仍按流程重启取干净状态 |
+| 企微验收 | 重启后网关日志：`WebSocket 已连接 → 认证成功 → 已认证`（出站 `wss://openws.work.weixin.qq.com`）+ 30 秒心跳；插件 `wecom-openclaw-plugin` 转 enabled；`wecom-send-media`/`wecom-send-template-card` 等 wecom 系 Skill ready；监听 `192.168.155.207:18789`；近 400KB 日志 0 ERROR。`state/wecom-cli` 属按需懒初始化（激活时尚未生成，测试服亦为激活数日后出现） |
+| 诊断工具（P10 §7「生产就绪」项落地） | 生产为 **mysql 模式：诊断身份在库内**（`diagnostic` 配置 id 1 = `crm_admin2@runner-corp.com.cn`，`enabled=true`，`verificationStatus=PASS`，`lastVerifiedAt 2026-10-09T09:42:20Z`）；**`SFOA_DIAGNOSTIC_USERNAME` 仅 env 模式需要**（`config.ts:332`），生产不需要、未写入 env。以普通 `USER_BOUND` 调用者实测 5 个只读诊断工具（`get_org_limits`/`get_platform_diagnostics`/`explain_field_access`/`list_metadata_components`/`get_apex_logs`）**全部 PASS**（`executionRole=DIAGNOSTIC`，逐条 `MCP_TOOL_CALL` 审计落行）；`set_trace_flag` 按 ADR-0029 未在生产调用 |
+| DML 门禁事件 | 17:42:02（CST）一名控制台管理员（来源 172.70.1.156，控制台 DML 页面）将唯一 DML 策略行 `Lead` **取消启用**并保存（`PUT /admin/api/dml-policies/1`，审计 `UPDATE_DML_POLICY`）→ 因 `create_record`/`update_record` 处于启用，fail-closed 门禁令**全部**认证 MCP 请求 500 `MCP_DML_CONFIGURATION_INVALID`。17:48:28 以 rowVersion 4→5 恢复 `enabled=true`（审计留痕），17:57 复验全绿。分析见 §13 坑 #17 |
+| 身份路由 | 18/18 enabled、0 disabled、凭据全部 ACTIVE（控制台「身份路由」页无可开启项）；库内诊断用户名与既有启用路由无冲突 |
+| 安全观察 | 同一来源 172.70.1.156 当日 3 次未带 token 连接 `:18789`（09:47/09:48/09:50Z）均被网关 token 认证拒绝（`unauthorized conn`，无影响）；其余 WARN 均为既有预期项 |
+| 仍待办 | 真人 UAT（企微消息 → 回复 → SFOA 工具 → 审计落行；再测一条带附件消息）——见 §16.7 |
+
+---
+
 ## 部署记录 · P10 全量升级 + 迁移 014 + 29 工具启用 + OpenClaw 原生搭载（2026-10-09）
 
 | 项 | 值 |
@@ -13,11 +27,11 @@
 | 打包/上传 | 本机 `git -c core.autocrlf=false archive main` → tar.gz；**`scp` 在本机↔两端均无限挂起** → 改 `ssh host 'cat > file'` stdin 管道上传，逐文件 sha256 核对（§13 坑 #12） |
 | 依赖 | `yarn install`（非 frozen）在服务器复现**确定性 ENOENT** → `node_modules` 自 203 全量镜像 + 手工软链新包 `@sfoa/mcp-provider-sfoa-data` ×3 处；`@salesforce/mcp-provider-dx-core` 缺失的 `.bin` 一并补齐（§13 坑 #13） |
 | 构建 | 清 `*.tsbuildinfo` 后按依赖序重建 **11 个包**（新包 `mcp-provider-sfoa-data` 是既有构建序缺的一步，§13 坑 #14 + §6 已补）；admin-web 最后构建（内联 Playbook 1.11.0）；构建后 `chown -R root:root` + `restorecon -Rv` admin-web `dist`（现为 `httpd_sys_content_t`） |
-| 配置 | `config/.env.local` 追加 **6 个 `MCP_ATTACHMENT_*` 键**（§13 坑 #15；`.env.example` 已回填）+ `/data/sfoa-enterprise-mcp/attachment-staging`（700）；与测试服 env **键名** diff 仅剩测试夹具与 `SFOA_DIAGNOSTIC_USERNAME`（后者待提供；缺省时 6 个诊断工具属 fail-closed） |
+| 配置 | `config/.env.local` 追加 **6 个 `MCP_ATTACHMENT_*` 键**（§13 坑 #15；`.env.example` 已回填）+ `/data/sfoa-enterprise-mcp/attachment-staging`（700）；与测试服 env **键名** diff 仅剩测试夹具；**无 `SFOA_DIAGNOSTIC_USERNAME`**——该键仅 `env` 模式需要（`config.ts:332`），生产的诊断身份在库内 `diagnostic` 配置（见顶部激活记录） |
 | 数据库迁移 | 台账 **001–014 APPLIED**；两服务启动断言（要求全部迁移已应用）通过 |
 | 工具治理 | 经控制面 Admin API（控制台同款 `PUT /admin/api/tools/<name>`）新增 18 行 + 翻转 `create_record`/`update_record`，启用至 **29/29**，与测试服 enabled 集完全一致。**附件门禁**：同批把唯一 DML 对象 `Lead` 置 `attachmentEnabled=true`（否则启用 `upload_files_to_record` 后全量 MCP POST fail-closed 500 `MCP_ATTACHMENT_CONFIGURATION_INVALID`，§13 坑 #16）——与测试服同构 |
 | 验证（普通调用者） | `USER_BOUND` 凭证（控制面签发，非进程内注入）→ 部署网关 `tools/list` = **29**；`list_sobjects` 成功（61 个 Account 前缀对象、返回 5 条）+ 审计落行 `MCP_TOOL_CALL`/`PASS`/`SUCCESS`/`USER_BOUND_TOKEN`；`/health` 200、`/admin/api/ready` UP/8.0.39、nginx `/` 200、`GET /mcp` 405；Playbook 1.11.0 |
-| OpenClaw | 与测试服同构搭载（2026.9.5 + 专用 Node v24.19.0；systemd/SELinux/防火墙/插件/Skill 逐项对齐，详见 **§16**）；`channels.wecom` 因**待生产机器人凭据**呈 `enabled:false` + `pendingOperatorCredentials:true`，凭据到位后按 §16.5 四步激活 |
+| OpenClaw | 与测试服同构搭载（2026.9.5 + 专用 Node v24.19.0；systemd/SELinux/防火墙/插件/Skill 逐项对齐，详见 **§16**）；`channels.wecom` 因**待生产机器人凭据**呈 `enabled:false` + `pendingOperatorCredentials:true`，凭据到位后按 §16.5 四步激活（**已于同日激活，见顶部记录**） |
 | 回滚 | 见文末「回滚」；本次工件：`backup/sfoa-app-pre-1dca49a-20261009-165256.tar.gz`（3.74MB）+ `backup/env-local-pre-1dca49a-20261009-165256.bak`（600）；迁移 014 纯加性不回滚 |
 
 ---
@@ -513,7 +527,7 @@ curl -s http://127.0.0.1:8080/health
 
 ---
 
-## 13. 部署踩坑记录（含修复；#12–#16 为 2026-10-09 P10 部署新增）
+## 13. 部署踩坑记录（含修复；#12–#17 为 2026-10-09 P10 部署与激活新增）
 
 | # | 现象 | 根因 | 修复 |
 | --- | --- | --- | --- |
@@ -533,6 +547,7 @@ curl -s http://127.0.0.1:8080/health
 | 14 | 按原 §6（10 包）顺序构建，下游 TS 引用报错（找不到新包产物） | P9 新增 workspace 包 `mcp-provider-sfoa-data` 未进文档构建序 | §6 已补为 **11 条**：`mcp-provider-sfoa-data` 在 `identity-runtime` 之前构建 |
 | 15 | 附件功能所需 6 个 `MCP_ATTACHMENT_*` 键在 `.env.example` 中**不存在** | Skill-02C 引入配置时未回填 example（纯文档缺口） | 已回填 `.env.example`（含门禁注释与默认值）；生产按 §16/部署记录的实际值配置 |
 | 16 | 启用 `upload_files_to_record` 后**所有** MCP POST 返回 500 `MCP_ATTACHMENT_CONFIGURATION_INVALID`（"requires at least one object with attachment upload enabled"）——等同线上故障 | 附件工具治理策略（每请求判定）要求 ≥1 条 `sfoa_dml_policy` 行 `attachmentEnabled=true`，否则整站 fail-closed；生产唯一 DML 对象 `Lead` 默认 FALSE | `PUT /admin/api/dml-policies/1` 将 `Lead` 置 `attachmentEnabled=true`（rowVersion 2→3，与测试服同构）；**今后启用任何附件类工具前先过此门禁** |
+| 17 | 控制台把唯一 DML 策略行 `Lead` 取消「启用」并保存后，**全部**认证 MCP POST 立即 500 `MCP_DML_CONFIGURATION_INVALID`（"Configured Tool create_record requires at least one MCP_DML_ALLOWLIST_JSON object with CREATE."）——与该行 26 分钟前刚通过的全量验证矛盾 | DML 工具治理门禁**每请求**从库内策略重建白名单：只要 `create_record`/`update_record` 启用，就要求 ≥1 条 enabled 且含 CREATE/UPDATE 的 `sfoa_dml_policy` 行，否则整站 fail-closed（与坑 #16 的附件门禁同属一类每请求策略）；控制台写侧没有「此改动会让 MCP 端点整体不可用」的校验或提示 | 恢复：`PUT /admin/api/dml-policies/1`（携带当前 rowVersion，`enabled=true`）即恢复（本次 rowVersion 4→5 完成）。**若治理上要禁止生产写入**，正确做法是同时在工具治理里关闭 `create_record`/`update_record`（只保留读），而不是禁用全部 DML 行。审计链（`channel=ADMIN`、`UPDATE_DML_POLICY`）可定位操作者与时刻 |
 
 ---
 
@@ -545,7 +560,7 @@ curl -s http://127.0.0.1:8080/health
 | 上传私钥/配置 | `scp D:/GitProject/sfoa-enterprise-mcp/secrets/prod/private.pem root@192.168.155.207:/data/sfoa-enterprise-mcp/secrets/private.pem`（配置同理 → `config/.env.local`） |
 | 服务器解压 | `tar -xzf /root/sfoa-deploy-prod.tar.gz -C /data/sfoa-enterprise-mcp/app` |
 | 安装依赖 | `cd /data/sfoa-enterprise-mcp/app && yarn install --frozen-lockfile`（.npmrc 已指向 Tencent） |
-| 构建全部 | §6 的 10 条 `yarn workspace ... build`（依赖顺序） |
+| 构建全部 | §6 的 11 条 `yarn workspace ... build`（依赖顺序） |
 | 迁移 | `cd /data/sfoa-enterprise-mcp/app && yarn db:status && yarn db:migrate` |
 | 治理引导 | `yarn p5:bootstrap` |
 | 启动/停止/重启 | `systemctl start/stop/restart sfoa-mcp-server sfoa-admin-api` |
@@ -600,7 +615,7 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash 
 - 自研 adapter `@sfoa/openclaw-wecom-mcp-adapter` 1.0.0：仓库 `integrations/openclaw/sfoa-wecom-mcp-adapter/` 的字节副本（sha256 与测试安装件逐一相同），经 `plugins.load.paths` 加载。
 - npm 插件树自测试服**整体拷贝保字节**（避免重装丢失兼容补丁）：`@wecom/wecom-openclaw-plugin@2026.9.15`（含 3 处内核契约兼容补丁）、`openclaw-parallel-plugin@2026.9.5`、`state/plugin-skills/`、`state/npm/`。
 - Skill：4 个业务 Skill 由 `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` 写入（与测试逐文件 sha256 一致）；`sfoa` 连接器用 **1.11.0** 重新导出（`yarn skill:export`）——与测试服的 1.10.0 遗留件为**有意差异**（连接器必须描述本部署实际工具面）。两处 allowlist（`skills.entries` + `agents.entries.main.skills`）随配置携带；`sfoa` 连接器在两侧均刻意 **excluded**。
-- 验收：`openclaw plugins list` 与测试同构（唯一差异 = `wecom-openclaw-plugin` 因通道未激活而 disabled）；`openclaw skills list --agent main` 4 业务 Skill ready（`wecom-send-*` 等 wecom 系 Skill 随通道激活自动出现）。
+- 验收：`openclaw plugins list` 与测试同构（`wecom-openclaw-plugin` 已随 2026-10-09 通道激活转 enabled）；`openclaw skills list --agent main` 4 个业务 Skill + wecom 系 Skill 均 ready。
 
 ### 16.4 配置参数化（masked diff：198 键中与测试仅 8 处差异）
 
@@ -609,12 +624,12 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash 
 | `gateway.customBindHost` / `controlUi.allowedOrigins` | `192.168.155.207` / `http://192.168.155.207:18789` |
 | `agents.entries.main.identity.name` | `CRM智能助手（正式环境）`（workspace `IDENTITY.md`/`AGENTS.md` 同步参数化） |
 | `mcp.servers.sfoa-enterprise-mcp` | `http://127.0.0.1:8080/mcp`（streamable-http）+ 生产 `MCP_CLIENT_TOKEN`（明文于 600 配置内，同测试做法） |
-| `channels.wecom` | **待激活**：`enabled:false` + `pendingOperatorCredentials:true`；`dmPolicy/groupPolicy=open` 已配好 |
+| `channels.wecom` | **已激活（2026-10-09）**：`enabled:true`，botId(35)/secret(43) 明文于 600 配置内（同测试做法），`pendingOperatorCredentials` 已移除；`dmPolicy/groupPolicy=open` |
 | 其余（模型 provider 4 模型、tools 策略、subagents、hooks、`session.dmScope=per-account-channel-peer`、attachments TTL 168h、skills allowlist 等 ~190 键） | 与测试 **byte 级一致** |
 
 **模型 Key**：生效的是 `openclaw.json` 内嵌 `models.providers.custom-192-168-155-105-3001.apiKey`（2026-10-09 从生产对 `192.168.155.105:3001` 实测 **HTTP 200**，无需新 Key）；`secrets/credentials.json` 的 `modelApiKey` 是**旧 Key**（两服皆然，无效也不被使用）——换 Key 后以真实调用判定，勿以该文件或 `models status` 为准。
 
-### 16.5 企业微信通道激活（生产机器人凭据到位后四步）
+### 16.5 企业微信通道激活（2026-10-09 已完成；复发时照此四步）
 
 ```bash
 # 1) /data/openclaw/state/openclaw.json：channels.wecom 写 botId/secret、enabled:true（移除 pendingOperatorCredentials）
@@ -623,7 +638,9 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash 
 # 4) 验证：journalctl/网关日志见 websocket 连接 openws.work.weixin.qq.com；真人消息 → 回复 → SFOA 工具调用 → 生产审计落行
 ```
 
-首次激活会在 `state/wecom-cli` 为本机器人初始化运行时；如需企微文档/发送能力，另在企微后台按机器人「可使用权限」授权（7 天有效，测试环境同款流程）。
+- 实操（2026-10-09）：凭据经 `umask 077` 临时文件 + `ssh 'cat >'` 上传，服务器端 Node 脚本就地补丁两份 600 文件（先做 `*.bak-pre-wecom-<stamp>` 备份），临时文件即刻清除；补丁后网关**将 `channels.wecom.*` 判定为热重载前缀**（改配置即生效，无需重启），本次仍执行第 3 步重启以取干净状态。
+- 重启后验收：`WebSocket 已连接 → 认证成功 → 已认证`（出站 `wss://openws.work.weixin.qq.com`）+ 30 秒心跳；插件 `wecom-openclaw-plugin` 转 enabled；`wecom-send-media`/`wecom-send-template-card` 等 wecom 系 Skill 随之 ready。
+- `state/wecom-cli`（企微 CLI 运行时）为**按需初始化**：本次激活时尚未生成、测试服亦为激活数日后才出现，目录暂缺不属异常。如需企微文档/发送能力，另在企微后台按机器人「可使用权限」授权（7 天有效，测试环境同款流程）。
 
 ### 16.6 验收证据（2026-10-09）
 
@@ -631,6 +648,9 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash 
 - 启动日志 `gateway ready`：0 条 ERROR、3 条预期 WARN（非回环绑定提示、自建插件信任提示、`tools.fs.workspaceOnly=false` 提示——与测试一致；`workspaceOnly=false` 是刻意与测试对齐的开放档）。
 - adapter 凭据层：以生产 `MCP_WECOM_CLIENT_TOKEN` 对 `127.0.0.1:8080/mcp` 发起 `initialize` → `401 MCP_PLATFORM_USER_REQUIRED`（**客户端认证已过、等待按消息注入请求者 `X-WeCom-User-Id`**——adapter 的设计行为）；负对照（伪造 token）→ `MCP_BUNTU_TOKEN_INVALID`。完整请求者链路留待真人 UAT。
 - 模型通路：生产 → `192.168.155.105:3001` 实测 HTTP 200（见 16.4）。
+- 企微通道（2026-10-09 激活，详见 §16.5）：ws 连接/认证/心跳见网关日志；`wecom-openclaw-plugin` enabled；wecom 系 Skill ready。
+- 网关 token 认证抗探测：同日 3 次来自 172.70.1.156 的未带 token 连接全部被拒（`unauthorized conn`），无影响。
+- 诊断工具（P10 §7「生产就绪」）：5 个只读诊断工具以普通 `USER_BOUND` 调用者实弹 PASS（见顶部激活记录）。
 
 ### 16.7 常用命令
 
@@ -644,7 +664,7 @@ openclaw skills list --agent main
 systemctl restart openclaw-gateway && tail -f /data/openclaw/logs/gateway.log
 ```
 
-**待办**：① 生产企微机器人 `botId` + `secret`（到位后按 16.5 激活）；② `SFOA_DIAGNOSTIC_USERNAME`（写入 `config/.env.local` + `restorecon` + 重启 mcp-server 后，6 个诊断工具从 fail-closed 转为可用）；③ 真人 UAT（企微消息 → 回复 → SFOA 工具 → 审计落行；再测一条带附件消息）。
+**待办**：① ~~生产企微机器人 `botId` + `secret`~~ → **已完成**（2026-10-09 激活，§16.5）；② ~~`SFOA_DIAGNOSTIC_USERNAME`~~ → **已完成并纠正**：生产为 mysql 模式，诊断身份在库内 `diagnostic` 配置（id 1 = `crm_admin2@runner-corp.com.cn`，enabled + `verificationStatus=PASS`），该 env 键仅 env 模式需要、生产无需写入；6 个诊断工具已启用并经实弹验证（5 个只读 PASS；`set_trace_flag` 依 ADR-0029 未在生产写入）；③ 真人 UAT（企微消息 → 回复 → SFOA 工具 → 审计落行；再测一条带附件消息）——**仍待办**。
 
 ## P8-06 WeCom native MCP plugin
 
