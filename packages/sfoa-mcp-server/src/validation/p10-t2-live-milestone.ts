@@ -181,6 +181,26 @@ const LOG_LIMIT = 50;
 const LOG_POLL_ATTEMPTS = 12;
 const LOG_POLL_INTERVAL_MS = 2_500;
 
+/**
+ * The Apex that proves a trace is capturing, and the budget it is given to prove it.
+ *
+ * A TraceFlag does not begin capturing the moment `set_trace_flag` returns it. Measured on this deployment
+ * on 2026-10-09: two executions one second after a flag was created wrote no row at all, an execution
+ * ninety seconds later under the same flag was captured, and a reproduction running under a flag that was
+ * already minutes old was captured within the first poll after it. The reproduction must therefore not run
+ * inside that window, and no amount of polling at the listing end can recover it — a log the platform
+ * never wrote is not a slow log.
+ *
+ * So the wait is measured rather than assumed, and it is measured with the same observable the rest of the
+ * milestone uses: a new row in the Tool's own listing. Each round runs a throwaway execution and waits for
+ * its row; a round that was itself executed before the flag took effect is never logged at all and proves
+ * nothing by staying silent, which is why a second round re-runs the probe rather than extending the wait.
+ */
+const WARMUP_APEX = "System.debug('SFOA_P10_TRACE_WARMUP');";
+const WARMUP_ROUNDS = 2;
+const WARMUP_POLL_ATTEMPTS = 18;
+const WARMUP_POLL_INTERVAL_MS = 5_000;
+
 export type P10T2LiveReport = Readonly<{
   phase: 'P10';
   task: 'T2';
@@ -204,6 +224,15 @@ export type P10T2LiveReport = Readonly<{
   }>;
   toolInventory: P10LiveGate;
   writeLeg: P10LiveGate;
+  /**
+   * Whether the trace the write leg opened was shown to be capturing before anything was measured.
+   *
+   * It exists because the gap is real and long enough to lose a run: the first version of this milestone
+   * executed the reproduction a second after the write leg returned, and on this deployment those
+   * executions were never logged — `get_apex_logs` then reported an empty window, which the run read as a
+   * refuted claim rather than as a trace that had not started capturing yet.
+   */
+  traceActivation: P10LiveGate;
   reproduction: P10LiveGate;
   listLeg: P10LiveGate;
   bodyLeg: P10LiveGate;
@@ -376,24 +405,58 @@ export async function runP10T2LiveMilestone(
           { isSandbox: org.isSandbox },
         );
 
+      // A trace that is not yet capturing writes no log for the reproduction to be found in, so the wait
+      // happens here — before anything is measured, and before anything is reported as measured.
+      const activation = writeAllowed && writeLeg.status === 'PASS'
+        ? await awaitTraceActivation(client, results, reproductionConnection, self.userId, beforeIds)
+        : Object.freeze({
+          gate: notTested(
+            'No verified trace was opened, so there was nothing to wait for and no Apex was run: the measured legs '
+            + 'below have nothing to measure.',
+            Object.freeze({ writeLegStatus: writeLeg.status }),
+          ),
+          beforeIds,
+        });
+      const traceActivation = activation.gate;
+      const measurable = writeAllowed && traceActivation.status === 'PASS';
+      // The warm-up's own rows are the "before" of the measurement rather than part of it: the list leg
+      // asserts an exact number of new rows and the body leg needs exactly one of them to end on a fatal
+      // error, so a warm-up row left inside the diff would break both.
+      const measuredBeforeIds = activation.beforeIds;
+
       // The control runs first and doubles as the authority measurement — see CONTROL_APEX. Running it
       // before the failing block also keeps the failing row the newest of the two, which is a hint the body
       // leg does not rely on but which the report would otherwise have to explain away.
-      const control = writeAllowed
+      const control = measurable
         ? await runAnonymousApex(reproductionConnection, CONTROL_APEX)
-        : notTested('The org is not a sandbox, so no Apex was run on it.');
-      const failing = writeAllowed && control.status === 'PASS'
+        : notTested('The trace was not shown to be capturing, so the control execution was not run.');
+      const failing = measurable && control.status === 'PASS'
         ? await runAnonymousApex(reproductionConnection, REPRODUCTION_APEX)
         : notTested('The control execution did not complete, so the failing block was not run.');
       const reproduction = reproductionGate(control, failing);
 
-      const expectedNewLogs = writeAllowed && reproduction.status === 'PASS' ? 2 : 0;
-      const { listing, newIds } = await awaitNewLogs(client, results, self.userId, beforeIds, expectedNewLogs);
-      const listLeg = runListLeg(listing, beforeIds, newIds, expectedNewLogs);
-      const bodies = await readCandidateBodies(client, results, newIds);
+      const expectedNewLogs = measurable && reproduction.status === 'PASS' ? 2 : 0;
+      const { listing, newIds } = await awaitNewLogs(client, results, self.userId, measuredBeforeIds, expectedNewLogs);
+      // In READ_ONLY the loop was never driven, so the listing is still read as a measurement of the Tool
+      // against whatever the window already held. When a trace was opened but never captured, the same
+      // listing would be an assertion about a reproduction that was deliberately not run — so it is not one.
+      const listLeg = !writeAllowed || measurable
+        ? runListLeg(listing, measuredBeforeIds, newIds, expectedNewLogs)
+        : notTested(
+          'The trace was never shown to be capturing, so the listing was read but is not evidence about a '
+          + 'reproduction this run did not perform.',
+          Object.freeze({ newIds: newIds.length, expectedNewLogs }),
+        );
+      const bodies: readonly CandidateBody[] = measurable
+        ? await readCandidateBodies(client, results, newIds)
+        : Object.freeze([]);
       const candidates = classifyCandidates(bodies);
-      const bodyLeg = runBodyLeg(candidates.failing, candidates.control, bodies);
-      const statusContrast = runStatusContrast(candidates, readStatusesFrom(listing, newIds));
+      const bodyLeg = measurable
+        ? runBodyLeg(candidates.failing, candidates.control, bodies)
+        : notTested('No row was identified as this run\'s reproduction, so no log body was read.');
+      const statusContrast = measurable
+        ? runStatusContrast(candidates, readStatusesFrom(listing, newIds))
+        : notTested('No row was identified as this run\'s reproduction, so there was no status pair to contrast.');
       const hintChain = runHintChain(writeLeg, listLeg, bodyLeg);
       const closedLoop = runClosedLoop({
         writeLeg,
@@ -422,6 +485,7 @@ export async function runP10T2LiveMilestone(
         diagnosticIdentity,
         toolInventory,
         writeLeg,
+        traceActivation,
         reproduction,
         listLeg,
         bodyLeg,
@@ -435,8 +499,8 @@ export async function runP10T2LiveMilestone(
         }),
         auditPersistence,
         overall: combine([
-          toolInventory, writeLeg, reproduction, listLeg, bodyLeg, hintChain, statusContrast, closedLoop,
-          credentialSafety, auditPersistence,
+          toolInventory, writeLeg, traceActivation, reproduction, listLeg, bodyLeg, hintChain, statusContrast,
+          closedLoop, credentialSafety, auditPersistence,
         ]),
       });
     } finally {
@@ -466,6 +530,7 @@ function refusalReport(
     diagnosticIdentity,
     toolInventory: notTested(reason),
     writeLeg: notTested(reason),
+    traceActivation: notTested(reason),
     reproduction: notTested(reason),
     listLeg: notTested(reason),
     bodyLeg: notTested(reason),
@@ -941,6 +1006,94 @@ async function awaitNewLogs(
     await sleep(LOG_POLL_INTERVAL_MS);
   }
   return Object.freeze({ listing, newIds });
+}
+
+/**
+ * Runs the activation probe until the trace is demonstrably capturing, and returns the boundary the
+ * measurement has to be diffed against.
+ *
+ * The returned `beforeIds` is a listing taken *after* activation rather than the caller's own — see
+ * `measuredBeforeIds` at the call site for why the warm-up's rows have to fall on the "before" side.
+ */
+async function awaitTraceActivation(
+  client: Client,
+  results: CallToolResult[],
+  connection: Connection,
+  userId: string,
+  beforeIds: readonly string[],
+): Promise<Readonly<{ gate: P10LiveGate; beforeIds: readonly string[] }>> {
+  const startedAt = Date.now();
+  let rounds = 0;
+  let pollAttempts = 0;
+  let refused = false;
+  let ids: readonly string[] = beforeIds;
+  let activated = false;
+
+  for (let round = 0; round < WARMUP_ROUNDS && !activated && !refused; round += 1) {
+    rounds += 1;
+    const run = await runAnonymousApex(connection, WARMUP_APEX);
+    if (run.status !== 'PASS') {
+      refused = true;
+      break;
+    }
+    for (let attempt = 0; attempt < WARMUP_POLL_ATTEMPTS && !activated; attempt += 1) {
+      pollAttempts += 1;
+      const listing = await call(client, results, 'get_apex_logs', {
+        timeWindowMinutes: LOG_WINDOW_MINUTES,
+        userId,
+        limit: LOG_LIMIT,
+      });
+      ids = listedLogIds(listing);
+      activated = ids.some((id) => !beforeIds.includes(id));
+      if (!activated) await sleep(WARMUP_POLL_INTERVAL_MS);
+    }
+  }
+
+  return Object.freeze({
+    gate: runTraceActivation({ rounds, pollAttempts, waitedMs: Date.now() - startedAt, activated, refused }),
+    beforeIds: ids,
+  });
+}
+
+/**
+ * The activation gate: `PASS` only when a warm-up execution of this run appeared in the Tool's own listing.
+ *
+ * `NEVER_CAPTURED` is `NOT TESTED` rather than `FAIL`, for the reason the milestone's doctrine gives
+ * everywhere else: the reproduction was not run, so nothing about the Tools was refuted. It is also the one
+ * branch a reader must not mistake for a quiet org — the harness ran executions the platform did not
+ * record, which is a deployment fact (ADR-0029's prerequisites) and not a statement about `get_apex_logs`.
+ */
+export function runTraceActivation(input: Readonly<{
+  rounds: number;
+  pollAttempts: number;
+  waitedMs: number;
+  activated: boolean;
+  refused: boolean;
+}>): P10LiveGate {
+  if (input.refused) {
+    return notTested(
+      'The trace was opened but the warm-up execution that proves it is capturing could not be run, so the measured '
+      + 'pair was not run either: a reproduction inside a trace that is not capturing writes no log for any later '
+      + 'step to find.',
+      Object.freeze({ ...input, activation: 'EXECUTION_REFUSED' }),
+    );
+  }
+  if (!input.activated) {
+    return notTested(
+      `The trace never became effective: ${input.rounds} warm-up execution(s) and ${input.pollAttempts} listing(s) `
+      + `over ${Math.round(input.waitedMs / 1_000)}s produced no new row, so this deployment was not capturing the `
+      + 'traced identity\'s executions and the reproduction was not attempted. A FAIL here would blame the Tools for '
+      + 'a log the platform never wrote.',
+      Object.freeze({ ...input, activation: 'NEVER_CAPTURED' }),
+    );
+  }
+  return gate(true, Object.freeze({
+    ...input,
+    activation: 'CAPTURED',
+    note: 'A warm-up execution of this run appeared in get_apex_logs\' own listing, so the trace was capturing '
+      + 'before the measured pair ran. The warm-up rows are excluded from the measurement by re-taking the listing '
+      + 'here.',
+  }), 'No warm-up execution of this run appeared in the log listing, so the trace was not capturing.');
 }
 
 /**
