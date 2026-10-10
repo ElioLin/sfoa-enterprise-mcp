@@ -616,8 +616,9 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash 
 - npm 插件树自测试服**整体拷贝保字节**（避免重装丢失兼容补丁）：`@wecom/wecom-openclaw-plugin@2026.9.15`（含 3 处内核契约兼容补丁）、`openclaw-parallel-plugin@2026.9.5`、`state/plugin-skills/`、`state/npm/`。
 - Skill：4 个业务 Skill 由 `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` 写入（与测试逐文件 sha256 一致）；`sfoa` 连接器用 **1.11.0** 重新导出（`yarn skill:export`）——与测试服的 1.10.0 遗留件为**有意差异**（连接器必须描述本部署实际工具面）。两处 allowlist（`skills.entries` + `agents.entries.main.skills`）随配置携带；`sfoa` 连接器在两侧均刻意 **excluded**。
 - 验收：`openclaw plugins list` 与测试同构（`wecom-openclaw-plugin` 已随 2026-10-09 通道激活转 enabled）；`openclaw skills list --agent main` 4 个业务 Skill + wecom 系 Skill 均 ready。
+- **工作坊技能（`openclaw-workshop` 源）属运行时状态、刻意不随部署对齐**：位于 `state/agents/main/agent/workshop-skills/`，由网关内部会话（`internal-session-effects:skill-workshop-review`）在真实对话后自动起草/更新，两服各自演化。2026-10-10 复核：测试独有 4 个（`office-file-reading`/`sfoa-metadata-diagnosis`/`wecom-cli-boundaries`/`xlsx-authoring`，09-18～10-10 陆续生成），生产独有 1 个（`salesforce-filter-mapping`，10-10 17:11 由一次企微会话的 review 生成）。全部 `blockedByAgentFilter`（不在任何 allowlist、模型不可见），**两服 ready 技能集完全一致（7/7 同名）**——控制台计数差（测试 82 / 生产 79）只反映草稿数量，无行为差异。对比方法：两侧 `openclaw skills list --json` 取 `name` 列表逐行 diff。
 
-### 16.4 配置参数化（masked diff：198 键中与测试仅 8 处差异）
+### 16.4 配置参数化（masked 逐叶 diff：2026-10-10 复核与测试 6 处可见差异）
 
 | 项 | 生产值 |
 | --- | --- |
@@ -625,7 +626,10 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash 
 | `agents.entries.main.identity.name` | `CRM智能助手（正式环境）`（workspace `IDENTITY.md`/`AGENTS.md` 同步参数化） |
 | `mcp.servers.sfoa-enterprise-mcp` | `http://127.0.0.1:8080/mcp`（streamable-http）+ 生产 `MCP_CLIENT_TOKEN`（明文于 600 配置内，同测试做法） |
 | `channels.wecom` | **已激活（2026-10-09）**：`enabled:true`，botId(35)/secret(43) 明文于 600 配置内（同测试做法），`pendingOperatorCredentials` 已移除；`dmPolicy/groupPolicy=open` |
+| `ui.prefs.locale` | `zh-CN`（2026-10-10 新增）：生产相对测试**唯一的非环境主体差异键**——Control UI 界面语言的**服务端权威值**，机制/备份/验证见 §16.8 |
 | 其余（模型 provider 4 模型、tools 策略、subagents、hooks、`session.dmScope=per-account-channel-peer`、attachments TTL 168h、skills allowlist 等 ~190 键） | 与测试 **byte 级一致** |
+
+> 掩码说明：`oc-mask.mjs` 对「等长且首 3 字符相同」的密钥不可分辨——企微 `botId` 两侧掩码同形（len=35），其真实内容差异不在上表可见项内。
 
 **模型 Key**：生效的是 `openclaw.json` 内嵌 `models.providers.custom-192-168-155-105-3001.apiKey`（2026-10-09 从生产对 `192.168.155.105:3001` 实测 **HTTP 200**，无需新 Key）；`secrets/credentials.json` 的 `modelApiKey` 是**旧 Key**（两服皆然，无效也不被使用）——换 Key 后以真实调用判定，勿以该文件或 `models status` 为准。
 
@@ -665,6 +669,13 @@ systemctl restart openclaw-gateway && tail -f /data/openclaw/logs/gateway.log
 ```
 
 **待办**：① ~~生产企微机器人 `botId` + `secret`~~ → **已完成**（2026-10-09 激活，§16.5）；② ~~`SFOA_DIAGNOSTIC_USERNAME`~~ → **已完成并纠正**：生产为 mysql 模式，诊断身份在库内 `diagnostic` 配置（id 1 = `crm_admin2@runner-corp.com.cn`，enabled + `verificationStatus=PASS`），该 env 键仅 env 模式需要、生产无需写入；6 个诊断工具已启用并经实弹验证（5 个只读 PASS；`set_trace_flag` 依 ADR-0029 未在生产写入）；③ 真人 UAT（企微消息 → 回复 → SFOA 工具 → 审计落行；再测一条带附件消息）——**仍待办**。
+
+### 16.8 界面语言 Control UI locale（2026-10-10）
+
+- **机制**：Control UI 语言按优先级解析——① 网关配置 `ui.prefs.locale`（**服务端权威值**：客户端连接/配置变更时经 config 快照协调应用，覆盖浏览器本地偏好；Settings → 外观 → 语言 的选择器写的就是这个键）→ ② 浏览器 localStorage 镜像（`openclaw.i18n.locale`）→ ③ `navigator.language`（`zh*` → zh-CN）→ ④ `en`。
+- **本次变更（2026-10-10 17:15）**：`openclaw config set ui.prefs.locale '"zh-CN"' --strict-json --expect-current-absent` → “Updated ui.prefs.locale. No gateway restart needed.”。`ui` 属**热重载**前缀（网关日志 `config change detected; evaluating reload (ui)`，17:15:14）——网关**未重启**（MainPID 不变、NRestarts=0），`appliedConfigHash == configRevisionHash`，变更后无 ERROR/WARN。
+- **取证与回滚**：变更前 `openclaw.json` 10074B sha256 `ad672114…`；备份 `/data/openclaw/state/openclaw.json.bak-pre-ui-locale-20261010171453`（600，sha256 与变更前一致）；变更后 10134B sha256 `9f878811…`，逐叶 diff 恰为新增 `ui.prefs.locale="zh-CN"`；运行中网关 `config.get` 返回 `config.ui={"prefs":{"locale":"zh-CN"}}`。回滚 = 恢复备份 + 重启（或 `config unset ui.prefs.locale`）。
+- **注**：这是生产相对测试**唯一的非环境主体配置差异**——测试未设该键，其界面的中文此前仅存于操作者浏览器的 localStorage，换浏览器即回退英文。已打开的页面在收到 config.changed 后自动应用；若仍显示英文，强制刷新一次。
 
 ## P8-06 WeCom native MCP plugin
 
