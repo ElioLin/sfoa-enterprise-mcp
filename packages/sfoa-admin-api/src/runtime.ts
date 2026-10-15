@@ -127,6 +127,7 @@ export async function startConfiguredAdminApi(
         'USER_BOUND_CREDENTIAL',
         'IDENTITY_ROUTE_SEARCH',
         'IDENTITY_ROUTE_PERMANENT_DELETE',
+        'SCOPED_CONSOLE_ACCOUNTS',
       ]),
     });
     const server = await startAdminApiServer({

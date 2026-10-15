@@ -3,16 +3,32 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { ADMIN_MODULE_IDS } from '@sfoa/control-plane';
 import { AdminSessionManager, LoginRateLimiter, verifyAdminPassword } from '../auth.js';
-import { loadAdminApiConfig, type AdminApiConfig } from '../config.js';
+import { loadAdminApiConfig, type AdminAccount, type AdminApiConfig } from '../config.js';
+
+const SESSION_SECRET = 's'.repeat(64);
+const ADMIN: AdminAccount = Object.freeze({
+  username: 'bootstrap-admin',
+  password: 'unused',
+  fullAccess: true,
+  modules: Object.freeze([...ADMIN_MODULE_IDS]),
+});
+const BTIT: AdminAccount = Object.freeze({
+  username: 'btit',
+  password: 'btit horse battery staple',
+  fullAccess: false,
+  modules: Object.freeze(['dashboard', 'identity-routes', 'audit', 'system', 'agent-integration'] as const),
+});
 
 const baseConfig: AdminApiConfig = Object.freeze({
   bindHost: '127.0.0.1',
   port: 8081,
   allowedOrigin: 'http://127.0.0.1:5173',
-  username: 'bootstrap-admin',
-  password: 'unused',
-  sessionSecret: 's'.repeat(64),
+  username: ADMIN.username,
+  password: ADMIN.password,
+  accounts: Object.freeze([ADMIN, BTIT]),
+  sessionSecret: SESSION_SECRET,
   sessionTtlSeconds: 300,
   cookieSecure: false,
   cookieName: 'sfoa_admin',
@@ -31,7 +47,7 @@ test('plaintext password verification is constant-time and rejects mismatches', 
 
 test('session cookies are signed, HttpOnly, Strict, expiring, revocable, and dev-safe', () => {
   const manager = new AdminSessionManager(baseConfig);
-  const issued = manager.issue();
+  const issued = manager.issue(ADMIN);
   assert.match(issued.cookie, /^sfoa_admin=/u);
   assert.match(issued.cookie, /; HttpOnly/u);
   assert.match(issued.cookie, /; SameSite=Strict/u);
@@ -45,9 +61,37 @@ test('session cookies are signed, HttpOnly, Strict, expiring, revocable, and dev
   assert.match(manager.clearCookie(), /Max-Age=0/u);
 });
 
+test('ADR-0034 every account signs in with its own password and resolves to its own modules', () => {
+  const manager = new AdminSessionManager(baseConfig);
+  assert.equal(manager.matchCredentials('bootstrap-admin', ADMIN.password), ADMIN);
+  assert.equal(manager.matchCredentials('btit', BTIT.password), BTIT);
+  // The bootstrap Admin password must not open the scoped account, or vice versa.
+  assert.equal(manager.matchCredentials('btit', ADMIN.password), undefined);
+  assert.equal(manager.matchCredentials('bootstrap-admin', BTIT.password), undefined);
+  assert.equal(manager.matchCredentials('nobody', BTIT.password), undefined);
+  assert.equal(manager.matchCredentials('', ''), undefined);
+
+  const issued = manager.issue(BTIT);
+  assert.deepEqual(manager.parse(issued.cookie), issued.session);
+  assert.equal(manager.accountFor(issued.session), BTIT);
+  assert.deepEqual(manager.accountFor(issued.session)?.modules, BTIT.modules);
+});
+
+test('ADR-0034 removing an account from the configuration invalidates its live sessions', () => {
+  const before = new AdminSessionManager(baseConfig);
+  const issued = before.issue(BTIT);
+  const after = new AdminSessionManager(Object.freeze({
+    ...baseConfig,
+    accounts: Object.freeze([ADMIN]),
+  }));
+  assert.equal(after.parse(issued.cookie), undefined);
+  // A session that no longer resolves also has no account behind it.
+  assert.equal(after.accountFor(issued.session), undefined);
+});
+
 test('production cookie uses __Host prefix and Secure attribute', () => {
   const config = Object.freeze({ ...baseConfig, cookieSecure: true, cookieName: '__Host-sfoa_admin' });
-  const issued = new AdminSessionManager(config).issue();
+  const issued = new AdminSessionManager(config).issue(ADMIN);
   assert.match(issued.cookie, /^__Host-sfoa_admin=/u);
   assert.match(issued.cookie, /; Secure/u);
   assert.match(issued.cookie, /; Path=\//u);
@@ -89,7 +133,7 @@ test('expired sessions are rejected', () => {
   let now = originalNow();
   Date.now = () => now;
   try {
-    const issued = manager.issue();
+    const issued = manager.issue(ADMIN);
     now += baseConfig.sessionTtlSeconds * 1000 + 1;
     assert.equal(manager.parse(issued.cookie), undefined);
   } finally {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  ADMIN_MODULE_IDS,
   ControlPlaneError,
   type AuditRecord,
   type AuditPayloadEvidenceRecord,
@@ -20,12 +21,21 @@ import {
 } from '@sfoa/control-plane';
 import type { IdentityRuntime } from '@sfoa/identity-runtime';
 import type { UpstreamInventoryComparison } from '@sfoa/mcp-server';
-import type { AdminApiConfig } from '../config.js';
+import type { AdminAccount, AdminApiConfig } from '../config.js';
 import { startAdminApiServer, type StartAdminApiServerOptions } from '../http-server.js';
 
 const ORIGIN = 'http://127.0.0.1:5173';
 const ADMIN = 'bootstrap-admin';
 const PASSWORD = 'correct horse battery staple';
+const SCOPED = 'btit';
+const SCOPED_PASSWORD = 'btit horse battery staple';
+const SCOPED_MODULES = Object.freeze(['dashboard', 'identity-routes', 'audit', 'system', 'agent-integration'] as const);
+const SCOPED_ACCOUNT: AdminAccount = Object.freeze({
+  username: SCOPED,
+  password: SCOPED_PASSWORD,
+  fullAccess: false,
+  modules: SCOPED_MODULES,
+});
 const SECRET_MARKERS = ['db-super-secret', 'mcp-super-secret', 'private-key-secret'];
 const now = '2026-01-01T00:00:00.000Z';
 const TEST_USER_BOUND_TOKEN = `sfoa_ub1_${'a'.repeat(43)}`;
@@ -53,6 +63,78 @@ test('P8 snapshot Admin boundary authenticates, checks CSRF, rejects raw metadat
     const response = await fetch(`${root}/system/settings/dynamicFormsObjectPolicies`, { method: 'PUT', headers: mutationHeaders(cookie, csrfToken), body: JSON.stringify({ value }) });
     assert.equal(response.status, 400);
   }
+});
+
+test('ADR-0034 a scoped account reaches exactly its modules and is refused everywhere else', async (context) => {
+  const server = await startAdminApiServer(createOptions(PASSWORD, createRepositories()));
+  context.after(() => server.close());
+  const root = server.baseUrl.href.replace(/\/$/u, '');
+
+  // Each account keeps its own password: the scoped credentials never open the bootstrap Admin.
+  assert.equal((await postJson(`${root}/auth/login`, { username: ADMIN, password: SCOPED_PASSWORD }, ORIGIN)).status, 401);
+  assert.equal((await postJson(`${root}/auth/login`, { username: SCOPED, password: PASSWORD }, ORIGIN)).status, 401);
+
+  const login = await postJson(`${root}/auth/login`, { username: SCOPED, password: SCOPED_PASSWORD }, ORIGIN);
+  assert.equal(login.status, 200);
+  const cookie = login.headers.get('set-cookie')!;
+  const session = await login.json() as Readonly<{ username: string; csrfToken: string; modules: readonly string[] }>;
+  assert.equal(session.username, SCOPED);
+  assert.deepEqual(session.modules, [...SCOPED_MODULES]);
+
+  const me = await fetch(`${root}/auth/me`, { headers: { Cookie: cookie } });
+  assert.equal(me.status, 200);
+  assert.deepEqual(
+    (await me.json() as Readonly<{ modules: readonly string[] }>).modules,
+    [...SCOPED_MODULES],
+  );
+
+  // Every endpoint the 运行概览 / 用户身份路由 / 调用审计 / 系统状态 / 智能体接入 pages call,
+  // including the read-only dependencies those pages pull from other modules.
+  const granted = [
+    '/dashboard', '/routes?limit=1&offset=0', '/system/settings', '/system/status',
+    '/tools', '/dml-policies?limit=1&offset=0', '/dml-policies/1/managed-fields?limit=1&offset=0',
+    '/audits?limit=1&offset=0', '/audits/1', '/audits/1/trace', '/audit-payloads/1',
+  ];
+  for (const path of granted) {
+    const response = await fetch(`${root}${path}`, { headers: { Cookie: cookie } });
+    assert.notEqual(response.status, 403, `${path} must be granted to ${SCOPED}`);
+    assert.ok(response.status < 500, `${path} responded ${response.status}`);
+  }
+
+  // The four modules BTIT does not hold, plus an unregistered path: all default-deny.
+  const refused = ['/diagnostic', '/ui-context/snapshots', '/system/settings/auditRetentionDays', '/not-a-console-endpoint'];
+  for (const path of refused) {
+    const response = await fetch(`${root}${path}`, { headers: { Cookie: cookie } });
+    assert.equal(response.status, 403, `${path} must be refused for ${SCOPED}`);
+    const body = await response.json() as Readonly<{ error: Readonly<{ code: string }>; correlationId: string }>;
+    assert.equal(body.error.code, 'MCP_ADMIN_FORBIDDEN');
+    assert.match(body.correlationId, /^[0-9a-f-]{36}$/u);
+  }
+
+  // A scoped account cannot write outside its modules, even with a valid CSRF token.
+  for (const [method, path] of [['PUT', '/tools/get_username'], ['POST', '/dml-policies'], ['PUT', '/diagnostic']] as const) {
+    const response = await fetch(`${root}${path}`, {
+      method,
+      headers: mutationHeaders(cookie, session.csrfToken),
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 403, `${method} ${path} must be refused for ${SCOPED}`);
+  }
+  // ...while a write inside its modules is accepted (400 here is the strict schema, not the gate).
+  const insideModule = await fetch(`${root}/routes/1/verify`, {
+    method: 'POST', headers: mutationHeaders(cookie, session.csrfToken), body: JSON.stringify({}),
+  });
+  assert.notEqual(insideModule.status, 403);
+
+  // The bootstrap Admin is untouched: it still reaches refused endpoints and keeps the router's
+  // own 404 for unknown paths instead of a blanket 403.
+  const adminLogin = await postJson(`${root}/auth/login`, { username: ADMIN, password: PASSWORD }, ORIGIN);
+  const adminCookie = adminLogin.headers.get('set-cookie')!;
+  for (const path of ['/diagnostic', '/ui-context/snapshots', '/not-a-console-endpoint']) {
+    const response = await fetch(`${root}${path}`, { headers: { Cookie: adminCookie } });
+    assert.notEqual(response.status, 403, `${path} must stay reachable for the bootstrap Admin`);
+  }
+  assert.equal((await fetch(`${root}/not-a-console-endpoint`, { headers: { Cookie: adminCookie } })).status, 404);
 });
 
 test('Admin liveness stays UP while database readiness fails with 503', async (context) => {
@@ -465,6 +547,10 @@ test('batch verify reports PASS/FAIL per route, marks missing routes, and audits
 function createOptions(password: string, repositories: ControlPlaneRepositoriesWithAuditTrace): StartAdminApiServerOptions {
   const config: AdminApiConfig = Object.freeze({
     bindHost: '127.0.0.1', port: 0, allowedOrigin: ORIGIN, username: ADMIN, password,
+    accounts: Object.freeze([
+      Object.freeze({ username: ADMIN, password, fullAccess: true, modules: Object.freeze([...ADMIN_MODULE_IDS]) }),
+      SCOPED_ACCOUNT,
+    ]),
     sessionSecret: 'session-signing-secret-that-is-at-least-thirty-two-characters',
     sessionTtlSeconds: 300, cookieSecure: false, cookieName: 'sfoa_admin', loginMaxAttempts: 5, loginWindowMs: 60_000,
   });

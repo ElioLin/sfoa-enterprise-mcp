@@ -35,6 +35,7 @@ import {
   type AdminIdentityRouteBatchVerifyResponse,
   type AdminIdentityRouteBatchVerifyRow,
   type AdminIdentityRouteDto,
+  type AdminSessionDto,
   type AuditPersistenceHealth,
   type ControlPlaneRepositoriesWithAuditTrace,
   type DashboardDto,
@@ -51,9 +52,10 @@ import {
 import type { IdentityRuntime } from '@sfoa/identity-runtime';
 import type { UpstreamInventoryComparison } from '@sfoa/mcp-server';
 import { z, ZodError, type ZodType } from 'zod';
-import { AdminSessionManager, LoginRateLimiter, verifyAdminPassword, type AdminSession } from './auth.js';
-import type { AdminApiConfig } from './config.js';
+import { AdminSessionManager, LoginRateLimiter, type AdminSession } from './auth.js';
+import type { AdminAccount, AdminApiConfig } from './config.js';
 import { AdminHttpError, invalidAdminInput, mapAdminError } from './errors.js';
+import { endpointModules } from './module-paths.js';
 import { buildAdminToolCatalog } from './tool-catalog.js';
 import { buildAdminAuditTrace } from './audit-trace.js';
 import { verifyDiagnosticConfig, verifyIdentityRoute } from './verification.js';
@@ -61,6 +63,15 @@ import { verifyDiagnosticConfig, verifyIdentityRoute } from './verification.js';
 const MAX_JSON_BODY_BYTES = 262_144;
 const TOOL_CONTROL_PAGE_LIMIT = 100;
 const BATCH_VERIFY_CONCURRENCY = 6;
+/**
+ * ADR-0034: logins are limited per account (the `SFOA_ADMIN_LOGIN_MAX_ATTEMPTS` window) and by
+ * a much looser per-source backstop. The backstop exists because the Admin API sits behind the
+ * nginx reverse proxy, where every request reports the same source address — a tight per-IP
+ * limit would be a shared, global lockout rather than a per-source one.
+ */
+const LOGIN_SOURCE_BACKSTOP_FACTOR = 20;
+/** Longest denied path echoed to stderr; the URL itself is already bounded to 4096 bytes. */
+const DENIED_PATH_LOG_LIMIT = 256;
 
 export type McpHealthProbeResult = Readonly<{
   status: 'UP' | 'DOWN' | 'UNKNOWN';
@@ -138,16 +149,23 @@ type RequestContext = Readonly<{
   correlationId: string;
   url: URL;
   session?: AdminSession;
+  /** ADR-0034: the account behind `session`, resolved from the live table on this request. */
+  account?: AdminAccount;
 }>;
+
+type LoginLimiters = Readonly<{ account: LoginRateLimiter; source: LoginRateLimiter }>;
 
 export async function startAdminApiServer(options: StartAdminApiServerOptions): Promise<AdminApiServer> {
   const sessions = new AdminSessionManager(options.config);
-  const loginLimiter = new LoginRateLimiter(options.config.loginMaxAttempts, options.config.loginWindowMs);
+  const loginLimiters: LoginLimiters = Object.freeze({
+    account: new LoginRateLimiter(options.config.loginMaxAttempts, options.config.loginWindowMs),
+    source: new LoginRateLimiter(options.config.loginMaxAttempts * LOGIN_SOURCE_BACKSTOP_FACTOR, options.config.loginWindowMs),
+  });
   const active = new Set<Promise<void>>();
   let closing = false;
 
   const server = createServer((request, response) => {
-    const task = handleRequest(options, sessions, loginLimiter, request, response, () => closing)
+    const task = handleRequest(options, sessions, loginLimiters, request, response, () => closing)
       .catch(() => undefined)
       .finally(() => active.delete(task));
     active.add(task);
@@ -193,7 +211,7 @@ export async function startAdminApiServer(options: StartAdminApiServerOptions): 
 async function handleRequest(
   options: StartAdminApiServerOptions,
   sessions: AdminSessionManager,
-  loginLimiter: LoginRateLimiter,
+  loginLimiters: LoginLimiters,
   request: IncomingMessage,
   response: ServerResponse,
   isClosing: () => boolean,
@@ -229,19 +247,20 @@ async function handleRequest(
       return;
     }
     if (url.pathname === `${ADMIN_API_PREFIX}/auth/login`) {
-      await handleLogin(options, sessions, loginLimiter, context);
+      await handleLogin(options, sessions, loginLimiters, context);
       return;
     }
 
     assertOptionalOrigin(request, options.config.allowedOrigin);
     const session = sessions.parse(singleHeader(request.headers.cookie));
-    if (!session) throw new AdminHttpError('MCP_ADMIN_AUTH_REQUIRED', 'A valid Admin session is required.', 401);
-    const authenticated = Object.freeze({ ...context, session });
+    const account = session ? sessions.accountFor(session) : undefined;
+    if (!session || !account) throw new AdminHttpError('MCP_ADMIN_AUTH_REQUIRED', 'A valid Admin session is required.', 401);
+    const authenticated = Object.freeze({ ...context, session, account });
 
     if (url.pathname === `${ADMIN_API_PREFIX}/auth/me`) {
       assertMethod(request, 'GET');
       assertNoQuery(url);
-      writeJson(response, 200, sessionDto(session));
+      writeJson(response, 200, sessionDto(session, account));
       return;
     }
     if (url.pathname === `${ADMIN_API_PREFIX}/auth/logout`) {
@@ -255,6 +274,7 @@ async function handleRequest(
     }
 
     if (isMutation(request.method)) assertMutationGuards(request, options.config.allowedOrigin, session);
+    assertModuleAccess(account, request.method, url.pathname, correlationId);
     await dispatchAuthenticated(options, authenticated as RequestContext & Readonly<{ session: AdminSession }>);
   } catch (error) {
     const mapped = mapAdminError(error, options.identityRuntime.redactionSecrets);
@@ -278,24 +298,31 @@ async function handleRequest(
 async function handleLogin(
   options: StartAdminApiServerOptions,
   sessions: AdminSessionManager,
-  limiter: LoginRateLimiter,
+  limiters: LoginLimiters,
   context: RequestContext,
 ): Promise<void> {
   assertMethod(context.request, 'POST');
   assertExactOrigin(context.request, options.config.allowedOrigin);
   assertNoQuery(context.url);
-  const rateKey = context.request.socket.remoteAddress ?? 'unknown';
-  if (!limiter.consume(rateKey)) {
+  // The source backstop is consumed before the body is read, so a flood never reaches JSON
+  // parsing. It is never cleared on success: it counts traffic, not credential failures.
+  const sourceKey = context.request.socket.remoteAddress ?? 'unknown';
+  if (!limiters.source.consume(sourceKey)) {
     throw new AdminHttpError('MCP_ADMIN_LOGIN_RATE_LIMITED', 'Too many login attempts. Retry after the configured window.', 429);
   }
   const input = parseWithSchema(adminLoginInputSchema, await readJsonBody(context.request));
-  const usernameValid = safeTextEqual(input.username, options.config.username);
-  const passwordValid = verifyAdminPassword(input.password, options.config.password);
-  if (!usernameValid || !passwordValid) {
+  // ADR-0034: the window is per account, so one account exhausting it cannot lock out another.
+  // Usernames are compared case-insensitively here because they are unique case-insensitively.
+  const accountKey = input.username.toLocaleLowerCase('en-US');
+  if (!limiters.account.consume(accountKey)) {
+    throw new AdminHttpError('MCP_ADMIN_LOGIN_RATE_LIMITED', 'Too many login attempts. Retry after the configured window.', 429);
+  }
+  const account = sessions.matchCredentials(input.username, input.password);
+  if (!account) {
     throw new AdminHttpError('MCP_ADMIN_AUTH_INVALID', 'The Admin username or password is invalid.', 401);
   }
-  limiter.clear(rateKey);
-  const issued = sessions.issue();
+  limiters.account.clear(accountKey);
+  const issued = sessions.issue(account);
   await appendAdminEvent(options, {
     correlationId: context.correlationId,
     actorAdmin: issued.session.username,
@@ -304,7 +331,38 @@ async function handleLogin(
     outcome: 'SUCCESS',
   });
   context.response.setHeader('Set-Cookie', issued.cookie);
-  writeJson(context.response, 200, sessionDto(issued.session));
+  writeJson(context.response, 200, sessionDto(issued.session, account));
+}
+
+/**
+ * ADR-0034: the single authorization gate. The bootstrap Admin is unconditional — it keeps the
+ * router's own 404/405 semantics for every path — while a scoped account is refused for any
+ * endpoint its modules do not name, including paths that do not exist. A denial is written to
+ * stderr with the actor, because it is deliberately not persisted to the audit table.
+ */
+function assertModuleAccess(
+  account: AdminAccount,
+  method: string | undefined,
+  pathname: string,
+  correlationId: string,
+): void {
+  if (account.fullAccess) return;
+  const granted = endpointModules(pathname, method).some((module) => account.modules.includes(module));
+  if (granted) return;
+  process.stderr.write(`${JSON.stringify({
+    level: 'warn',
+    channel: 'ADMIN',
+    code: 'MCP_ADMIN_FORBIDDEN',
+    actorAdmin: account.username,
+    method: method ?? 'UNKNOWN',
+    path: pathname.slice(0, DENIED_PATH_LOG_LIMIT),
+    correlationId,
+  })}\n`);
+  throw new AdminHttpError(
+    'MCP_ADMIN_FORBIDDEN',
+    'This Console module is not enabled for the signed-in account.',
+    403,
+  );
 }
 
 async function dispatchAuthenticated(
@@ -650,6 +708,7 @@ async function dispatchAuthenticated(
       ...(query.occurredTo ? { occurredTo: new Date(query.occurredTo) } : {}),
       ...(query.auditId ? { auditId: query.auditId } : {}),
       ...(query.correlationId ? { correlationId: query.correlationId } : {}),
+      ...(query.actorAdmin ? { actorAdmin: query.actorAdmin } : {}),
       ...(query.platformUserId ? { platformUserId: query.platformUserId } : {}),
       ...(query.salesforceUsername ? { salesforceUsername: query.salesforceUsername } : {}),
       ...(query.toolName ? { toolName: query.toolName } : {}),
@@ -1100,8 +1159,13 @@ function singleHeader(value: string | readonly string[] | undefined): string | u
   return typeof value === 'string' ? value : undefined;
 }
 
-function sessionDto(session: AdminSession): Readonly<{ username: string; csrfToken: string; expiresAt: number }> {
-  return Object.freeze({ username: session.username, csrfToken: session.csrfToken, expiresAt: session.expiresAt });
+function sessionDto(session: AdminSession, account: AdminAccount): AdminSessionDto {
+  return Object.freeze({
+    username: session.username,
+    csrfToken: session.csrfToken,
+    expiresAt: session.expiresAt,
+    modules: account.modules,
+  });
 }
 
 function setSecurityHeaders(response: ServerResponse, correlationId: string): void {

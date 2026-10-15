@@ -1,7 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { parseEnvFile } from '@sfoa/control-plane';
+import { ADMIN_MODULE_IDS, adminModuleIdSchema, parseEnvFile, type AdminModuleId } from '@sfoa/control-plane';
+
+/**
+ * ADR-0034: one Console login. The bootstrap Admin from SFOA_ADMIN_USERNAME is `fullAccess`
+ * — it holds every module and every endpoint, including endpoints added after this release.
+ * Every other account is bounded by its `modules` list and is refused with 403 outside it.
+ */
+export type AdminAccount = Readonly<{
+  username: string;
+  password: string;
+  fullAccess: boolean;
+  modules: readonly AdminModuleId[];
+}>;
 
 export type AdminApiConfig = Readonly<{
   bindHost: string;
@@ -9,6 +21,13 @@ export type AdminApiConfig = Readonly<{
   allowedOrigin: string;
   username: string;
   password: string;
+  /**
+   * ADR-0034: every Console account that may sign in — the bootstrap Admin first, then
+   * SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON in file order. Authentication always visits the whole
+   * list (see AdminSessionManager.matchCredentials); authorization resolves the caller from it
+   * on every request.
+   */
+  accounts: readonly AdminAccount[];
   sessionSecret: string;
   sessionTtlSeconds: number;
   cookieSecure: boolean;
@@ -30,13 +49,78 @@ const rawSchema = z.object({
   SFOA_ADMIN_COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   SFOA_ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   SFOA_ADMIN_LOGIN_WINDOW_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(900_000),
+  SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON: z.string().max(65_536).optional(),
 }).strict();
 
 const NAMES = [
   'SFOA_ADMIN_BIND_HOST', 'SFOA_ADMIN_PORT', 'SFOA_ADMIN_ALLOWED_ORIGIN', 'SFOA_ADMIN_USERNAME',
   'SFOA_ADMIN_PASSWORD', 'SFOA_ADMIN_SESSION_SECRET', 'SFOA_ADMIN_SESSION_TTL_SECONDS',
   'SFOA_ADMIN_COOKIE_SECURE', 'SFOA_ADMIN_LOGIN_MAX_ATTEMPTS', 'SFOA_ADMIN_LOGIN_WINDOW_MS',
+  'SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON',
 ] as const;
+
+const MAX_ADDITIONAL_ACCOUNTS = 16;
+
+const additionalAccountSchema = z.object({
+  username: z.string().trim().min(1).max(128),
+  password: z.string().min(1).max(1024)
+    .refine((value) => value.trim().length > 0, 'must contain at least one non-padding character'),
+  modules: z.array(adminModuleIdSchema).min(1).max(ADMIN_MODULE_IDS.length),
+}).strict();
+
+/**
+ * ADR-0034: SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON is a strict JSON array of
+ * `{ "username": string, "password": string, "modules": string[] }`. Every defect is fatal at
+ * startup: a partially understood authorization file must never boot a Console that grants
+ * more than the operator wrote. `modules` is mandatory on purpose — an omitted list is an
+ * error, never a silent "all modules". Account usernames are compared case-insensitively for
+ * uniqueness (two accounts must not differ only by case) but sign-in itself is exact.
+ */
+function parseAdditionalAccounts(raw: string | undefined, bootstrapUsername: string): readonly AdminAccount[] {
+  if (raw === undefined) return Object.freeze([]);
+  const shape = 'SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON must be a JSON array of { "username", "password", "modules" } objects.';
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw) as unknown;
+  } catch {
+    throw new Error(shape);
+  }
+  if (!Array.isArray(decoded)) throw new Error(shape);
+  if (decoded.length > MAX_ADDITIONAL_ACCOUNTS) {
+    throw new Error(`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON must not configure more than ${MAX_ADDITIONAL_ACCOUNTS} accounts.`);
+  }
+  const seen = new Map<string, string>([[accountKey(bootstrapUsername), 'SFOA_ADMIN_USERNAME']]);
+  const accounts = decoded.map((entry, index) => {
+    const parsed = additionalAccountSchema.safeParse(entry);
+    if (!parsed.success) {
+      const detail = parsed.error.issues.slice(0, 5)
+        .map((issue) => `${issue.path.join('.') || 'entry'}: ${issue.message}`)
+        .join('; ');
+      throw new Error(`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON[${index}] is invalid (${detail}).`);
+    }
+    if (new Set(parsed.data.modules).size !== parsed.data.modules.length) {
+      throw new Error(`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON[${index}].modules must not repeat a module id.`);
+    }
+    const label = `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON[${index}].username`;
+    const key = accountKey(parsed.data.username);
+    const previous = seen.get(key);
+    if (previous) {
+      throw new Error(`${label} duplicates ${previous}; Console usernames must be unique and are compared case-insensitively.`);
+    }
+    seen.set(key, label);
+    return Object.freeze({
+      username: parsed.data.username,
+      password: parsed.data.password,
+      fullAccess: false,
+      modules: Object.freeze([...parsed.data.modules]),
+    });
+  });
+  return Object.freeze(accounts);
+}
+
+function accountKey(username: string): string {
+  return username.toLocaleLowerCase('en-US');
+}
 
 export async function loadAdminApiConfig(
   projectRoot: string,
@@ -64,12 +148,22 @@ export async function loadAdminApiConfig(
     throw new Error('SFOA_ADMIN_COOKIE_SECURE cannot be disabled when NODE_ENV=production.');
   }
   const cookieSecure = environment.NODE_ENV === 'production' || parsed.SFOA_ADMIN_COOKIE_SECURE === 'true';
+  const accounts = Object.freeze([
+    Object.freeze({
+      username: parsed.SFOA_ADMIN_USERNAME,
+      password: parsed.SFOA_ADMIN_PASSWORD,
+      fullAccess: true,
+      modules: Object.freeze([...ADMIN_MODULE_IDS]),
+    }),
+    ...parseAdditionalAccounts(parsed.SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON, parsed.SFOA_ADMIN_USERNAME),
+  ]);
   return Object.freeze({
     bindHost: parsed.SFOA_ADMIN_BIND_HOST,
     port: parsed.SFOA_ADMIN_PORT,
     allowedOrigin: origin.origin,
     username: parsed.SFOA_ADMIN_USERNAME,
     password: parsed.SFOA_ADMIN_PASSWORD,
+    accounts,
     sessionSecret: parsed.SFOA_ADMIN_SESSION_SECRET,
     sessionTtlSeconds: parsed.SFOA_ADMIN_SESSION_TTL_SECONDS,
     cookieSecure,

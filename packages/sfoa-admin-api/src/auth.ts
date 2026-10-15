@@ -4,7 +4,7 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { z } from 'zod';
-import type { AdminApiConfig } from './config.js';
+import type { AdminAccount, AdminApiConfig } from './config.js';
 
 const sessionSchema = z.object({
   username: z.string().min(1).max(128),
@@ -29,13 +29,31 @@ export function verifyAdminPassword(password: string, expected: string): boolean
 
 export class AdminSessionManager {
   private readonly revoked = new Map<string, number>();
+  private readonly accounts: ReadonlyMap<string, AdminAccount>;
 
-  public constructor(private readonly config: AdminApiConfig) {}
+  public constructor(private readonly config: AdminApiConfig) {
+    this.accounts = new Map(config.accounts.map((account) => [account.username, account]));
+  }
 
-  public issue(): Readonly<{ session: AdminSession; cookie: string }> {
+  /**
+   * ADR-0034: every configured account is visited and both comparisons always run, so neither a
+   * valid username nor a valid password can be probed by the timing of which account rejected
+   * first. An unknown username therefore costs the same as a wrong password.
+   */
+  public matchCredentials(username: string, password: string): AdminAccount | undefined {
+    let matched: AdminAccount | undefined;
+    for (const account of this.config.accounts) {
+      const usernameMatches = safeEqual(account.username, username);
+      const passwordMatches = verifyAdminPassword(password, account.password);
+      if (usernameMatches && passwordMatches) matched = account;
+    }
+    return matched;
+  }
+
+  public issue(account: AdminAccount): Readonly<{ session: AdminSession; cookie: string }> {
     this.prune();
     const session = Object.freeze({
-      username: this.config.username,
+      username: account.username,
       expiresAt: Date.now() + this.config.sessionTtlSeconds * 1000,
       csrfToken: randomBytes(32).toString('base64url'),
       nonce: randomBytes(18).toString('base64url'),
@@ -55,15 +73,23 @@ export class AdminSessionManager {
     if (!safeEqual(suppliedSignature, expectedSignature)) return undefined;
     try {
       const session = sessionSchema.parse(JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as unknown);
-      if (
-        session.username !== this.config.username ||
-        session.expiresAt <= Date.now() ||
-        this.revoked.has(session.nonce)
-      ) return undefined;
+      if (session.expiresAt <= Date.now() || this.revoked.has(session.nonce)) return undefined;
+      // ADR-0034: the account table is authoritative on every request, not at login time.
+      // Removing an account from the configuration invalidates its live sessions (401);
+      // narrowing its modules takes effect on the next request (403).
+      if (!this.accounts.has(session.username)) return undefined;
       return Object.freeze(session);
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * ADR-0034: the account behind a live session, resolved per request against the in-process
+   * table built at startup. Always defined for a session that `parse()` accepted.
+   */
+  public accountFor(session: AdminSession): AdminAccount | undefined {
+    return this.accounts.get(session.username);
   }
 
   public revoke(session: AdminSession): void {
