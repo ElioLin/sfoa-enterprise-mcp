@@ -314,6 +314,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
             (!filter.outcome || record.outcome === filter.outcome) &&
             (!filter.toolName || record.toolName === filter.toolName) &&
             (!filter.correlationId || record.correlationId === filter.correlationId) &&
+            (!filter.actorAdmin || record.actorAdmin === filter.actorAdmin) &&
             (!filter.platformUserId || record.platformUserId === filter.platformUserId) &&
             (!filter.salesforceUsername || record.salesforceUsername === filter.salesforceUsername) &&
             (!filter.errorCode || record.errorCode === filter.errorCode) &&

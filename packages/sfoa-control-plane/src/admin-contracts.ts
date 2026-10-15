@@ -29,6 +29,29 @@ import {
 export const ADMIN_API_PREFIX = '/admin/api';
 export const ADMIN_CSRF_HEADER = 'x-sfoa-csrf-token';
 
+/**
+ * ADR-0034: the nine Console modules. Each module id is the Admin Web route without its
+ * leading slash, so the navigation order and the module list need no separate mapping table.
+ * `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` grants an explicit subset of these ids; the bootstrap
+ * Admin account from `SFOA_ADMIN_USERNAME` always holds all nine. This list is a contract:
+ * adding a module here without adding its path set in the Admin API fails closed (403), and
+ * the Admin Web renders only navigation entries whose id the session actually carries.
+ */
+export const ADMIN_MODULE_IDS = [
+  'dashboard',
+  'identity-routes',
+  'tool-governance',
+  'dml-policies',
+  'diagnostic',
+  'ui-context',
+  'audit',
+  'system',
+  'agent-integration',
+] as const;
+
+export const adminModuleIdSchema = z.enum(ADMIN_MODULE_IDS);
+export type AdminModuleId = z.infer<typeof adminModuleIdSchema>;
+
 export const adminLoginInputSchema = z.object({
   username: z.string().trim().min(1).max(128),
   password: z.string().min(1).max(1024),
@@ -224,6 +247,8 @@ export const adminAuditQuerySchema = z.object({
   occurredTo: z.string().datetime({ offset: true }).optional(),
   auditId: z.union([idSchema, z.string().uuid()]).optional(),
   correlationId: z.string().trim().min(1).max(128).optional(),
+  /** ADR-0034: the Admin actor is only meaningful for `channel = 'ADMIN'` rows. */
+  actorAdmin: z.string().trim().min(1).max(128).optional(),
   platformUserId: platformUserIdSchema.optional(),
   salesforceUsername: salesforceUsernameSchema.optional(),
   toolName: toolNameSchema.optional(),
@@ -282,6 +307,12 @@ export type AdminSessionDto = Readonly<{
   username: string;
   csrfToken: string;
   expiresAt: number;
+  /**
+   * ADR-0034: the Console modules this session may use, resolved from the live account table
+   * on every request. The Admin Web filters its navigation with this list; the Admin API
+   * enforces it independently, so a forged or truncated list only breaks the caller's own UI.
+   */
+  modules: readonly AdminModuleId[];
 }>;
 
 export type RouteVerificationDto = Readonly<{

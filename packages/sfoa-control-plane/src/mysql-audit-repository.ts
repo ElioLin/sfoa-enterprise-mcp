@@ -154,6 +154,7 @@ export class MySqlAuditRepository implements AuditRepository, AuditTraceReposito
         : query.where('public_audit_id', '=', parsePublicAuditId(filter.auditId));
     }
     if (filter.correlationId) query = query.where('correlation_id', '=', filter.correlationId);
+    if (filter.actorAdmin) query = query.where('actor_admin', '=', filter.actorAdmin);
     if (filter.platformUserId) query = query.where('platform_user_id', '=', filter.platformUserId);
     if (filter.salesforceUsername) query = query.where('salesforce_username', '=', filter.salesforceUsername);
     if (filter.toolName) query = query.where('tool_name', '=', filter.toolName);

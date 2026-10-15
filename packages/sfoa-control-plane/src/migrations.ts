@@ -280,6 +280,7 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   }),
   idx_sfoa_audit_occurred_at: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['occurred_at', 'id']), unique: false }),
   idx_sfoa_audit_correlation: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['correlation_id']), unique: false }),
+  idx_sfoa_audit_actor: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['actor_admin', 'occurred_at']), unique: false }),
   idx_sfoa_audit_platform_user: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['platform_user_id', 'occurred_at']), unique: false }),
   idx_sfoa_audit_salesforce_user: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['salesforce_username', 'occurred_at']), unique: false }),
   idx_sfoa_audit_tool: Object.freeze({ tableName: 'sfoa_audit_log', columns: Object.freeze(['tool_name', 'occurred_at']), unique: false }),

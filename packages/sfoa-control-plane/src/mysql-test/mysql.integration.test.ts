@@ -377,6 +377,11 @@ if (!setup) {
     const audits = await store.repositories.audits.search({ limit: 10, offset: 0 });
     assert.equal(audits.items[0]?.operation, 'CREATE_IDENTITY_ROUTE');
     assert.equal(audits.items[0]?.actorAdmin, 'bootstrap-admin');
+    // ADR-0034: the Console filters Admin actions by actor once more than one account exists.
+    const byActor = await store.repositories.audits.search({ actorAdmin: 'bootstrap-admin', limit: 10, offset: 0 });
+    assert.equal(byActor.items.length > 0, true);
+    assert.equal(byActor.items.every((audit) => audit.actorAdmin === 'bootstrap-admin'), true);
+    assert.equal((await store.repositories.audits.search({ actorAdmin: 'scoped-admin', limit: 10, offset: 0 })).count, 0);
     await assert.rejects(
       service.updateIdentityRoute(created.route.id, {
         platformUserId: created.route.platformUserId,

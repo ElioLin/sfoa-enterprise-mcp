@@ -232,6 +232,8 @@ export type AuditFilter = Readonly<{
   occurredTo?: Date;
   auditId?: string;
   correlationId?: string;
+  /** ADR-0034: `channel = 'ADMIN'` rows only; never set by any MCP-side read path. */
+  actorAdmin?: string;
   platformUserId?: string;
   salesforceUsername?: string;
   toolName?: string;
