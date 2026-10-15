@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MODULE_IDS } from '@sfoa/control-plane';
+import { ADMIN_MODULE_IDS } from '@sfoa/control-plane/admin-contracts';
 import { App } from '../App.js';
 import { asFetchMock, jsonResponse, renderAdmin } from './helpers.js';
 

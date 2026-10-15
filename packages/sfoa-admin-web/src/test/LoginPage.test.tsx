@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { ADMIN_MODULE_IDS } from '@sfoa/control-plane';
+import { ADMIN_MODULE_IDS } from '@sfoa/control-plane/admin-contracts';
 import { adminApi } from '../api/client.js';
 import { LoginPage } from '../pages/LoginPage.js';
 import { apiError, asFetchMock, jsonResponse, renderAdmin } from './helpers.js';

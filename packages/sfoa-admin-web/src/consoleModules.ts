@@ -1,4 +1,8 @@
-import { ADMIN_MODULE_IDS, type AdminModuleId } from '@sfoa/control-plane';
+// The `admin-contracts` subpath, never the package root: the root barrel re-exports
+// `admin-service.js`, whose top level imports `node:crypto`, and the Vite browser-external
+// shim turns that into a throw at module evaluation — a blank Console, visible only in a
+// real browser. `ControlPlaneBrowserBoundary.test.ts` pins this.
+import { ADMIN_MODULE_IDS, type AdminModuleId } from '@sfoa/control-plane/admin-contracts';
 
 const MODULE_IDS: ReadonlySet<string> = new Set<string>(ADMIN_MODULE_IDS);
 

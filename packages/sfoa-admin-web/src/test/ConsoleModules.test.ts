@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_MODULE_IDS } from '@sfoa/control-plane';
+import { ADMIN_MODULE_IDS } from '@sfoa/control-plane/admin-contracts';
 import { ADMIN_NAVIGATION } from '../components/AdminShell.js';
 import { landingPath, moduleForPath, resolveLanding } from '../consoleModules.js';
 
