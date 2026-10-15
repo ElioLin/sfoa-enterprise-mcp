@@ -1,11 +1,17 @@
 import { expect, test } from '@playwright/test';
 
+/** ADR-0034: the module list a full-access session carries. */
+const ALL_MODULES = [
+  'dashboard', 'identity-routes', 'tool-governance', 'dml-policies', 'diagnostic',
+  'ui-context', 'audit', 'system', 'agent-integration',
+] as const;
+
 test('P8 object policy and snapshot refresh remain usable on desktop and mobile', async ({ page }, testInfo) => {
   let mode = 'SHADOW'; let refreshed = false;
   await page.route('**/admin/api/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     let body: unknown = {};
-    if (pathname.endsWith('/auth/me')) body = { username: 'test-admin', csrfToken: 'test-csrf', expiresAt: Date.now() + 300000 };
+    if (pathname.endsWith('/auth/me')) body = { username: 'test-admin', csrfToken: 'test-csrf', expiresAt: Date.now() + 300000, modules: ALL_MODULES };
     else if (pathname.endsWith('/system/settings')) body = [{ settingKey: 'dynamicFormsObjectPolicies', settingValue: [{ objectApiName: 'Sample__c', mode, defaultApp: 'App_A' }], rowVersion: '1' }];
     else if (pathname.endsWith('/dynamicFormsObjectPolicies')) { mode = route.request().postDataJSON().value[0].mode; body = {}; }
     else if (pathname.endsWith('/refresh')) { refreshed = true; body = { status: 'READY' }; }

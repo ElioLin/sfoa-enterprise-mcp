@@ -133,6 +133,52 @@ function requiredEnvironment(name: string): string {
   return value;
 }
 
+/**
+ * ADR-0034: the same browser, the same real Admin API, a restricted account. This is the only
+ * check that proves the two halves agree — the Console hides what the account cannot use, and the
+ * API refuses it anyway when the browser asks directly.
+ */
+test('a restricted account reaches exactly its modules through the real browser and API', async ({ page }) => {
+  const username = requiredEnvironment('SFOA_P5_E2E_BTIT_USERNAME');
+  const password = requiredEnvironment('SFOA_P5_E2E_BTIT_PASSWORD');
+
+  await page.goto('/');
+  await page.getByLabel('管理员用户名').fill(username);
+  await page.getByLabel('密码').fill(password);
+  await page.getByRole('button', { name: '安全登录' }).click();
+
+  // `/` lands on the first module of the navigation the account holds.
+  await expect(page.getByRole('main').getByRole('heading', { name: '运行概览' })).toBeVisible();
+  await expect(page.locator('.admin-identity')).toHaveText(username);
+  for (const label of ['用户身份路由', '调用审计', '系统状态', '智能体接入']) {
+    await expect(page.getByRole('link', { name: label })).toBeVisible();
+  }
+  for (const label of ['工具治理', 'DML 操作策略', '系统诊断', 'CREATE 页面上下文']) {
+    await expect(page.getByRole('link', { name: label })).toHaveCount(0);
+  }
+
+  // The hidden pages are not merely hidden: asking for one directly is refused by the API, and the
+  // Console answers with the module boundary instead of the page.
+  const refused = await page.request.get('/admin/api/diagnostic');
+  expect(refused.status()).toBe(403);
+  expect((await refused.json()).error.code).toBe('MCP_ADMIN_FORBIDDEN');
+  await page.goto('/diagnostic');
+  await expect(page.getByText('无权访问该模块')).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { name: '系统诊断' })).toHaveCount(0);
+
+  // An in-module page keeps working, and its Admin-only filter reaches the API.
+  await page.getByRole('link', { name: '调用审计' }).click();
+  await expect(page.getByRole('main').getByRole('heading', { name: '全链路审计工作台' })).toBeVisible();
+  const filtered = page.waitForRequest((request) => request.url().includes('/admin/api/audits?') && request.url().includes('actorAdmin='));
+  await page.getByLabel('更多筛选').click();
+  await page.getByLabel('操作人（控制台账号）').fill(username);
+  await page.getByRole('button', { name: '搜索审计' }).click();
+  expect(new URL((await filtered).url()).searchParams.get('actorAdmin')).toBe(username);
+
+  await page.getByRole('button', { name: '退出登录' }).click();
+  await expect(page.getByRole('heading', { name: '管理员登录' })).toBeVisible();
+});
+
 function normalizeNewlines(value: string): string {
   return value.replace(/\r\n/gu, '\n');
 }

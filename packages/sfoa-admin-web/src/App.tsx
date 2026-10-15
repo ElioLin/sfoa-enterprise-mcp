@@ -4,9 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { adminApi, ApiError, UNAUTHORIZED_EVENT } from './api/client.js';
 import { AdminShell } from './components/AdminShell.js';
+import { ModuleGuard } from './components/ModuleGuard.js';
 import { LoadingState } from './components/QueryState.js';
+import { resolveLanding } from './consoleModules.js';
 import { ADMIN_ANT_LOCALE } from './localization.js';
 import { LoginPage } from './pages/LoginPage.js';
+import { useSession } from './session.js';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage.js'));
 const IdentityRoutesPage = lazy(() => import('./pages/IdentityRoutesPage.js'));
@@ -41,17 +44,23 @@ export function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedShell dark={dark} onToggleTheme={() => setDark((value) => !value)} />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/identity-routes" element={<IdentityRoutesPage />} />
-              <Route path="/tool-governance" element={<ToolGovernancePage />} />
-              <Route path="/dml-policies" element={<DmlPoliciesPage />} />
-              <Route path="/diagnostic" element={<DiagnosticPage />} />
-              <Route path="/audit" element={<AuditPage />} />
-              <Route path="/system" element={<SystemPage />} />
-              <Route path="/ui-context" element={<UiContextPage />} />
-              <Route path="/agent-integration" element={<AgentIntegrationPage />} />
+              {/* One guard for every page: the module is read from the path, so a route added
+                  later is covered without touching this table. */}
+              <Route element={<ModuleGuard />}>
+                {/* The index route lands on the first module the account holds, so a scoped
+                    account opens on a page it can actually use. */}
+                <Route index element={<LandingRedirect />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/identity-routes" element={<IdentityRoutesPage />} />
+                <Route path="/tool-governance" element={<ToolGovernancePage />} />
+                <Route path="/dml-policies" element={<DmlPoliciesPage />} />
+                <Route path="/diagnostic" element={<DiagnosticPage />} />
+                <Route path="/audit" element={<AuditPage />} />
+                <Route path="/system" element={<SystemPage />} />
+                <Route path="/ui-context" element={<UiContextPage />} />
+                <Route path="/agent-integration" element={<AgentIntegrationPage />} />
+              </Route>
             </Route>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Result status="404" title="页面不存在" subTitle="该控制平面路由不存在。" />} />
           </Routes>
         </div>
@@ -82,8 +91,14 @@ function ProtectedShell({ dark, onToggleTheme }: Readonly<{ dark: boolean; onTog
   return (
     <AdminShell session={session.data} dark={dark} onToggleTheme={onToggleTheme}>
       <Suspense fallback={<LoadingState />}>
-        <Outlet />
+        <Outlet context={session.data} />
       </Suspense>
     </AdminShell>
   );
+}
+
+/** Sends `/` to the first module the signed-in account holds. */
+function LandingRedirect() {
+  const session = useSession();
+  return <Navigate to={resolveLanding(undefined, session.modules)} replace />;
 }

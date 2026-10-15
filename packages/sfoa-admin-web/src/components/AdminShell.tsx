@@ -18,12 +18,18 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App, Breadcrumb, Button, Drawer, Grid, Layout, Menu, Space, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { AdminSessionDto } from '@sfoa/control-plane';
+import type { AdminModuleId, AdminSessionDto } from '@sfoa/control-plane';
 import { adminApi } from '../api/client.js';
+import { moduleForPath } from '../consoleModules.js';
 import { StatusTag } from './StatusTag.js';
 
 const { Header, Sider, Content } = Layout;
 
+/**
+ * Every Console page, in navigation order. The module id of an entry is its route without the
+ * leading slash, and this array stays the single source of truth for the navigation: the shell
+ * renders the entries the session's modules cover, in this order.
+ */
 export const ADMIN_NAVIGATION = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '运行概览' },
   { key: '/identity-routes', icon: <TeamOutlined />, label: '用户身份路由' },
@@ -35,6 +41,11 @@ export const ADMIN_NAVIGATION = [
   { key: '/system', icon: <DatabaseOutlined />, label: '系统状态' },
   { key: '/agent-integration', icon: <RobotOutlined />, label: '智能体接入' },
 ] as const;
+
+/** The Chinese page title of a module. */
+export function moduleLabel(module: AdminModuleId): string {
+  return ADMIN_NAVIGATION.find((entry) => moduleForPath(entry.key) === module)?.label ?? '控制平面';
+}
 
 export function AdminShell({
   session,
@@ -51,12 +62,21 @@ export function AdminShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const selected = ADMIN_NAVIGATION.find((entry) => location.pathname.startsWith(entry.key))?.key ?? '/dashboard';
-  const title = ADMIN_NAVIGATION.find((entry) => entry.key === selected)?.label ?? '控制平面';
-  const menuItems = useMemo(() => ADMIN_NAVIGATION.map((entry) => ({
+  const navigation = useMemo(
+    () => ADMIN_NAVIGATION.filter((entry) => {
+      const module = moduleForPath(entry.key);
+      return module !== undefined && session.modules.includes(module);
+    }),
+    [session.modules],
+  );
+  const selected = navigation.find((entry) => location.pathname.startsWith(entry.key))?.key
+    ?? navigation[0]?.key
+    ?? '/dashboard';
+  const title = navigation.find((entry) => entry.key === selected)?.label ?? '控制平面';
+  const menuItems = useMemo(() => navigation.map((entry) => ({
     ...entry,
     label: <Link to={entry.key} onClick={() => setMobileOpen(false)}>{entry.label}</Link>,
-  })), []);
+  })), [navigation]);
   const logout = useMutation({
     mutationFn: adminApi.logout,
     onSuccess: async () => {
@@ -70,7 +90,7 @@ export function AdminShell({
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
-  const navigation = <Menu mode="inline" selectedKeys={[selected]} items={menuItems} aria-label="主导航" />;
+  const navigationMenu = <Menu mode="inline" selectedKeys={[selected]} items={menuItems} aria-label="主导航" />;
   return (
     <Layout className="admin-layout">
       <a className="skip-link" href="#main-content">跳转到主内容</a>
@@ -84,7 +104,7 @@ export function AdminShell({
           aria-label="SFoA 导航"
         >
           <Brand compact={collapsed} />
-          {navigation}
+          {navigationMenu}
         </Sider>
       ) : (
         <Drawer
@@ -95,7 +115,7 @@ export function AdminShell({
           title={<Brand />}
           styles={{ body: { padding: 0 } }}
         >
-          {navigation}
+          {navigationMenu}
         </Drawer>
       )}
       <Layout>

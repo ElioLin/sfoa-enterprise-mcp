@@ -30,6 +30,7 @@ type AuditFilterForm = Readonly<{
   recordId?: string;
   auditKind?: AuditFilters['auditKind'];
   auditIntegrityStatus?: AuditFilters['auditIntegrityStatus'];
+  actorAdmin?: string;
 }>;
 
 export default function AuditPage() {
@@ -54,6 +55,7 @@ export default function AuditPage() {
       occurredFrom: undefined, occurredTo: undefined, auditId: undefined, correlationId: undefined,
       platformUserId: undefined, salesforceUsername: undefined, toolName: undefined, result: undefined, outcome: undefined,
       errorCode: undefined, objectApiName: undefined, recordId: undefined, auditKind: undefined, auditIntegrityStatus: undefined,
+      actorAdmin: undefined,
       ...formValuesFromFilters(filters),
     });
   }, [filters, form]);
@@ -74,6 +76,7 @@ export default function AuditPage() {
       occurredFrom: undefined, occurredTo: undefined, auditId: undefined, correlationId: undefined,
       platformUserId: undefined, salesforceUsername: undefined, toolName: undefined, result: undefined, outcome: undefined,
       errorCode: undefined, objectApiName: undefined, recordId: undefined, auditKind: undefined, auditIntegrityStatus: undefined,
+      actorAdmin: undefined,
     });
     commitFilters({ limit: PAGE_SIZE, offset: 0 });
   };
@@ -154,6 +157,9 @@ export default function AuditPage() {
                     { value: 'DEGRADED', label: '降级（DEGRADED）' },
                   ]} />
                 </Form.Item>
+                {/* ADR-0034: only `channel = 'ADMIN'` rows carry an actor, so this filter pairs
+                    with 审计类型 = 管理操作. */}
+                <Form.Item name="actorAdmin" label="操作人（控制台账号）"><Input allowClear maxLength={128} placeholder="例如 btit" /></Form.Item>
               </div>
             </details>
             <Space wrap>
@@ -232,6 +238,7 @@ function filtersWithoutQuickResult(filters: AuditFilters): AuditFilters {
     ...(filters.recordId ? { recordId: filters.recordId } : {}),
     ...(filters.auditKind ? { auditKind: filters.auditKind } : {}),
     ...(filters.auditIntegrityStatus ? { auditIntegrityStatus: filters.auditIntegrityStatus } : {}),
+    ...(filters.actorAdmin ? { actorAdmin: filters.actorAdmin } : {}),
     limit: filters.limit,
     offset: filters.offset,
   };
@@ -253,6 +260,7 @@ function compactFilters(values: AuditFilterForm): Omit<AuditFilters, 'limit' | '
     ...(values.recordId?.trim() ? { recordId: values.recordId.trim() } : {}),
     ...(values.auditKind ? { auditKind: values.auditKind } : {}),
     ...(values.auditIntegrityStatus ? { auditIntegrityStatus: values.auditIntegrityStatus } : {}),
+    ...(values.actorAdmin?.trim() ? { actorAdmin: values.actorAdmin.trim() } : {}),
   };
 }
 
@@ -274,6 +282,7 @@ function filtersFromSearchParams(params: URLSearchParams): AuditFilters {
     ...stringParam(params, 'recordId'),
     ...enumParam(params, 'auditKind', ['MCP_TOOL_CALL', 'ADMIN_ACTION', 'IDENTITY_VALIDATION', 'RUNTIME_EVENT'] as const),
     ...enumParam(params, 'auditIntegrityStatus', ['COMPLETE', 'PARTIAL', 'DEGRADED'] as const),
+    ...stringParam(params, 'actorAdmin'),
     limit,
     offset,
   } as AuditFilters;
@@ -295,6 +304,7 @@ function formValuesFromFilters(filters: AuditFilters): AuditFilterForm {
     ...(filters.recordId ? { recordId: filters.recordId } : {}),
     ...(filters.auditKind ? { auditKind: filters.auditKind } : {}),
     ...(filters.auditIntegrityStatus ? { auditIntegrityStatus: filters.auditIntegrityStatus } : {}),
+    ...(filters.actorAdmin ? { actorAdmin: filters.actorAdmin } : {}),
     ...(occurredFrom ? { occurredFrom } : {}),
     ...(occurredTo ? { occurredTo } : {}),
   };

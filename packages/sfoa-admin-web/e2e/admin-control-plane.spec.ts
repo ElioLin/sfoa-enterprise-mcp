@@ -1,6 +1,11 @@
 import { expect, test, type Route } from '@playwright/test';
 
 const NOW = '2026-08-23T12:00:00.000Z';
+/** ADR-0034: the module list a full-access session carries. */
+const ALL_MODULES = [
+  'dashboard', 'identity-routes', 'tool-governance', 'dml-policies', 'diagnostic',
+  'ui-context', 'audit', 'system', 'agent-integration',
+] as const;
 
 test('admin can manage the bounded control plane and logout', async ({ page }, testInfo) => {
   const api = new StatefulAdminApi();
@@ -213,7 +218,7 @@ async function respond(route: Route, body: unknown, status = 200): Promise<void>
 }
 
 function session() {
-  return { username: 'bootstrap-admin', csrfToken: 'csrf-e2e', expiresAt: Date.now() + 300_000 };
+  return { username: 'bootstrap-admin', csrfToken: 'csrf-e2e', expiresAt: Date.now() + 300_000, modules: ALL_MODULES };
 }
 
 function pageOf(items: readonly unknown[]) {

@@ -1,13 +1,16 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { ADMIN_MODULE_IDS } from '@sfoa/control-plane';
 import { adminApi } from '../api/client.js';
 import { LoginPage } from '../pages/LoginPage.js';
 import { apiError, asFetchMock, jsonResponse, renderAdmin } from './helpers.js';
 
 describe('Admin login', () => {
   it('submits credentials without browser storage and enters the protected route', async () => {
-    const fetchMock = asFetchMock((_url, init) => jsonResponse({ username: 'bootstrap-admin', csrfToken: 'csrf-test', expiresAt: Date.now() + 60_000 }));
+    const fetchMock = asFetchMock((_url, init) => jsonResponse({
+      username: 'bootstrap-admin', csrfToken: 'csrf-test', expiresAt: Date.now() + 60_000, modules: [...ADMIN_MODULE_IDS],
+    }));
     vi.stubGlobal('fetch', fetchMock);
     const browserStorageSpy = vi.spyOn(Storage.prototype, 'setItem');
     renderAdmin(

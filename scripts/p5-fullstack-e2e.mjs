@@ -25,6 +25,12 @@ const apiOrigin = `http://127.0.0.1:${adminPort}`;
 const webOrigin = `http://127.0.0.1:${webPort}`;
 const adminUsername = 'p5-fullstack-admin';
 const adminPassword = randomBytes(36).toString('base64url');
+// ADR-0034: the restricted account the Console gate exercises. `system` and `audit` are listed
+// first so the landing page and the navigation are proven to follow the module contract's order
+// rather than the account's own list.
+const scopedUsername = 'p5-fullstack-btit';
+const scopedPassword = randomBytes(36).toString('base64url');
+const scopedModules = Object.freeze(['system', 'audit', 'dashboard', 'identity-routes', 'agent-integration']);
 const sessionSecret = randomBytes(48).toString('base64url');
 const identityCredentialEncryptionKeyBytes = randomBytes(32);
 const identityCredentialEncryptionKey = identityCredentialEncryptionKeyBytes.toString('base64url');
@@ -35,7 +41,9 @@ assert.match(testDatabaseName, /^sfoa_enterprise_mcp(?:_[A-Za-z0-9]+)*_test$/u);
 const testDatabaseConfig = Object.freeze({ ...loaded.database, database: testDatabaseName });
 await createDatabaseIfMissing(testDatabaseConfig);
 const store = new MySqlControlPlaneStore(createControlPlaneDatabase(testDatabaseConfig));
-const secrets = [adminPassword, sessionSecret, identityCredentialEncryptionKey, loaded.database.password].filter(Boolean);
+const secrets = [
+  adminPassword, scopedPassword, sessionSecret, identityCredentialEncryptionKey, loaded.database.password,
+].filter(Boolean);
 const serviceOutput = new WeakMap();
 let adminProcess;
 let viteProcess;
@@ -68,6 +76,9 @@ try {
     SFOA_ADMIN_ALLOWED_ORIGIN: webOrigin,
     SFOA_ADMIN_USERNAME: adminUsername,
     SFOA_ADMIN_PASSWORD: adminPassword,
+    SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON: JSON.stringify([
+      { username: scopedUsername, password: scopedPassword, modules: [...scopedModules] },
+    ]),
     SFOA_ADMIN_SESSION_SECRET: sessionSecret,
     SFOA_ADMIN_SESSION_TTL_SECONDS: '300',
     SFOA_ADMIN_COOKIE_SECURE: 'false',
@@ -108,6 +119,8 @@ try {
     SFOA_P5_E2E_WEB_URL: webOrigin,
     SFOA_P5_E2E_ADMIN_USERNAME: adminUsername,
     SFOA_P5_E2E_ADMIN_PASSWORD: adminPassword,
+    SFOA_P5_E2E_BTIT_USERNAME: scopedUsername,
+    SFOA_P5_E2E_BTIT_PASSWORD: scopedPassword,
   });
 
   const evidence = await assertPersistedBrowserEvidence(store);
@@ -228,6 +241,8 @@ async function verifyAdminSecurity(environment) {
   const revoked = await checkedFetch(`${apiOrigin}/admin/api/auth/me`, { headers: { Cookie: cookie, Origin: webOrigin } });
   assert.equal(revoked.status, 401);
 
+  const scopedEvidence = await verifyScopedAccountGate();
+
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     const limited = await checkedFetch(`${apiOrigin}/admin/api/auth/login`, {
       method: 'POST', headers: originHeaders,
@@ -236,7 +251,118 @@ async function verifyAdminSecurity(environment) {
     assert.equal(limited.status, attempt === 4 ? 429 : 401);
   }
   process.stdout.write('P5_ADMIN_SECURITY_REAL_HTTP=PASS\n');
-  return Object.freeze({ unknownToolAdminEnableAllowed: false });
+  return Object.freeze({ unknownToolAdminEnableAllowed: false, ...scopedEvidence });
+}
+
+/**
+ * ADR-0034: the Console gate for a restricted account, over real HTTP against the real Admin API.
+ *
+ * The module closure is asserted from the outside: every endpoint the account's pages need is
+ * reachable, every endpoint outside them — including a path the router does not serve at all — is
+ * refused with `MCP_ADMIN_FORBIDDEN`, and the refusal is a module decision rather than an
+ * authentication or CSRF failure. Runs before the login rate-limit fixture at the end of
+ * `verifyAdminSecurity`, which exhausts the bootstrap Admin's own attempt window.
+ */
+async function verifyScopedAccountGate() {
+  const originHeaders = { Origin: webOrigin, 'Content-Type': 'application/json' };
+  // The bootstrap Admin password must not open the scoped account. This is also the only failed
+  // attempt the scoped account's own login window sees.
+  const crossed = await checkedFetch(`${apiOrigin}/admin/api/auth/login`, {
+    method: 'POST', headers: originHeaders,
+    body: JSON.stringify({ username: scopedUsername, password: adminPassword }),
+  });
+  assert.equal(crossed.status, 401);
+
+  const login = await checkedFetch(`${apiOrigin}/admin/api/auth/login`, {
+    method: 'POST', headers: originHeaders,
+    body: JSON.stringify({ username: scopedUsername, password: scopedPassword }),
+  });
+  assert.equal(login.status, 200);
+  const loginText = await login.text();
+  for (const secret of secrets) assert.equal(loginText.includes(secret), false);
+  const session = JSON.parse(loginText);
+  assert.equal(session.username, scopedUsername);
+  assert.deepEqual([...session.modules].sort(), [...scopedModules].sort());
+  const setCookie = login.headers.getSetCookie?.()[0] ?? login.headers.get('set-cookie') ?? '';
+  assert.match(setCookie, /; HttpOnly/iu);
+  const cookie = setCookie.split(';', 1)[0];
+
+  const me = await checkedFetch(`${apiOrigin}/admin/api/auth/me`, { headers: { Cookie: cookie, Origin: webOrigin } });
+  assert.equal(me.status, 200);
+  assert.deepEqual([...(await me.json()).modules].sort(), [...scopedModules].sort());
+
+  const scopedHeaders = { Cookie: cookie, Origin: webOrigin };
+  const granted = [
+    '/dashboard',
+    '/routes?limit=1&offset=0',
+    '/system/status',
+    '/system/settings',
+    '/tools',
+    '/dml-policies?limit=1&offset=0',
+    '/dml-policies/1/managed-fields?limit=1&offset=0',
+    '/audits?limit=1&offset=0',
+    `/audits?limit=1&offset=0&actorAdmin=${encodeURIComponent(scopedUsername)}`,
+  ];
+  for (const path of granted) {
+    const response = await checkedFetch(`${apiOrigin}/admin/api${path}`, { headers: scopedHeaders });
+    assert.notEqual(response.status, 403, `Scoped account was refused its own endpoint ${path}`);
+    assert.notEqual(response.status, 401, `Scoped session was not accepted for ${path}`);
+  }
+
+  for (const path of ['/diagnostic', '/ui-context/snapshots', '/not-a-console-endpoint']) {
+    const response = await checkedFetch(`${apiOrigin}/admin/api${path}`, { headers: scopedHeaders });
+    assert.equal(response.status, 403, `Expected a module refusal for ${path}`);
+    assert.equal((await response.json()).error.code, 'MCP_ADMIN_FORBIDDEN');
+  }
+
+  // A mutation outside the modules is refused by the module gate, not by CSRF: the request
+  // carries the account's own valid token, so a missing-CSRF answer would prove nothing.
+  const deniedMutations = [
+    { method: 'PUT', path: '/diagnostic' },
+    { method: 'POST', path: '/dml-policies' },
+  ];
+  for (const mutation of deniedMutations) {
+    const response = await checkedFetch(`${apiOrigin}/admin/api${mutation.path}`, {
+      method: mutation.method,
+      headers: { ...scopedHeaders, 'X-SFoA-CSRF-Token': session.csrfToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 403, `Expected a module refusal for ${mutation.method} ${mutation.path}`);
+    assert.equal((await response.json()).error.code, 'MCP_ADMIN_FORBIDDEN');
+  }
+
+  // An in-module mutation reaches validation instead of the module gate. The body is deliberately
+  // invalid so the check proves authorization without changing stored state.
+  const inModuleMutation = await checkedFetch(`${apiOrigin}/admin/api/system/settings/auditRetentionDays`, {
+    method: 'PUT',
+    headers: { ...scopedHeaders, 'X-SFoA-CSRF-Token': session.csrfToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(inModuleMutation.status, 400);
+  assert.equal((await inModuleMutation.json()).error.code, 'MCP_ADMIN_INPUT_INVALID');
+
+  // The audit workbench reads Admin actions by actor, which is the index migration 015 adds.
+  const actorFiltered = await checkedFetch(
+    `${apiOrigin}/admin/api/audits?limit=25&offset=0&actorAdmin=${encodeURIComponent(scopedUsername)}`,
+    { headers: scopedHeaders },
+  );
+  assert.equal(actorFiltered.status, 200);
+  const actorRows = readRecord(await actorFiltered.json()).items;
+  assert.equal(Array.isArray(actorRows), true);
+  assert.equal(actorRows.length > 0, true);
+  assert.equal(actorRows.map(readRecord).every((row) => row.actorAdmin === scopedUsername), true);
+
+  const logout = await checkedFetch(`${apiOrigin}/admin/api/auth/logout`, {
+    method: 'POST',
+    headers: { ...scopedHeaders, 'X-SFoA-CSRF-Token': session.csrfToken },
+  });
+  assert.equal(logout.status, 200);
+  process.stdout.write('P5_ADMIN_SCOPED_ACCOUNT_REAL_HTTP=PASS\n');
+  return Object.freeze({
+    scopedAccountModules: [...scopedModules],
+    scopedAccountRefusedPaths: 3,
+    scopedAccountDeniedMutations: deniedMutations.length,
+  });
 }
 
 async function checkedFetch(url, options = {}) {

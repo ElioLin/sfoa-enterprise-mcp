@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Space, Typography } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { adminApi } from '../api/client.js';
+import { resolveLanding } from '../consoleModules.js';
 import { ErrorDetailContent, errorDetails } from '../components/QueryState.js';
 
 type LoginFields = Readonly<{ username: string; password: string }>;
@@ -16,7 +17,10 @@ export function LoginPage() {
     onSuccess: async (session) => {
       queryClient.setQueryData(['auth', 'me'], session);
       const state = isLocationState(location.state) ? location.state : undefined;
-      await navigate(state?.from && state.from !== '/login' ? state.from : '/dashboard', { replace: true });
+      // ADR-0034: a scoped account lands on the first module it holds. A requested page it cannot
+      // open — a bookmark, or a link from a colleague — is dropped rather than answered with a
+      // "no access" page right after signing in.
+      await navigate(resolveLanding(state?.from, session.modules), { replace: true });
     },
   });
   const loginError = login.error ? errorDetails(login.error) : null;
@@ -38,7 +42,7 @@ export function LoginPage() {
       </section>
       <Card className="login-card" variant="borderless">
         <Typography.Title level={2}>管理员登录</Typography.Title>
-        <Typography.Paragraph type="secondary">使用 Admin API 中配置的受限 bootstrap 管理员。</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">使用 Admin API 配置文件中已启用的控制台账号；每个账号只会看到它被授权的模块。</Typography.Paragraph>
         {loginError ? <Alert type="error" showIcon role="alert" title="登录失败" description={<ErrorDetailContent detail={loginError} />} /> : null}
         <Form<LoginFields>
           layout="vertical"

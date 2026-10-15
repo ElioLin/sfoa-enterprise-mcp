@@ -1,11 +1,17 @@
 import { expect, test } from '@playwright/test';
 
+/** ADR-0034: the module list a full-access session carries. */
+const ALL_MODULES = [
+  'dashboard', 'identity-routes', 'tool-governance', 'dml-policies', 'diagnostic',
+  'ui-context', 'audit', 'system', 'agent-integration',
+] as const;
+
 test('WeCom setup separates shared credential, discovery and execution on desktop/mobile', async ({ page }, testInfo) => {
   let enabled = false;
   await page.route('**/admin/api/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     let body: unknown = {};
-    if (pathname.endsWith('/auth/me')) body = { username: 'test-admin', csrfToken: 'test-csrf', expiresAt: Date.now() + 300000 };
+    if (pathname.endsWith('/auth/me')) body = { username: 'test-admin', csrfToken: 'test-csrf', expiresAt: Date.now() + 300000, modules: ALL_MODULES };
     else if (pathname.endsWith('/system/status')) body = {
       mcpEndpoint: 'http://127.0.0.1:8080/mcp', diagnostic: null, readOnlyRuntimeSettings: {},
       configured: { mcpClientToken: true, wecomChannelEnabled: enabled, wecomChannelCredentialConfigured: enabled },
