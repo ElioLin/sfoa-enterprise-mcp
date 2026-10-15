@@ -67,3 +67,14 @@ line. `actor_admin` (migration 015) records which Console account performed each
 carries an actor for `channel = 'ADMIN'` rows. If a Console account works in the browser
 but a hand-made API call to a page it *can* see fails, suspect the endpoint table in
 `packages/sfoa-admin-api/src/module-paths.ts` rather than the session.
+
+Two parsers read that config line and `process.env` wins: systemd's `EnvironmentFile=`
+and the app's own `parseEnvFile`. Write the JSON single-quoted — systemd strips one
+matching pair and keeps the rest literal, and `unquote()` does the same — then *verify*
+they agree instead of assuming: compare the sha256 of the value in
+`/proc/<admin-api-pid>/environ` with the sha256 of the file's parsed value (both
+masked; never print the line). A mismatch means the service is running a value the file
+does not contain, which is the failure mode a file-only check cannot see. Note that a
+systemd probe of any env file must live somewhere systemd itself may read: under
+Enforcing SELinux a file in `/tmp` is refused (`Failed to load environment files:
+Permission denied`) even for root.

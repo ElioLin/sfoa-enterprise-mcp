@@ -4,6 +4,31 @@
 
 ---
 
+## 部署记录 · ADR-0034 受限控制台账号（BTIT）+ 迁移 015（2026-10-15）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/admin-btit-scoped-account` @ `be4f8cb`（ADR-0034：`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` + `(method, path)` 模块授权表 + 审计 `actorAdmin` 过滤 + 迁移 015）。与测试服 `crm-ex-test02` **同一归档、逐字节同源**；相对生产上一版（`1dca49a`，P10）仅 32 个 tracked 文件，`packages/sfoa-mcp-server` 及其 provider **零改动** |
+| **风险边界（用户约束）** | 用户要求「不得影响 MCP 工具逻辑与其他功能」。落实：**不重建、不重启 `sfoa-mcp-server`**（源码未变 → 既有 `dist` 仍有效），只重启 `sfoa-admin-api`；`nginx`、`openclaw-gateway`、企微通道**全程未重启**。这同时避开 §16 记录的「网关/Agent 会话在 runtime 重启后黏住失败」风险 |
+| 打包/上传 | 复用测试服同一工件 `sfoa-app-be4f8cb.tar.gz`（3,861,198 B，sha256 `98d78256ac8399ee7dfd00f5651b88fd8d76ac3f8f57e59de9b3fd6c81c00d5c`）→ `ssh 'cat >'` 上传 `incoming/`（本机↔生产 `scp` 依旧挂起，§13 坑 #12），服务器 sha256 一致 |
+| 落盘方式 | 先解到 `staging-btit-be4f8cb/`，再 **`rsync -a`（不带 `--delete`）** 覆盖 `app/`；`.env.local`、`node_modules`、各包 `dist`、`projects` 等服务器独有文件全部保留 |
+| 字节级验证 | `cd app && sha256sum -c incoming/expected-be4f8cb.txt` → **1377 OK / 0 FAILED / 0 MISSING** |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-be4f8cb-20261015-160321.tar.gz`（4,048,600 B，仅源码） |
+| 构建 | 按依赖序重建 3 个包（16:03:52 全 OK）：`@sfoa/control-plane` → `@sfoa/admin-api` → `@sfoa/admin-web`；**未重建 mcp-server**（未装依赖：`yarn.lock` 区间无变化）。admin-web 产物 `dist/assets/index-JuxgSnXJ.js` 与测试服**同名同哈希**（同源同配置，构建确定性），`grep __vite-browser-external\|node:crypto` 无命中 |
+| 数据库迁移 | `yarn db:migrate` → **015 APPLIED**（checksum `8c45052d…`，与测试服同值）于**独立生产库** `192.168.155.126/sfoa_enterprise_mcp`；台账 001–015 |
+| 配置 | `config/.env.local` 追加一行 `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON='[{…"username":"btit"…}]'`（值 146 B；**密码由生产服务器端 `randomBytes(24).toString('base64url')` 现场生成，全程未打印**，与测试服口令**不同**）。改前备份 `config/.env.local.pre-btit-20261015080438`；文件保持 `600`，标签 `etc_t`，CR 字节 0 |
+| **systemd 解析等价性** | 该键同时被 systemd `EnvironmentFile=` 与应用 dotenv 解析器读取且 `process.env` 优先；实测运行中服务的 `/proc/<admin-pid>/environ` 与文件解析值 **`bytes=146`、`sha256=b5591b88…` 两侧一致**（测试服已先用一次性 `systemd-run` 单元验证过单引号 JSON 的逐字节无损，本轮直接比对哈希） |
+| 服务 | 仅 `systemctl restart sfoa-admin-api`：PID 872447 → **1072779**，`sfoa_admin_started` 16:05:04（先写 5 条 `sfoa_auth_store_seed`）。`sfoa-mcp-server` **PID 872433 / ActiveEnterTimestamp 2026-10-09 17:13:14 全程未变**，NRestarts 0，且重启窗口内 `journalctl -u sfoa-mcp-server` **无任何新增行** |
+| 验收（masked，服务器侧脚本） | `admin`：scope FULL、9 模块；7 个业务端点 + `/diagnostic` + `/ui-context/snapshots` 全 200；未知路径 **404 `MCP_ADMIN_NOT_FOUND`**。`btit`：scope SCOPED、模块集与配置逐字一致（`dashboard,identity-routes,audit,system,agent-integration`）；7 个端点全 200；`/diagnostic`、`/ui-context/snapshots`、未知路径均 **403 `MCP_ADMIN_FORBIDDEN`**。`audits?actorAdmin=` 过滤可用（admin 5 行 / btit 1 行）；runtime `127.0.0.1:8080/health` 200；`GET /mcp` 405 `-32001`；`/`、`/assets/index-JuxgSnXJ.js`、`/admin/api/ready`、`/admin/api/health` 全 200。全程 1.1s |
+| 浏览器验证 | 本机 Chromium 打 `http://192.168.155.207/`：登录页正常渲染（标题「精简、可见、可追责的企业治理。」+「安全登录」），加载新包 `index-JuxgSnXJ.js`；页错误 1 条 = 未登录时 `/auth/me` 的 401（既有预期） |
+| SELinux | 重建后 `restorecon -Rv` admin-web `dist`（新资源已是 `httpd_sys_content_t`，无需改动）；`config/.env.local` 标签 `etc_t` |
+| 回滚 | 停 `sfoa-admin-api` → 从 `backup/sfoa-app-pre-be4f8cb-20261015-160321.tar.gz` 解回 `app/` → 重建 control-plane/admin-api/admin-web → `restorecon -Rv` dist → 用 `config/.env.local.pre-btit-20261015080438` 还原配置 → 重启 `sfoa-admin-api`。迁移 015 纯加性（建索引）不回滚；MCP runtime 未动，无需回滚 |
+
+> 与测试服同批交付：两边归档、清单、迁移校验和、admin-web 产物哈希**全部相同**，唯一差异是各自现场生成的口令
+> 与 `SFOA_ADMIN_ALLOWED_ORIGIN`（测试服为域名 `:9000`，生产为 `http://192.168.155.207`）。
+
+---
+
 ## 部署记录 · 生产激活收尾：企微通道上线 + 诊断工具实弹验证（2026-10-09 晚）
 
 | 项 | 值 |

@@ -4,6 +4,33 @@
 
 ---
 
+## 部署记录 · ADR-0034 受限控制台账号（BTIT）（2026-10-15）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/admin-btit-scoped-account` @ `be4f8cb`（ADR-0034：`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` + `(method, path)` 模块授权表 + 审计 `actorAdmin` 过滤 + 迁移 015）。相对服务器上一版（`5aa270c`，P10）**32 个 tracked 文件**，`packages/sfoa-mcp-server` 及其 provider **零改动** |
+| **风险边界（用户约束）** | 用户要求「不得影响 MCP 工具逻辑与其他功能」。落实：**不重建、不重启 `sfoa-mcp-server`**（源码未变 → 既有 `dist` 仍有效），只重启 `sfoa-admin-api`。本轮确实改到了 `packages/sfoa-control-plane`，但影响面只有两处：新增一个**启动期**索引断言（迁移 015 已满足）与一个 `if (filter.actorAdmin)` 分支（MCP 侧从不传该参数，SQL 逐字节不变）；且 Node 只在进程启动时加载 `dist`，运行中的 runtime 不会重新读取 |
+| 打包/上传 | 本机 `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-app-be4f8cb.tar.gz`（3,861,198 B，sha256 `98d78256ac8399ee7dfd00f5651b88fd8d76ac3f8f57e59de9b3fd6c81c00d5c`，1377 files）→ `ssh 'cat >'` 上传 `incoming/`，本机/服务器 sha256 一致 |
+| 落盘方式 | 先解到 `staging-btit-be4f8cb/`，再 **`rsync -a`（不带 `--delete`）** 覆盖 `app/`；`.env.local`、`node_modules`、各包 `dist` 等服务器独有文件全部保留 |
+| 字节级验证 | `cd app && sha256sum -c incoming/expected-be4f8cb.txt` → **1377 OK / 0 FAILED / 0 MISSING**（清单里唯一的符号链接 `packages/mcp/README.md` 两侧都按目标内容取哈希，故一致） |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-be4f8cb-20261015-153243.tar.gz`（11,167,609 B，仅源码） |
+| 构建 | 按依赖序重建 3 个包（15:34:06 全 OK）：`@sfoa/control-plane` → `@sfoa/admin-api` → `@sfoa/admin-web`；**未重建 mcp-server**。产物 `packages/sfoa-admin-api/dist/module-paths.js` 就位；admin-web `dist/assets/index-JuxgSnXJ.js`（`grep __vite-browser-external\|node:crypto` 无命中） |
+| 数据库迁移 | `yarn db:migrate` → **015 `015_admin_audit_actor_index` APPLIED**（checksum `8c45052d…`）；台账 001–015 |
+| 配置 | `config/.env.local` 追加一行 `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON='[{…"username":"btit"…}]'`（单引号包裹的紧凑 JSON，值 146 B；**密码由服务器端 `randomBytes(24).toString('base64url')` 现场生成，全程未打印、未落终端**）。改前备份 `config/.env.local.pre-btit-20261015073756`；标签 `etc_t`（644），CR 字节 0 |
+| **systemd 解析等价性** | 该键同时被 systemd `EnvironmentFile=` 与应用自身 dotenv 解析器读取，而 `process.env` 优先——两者若解析不同则「文件对、服务错」。先用一次性 `systemd-run -p EnvironmentFile=` 单元**实测**单引号 JSON 逐字节无损，再比对运行中服务的 `/proc/<admin-pid>/environ` 与文件解析值：`bytes=146`、`sha256=b0f70770…` **两侧一致** |
+| 服务 | 仅 `systemctl restart sfoa-admin-api`：PID 2797536 → **2815541**，`sfoa_admin_started` 15:38:40（启动先写 9 条 `sfoa_auth_store_seed`，约 12s 后才监听，属既有行为）。`sfoa-mcp-server` **PID 2797522 / ActiveEnterTimestamp 2026-10-09 15:54:44 全程未变**，NRestarts 0，重启窗口内 journal 无新增行 |
+| 验收（masked，服务器侧脚本） | `admin`：scope FULL、9 模块；7 个业务端点 + `/diagnostic` + `/ui-context/snapshots` 全 200；未知路径 **404 `MCP_ADMIN_NOT_FOUND`**（历史路由语义未变）。`btit`：scope SCOPED、模块集与配置逐字一致（`dashboard,identity-routes,audit,system,agent-integration`）；7 个端点全 200；`/diagnostic`、`/ui-context/snapshots`、未知路径均 **403 `MCP_ADMIN_FORBIDDEN`**。`audits?actorAdmin=` 过滤可用（admin 5 行 / btit 2 行）；runtime `127.0.0.1:8080/health` 200；`GET /mcp` 405 `-32001`。全程 1.7s |
+| 浏览器验证 | 本机 Chromium 打域名 `http://crmmcptest.runner-corp.com.cn:9000/`：登录页正常渲染（标题「精简、可见、可追责的企业治理。」+「安全登录」），加载的正是**新包** `index-JuxgSnXJ.js`；页错误 1 条 = 未登录时 `/auth/me` 的 401（既有预期）。此检查同时是 ADR-0034 期间修掉的「控制台白屏」回归的实证 |
+| SELinux | 重建后 `restorecon -Rv` admin-web `dist`（新资源本身已是 `httpd_sys_content_t`，无需改动）；`config/.env.local` 标签 `etc_t`；经 nginx 取新资源 200 |
+| 回滚 | 停 `sfoa-admin-api` → 从 `backup/sfoa-app-pre-be4f8cb-20261015-153243.tar.gz` 解回 `app/` → 按 §6 重建 control-plane/admin-api/admin-web → `restorecon -Rv` dist → 用 `config/.env.local.pre-btit-20261015073756` 还原配置 → 重启 `sfoa-admin-api`。迁移 015 纯加性（建索引）不回滚 |
+
+> 可复用做法（本轮新增）：① 受限账号的端到端验收不必把口令带进任何终端——服务器侧脚本用**部署产物自带的**
+> `loadAdminApiConfig()` 读配置，只打印用户名/模块 id/状态码（`/root/sfoa-btit/btit-verify.mjs`）。
+> ② 判断 systemd `EnvironmentFile` 与应用解析是否一致，比对 `/proc/<pid>/environ` 的值哈希与文件解析值哈希，
+> 不打印明文。③ 用一次性 `systemd-run -p EnvironmentFile=…` 验证 systemd 对某个值的解析语义时，临时文件
+> **必须放在带 `etc_t` 标签的目录**（放 `/tmp` 会被 Enforcing SELinux 拒：`Failed to load environment files:
+> Permission denied`——与 §9.1 dist 标签同一类坑）。
+
 ## 部署记录 · P10 激活后控制台 500 修复（admin-web dist 重打标签，2026-10-09）
 
 | 项 | 值 |
