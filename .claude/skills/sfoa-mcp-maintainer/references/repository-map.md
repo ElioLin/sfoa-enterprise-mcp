@@ -29,6 +29,14 @@ Use `yarn ai:snapshot` before relying on this maintained map.
 - MySQL: `packages/sfoa-control-plane/migrations/`, `schema.ts`, `mysql-repositories.ts`, `mysql-audit-repository.ts`.
 - P7: `request-audit-context.ts`, `request-audit-collector.ts`, `jsforce-audit-adapter.ts`, `audit-pipeline.ts`, `mysql-audit-batch-sink.ts`.
 - Admin trace: `packages/sfoa-admin-api/src/audit-trace.ts`, `packages/sfoa-admin-web/src/pages/audit/`.
+- Console authorization: `packages/sfoa-admin-api/src/module-paths.ts` is the single
+  endpoint-to-module table (default-deny) and `auth.ts`/`config.ts` hold the account
+  table; the Console side is `packages/sfoa-admin-web/src/consoleModules.ts` plus
+  `components/ModuleGuard.tsx`. Module ids come from `ADMIN_MODULE_IDS` in
+  `packages/sfoa-control-plane/src/admin-contracts.ts`, so navigation order is shared
+  rather than repeated. A new Console endpoint that is not added to `module-paths.ts`
+  is unreachable for every restricted account — a test asserts the table's ids match
+  `ADMIN_MODULE_IDS` and that each module still reaches at least one endpoint.
 - Agent Playbook: `packages/sfoa-agent-playbook/src/` and `scripts/sync-generated.mjs`.
 
 The root uses Yarn Classic workspaces with `packages/*` and `nohoist: ["**"]`. Use each workspace's project-local toolchain.

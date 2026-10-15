@@ -38,7 +38,7 @@ The reverse proxy maps `/mcp` to the loopback MCP listener, `/admin/api/` to the
 3. Build and test with `yarn validate:p5` in CI or an isolated release-validation environment; it includes the mocked browser workflow and real MySQL-backed full-stack browser Gate against `sfoa_enterprise_mcp_test`. The production runtime host does not require that test schema unless an operator deliberately runs these Gates there.
 4. Run `yarn db:status`; review pending/unknown migration state.
 5. Run `yarn db:migrate` before starting the new Admin API/MCP binaries.
-6. Confirm `003_p6_identity_credential` is `APPLIED`, then run `yarn db:status` again and retain its JSON output as deployment evidence.
+6. Confirm `003_p6_identity_credential` is `APPLIED`, then run `yarn db:status` again and retain its JSON output as deployment evidence. Any migration this release adds must also be `APPLIED` before the restart — ADR-0034 adds `015_admin_audit_actor_index`, and skipping it fails startup on the `idx_sfoa_audit_actor` index assertion rather than degrading quietly.
 7. Build the static UI with `yarn workspace @sfoa/admin-web build`.
 8. Restart the Admin API, then MCP runtime; verify readiness/health before shifting traffic.
 
@@ -106,6 +106,33 @@ SFOA_ADMIN_COOKIE_SECURE=true
 
 Production sessions then use the `__Host-` cookie prefix with `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`. Terminate only trusted HTTPS, configure HSTS at the edge, and do not make the Admin API reachable over public plaintext HTTP.
 
+### Restricted Console accounts (ADR-0034)
+
+`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers accounts that may sign in to the Console without seeing
+every module. Put it in the same protected environment as `SFOA_ADMIN_PASSWORD`, as one line of JSON:
+
+```dotenv
+SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON=[{"username":"btit","password":"<from-the-secret-store>","modules":["dashboard","identity-routes","audit","system","agent-integration"]}]
+```
+
+`modules` is mandatory and draws only on `dashboard`, `identity-routes`, `tool-governance`,
+`dml-policies`, `diagnostic`, `ui-context`, `audit`, `system`, `agent-integration`. An invalid value —
+bad JSON, an unknown module id, a missing `modules`, a repeated username, an account reusing
+`SFOA_ADMIN_USERNAME`, more than sixteen entries — **fails startup**: the Admin API does not serve, so a
+typo can never silently grant access. Authorization is enforced per request against an explicit
+`(method, path)` table with default-deny, so a restricted account that hand-crafts an API call is
+refused with 403 `MCP_ADMIN_FORBIDDEN` even though the Console never offered it the page. Denials are
+written to the Admin API's stderr and intentionally **not** persisted to `sfoa_audit_log`, which stays a
+record of actions rather than attempts; ship the Admin API's stderr to the platform log so a refusal is
+still reviewable. Settings are read once at startup, so changing this value — or removing an account,
+which ends that account's live session at its next request — requires an Admin API restart.
+
+A restricted account's own actions remain fully auditable: `actor_admin` (migration 015) records which
+Console account performed each `ADMIN_ACTION`, and 调用审计 exposes it as the 操作人（控制台账号）
+filter. Identity, Salesforce credentials, governance rows, Tool enablement and MCP client authentication
+are untouched by any of this, and no Console account can reach the MCP endpoint or a Salesforce
+credential through the Console.
+
 ## MCP client reachability and Agent connectors
 
 Use the exposure model that matches the client location:
@@ -144,6 +171,12 @@ Use the deployment platform's secret store or protected environment injection fo
 - MCP client token;
 - USER_BOUND credential encryption key and connector tokens;
 - Admin password hash and independent session-signing secret.
+
+`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` is a secret-store value for the same reason `SFOA_ADMIN_PASSWORD`
+is: it carries every restricted account's plaintext password in one variable. Inject it as a whole from
+the store rather than editing it in a shell, and never echo it back — a diagnostic that prints the
+variable prints every restricted password at once. Each account should use an independent password that
+differs from the Admin's and from every other account's.
 
 Restrict key-file permissions to the runtime identity. Never bake secrets into the Vite build, container image, Git, logs, health payloads, support bundles, or browser storage. Apart from the authenticated current route-credential retrieval API, Admin responses expose only masked/configured-state facts.
 

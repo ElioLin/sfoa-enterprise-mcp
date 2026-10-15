@@ -1004,3 +1004,65 @@ the whole, and every failure is a stable `MCP_*` code with a bounded safe Salesf
 code/message. Official Salesforce TypeScript is unmodified; `run_soql_query` stays
 byte-identical because `run_diagnostic_tooling_query` depends on it. See
 [ADR-0024](adr/ADR-0024-p9-data-provider-over-official-sdk.md).
+
+## ADR-0034 scoped Console accounts
+
+The Console authenticated exactly one principal until ADR-0034. `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON`
+now registers additional plaintext accounts beside `SFOA_ADMIN_USERNAME`/`SFOA_ADMIN_PASSWORD`, each
+carrying the Console modules it may use, and the Admin API authorizes every request against that list.
+The boundary is the Admin API, not the React app: the Console hides what an account cannot use, but a
+hand-made request is refused by the same rule.
+
+A Console **module** is the unit of access, and it is an explicit path set rather than a role or a
+hierarchy. Nine ids — `dashboard`, `identity-routes`, `tool-governance`, `dml-policies`, `diagnostic`,
+`ui-context`, `audit`, `system`, `agent-integration` — are listed in navigation order by
+`ADMIN_MODULE_IDS`, which is the single source the API, the Console and the tests all read. Each id
+maps to `(method, path pattern)` entries over the existing `/admin/api` surface, and the map is the
+authorization table: a request whose endpoint matches no module is denied. Patterns match whole
+segments only, so `/audits/1/trace` cannot be reached by a `/audits` grant, and the method participates,
+so a read grant never implies the write on the same path.
+
+Three decisions keep the rule honest:
+
+- **Default-deny, with one exception that is not a privilege tier.** A restricted account's unmatched
+  endpoint is a 403 `MCP_ADMIN_FORBIDDEN`. The bootstrap Admin is `fullAccess: true` and short-circuits
+  the gate, so it keeps the pre-existing 404 for an unknown path and 405 for a wrong method rather than
+  having those collapse into a denial that would misreport what it was.
+- **Cross-module reads are enumerated, not inferred.** `identity-routes` reads `GET /system/settings`
+  (its Drawer resolves `MCP_PUBLIC_URL`), and `agent-integration` reads `GET /system/status`,
+  `GET /tools` and the DML-policy list (its connector JSON states the live Tool and policy facts). Those
+  five closures are written down in one table and asserted by a test that fails if any other module
+  reaches a path outside itself; they are read-only, so no grant here can mutate another module's state.
+  `PUT /system/settings/:key` is the one write two modules share, because both own different keys.
+- **`GET /admin/api/auth/me` carries the module list.** `AdminSessionDto.modules` is required, so a
+  client cannot compile against an absent list, and `AuthService.parse` rejects a session whose username
+  is no longer configured — removing an account from the file ends its live session at the next request
+  instead of at cookie expiry.
+
+The Console derives everything from that list. `moduleForPath` resolves the current pathname to a
+module, the shell filters `ADMIN_NAVIGATION` by it, a pathless `ModuleGuard` route renders a 403 in
+place of an unheld module (the page never mounts, so it never asks the API for its data), and `/` and
+the post-login redirect land on the first held module in navigation order rather than on a hard-coded
+`/dashboard`.
+
+Two operational properties follow from the same "the file is the authority" rule. An invalid value —
+bad JSON, an unknown module id, a missing `modules`, a repeated username, an account reusing the Admin
+username, more than sixteen entries — **fails startup**; the process does not serve, so a typo can never
+silently grant access. And the configuration is frozen when the process starts, so a change needs an
+Admin API restart, exactly like the Admin credentials it sits beside. Login limiting became per-account
+with a loose source backstop: behind nginx every browser collapses to `127.0.0.1`, so the pre-existing
+per-IP bucket was a global lockout in practice, and one account must not be able to spend another's.
+
+Denials are not persisted. The Admin API writes `MCP_ADMIN_FORBIDDEN` to stderr with the module and
+path, and the append-only `sfoa_audit_log` keeps only real Admin actions; a refused request is not an
+action. What the audit *does* gain is attribution: `actor_admin` (migration 015, indexed with
+`occurred_at DESC`) records which Console account performed an `ADMIN_ACTION`, and 调用审计 exposes it
+as an `actorAdmin` filter on the existing search endpoint. Only `channel = 'ADMIN'` rows carry an actor,
+so the filter pairs with 审计类型 = 管理操作.
+
+Nothing in this boundary reaches the MCP runtime. No Tool schema, provider composition, request
+lifecycle, governance snapshot, audit writer or Salesforce path is touched: the change is confined to
+`packages/sfoa-admin-api` authorization, the `packages/sfoa-admin-web` navigation, one additive
+`actor_admin` audit filter with its index, and the shared contracts. Agents using the MCP tools are
+unaffected, and the MCP endpoint's own authentication and authorization are unchanged. See
+[ADR-0034](adr/ADR-0034-scoped-console-accounts.md).

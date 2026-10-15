@@ -2,6 +2,48 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-15 — Scoped Console accounts: the console stops having exactly one principal
+
+The Console authenticated one account and that account saw everything. ADR-0034 adds
+`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` beside `SFOA_ADMIN_USERNAME`/`SFOA_ADMIN_PASSWORD`: plaintext
+accounts in the same config file, each naming the Console modules it may use. The change is confined
+to the console's account-access layer — no MCP Tool, Tool contract, provider, request lifecycle,
+governance snapshot, audit writer or Salesforce path is touched, and agents using the MCP tools are
+unaffected.
+
+**A module is an explicit path set, and that is the whole authorization model.** Nine ids in
+navigation order (`dashboard`, `identity-routes`, `tool-governance`, `dml-policies`, `diagnostic`,
+`ui-context`, `audit`, `system`, `agent-integration`) map to `(method, path pattern)` entries over
+the existing `/admin/api` surface; an endpoint matching no module is denied. Patterns match whole
+segments, so `/audits/1/trace` is unreachable through an `/audits` grant, and the method
+participates, so a read grant never implies the write on the same path. Five read-only cross-module
+closures are enumerated in one table — `identity-routes` reads `GET /system/settings` (its Drawer
+resolves `MCP_PUBLIC_URL`), `agent-integration` reads `GET /system/status`, `GET /tools` and the
+DML-policy list — and a test fails if any other module reaches a path outside itself.
+
+**The bootstrap Admin short-circuits the gate rather than outranking it.** `fullAccess: true` keeps
+the historical 404 for an unknown path and 405 for a wrong method; only restricted accounts get the
+blanket default-deny 403 `MCP_ADMIN_FORBIDDEN`, which is written to stderr with the module and path
+and deliberately **not** persisted, because a refused request is not an Admin action. The Console
+derives its navigation, its landing page (first **held** module in navigation order, not a hard-coded
+`/dashboard`) and an in-place 403 from the now-required `AdminSessionDto.modules`; the 403 page never
+mounts the page it replaces, so it never asks the API for that module's data. `AuthService.parse`
+rejects a session whose username is no longer configured, so removing an account ends its live
+session at the next request instead of at cookie expiry.
+
+**Configuration remains the authority, so it stays fail-closed and frozen.** Bad JSON, an unknown
+module id, a missing `modules`, a repeated username, an account reusing the Admin username, or more
+than sixteen entries **fails startup** — the process does not serve, so a typo cannot silently grant
+access — and the file is re-read only on restart.
+
+**Two operational corrections came with it.** Login limiting is now per-account with a loose source
+backstop, because behind nginx every browser collapses to `127.0.0.1` and the pre-existing per-IP
+bucket was a global lockout in practice; and the audit trail gained attribution without gaining
+volume — `actor_admin` (migration 015, indexed with `occurred_at DESC`) records which Console account
+performed an `ADMIN_ACTION`, surfaced as an `actorAdmin` filter on the existing audit search, paired
+with 审计类型 = 管理操作 because only `channel = 'ADMIN'` rows carry an actor. See
+[ADR-0034](adr/ADR-0034-scoped-console-accounts.md).
+
 ## 2026-10-09 — Production activation: the WeCom channel goes live, the diagnostic Tools run against the production org, and the DML gate's failure mode gets a name
 
 The production activation recorded at the top of [PROD_SERVER_DEPLOYMENT.md](PROD_SERVER_DEPLOYMENT.md)

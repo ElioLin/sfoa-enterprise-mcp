@@ -57,6 +57,8 @@ SFOA_ADMIN_PASSWORD=<local-only-plaintext>
 SFOA_ADMIN_SESSION_SECRET=<independent-random-secret>
 SFOA_ADMIN_ALLOWED_ORIGIN=http://127.0.0.1:5173
 SFOA_ADMIN_COOKIE_SECURE=false
+# ADR-0034: a restricted Console account, one line of JSON (omit for the Admin only).
+# SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON=[{"username":"btit","password":"<local-only-plaintext>","modules":["dashboard","identity-routes","audit","system","agent-integration"]}]
 
 MCP_AUTH_MODE=internal_bearer
 MCP_CLIENT_TOKEN=<independent-local-token>
@@ -67,6 +69,14 @@ MCP_IDENTITY_CREDENTIAL_ENCRYPTION_KEY=<independent-32-byte-base64url-key>
 `MCP_CLIENT_TOKEN`, the identity-credential encryption key, the Admin session secret, the Admin password, the database password, and Salesforce material must all be independent values. `MCP_PUBLIC_URL` is only the connector-facing URL; it does not change the listener. In mysql mode, routes, Tool enablement, DML policy, and Diagnostic identity come only from MySQL. Missing/unavailable data denies the request; there is no environment fallback.
 
 `SFOA_ADMIN_PASSWORD` is the plaintext Admin login password for local development; it is compared in constant time and is never stored as a hash in configuration. Put a real value only in the ignored `.env.local` and never commit it.
+
+`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` (ADR-0034) registers restricted Console accounts in the same file. Each entry is exactly `{"username","password","modules"}`; `modules` is mandatory and names the Console modules the account may use, drawn from `dashboard`, `identity-routes`, `tool-governance`, `dml-policies`, `diagnostic`, `ui-context`, `audit`, `system`, `agent-integration`. An account restricted to 用户身份路由 / 运行概览 / 调用审计 / 系统状态 / 智能体接入 is:
+
+```
+SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON=[{"username":"btit","password":"<local-only-plaintext>","modules":["dashboard","identity-routes","audit","system","agent-integration"]}]
+```
+
+An invalid value — bad JSON, an unknown module id, a missing `modules`, a repeated username — **fails startup** rather than partially applying, and the configuration is frozen when the process starts, so a change needs an Admin API restart. See [ADR-0034](adr/ADR-0034-scoped-console-accounts.md).
 
 Generate a session secret with `node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))"`. Generate the independent AES key with `node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"`. Store both outputs only in `.env.local`.
 

@@ -261,7 +261,11 @@ SFOA_ADMIN_COOKIE_SECURE=false      # 内网明文 HTTP；若以后上 HTTPS 需
 SFOA_ADMIN_SESSION_TTL_SECONDS=28800
 SFOA_ADMIN_LOGIN_MAX_ATTEMPTS=5
 SFOA_ADMIN_LOGIN_WINDOW_MS=900000
-
+# ADR-0034：受限控制台账号（可选，生产默认不开）。JSON 数组，每项恰好
+# {username,password,modules}；modules 必填、不默认全量；用户名大小写不敏感去重
+# 且不得复用 SFOA_ADMIN_USERNAME；最多 16 个。值非法则 Admin API 拒绝启动。
+# 启用前必须先在测试服验收；改完必须重启 Admin API（配置在启动时冻结）。
+# SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON=[{"username":"btit","password":"<明文密码>","modules":["dashboard","identity-routes","audit","system","agent-integration"]}]
 # ── MCP Runtime（Nginx 反代 /mcp）──
 MCP_BIND_HOST=0.0.0.0
 MCP_PORT=8080

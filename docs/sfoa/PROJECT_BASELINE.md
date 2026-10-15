@@ -100,6 +100,19 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+2026-10-15: ADR-0034 gives the Console more than one account without giving it a user-management
+module. `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers plaintext accounts beside the existing
+`SFOA_ADMIN_USERNAME`/`SFOA_ADMIN_PASSWORD`, each naming the Console modules it may use; a **module**
+is an explicit set of `(method, path)` endpoints over the existing `/admin/api` surface, default-deny,
+with the bootstrap Admin short-circuiting the gate so it keeps its historical 404/405 semantics. The
+Console reads `GET /admin/api/auth/me`'s required `modules` list for its navigation, its landing page
+and an in-place 403. `actor_admin` (migration 015) attributes `ADMIN_ACTION` audit rows to a Console
+account, with an `actorAdmin` filter on the existing audit search. Invalid configuration fails startup,
+and the file is re-read only on restart. Scope is the console account-access layer only: no MCP Tool,
+Tool schema, provider, request lifecycle, governance snapshot, audit writer or Salesforce path is
+touched, and agents using the MCP tools are unaffected. See
+[ADR-0034](adr/ADR-0034-scoped-console-accounts.md).
+
 2026-09-13: SFOA OpenClaw Skill Foundation starts from the verified complete
 `origin/feature/openclaw-multimodal-input` at
 `0944b568aa8d931a127e4c4a914514a9f02b7393`, on
@@ -523,3 +536,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | P7-LAZY-CONNECTION-HOTFIX01 | 2026-09-02 | Closure HOTFIX: explicit `requiresSalesforceConnection` boolean replaces the `hostOwnedArguments.includes('usernameOrAlias')` Connection heuristic (get_username=false, run_soql_query/retrieve_metadata=true), enforced by an upstream-drift guard; DML lazy-auth failure aligned to the DML output contract; Tool `durationMs` pinned as end-to-end latency including lazy auth/connection. Live P4 Diagnostic PASS; P2/P3 env validators NOT RE-RUN under the mysql+BUNTU checkout. |
 | MANAGED-LOOKUP-FALLBACK-1.0 | 2026-09-05 | Add explicit-user-first platform Lookup strategy, compatible ENUM/CHECK migration 010, safe capabilities and Playbook 1.5.0; preserve strict strategies, request identity, Salesforce authority, and audit summaries. |
 | MANAGED-LOOKUP-FALLBACK-HOTFIX01 | 2026-09-05 | Require CREATE-only fallback with migration 011 and Playbook 1.5.1; reject duplicate client aliases before lookup and align Action Context object casing. Preserve user deployment history and strict strategies. |
+| SCOPED-CONSOLE-ACCOUNTS-BL-1.0 | 2026-10-15 | Add config-file restricted Console accounts under ADR-0034: a nine-id module contract over an explicit default-deny `(method, path)` endpoint table, one privilege tier plus a bootstrap-Admin `fullAccess` short-circuit, enumerated read-only cross-module closures, `modules` on `AdminSessionDto`, Console navigation/landing/in-place 403 derived from it, fail-closed startup validation, per-account login limiting with a source backstop, and `actor_admin` attribution with migration 015 and an `actorAdmin` audit filter. Console account-access layer only: no MCP Tool, Tool contract, provider, request lifecycle, governance, or Salesforce behavior change. |

@@ -1,3 +1,46 @@
+# The Console gets a second account that cannot see everything — modules, a default-deny endpoint table, and an actor on the audit trail (2026-10-15)
+
+- **`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers restricted Console accounts in the same config
+  file as the Admin.** Each entry is exactly `{"username","password","modules"}`, `modules` is
+  mandatory, and the plaintext-password convention is unchanged from `SFOA_ADMIN_PASSWORD`. No
+  user-management module, no user table, no role hierarchy: the file is the authority, and a change
+  needs an Admin API restart exactly like the Admin credentials it sits beside.
+- **A Console module is an explicit path set, not a rank.** Nine ids in navigation order
+  (`dashboard`, `identity-routes`, `tool-governance`, `dml-policies`, `diagnostic`, `ui-context`,
+  `audit`, `system`, `agent-integration`) map to `(method, path pattern)` entries over the existing
+  `/admin/api` surface. An endpoint matching no module is denied, whole segments only — `/audits/1/trace`
+  is not reachable through an `/audits` grant — and the method participates, so a read grant never
+  implies the write on the same path. Five read-only cross-module closures (the identity-route Drawer's
+  `GET /system/settings`, the connector JSON's `GET /system/status`, `GET /tools` and the DML-policy
+  list) are enumerated in one table and asserted by a test that fails if any other module reaches
+  outside itself.
+- **The bootstrap Admin is not a tier above the others — it is the one account the gate does not
+  apply to.** `fullAccess: true` short-circuits authorization so the historical 404 (unknown path) and
+  405 (wrong method) survive instead of collapsing into a denial that would misreport what it was.
+  Restricted accounts get a blanket default-deny: 403 `MCP_ADMIN_FORBIDDEN`, written to stderr with
+  the module and path and deliberately **not** persisted — a refused request is not an Admin action.
+- **The Console derives its whole shape from `GET /admin/api/auth/me`.** `AdminSessionDto.modules` is
+  required, the shell filters its navigation by it, `/` and the post-login redirect land on the first
+  **held** module in navigation order rather than on a hard-coded `/dashboard`, and a pathless
+  `ModuleGuard` route renders 403 in place of an unheld module — the page never mounts, so it never
+  asks the API for its data. `AuthService.parse` rejects a session whose username is no longer
+  configured, so deleting an account ends its live session on the next request rather than at cookie
+  expiry.
+- **Login limiting became per-account, because per-IP never was.** Behind nginx every browser
+  collapses to `127.0.0.1`, which made the old bucket a global lockout; account buckets are now keyed
+  by lowercased username and cleared on success, with a deliberately loose source backstop
+  (`LOGIN_SOURCE_BACKSTOP_FACTOR = 20`) that is consumed before the body is read and never cleared.
+- **The audit trail gained attribution, not volume.** Migration 015 adds `idx_sfoa_audit_actor`
+  (`actor_admin, occurred_at DESC`) and 调用审计 exposes an `actorAdmin` filter on the existing search
+  endpoint. Only `channel = 'ADMIN'` rows carry an actor, so the filter pairs with 审计类型 = 管理操作.
+- **The change stops at the console.** No MCP Tool, Tool schema, provider, request lifecycle,
+  governance snapshot, audit writer or Salesforce path is touched; the MCP endpoint's own
+  authentication and authorization are unchanged and agents using the tools see no difference.
+  Evidence: `packages/sfoa-admin-api` 43/43, new `module-paths`/`config`/`auth`/gate tests, new
+  `ConsoleModules`/`ModuleAccess` Console tests, a `P5_ADMIN_SCOPED_ACCOUNT_REAL_HTTP=PASS` leg in the
+  full-stack harness and a dual-account browser test in `admin-fullstack.spec.ts`. See
+  [`ADR-0034`](docs/sfoa/adr/ADR-0034-scoped-console-accounts.md).
+
 # SFoA production activation closed out — WeCom live, diagnostic Tools fired for real, and a DML gate taken down by a console click (2026-10-09)
 
 - **The production WeCom channel is live.** The robot's `botId`/`secret` were patched into the two

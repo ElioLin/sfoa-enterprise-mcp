@@ -91,4 +91,18 @@ separately. Real New UI/Agent accuracy remains [post-implementation UAT](p8-04-e
 
 Live Salesforce, Inspector, stdio, HTTP, A/B identity, Diagnostic, and mutation gates are required when their boundary changes and credentials are available. Missing external conditions are `NOT TESTED`.
 
+For Console authorization changes, three levels must all move together. The endpoint
+table is unit-tested (`packages/sfoa-admin-api/src/test/module-paths.test.ts`): ids in
+parity with `ADMIN_MODULE_IDS`, every module reaching at least one endpoint, method
+sensitivity, whole-segment matching, unmapped endpoints denied, and no module reaching
+outside itself except the enumerated read-only closures. The gate itself is covered in
+`http-server.test.ts` against a scoped account, and the Console's behaviour in
+`ConsoleModules.test.ts` / `ModuleAccess.test.tsx` (navigation filtered, 403 in place
+with no API call for the forbidden module, landing on the first held module). The
+real-backend leg is `P5_ADMIN_SCOPED_ACCOUNT_REAL_HTTP=PASS` inside
+`scripts/p5-fullstack-e2e.mjs` plus the dual-account test in
+`packages/sfoa-admin-web/e2e/admin-fullstack.spec.ts`. A passing browser test alone is
+not evidence: the boundary is the Admin API, so a scoped account's direct request to a
+module it does not hold must be shown refused.
+
 For request-resource lifecycle changes, automated call-count evidence is mandatory: scope creation and local/protocol methods stay at zero; the first Salesforce operation creates one Connection; repeated/concurrent access in one scope stays at one; two scopes create two isolated Connections; Diagnostic execution creates only its DIAGNOSTIC Connection. Also cover lazy auth/Connection failure taxonomy and unused/failed/aborted cleanup.

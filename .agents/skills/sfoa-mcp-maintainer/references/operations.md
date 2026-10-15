@@ -42,3 +42,28 @@ MCP_CLIENT_TOKEN). Keep MCP_PLATFORM_USER_HEADER=X-Platform-User-Id and
 MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id. Restart Runtime/Admin API together.
 The plugin Authorization is Bearer <MCP_WECOM_CLIENT_TOKEN>; WeCom injects its
 user Header for execution. Discovery has no user/route/Salesforce access.
+
+## Restricted Console accounts (ADR-0034)
+
+`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers Console accounts that see only the
+modules they are granted. Its value is a secret — one line of JSON carrying every
+restricted account's plaintext password — so inject it whole from the secret store and
+never echo it back. `modules` is mandatory and draws only on `dashboard`,
+`identity-routes`, `tool-governance`, `dml-policies`, `diagnostic`, `ui-context`,
+`audit`, `system`, `agent-integration`; an unknown id, a missing `modules`, a repeated
+username, an account reusing `SFOA_ADMIN_USERNAME`, bad JSON, or more than sixteen
+entries **fails startup**, so the Admin API stops serving rather than partially
+applying. The value is read once at process start: changing it, or removing an account
+(which ends that account's live session at its next request), requires an Admin API
+restart.
+
+Diagnosis follows the same split as the rest of the boundary. A module the account does
+not hold answers 403 `MCP_ADMIN_FORBIDDEN` on every request, not only in the browser —
+the Console simply never offers the page. Those refusals are **not** in
+`sfoa_audit_log` (the table stays a record of actions), so ship the Admin API's stderr
+to the platform log if a refusal needs to be reviewable; the module and path are in the
+line. `actor_admin` (migration 015) records which Console account performed each
+`ADMIN_ACTION`, exposed as the 操作人（控制台账号）filter in 调用审计, and it only ever
+carries an actor for `channel = 'ADMIN'` rows. If a Console account works in the browser
+but a hand-made API call to a page it *can* see fails, suspect the endpoint table in
+`packages/sfoa-admin-api/src/module-paths.ts` rather than the session.
