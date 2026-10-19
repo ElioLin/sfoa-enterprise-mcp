@@ -135,5 +135,15 @@
     "verification": "Three subprocess tests: assertion executes, failed assertion remains nonzero, never-resolved test times out nonzero; Linux default 2288 passed with 0 skipped/cancelled at b6b400d",
     "manifestScriptException": "Six @sfoa/mcp-server test scripts only; process isolation/scopes unchanged"
   },
-  "prePrCi": "pre-pr-ci.json"
+  "prePrCi": "pre-pr-ci.json",
+  "testDatabaseCleanup": {
+    "evidence": "mysql-cleanup.json",
+    "status": "SHUT_DOWN_AND_PID_ABSENT",
+    "productionServicesTouched": false
+  },
+  "committedSkillSmoke": {
+    "head": "bb12fe11a350bf6c568c488f29f9f360cd06804f",
+    "exitCode": 0,
+    "scope": "Clean git archive reconstruction, not runtime MySQL/live Org acceptance"
+  }
 }

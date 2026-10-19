@@ -103,7 +103,7 @@ Windows 同一 run 的 job 117961903452 完整成功：固定安装/无漂移/�
 
 本机固定 Node ZIP 已对官方 SHASUMS256 核验。初次 frozen 因 @ant-design/icons 下载 ESOCKETTIMEDOUT 退出 1，未构建；旧 C 盘加密 Yarn cache 复制在 Node 22/24 都 UNKNOWN。任务独立 D 盘 cache 只从经 SRI/hash 校验的公共 tarball 解包，没有复用已有 node_modules/dist 或人工补链接。Windows 标准安装在约 50.9 万文件的 bin linking 期间长期扫描；32 线程恢复 EBUSY，两个 workspace alias 同 inode 只证明路径重叠，原因仍属推断；单线程因工具 kernel 重启中断。所有本机未完成安装不计 PASS；两套真正冷装证据来自干净 GitHub runners。
 
-曾启动任务独立 datadir/13306 的 MySQL 8.0.30，未执行本地集成测试，实例已随任务工具进程结束；CI 用自己的测试服务。没有连接生产配置。只读 build plan 对全部 21 包与 admin-api 11 包成功，SFOA plan 在本机负载下超时，均不冒充本机冷构建验收。
+曾启动任务独立 datadir/13306 的 MySQL 8.0.30，未执行本地集成测试，收尾核查发现子 MySQL 进程在父工具退出后仍存活；核对实际 datadir/13306 后用 mysqladmin 正常关闭并确认 PID 消失，证据见 [任务实例清理](evidence/p11a/mysql-cleanup.json)。CI 用自己的测试服务。没有连接生产配置。只读 build plan 对全部 21 包与 admin-api 11 包成功，SFOA plan 在本机负载下超时，均不冒充本机冷构建验收。
 
 本机最终工程测试 19 pass / 0 skip，Skill validate/check/delivery/sync 均 0、Skill test 71 pass / 0 skip。committed smoke/Agent 由最终 CI 再核对。原 main 用固定 Node 22.23.1 / Yarn 1.22.22 执行根 lint 的同一命令体，退出 1：code-analyzer/test/test-helpers.ts:29:14 的既有 unused catch error，1 error / 0 warning，后续 workspace lint 未执行。[lint 基线](evidence/p11a/lint-baseline.json) 记录源文件与 main 相同；这是既有安装环境补充观察，不是冷装验收，也不把历史 47 条当成本轮计数。新增 .mjs 不在原 TypeScript ESLint 范围，用语法检查与 19 个行为测试验证；不据上游失败豁免新问题。
 
