@@ -57,8 +57,10 @@ jobs:
         run: node scripts/ci-run.mjs lock -- yarn lock:check
       - name: Frozen install
         run: node scripts/ci-run.mjs install -- yarn install --frozen-lockfile --non-interactive
-      - name: Verify install does not modify manifests or lock
-        run: git diff --exit-code -- package.json 'packages/*/package.json' yarn.lock
+      - name: Verify complete lock and no implicit manifest/lock changes
+        run: |
+          node scripts/ci-run.mjs lock-recheck -- yarn install --non-interactive
+          git diff --exit-code -- package.json 'packages/*/package.json' yarn.lock
       - name: Build every workspace
         id: build
         run: node scripts/ci-run.mjs build -- yarn build

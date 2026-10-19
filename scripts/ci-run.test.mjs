@@ -54,10 +54,16 @@ test('a passing real suite yields counts and redacts sensitive output in console
   });
 });
 
-test('a real failed assertion keeps the command failure and failed test count', async () => {
-  await check("import test from 'node:test'; import assert from 'node:assert/strict'; test('fails',()=>assert.fail('fixture'));", ['--tests'], (result, report) => {
+test('a real failed assertion remains visible and failed after later output exceeds the log limit', async () => {
+  await check("import test from 'node:test'; import assert from 'node:assert/strict'; test('fails',()=>assert.fail('FIRST_FAILURE_MARKER '+process.env.SFOA_TEST_SECRET)); test('later output',async()=>{ await new Promise(resolve=>setTimeout(resolve,50)); console.log('L'.repeat(100000)); });", ['--tests'], (result, report, log) => {
     assert.equal(result.status, 1);
     assert.equal(report.exitCode, 1);
     assert.equal(report.failed, 1);
+    assert.match(log, /FIRST_FAILURE_MARKER/u);
+    assert.match(result.stdout, /FIRST_FAILURE_MARKER/u);
+    assert.ok(log.length <= 65_536);
+    assert.ok(result.stdout.length < 17_500);
+    assert.equal(log.includes('ci-evidence-sensitive-fixture'), false);
+    assert.equal(result.stdout.includes('ci-evidence-sensitive-fixture'), false);
   });
 });

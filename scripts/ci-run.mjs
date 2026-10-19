@@ -64,9 +64,16 @@ const result = { label, command: [command, ...commandArgs], exitCode, gateExitCo
   ...counts, durationMs: Date.now() - start, sha: process.env.GITHUB_SHA ?? null,
   headSha: process.env.P11A_HEAD_SHA ?? null };
 await writeFile(path.join(directory, `${label}.json`), `${JSON.stringify(result, null, 2)}\n`);
-// Artifacts contain a bounded, redacted tail, never env files or an entire service log directory.
-await writeFile(path.join(directory, `${label}.log`), safeOutput.slice(-65_536));
-process.stdout.write(`${safeOutput.slice(-16_384)}\n${JSON.stringify(result)}\n`);
+// Preserve the first real failure as well as the tail, after redaction, within the same limit.
+function boundedLog(limit) {
+  const failure = status ? safeOutput.search(/^[\t ]*(?:not ok \d+\b|FAIL\b|\d+\))/mu) : -1;
+  if (failure < 0 || failure >= safeOutput.length - limit) return safeOutput.slice(-limit);
+  const first = safeOutput.slice(Math.max(0, failure - 256), failure + Math.floor(limit / 4));
+  const separator = '\n[... bounded log tail ...]\n';
+  return first + separator + safeOutput.slice(-(limit - first.length - separator.length));
+}
+await writeFile(path.join(directory, `${label}.log`), boundedLog(65_536));
+process.stdout.write(`${boundedLog(16_384)}\n${JSON.stringify(result)}\n`);
 if (process.env.GITHUB_STEP_SUMMARY) {
   await appendFile(process.env.GITHUB_STEP_SUMMARY,
     `| ${label} | ${status} | ${counts.passed} | ${counts.failed} | ${counts.skipped} |\n`);

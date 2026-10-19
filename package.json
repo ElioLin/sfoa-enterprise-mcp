@@ -58,7 +58,7 @@
     "p5:e2e:fullstack": "yarn build:sfoa && node scripts/p5-fullstack-e2e.mjs",
     "validate:p5": "node scripts/validate-p5.mjs",
     "build:sfoa": "node scripts/build-workspaces.mjs --target sfoa",
-    "test:engineering": "node --test scripts/build-workspaces.test.mjs scripts/ci-run.test.mjs scripts/check-lockfile.test.mjs",
+    "test:engineering": "node --test scripts/build-workspaces.test.mjs scripts/ci-run.test.mjs scripts/check-lockfile.test.mjs scripts/node-test-lifecycle.test.mjs",
     "lock:check": "node scripts/check-lockfile.mjs"
   }
 }
