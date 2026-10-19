@@ -38,7 +38,7 @@
     "agent:sync": "yarn workspace @sfoa/agent-playbook run sync",
     "agent:check": "yarn workspace @sfoa/agent-playbook run check",
     "review:package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-review.ps1",
-    "build": "yarn workspaces run build",
+    "build": "node scripts/build-workspaces.mjs",
     "clean": "yarn workspaces run clean",
     "clean-all": "yarn workspaces run clean-all && rimraf node_modules",
     "lint": "yarn workspaces run lint",
@@ -55,7 +55,9 @@
     "p5:test": "yarn workspace @sfoa/control-plane test && yarn workspace @sfoa/control-plane test:mysql && yarn workspace @sfoa/identity-runtime test && yarn workspace @sfoa/mcp-server test:p5 && yarn workspace @sfoa/admin-api test && yarn workspace @sfoa/admin-web test",
     "p5:test:runtime:mysql": "yarn workspace @sfoa/mcp-server test:p5:mysql",
     "p5:e2e": "yarn workspace @sfoa/admin-web e2e",
-    "p5:e2e:fullstack": "yarn workspace @sfoa/control-plane build && yarn workspace @sfoa/admin-api build && yarn workspace @sfoa/admin-web build && node scripts/p5-fullstack-e2e.mjs",
-    "validate:p5": "node scripts/validate-p5.mjs"
+    "p5:e2e:fullstack": "yarn build:sfoa && node scripts/p5-fullstack-e2e.mjs",
+    "validate:p5": "node scripts/validate-p5.mjs",
+    "build:sfoa": "node scripts/build-workspaces.mjs --target sfoa",
+    "test:engineering": "node --test scripts/build-workspaces.test.mjs scripts/ci-run.test.mjs"
   }
 }
