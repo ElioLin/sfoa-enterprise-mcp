@@ -10,6 +10,7 @@ jobs:
     timeout-minutes: 60
     env:
       CI: 'true'
+      P11A_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       WIREIT_CACHE: none
       WIREIT_LOGGER: simple
       SF_DISABLE_TELEMETRY: 'true'
@@ -67,6 +68,9 @@ jobs:
       - name: Original default workspace tests
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/ci-run.mjs default --tests -- yarn test
+      - name: Original analyzer local E2E (Java fixtures, no Salesforce Org)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/ci-run.mjs analyzer-e2e --tests --no-skips -- yarn workspace @salesforce/mcp-provider-code-analyzer test:e2e
       - name: P3 suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/ci-run.mjs p3 --tests --no-skips -- yarn workspace @sfoa/mcp-server test:p3

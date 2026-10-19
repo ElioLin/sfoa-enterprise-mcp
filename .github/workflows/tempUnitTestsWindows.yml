@@ -13,6 +13,7 @@ jobs:
         shell: bash
     env:
       CI: 'true'
+      P11A_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       WIREIT_CACHE: none
       WIREIT_LOGGER: simple
       SF_DISABLE_TELEMETRY: 'true'
@@ -48,12 +49,19 @@ jobs:
       - name: Verify install does not modify manifests or lock
         run: git diff --exit-code -- package.json 'packages/*/package.json' yarn.lock
       - name: Build every workspace with original resource copying
+        id: build
         run: node scripts/ci-run.mjs build -- yarn build
       - name: Build orchestration and CI evidence tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/ci-run.mjs engineering --tests --no-skips -- yarn test:engineering
       - name: Original default workspace tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/ci-run.mjs default --tests -- yarn test
+      - name: Original analyzer local E2E (Java fixtures, no Salesforce Org)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/ci-run.mjs analyzer-e2e --tests --no-skips -- yarn workspace @salesforce/mcp-provider-code-analyzer test:e2e
       - name: Skill and Agent generated artifacts
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           yarn skill:validate
           yarn skill:check

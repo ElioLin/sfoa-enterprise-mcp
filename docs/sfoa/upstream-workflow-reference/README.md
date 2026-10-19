@@ -7,7 +7,7 @@
 | test.yml | 非 main push、dispatch | 适配；main PR/push/dispatch，复用 Linux/Windows，统一 P11-A gate；不按 paths 跳过核心检查 |
 | tempUnitTestsLinux.yml | workflow_call，远端 Node 版本判定 | 适配；固定 Node/Yarn/Java，frozen，全 21 workspace build/default tests，专有/MySQL/Admin/Skill/Agent；无产物缓存 |
 | tempUnitTestsWindows.yml | workflow_call | 适配；固定工具链、Git Bash，保留完整冷构建/default tests；与 Linux 独立运行 |
-| e2e.yml | workflow_call，经旧 tests 自动矩阵调用 | 改为 workflow_dispatch 明确 opt-in；独立 test-org environment；保留两 Provider × 两 OS 的真实 Org 测试，核心 CI 不读取 Org secret |
+| e2e.yml | workflow_call，经旧 tests 自动矩阵调用 | 改为 workflow_dispatch 明确 opt-in；独立 test-org environment；DX Core 两 OS 的真实 Org 测试保留为 opt-in；analyzer 两 OS 的本地 Java/stdio E2E 保留在核心 CI，核心不读取 Org secret |
 | validate-pr.yml | main PR opened/reopened/edited | 本地化标题/非空说明校验，增加 synchronize；保留元数据质量规则，不代替代码测试 |
 | automerge.yml | 每天四次 cron、dispatch | 归档；当前必须人工审查；不需要官方 bot 权限 |
 | devScripts.yml | 每周 cron、dispatch | 归档；上游开发脚本同步改为单独固定版本审查 |

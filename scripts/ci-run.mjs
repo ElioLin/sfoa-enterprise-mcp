@@ -61,7 +61,8 @@ safeOutput = safeOutput.replace(/Bearer\s+\S+/giu, 'Bearer [REDACTED]')
   .replace(/sfoa_ub1_[A-Za-z0-9_-]+/gu, '[REDACTED]')
   .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/gu, '[REDACTED]');
 const result = { label, command: [command, ...commandArgs], exitCode, gateExitCode: status,
-  ...counts, durationMs: Date.now() - start, sha: process.env.GITHUB_SHA ?? null };
+  ...counts, durationMs: Date.now() - start, sha: process.env.GITHUB_SHA ?? null,
+  headSha: process.env.P11A_HEAD_SHA ?? null };
 await writeFile(path.join(directory, `${label}.json`), `${JSON.stringify(result, null, 2)}\n`);
 // Artifacts contain a bounded, redacted tail, never env files or an entire service log directory.
 await writeFile(path.join(directory, `${label}.log`), safeOutput.slice(-65_536));
