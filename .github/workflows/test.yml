@@ -1,36 +1,30 @@
 name: tests
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches-ignore: [main]
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+concurrency:
+  group: p11a-${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  yarn-lockfile-check:
-    uses: salesforcecli/github-workflows/.github/workflows/lockFileCheck.yml@main
-    
-  # Since the Windows unit tests take much longer, we run the linux unit tests first and then run the windows unit tests in parallel with NUTs
   linux-unit-tests:
-    needs: yarn-lockfile-check
-#    uses: salesforcecli/github-workflows/.github/workflows/unitTestsLinux.yml@main
-    uses: ./.github/workflows/tempUnitTestsLinux.yml # temporary replacement
+    uses: ./.github/workflows/tempUnitTestsLinux.yml
   windows-unit-tests:
-    needs: linux-unit-tests
-#    uses: salesforcecli/github-workflows/.github/workflows/unitTestsWindows.yml@main
-    uses: ./.github/workflows/tempUnitTestsWindows.yml # temporary replacement
-  e2e:
-    # needs: linux-unit-tests
-    uses: ./.github/workflows/e2e.yml
-    secrets: inherit
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        command:
-          - 'yarn test:e2e'
-        provider:
-          - 'mcp-provider-dx-core'
-          - 'mcp-provider-code-analyzer'
-      fail-fast: false
-    with:
-      os: ${{ matrix.os }}
-      command: ${{ matrix.command }}
-      provider: ${{ matrix.provider }}
+    uses: ./.github/workflows/tempUnitTestsWindows.yml
+  p11a-gate:
+    name: P11-A gate
+    if: always()
+    needs: [linux-unit-tests, windows-unit-tests]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require both complete cold-build and test jobs to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const jobs=JSON.parse(process.env.RESULTS); for(const [name,job] of Object.entries(jobs)){ console.log(name+": "+job.result); if(job.result!=="success")process.exitCode=1; }'

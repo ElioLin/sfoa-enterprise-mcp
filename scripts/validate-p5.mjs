@@ -20,9 +20,11 @@ const gates = [
   ['@sfoa/identity-runtime', 'test'],
   ['@sfoa/mcp-server', 'test:p5'],
   ['@sfoa/admin-api', 'test'],
-  ['@sfoa/admin-web', 'build'],
   ['@sfoa/admin-web', 'test'],
 ];
+
+process.stdout.write('\n[P5 GATE] build:sfoa prerequisites\n');
+runProcess(process.execPath, [path.join(process.cwd(), 'scripts/build-workspaces.mjs'), '--target', 'sfoa']);
 
 for (const [workspace, gate] of gates) {
   process.stdout.write(`\n[P5 GATE] ${workspace} ${gate}\n`);
@@ -32,10 +34,6 @@ for (const [workspace, gate] of gates) {
 process.stdout.write('\n[P5 GATE] p5:e2e\n');
 runWorkspace('@sfoa/admin-web', 'e2e');
 
-process.stdout.write('\n[P5 GATE] p5:e2e:fullstack prerequisites\n');
-runWorkspace('@sfoa/control-plane', 'build');
-runWorkspace('@sfoa/admin-api', 'build');
-runWorkspace('@sfoa/admin-web', 'build');
 process.stdout.write('\n[P5 GATE] p5:e2e:fullstack\n');
 runProcess(process.execPath, [path.join(process.cwd(), 'scripts/p5-fullstack-e2e.mjs')]);
 
@@ -58,7 +56,11 @@ function workspaceGateCommands(workspace, gate) {
     return [lint, ['./node_modules/vite/bin/vite.js', 'build']];
   }
   if (gate === 'build') return [build];
-  const nodeTests = (pattern) => ['--test-isolation=none', '--test', pattern];
+  const nodeTests = (pattern) => [
+    ...(workspace === '@sfoa/mcp-server' ? ['--import', new URL('./node-test-lifecycle.mjs', import.meta.url).href,
+      '--test-timeout=300000'] : []),
+    '--experimental-test-isolation=none', '--test', pattern,
+  ];
   if (workspace === '@sfoa/control-plane' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];
   if (workspace === '@sfoa/control-plane' && gate === 'test:mysql') return [build, nodeTests('dist/mysql-test/*.test.js')];
   if (workspace === '@sfoa/identity-runtime' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];

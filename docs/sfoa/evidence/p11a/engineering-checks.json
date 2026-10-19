@@ -1,0 +1,68 @@
+{
+  "node": "22.23.1",
+  "yarn": "1.22.22",
+  "command": "yarn test:engineering",
+  "exitCode": 0,
+  "passed": 19,
+  "failed": 0,
+  "skipped": 0,
+  "syntax": [
+    {
+      "file": "build-workspaces.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "build-workspaces.test.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "ci-run.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "ci-run.test.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "p5-dev.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "validate-p5.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "p8-04-regression.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "check-lockfile.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "check-lockfile.test.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "node-test-lifecycle.mjs",
+      "exitCode": 0
+    },
+    {
+      "file": "node-test-lifecycle.test.mjs",
+      "exitCode": 0
+    }
+  ],
+  "yamlFiles": 5,
+  "yamlSyntax": "PASS: five permanent active workflows; temporary wrapper removed before delivery",
+  "cancelled": 0,
+  "scope": "Node22 syntax plus 19 behavioral tests; new .mjs is outside upstream TypeScript ESLint globs",
+  "whitespace": {
+    "fullDiffExit": 2,
+    "diagnostic": "docs/sfoa/taskbooks/SFOA_P11_Phase1_Codex_Taskbook_20261019.md:614: new blank line at EOF.\ndocs/sfoa/upstream-workflow-reference/test.yml:10: trailing whitespace.\n+    \n",
+    "preservedOriginals": [
+      "upstream-workflow-reference/test.yml:10 preserves original blob trailing whitespace",
+      "taskbooks/SFOA_P11_Phase1_Codex_Taskbook_20261019.md:614 preserves attached source blank EOF"
+    ],
+    "activeDiffExcludingBothOriginalCopiesExit": 0
+  }
+}

@@ -1,0 +1,504 @@
+{
+  "runId": 39222820613,
+  "url": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39222820613",
+  "head": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+  "purpose": "Real pre-PR validation, not final PR-head acceptance",
+  "linux": {
+    "jobId": 117961903200,
+    "conclusion": "failure",
+    "artifact": {
+      "id": 12173975936,
+      "sha256": "a5ea5b3b68ea19e8a2fc3302ffa1addb2c6437252ffbab7fa0ba2437ad86ef99",
+      "bytes": 42776,
+      "retentionDays": 14
+    },
+    "results": [
+      {
+        "label": "admin-browser",
+        "command": [
+          "yarn",
+          "p5:e2e"
+        ],
+        "exitCode": 1,
+        "gateExitCode": 1,
+        "passed": 2,
+        "failed": 1,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 40458,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "admin-fullstack",
+        "command": [
+          "yarn",
+          "p5:e2e:fullstack"
+        ],
+        "exitCode": 1,
+        "gateExitCode": 1,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 78347,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "analyzer-e2e",
+        "command": [
+          "yarn",
+          "workspace",
+          "@salesforce/mcp-provider-code-analyzer",
+          "test:e2e"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 42470,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "build",
+        "command": [
+          "yarn",
+          "build"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 156462,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "control-plane-mysql",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/control-plane",
+          "test:mysql"
+        ],
+        "exitCode": 1,
+        "gateExitCode": 1,
+        "passed": 12,
+        "failed": 2,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 19683,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "default",
+        "command": [
+          "yarn",
+          "test"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 2288,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 483967,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "engineering",
+        "command": [
+          "yarn",
+          "test:engineering"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 9224,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "install",
+        "command": [
+          "yarn",
+          "install",
+          "--frozen-lockfile",
+          "--non-interactive"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 462890,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "lock-recheck",
+        "command": [
+          "yarn",
+          "install",
+          "--non-interactive"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 1478,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "lock",
+        "command": [
+          "yarn",
+          "lock:check"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 344,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "p3",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/mcp-server",
+          "test:p3"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 24531,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "p4",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/mcp-server",
+          "test:p4"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 16658,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "p5",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/mcp-server",
+          "test:p5"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 18223,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "p7",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/mcp-server",
+          "test:p7"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 33834,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "runtime-mysql",
+        "command": [
+          "yarn",
+          "p5:test:runtime:mysql"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 15168,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "skill",
+        "command": [
+          "yarn",
+          "skill:test"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 71,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 1014,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "stdio",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/runtime-validation",
+          "regress:stdio"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 26557,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "upstream-contract",
+        "command": [
+          "yarn",
+          "workspace",
+          "@sfoa/mcp-server",
+          "validate:upstream"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 11240,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      }
+    ]
+  },
+  "windows": {
+    "jobId": 117961903452,
+    "conclusion": "success",
+    "artifact": {
+      "id": 12174755392,
+      "sha256": "26424b59c258b11bb239c83f57afbc72bb5ba4a4eee526755853fdd2d3de2bd3",
+      "bytes": 25159,
+      "retentionDays": 14
+    },
+    "results": [
+      {
+        "label": "lock",
+        "command": [
+          "yarn",
+          "lock:check"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 728,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "install",
+        "command": [
+          "yarn",
+          "install",
+          "--frozen-lockfile",
+          "--non-interactive"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 1108664,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "lock-recheck",
+        "command": [
+          "yarn",
+          "install",
+          "--non-interactive"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 1832,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "build",
+        "command": [
+          "yarn",
+          "build"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 226763,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "engineering",
+        "command": [
+          "yarn",
+          "test:engineering"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 10341,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "default",
+        "command": [
+          "yarn",
+          "test"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 2287,
+        "failed": 0,
+        "skipped": 1,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 762862,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "analyzer-e2e",
+        "command": [
+          "yarn",
+          "workspace",
+          "@salesforce/mcp-provider-code-analyzer",
+          "test:e2e"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 94623,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      },
+      {
+        "label": "skill",
+        "command": [
+          "yarn",
+          "skill:test"
+        ],
+        "exitCode": 0,
+        "gateExitCode": 0,
+        "passed": 71,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "durationMs": 3716,
+        "sha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+        "headSha": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2"
+      }
+    ],
+    "defaultSkip": {
+      "count": 1,
+      "newSkipAdded": false,
+      "existingSourceGuard": "packages/mcp-provider-scale-products/test/tools/scan-apex-antipatterns-tool.test.ts:362 it.skipIf(process.platform === win32): unreadable file case",
+      "limitation": "The named reporter line is outside the bounded retained default log. Count is recorded from the complete raw output; mapping to the existing platform guard is source-based."
+    }
+  },
+  "conclusion": "failure",
+  "gateJobId": 117976687218
+}

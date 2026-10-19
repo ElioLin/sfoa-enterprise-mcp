@@ -1,0 +1,29 @@
+{
+  "exitCode": 1,
+  "errno": "EBUSY",
+  "installerOnlyUV_THREADPOOL_SIZE": 32,
+  "files": [
+    {
+      "path": "D:/mcp-backup/p11a-20261019/yarn-cache/v6/npm-brace-expansion-2.0.2-54fc53237a613d854c7bd37463aad17df87214e7-integrity/node_modules/brace-expansion/README.md",
+      "real": "D:\\mcp-backup\\p11a-20261019\\yarn-cache\\v6\\npm-brace-expansion-2.0.2-54fc53237a613d854c7bd37463aad17df87214e7-integrity\\node_modules\\brace-expansion\\README.md",
+      "ino": 281474979326344,
+      "size": 4252,
+      "sha256": "c6439e299b23e2ef6b972546bef1cf6a0594e2acb7a53368150eb3405b03752b"
+    },
+    {
+      "path": "D:/GitProject/sfoa-p11a-verify/packages/mcp-provider-sfoa-context/node_modules/@salesforce/mcp-provider-api/node_modules/brace-expansion/README.md",
+      "real": "D:\\GitProject\\sfoa-p11a-verify\\packages\\mcp-provider-api\\node_modules\\brace-expansion\\README.md",
+      "ino": 17451448556202538,
+      "size": 4252,
+      "sha256": "c6439e299b23e2ef6b972546bef1cf6a0594e2acb7a53368150eb3405b03752b"
+    },
+    {
+      "path": "D:/GitProject/sfoa-p11a-verify/packages/mcp-provider-api/node_modules/brace-expansion/README.md",
+      "real": "D:\\GitProject\\sfoa-p11a-verify\\packages\\mcp-provider-api\\node_modules\\brace-expansion\\README.md",
+      "ino": 17451448556202538,
+      "size": 4252,
+      "sha256": "c6439e299b23e2ef6b972546bef1cf6a0594e2acb7a53368150eb3405b03752b"
+    }
+  ],
+  "manualRepair": false
+}

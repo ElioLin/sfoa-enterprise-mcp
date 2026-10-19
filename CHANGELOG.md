@@ -1,3 +1,7 @@
+# SFoA unreleased — P11-A engineering
+
+- Deterministic full-workspace/SFoA builds, frozen dependency synchronization, isolated Linux/Windows CI and upstream workflow governance. Business runtime and dependency declarations frozen. Review and actual gate evidence: [P11-A report](docs/sfoa/P11A_IMPLEMENTATION_REPORT.md).
+
 # The Console gets a second account that cannot see everything — modules, a default-deny endpoint table, and an actor on the audit trail (2026-10-15)
 
 - **`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers restricted Console accounts in the same config

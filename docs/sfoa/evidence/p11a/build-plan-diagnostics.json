@@ -1,0 +1,32 @@
+[
+  {
+    "target": "all",
+    "result": {
+      "code": 0,
+      "killed": false,
+      "stdout": "[BUILD] 21/21 workspaces: @salesforce/mcp-provider-api -> @salesforce/EXAMPLE-MCP-PROVIDER -> @salesforce/mcp-test-client -> @salesforce/mcp-provider-code-analyzer -> @salesforce/mcp-provider-devops -> @salesforce/mcp-provider-dx-core -> @salesforce/mcp-provider-metadata-enrichment -> @salesforce/mcp-provider-mobile-web -> @salesforce/mcp-provider-scale-products -> @salesforce/mcp -> @sfoa/agent-playbook -> @sfoa/identity-runtime -> @sfoa/control-plane -> @sfoa/mcp-provider-sfoa-context -> @sfoa/mcp-provider-sfoa-data -> @sfoa/mcp-provider-sfoa-dml -> @sfoa/mcp-server -> @sfoa/admin-api -> @sfoa/admin-web -> @sfoa/runtime-validation -> @sfoa/streamable-http-poc\n",
+      "stderr": ""
+    },
+    "mode": "READ_ONLY_PLAN; sfoa read timed out at 25 seconds under local filesystem load; not frozen/build acceptance; final CI runs build:sfoa in fullstack"
+  },
+  {
+    "target": "sfoa",
+    "result": {
+      "code": "SIGTERM",
+      "killed": true,
+      "stdout": "",
+      "stderr": ""
+    },
+    "mode": "READ_ONLY_PLAN; sfoa read timed out at 25 seconds under local filesystem load; not frozen/build acceptance; final CI runs build:sfoa in fullstack"
+  },
+  {
+    "target": "admin-api",
+    "result": {
+      "code": 0,
+      "killed": false,
+      "stdout": "[BUILD] 11/21 workspaces: @sfoa/agent-playbook -> @salesforce/mcp-provider-api -> @salesforce/mcp-test-client -> @salesforce/mcp-provider-dx-core -> @sfoa/identity-runtime -> @sfoa/control-plane -> @sfoa/mcp-provider-sfoa-context -> @sfoa/mcp-provider-sfoa-data -> @sfoa/mcp-provider-sfoa-dml -> @sfoa/mcp-server -> @sfoa/admin-api\n",
+      "stderr": ""
+    },
+    "mode": "READ_ONLY_PLAN; sfoa read timed out at 25 seconds under local filesystem load; not frozen/build acceptance; final CI runs build:sfoa in fullstack"
+  }
+]

@@ -1,0 +1,185 @@
+{
+  "pid": 46816,
+  "fileCountAtSample": 508703,
+  "source": "Unmodified Yarn Classic 1.22.22 lib/cli.js:48472-48535",
+  "phase": "PackageLinker.findNearestInstalledVersionOfPackage; realpath/lstat and path distance selection",
+  "durationMs": 11414.597,
+  "functions": [
+    {
+      "function": "(idle)",
+      "url": "",
+      "line": 0,
+      "samples": 4648
+    },
+    {
+      "function": "(program)",
+      "url": "",
+      "line": 0,
+      "samples": 273
+    },
+    {
+      "function": "lstat",
+      "url": "",
+      "line": 0,
+      "samples": 195
+    },
+    {
+      "function": "join",
+      "url": "node:path",
+      "line": 521,
+      "samples": 157
+    },
+    {
+      "function": "normalize",
+      "url": "node:path",
+      "line": 365,
+      "samples": 66
+    },
+    {
+      "function": "",
+      "url": "yarn/1.22.22/lib/cli.js",
+      "line": 48497,
+      "samples": 62
+    },
+    {
+      "function": "LOOP",
+      "url": "node:fs",
+      "line": 2913,
+      "samples": 55
+    },
+    {
+      "function": "FSReqCallback",
+      "url": "",
+      "line": 0,
+      "samples": 55
+    },
+    {
+      "function": "(garbage collector)",
+      "url": "",
+      "line": 0,
+      "samples": 43
+    },
+    {
+      "function": "gotStat",
+      "url": "node:fs",
+      "line": 2945,
+      "samples": 40
+    },
+    {
+      "function": "readlink",
+      "url": "",
+      "line": 0,
+      "samples": 35
+    },
+    {
+      "function": "processTicksAndRejections",
+      "url": "node:internal/process/task_queues",
+      "line": 71,
+      "samples": 34
+    },
+    {
+      "function": "",
+      "url": "node:path",
+      "line": 601,
+      "samples": 34
+    },
+    {
+      "function": "lstat",
+      "url": "node:fs",
+      "line": 1633,
+      "samples": 33
+    },
+    {
+      "function": "getStatsFromBinding",
+      "url": "node:internal/fs/utils",
+      "line": 552,
+      "samples": 25
+    },
+    {
+      "function": "",
+      "url": "node:fs",
+      "line": 195,
+      "samples": 20
+    },
+    {
+      "function": "lstat",
+      "url": "",
+      "line": 0,
+      "samples": 16
+    },
+    {
+      "function": "isWindowsReservedName",
+      "url": "node:path",
+      "line": 82,
+      "samples": 15
+    },
+    {
+      "function": "runMicrotasks",
+      "url": "",
+      "line": 0,
+      "samples": 14
+    },
+    {
+      "function": "isWindowsReservedName",
+      "url": "node:path",
+      "line": 82,
+      "samples": 13
+    },
+    {
+      "function": "nextTick",
+      "url": "node:internal/process/task_queues",
+      "line": 111,
+      "samples": 12
+    },
+    {
+      "function": "stat",
+      "url": "",
+      "line": 0,
+      "samples": 10
+    },
+    {
+      "function": "SideEffectFreeRegExpPrototypeExec",
+      "url": "node:internal/util",
+      "line": 752,
+      "samples": 10
+    },
+    {
+      "function": "",
+      "url": "node:internal/fs/utils",
+      "line": 708,
+      "samples": 9
+    },
+    {
+      "function": "processPromiseRejections",
+      "url": "node:internal/process/promises",
+      "line": 439,
+      "samples": 9
+    }
+  ],
+  "inspectorClosed": true,
+  "heapOrEnvironmentDumped": false,
+  "sourceOrResolutionPatched": false,
+  "originalDefaultPoolAttempt": {
+    "exitCode": 1,
+    "disposition": "INTERRUPTED_AFTER_PROLONGED_LINKING; not an install pass",
+    "noPriorNodeModules": true
+  },
+  "resumeAttempt": {
+    "node": "22.23.1",
+    "yarn": "1.22.22",
+    "installerOnlyEnvironment": {
+      "UV_THREADPOOL_SIZE": "32"
+    },
+    "sameWorktree": "D:/GitProject/sfoa-p11a-verify",
+    "noManualNodeModulesRepair": true,
+    "status": "FAILED_EBUSY_EXIT_1",
+    "coldAcceptance": "Final GitHub Actions starts from a new checkout; resumed local install is not reported as a clean cold install"
+  },
+  "serialAttempt": {
+    "installerOnlyEnvironment": {
+      "UV_THREADPOOL_SIZE": "1"
+    },
+    "status": "INTERRUPTED_BY_TOOL_KERNEL_RESTART",
+    "successfulInstall": false
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "observedAt": "2026-10-19T09:13:55.551Z",
+  "taskPid": 42600,
+  "parentPidAlreadyExited": 44900,
+  "datadir": "D:\\\\mcp-backup\\\\p11a-20261019\\\\mysql-test-data\\\\",
+  "port": 13306,
+  "version": "8.0.30",
+  "shutdownExit": 0,
+  "method": "mysqladmin shutdown only after SELECT @@datadir/@@port exact match",
+  "otherMySqlServicesTouched": false,
+  "taskPidNoLongerListed": true
+}

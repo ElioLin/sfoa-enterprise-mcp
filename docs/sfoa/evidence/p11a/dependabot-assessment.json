@@ -1,0 +1,396 @@
+[
+  {
+    "number": 1,
+    "title": "chore(dev-deps): update @eslint/js requirement from ^9.35.0 to ^9.39.5 in /packages/EXAMPLE-MCP-PROVIDER",
+    "sha": "729629891b023184cbf345d7a6d4d94e03d52db3",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; toolchain/default tests and coverage compatibility",
+    "actualChangedFiles": [
+      "packages/EXAMPLE-MCP-PROVIDER/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@eslint/js@8.57.1\":\r",
+        "version": "8.57.1",
+        "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-8.57.1.tgz#de633db3ec2ef6a3c89e2f19038063e8a122e2c2"
+      },
+      {
+        "selector": "\"@eslint/js@9.39.1\", \"@eslint/js@^9.17.0\", \"@eslint/js@^9.32.0\", \"@eslint/js@^9.35.0\", \"@eslint/js@^9.39.1\":\r",
+        "version": "9.39.1",
+        "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-9.39.1.tgz#0dd59c3a9f40e3f1882975c321470969243e0164"
+      },
+      {
+        "selector": "\"@eslint/js@9.39.4\", \"@eslint/js@^9.39.2\":\r",
+        "version": "9.39.4",
+        "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-9.39.4.tgz#a3f83bfc6fd9bf33a853dfacd0b49b398eb596c1"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+      "selector": "@eslint/js@^9.35.0",
+      "version": "9.39.1",
+      "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-9.39.1.tgz#0dd59c3a9f40e3f1882975c321470969243e0164",
+      "integrity": "sha512-S26Stp4zCy88tH94QbBv3XCuzRQiZ9yXofEILmglYTh/Ug/a9/umqvgFtYBAo3Lp0nsI/5/qH1CCrbdK3AP1Tw=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 2,
+    "title": "chore(dev-deps): update @vitest/coverage-istanbul requirement from ^3.2.4 to ^3.2.7 in /packages/EXAMPLE-MCP-PROVIDER",
+    "sha": "5665e57a337384dced54c59defe6d55aedddf5e8",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; toolchain/default tests and coverage compatibility",
+    "publicAdvisoryReview": {
+      "advisory": "GHSA-qxg6-89mg-rqv8",
+      "affectedPackage": "@vitest/mocker",
+      "actualPluginExposure": "NOT_VERIFIED",
+      "oldPrDoesNotCloseAllCurrentAdvisories": true
+    },
+    "actualChangedFiles": [
+      "packages/EXAMPLE-MCP-PROVIDER/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@vitest/coverage-istanbul@^3.2.4\":\r",
+        "version": "3.2.4",
+        "resolved": "https://registry.yarnpkg.com/@vitest/coverage-istanbul/-/coverage-istanbul-3.2.4.tgz#a622802975935a2357d890b367fffd0dfd7a5a99"
+      },
+      {
+        "selector": "\"@vitest/coverage-istanbul@^4.0.14\":\r",
+        "version": "4.0.14",
+        "resolved": "https://registry.yarnpkg.com/@vitest/coverage-istanbul/-/coverage-istanbul-4.0.14.tgz#7197830d6284d577ed1571d3f15a48a865e865cd"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+      "selector": "@vitest/coverage-istanbul@^3.2.4",
+      "version": "3.2.4",
+      "resolved": "https://registry.yarnpkg.com/@vitest/coverage-istanbul/-/coverage-istanbul-3.2.4.tgz#a622802975935a2357d890b367fffd0dfd7a5a99",
+      "integrity": "sha512-IDlpuFJiWU9rhcKLkpzj8mFu/lpe64gVgnV15ZOrYx1iFzxxrxCzbExiUEKtwwXRvEiEMUS6iZeYgnMxgbqbxQ=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 3,
+    "title": "chore(dev-deps): update typescript-eslint requirement from ^8.44.0 to ^8.67.0 in /packages/EXAMPLE-MCP-PROVIDER",
+    "sha": "c0f75dbf1d68107dbd1e4e0f16fda51b876561e5",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; toolchain/default tests and coverage compatibility",
+    "actualChangedFiles": [
+      "packages/EXAMPLE-MCP-PROVIDER/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "typescript-eslint@8.30.1:\r",
+        "version": "8.30.1",
+        "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.30.1.tgz#c9ed49b459bd98e325fb78e2c86943dce7bb1cc0"
+      },
+      {
+        "selector": "typescript-eslint@^8.37.0, typescript-eslint@^8.44.0, typescript-eslint@^8.48.0:\r",
+        "version": "8.48.0",
+        "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.48.0.tgz#1f0cfb33351f5740d5a289bf389b4ccacb64be42"
+      },
+      {
+        "selector": "typescript-eslint@^8.56.0:\r",
+        "version": "8.57.0",
+        "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.57.0.tgz#82764795d316ed1c72a489727c43c3a87373f100"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+      "selector": "typescript-eslint@^8.44.0",
+      "version": "8.48.0",
+      "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.48.0.tgz#1f0cfb33351f5740d5a289bf389b4ccacb64be42",
+      "integrity": "sha512-fcKOvQD9GUn3Xw63EgiDqhvWJ5jsyZUaekl3KVpGsDJnN46WJTe3jWxtQP9lMZm1LJNkFLlTaWAxK2vUQR+cqw=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 4,
+    "title": "chore(dev-deps): update vitest requirement from ^3.2.4 to ^3.2.7 in /packages/EXAMPLE-MCP-PROVIDER",
+    "sha": "9be90b276cd4e21ab1424d0717ec37506df8a249",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; toolchain/default tests and coverage compatibility",
+    "publicAdvisoryReview": {
+      "advisory": "GHSA-qxg6-89mg-rqv8",
+      "affectedPackage": "@vitest/mocker",
+      "actualPluginExposure": "NOT_VERIFIED",
+      "oldPrDoesNotCloseAllCurrentAdvisories": true
+    },
+    "actualChangedFiles": [
+      "packages/EXAMPLE-MCP-PROVIDER/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "vitest@^3.2.4:\r",
+        "version": "3.2.4",
+        "resolved": "https://registry.yarnpkg.com/vitest/-/vitest-3.2.4.tgz#0637b903ad79d1539a25bc34c0ed54b5c67702ea"
+      },
+      {
+        "selector": "vitest@^4.0.14:\r",
+        "version": "4.0.14",
+        "resolved": "https://registry.yarnpkg.com/vitest/-/vitest-4.0.14.tgz#69f550e3b3e666671948da18e5d50939d5a22e5d"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+      "selector": "vitest@^3.2.4",
+      "version": "3.2.4",
+      "resolved": "https://registry.yarnpkg.com/vitest/-/vitest-3.2.4.tgz#0637b903ad79d1539a25bc34c0ed54b5c67702ea",
+      "integrity": "sha512-LUCP5ev3GURDysTWiP47wRRUpLKMOfPh+yKTx3kVIEiu5KOMeqzpnYNsKyOoVrULivR8tLcks4+lga33Whn90A=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 5,
+    "title": "fix(deps): update @modelcontextprotocol/sdk requirement from ^1.18.0 to ^1.30.0 in /packages/EXAMPLE-MCP-PROVIDER",
+    "sha": "ec9d9bfec725a720178a1aa4eb8a316d241daeb7",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; MCP protocol/Tool/identity/stdio/HTTP regressions",
+    "publicAdvisoryReview": {
+      "targetsStillInAffectedRange": [
+        "GHSA-46jr-4wx8-v453",
+        "GHSA-f897-62hf-6gxq"
+      ],
+      "upgradeTargetNeedsReassessment": true,
+      "exploitability": "NOT_TESTED; host auth/body limits require a separate assessment"
+    },
+    "actualChangedFiles": [
+      "packages/EXAMPLE-MCP-PROVIDER/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@modelcontextprotocol/sdk@^1.13.1\", \"@modelcontextprotocol/sdk@^1.17.3\", \"@modelcontextprotocol/sdk@^1.18.0\", \"@modelcontextprotocol/sdk@^1.9.0\":\r",
+        "version": "1.18.2",
+        "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+      "selector": "@modelcontextprotocol/sdk@^1.18.0",
+      "version": "1.18.2",
+      "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109",
+      "integrity": "sha512-beedclIvFcCnPrYgHsylqiYJVJ/CI47Vyc4tY8no1/Li/O8U4BTlJfy6ZwxkYwx+Mx10nrgwSVrA7VBbhh4slg=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 6,
+    "title": "fix(deps): update @modelcontextprotocol/sdk requirement from ^1.18.0 to ^1.30.0 in /packages/mcp",
+    "sha": "f65ceb709779022cd17547f183e775c7602262e6",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; MCP protocol/Tool/identity/stdio/HTTP regressions",
+    "publicAdvisoryReview": {
+      "targetsStillInAffectedRange": [
+        "GHSA-46jr-4wx8-v453",
+        "GHSA-f897-62hf-6gxq"
+      ],
+      "upgradeTargetNeedsReassessment": true,
+      "exploitability": "NOT_TESTED; host auth/body limits require a separate assessment"
+    },
+    "actualChangedFiles": [
+      "packages/mcp/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@modelcontextprotocol/sdk@^1.13.1\", \"@modelcontextprotocol/sdk@^1.17.3\", \"@modelcontextprotocol/sdk@^1.18.0\", \"@modelcontextprotocol/sdk@^1.9.0\":\r",
+        "version": "1.18.2",
+        "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/mcp/package.json",
+      "selector": "@modelcontextprotocol/sdk@^1.18.0",
+      "version": "1.18.2",
+      "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109",
+      "integrity": "sha512-beedclIvFcCnPrYgHsylqiYJVJ/CI47Vyc4tY8no1/Li/O8U4BTlJfy6ZwxkYwx+Mx10nrgwSVrA7VBbhh4slg=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 7,
+    "title": "chore(dev-deps): update typescript-eslint requirement from ^8.44.0 to ^8.67.0 in /packages/mcp-provider-api",
+    "sha": "85d6de58d57a9080735da72d9d68360ca93129ec",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; toolchain/default tests and coverage compatibility",
+    "actualChangedFiles": [
+      "packages/mcp-provider-api/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "typescript-eslint@8.30.1:\r",
+        "version": "8.30.1",
+        "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.30.1.tgz#c9ed49b459bd98e325fb78e2c86943dce7bb1cc0"
+      },
+      {
+        "selector": "typescript-eslint@^8.37.0, typescript-eslint@^8.44.0, typescript-eslint@^8.48.0:\r",
+        "version": "8.48.0",
+        "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.48.0.tgz#1f0cfb33351f5740d5a289bf389b4ccacb64be42"
+      },
+      {
+        "selector": "typescript-eslint@^8.56.0:\r",
+        "version": "8.57.0",
+        "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.57.0.tgz#82764795d316ed1c72a489727c43c3a87373f100"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/mcp-provider-api/package.json",
+      "selector": "typescript-eslint@^8.44.0",
+      "version": "8.48.0",
+      "resolved": "https://registry.yarnpkg.com/typescript-eslint/-/typescript-eslint-8.48.0.tgz#1f0cfb33351f5740d5a289bf389b4ccacb64be42",
+      "integrity": "sha512-fcKOvQD9GUn3Xw63EgiDqhvWJ5jsyZUaekl3KVpGsDJnN46WJTe3jWxtQP9lMZm1LJNkFLlTaWAxK2vUQR+cqw=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 8,
+    "title": "chore(dev-deps): update @eslint/js requirement from ^9.35.0 to ^9.39.5 in /packages/mcp-provider-api",
+    "sha": "bd1b2a14643d7e6105a36a24200592d7010b97ba",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; toolchain/default tests and coverage compatibility",
+    "actualChangedFiles": [
+      "packages/mcp-provider-api/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@eslint/js@8.57.1\":\r",
+        "version": "8.57.1",
+        "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-8.57.1.tgz#de633db3ec2ef6a3c89e2f19038063e8a122e2c2"
+      },
+      {
+        "selector": "\"@eslint/js@9.39.1\", \"@eslint/js@^9.17.0\", \"@eslint/js@^9.32.0\", \"@eslint/js@^9.35.0\", \"@eslint/js@^9.39.1\":\r",
+        "version": "9.39.1",
+        "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-9.39.1.tgz#0dd59c3a9f40e3f1882975c321470969243e0164"
+      },
+      {
+        "selector": "\"@eslint/js@9.39.4\", \"@eslint/js@^9.39.2\":\r",
+        "version": "9.39.4",
+        "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-9.39.4.tgz#a3f83bfc6fd9bf33a853dfacd0b49b398eb596c1"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/mcp-provider-api/package.json",
+      "selector": "@eslint/js@^9.35.0",
+      "version": "9.39.1",
+      "resolved": "https://registry.yarnpkg.com/@eslint/js/-/js-9.39.1.tgz#0dd59c3a9f40e3f1882975c321470969243e0164",
+      "integrity": "sha512-S26Stp4zCy88tH94QbBv3XCuzRQiZ9yXofEILmglYTh/Ug/a9/umqvgFtYBAo3Lp0nsI/5/qH1CCrbdK3AP1Tw=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 9,
+    "title": "fix(deps): update @modelcontextprotocol/sdk requirement from ^1.18.0 to ^1.30.0 in /packages/mcp-provider-api",
+    "sha": "b74666422250a1a02103f26fba365ea65e7fc5b1",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; MCP protocol/Tool/identity/stdio/HTTP regressions",
+    "publicAdvisoryReview": {
+      "targetsStillInAffectedRange": [
+        "GHSA-46jr-4wx8-v453",
+        "GHSA-f897-62hf-6gxq"
+      ],
+      "upgradeTargetNeedsReassessment": true,
+      "exploitability": "NOT_TESTED; host auth/body limits require a separate assessment"
+    },
+    "actualChangedFiles": [
+      "packages/mcp-provider-api/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@modelcontextprotocol/sdk@^1.13.1\", \"@modelcontextprotocol/sdk@^1.17.3\", \"@modelcontextprotocol/sdk@^1.18.0\", \"@modelcontextprotocol/sdk@^1.9.0\":\r",
+        "version": "1.18.2",
+        "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/mcp-provider-api/package.json",
+      "selector": "@modelcontextprotocol/sdk@^1.18.0",
+      "version": "1.18.2",
+      "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109",
+      "integrity": "sha512-beedclIvFcCnPrYgHsylqiYJVJ/CI47Vyc4tY8no1/Li/O8U4BTlJfy6ZwxkYwx+Mx10nrgwSVrA7VBbhh4slg=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  },
+  {
+    "number": 10,
+    "title": "fix(deps): update @modelcontextprotocol/sdk requirement from ^1.18.0 to ^1.30.0 in /packages/mcp-provider-dx-core",
+    "sha": "cbf913edf62bbb7a4f6323afe6cfdd6b51f2db55",
+    "securityAlertRelation": "NOT_VERIFIED",
+    "decision": "EVALUATE_KEEP_OPEN",
+    "coveredByP11A": false,
+    "requiredFollowup": "Rebase/replay separately; MCP protocol/Tool/identity/stdio/HTTP regressions",
+    "publicAdvisoryReview": {
+      "targetsStillInAffectedRange": [
+        "GHSA-46jr-4wx8-v453",
+        "GHSA-f897-62hf-6gxq"
+      ],
+      "upgradeTargetNeedsReassessment": true,
+      "exploitability": "NOT_TESTED; host auth/body limits require a separate assessment"
+    },
+    "actualChangedFiles": [
+      "packages/mcp-provider-dx-core/package.json"
+    ],
+    "manifestOnlyWithoutLock": true,
+    "resolvedVersionAtOldPrHead": "NOT_PROVEN_BY_PR_DIFF: manifest-only change, no yarn.lock update",
+    "baselineLockedSelectors": [
+      {
+        "selector": "\"@modelcontextprotocol/sdk@^1.13.1\", \"@modelcontextprotocol/sdk@^1.17.3\", \"@modelcontextprotocol/sdk@^1.18.0\", \"@modelcontextprotocol/sdk@^1.9.0\":\r",
+        "version": "1.18.2",
+        "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109"
+      }
+    ],
+    "currentConsumerLock": {
+      "path": "packages/mcp-provider-dx-core/package.json",
+      "selector": "@modelcontextprotocol/sdk@^1.18.0",
+      "version": "1.18.2",
+      "resolved": "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.18.2.tgz#dd2f14d61f8f10c1388f3157d07c9ec8fb7be109",
+      "integrity": "sha512-beedclIvFcCnPrYgHsylqiYJVJ/CI47Vyc4tY8no1/Li/O8U4BTlJfy6ZwxkYwx+Mx10nrgwSVrA7VBbhh4slg=="
+    },
+    "lockSourceHead": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+    "currentConsumerVersionIsLockResolutionNotLiveProductionInspection": true
+  }
+]

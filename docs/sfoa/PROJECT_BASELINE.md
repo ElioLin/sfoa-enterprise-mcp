@@ -537,3 +537,13 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | MANAGED-LOOKUP-FALLBACK-1.0 | 2026-09-05 | Add explicit-user-first platform Lookup strategy, compatible ENUM/CHECK migration 010, safe capabilities and Playbook 1.5.0; preserve strict strategies, request identity, Salesforce authority, and audit summaries. |
 | MANAGED-LOOKUP-FALLBACK-HOTFIX01 | 2026-09-05 | Require CREATE-only fallback with migration 011 and Playbook 1.5.1; reject duplicate client aliases before lookup and align Action Context object casing. Preserve user deployment history and strict strategies. |
 | SCOPED-CONSOLE-ACCOUNTS-BL-1.0 | 2026-10-15 | Add config-file restricted Console accounts under ADR-0034: a nine-id module contract over an explicit default-deny `(method, path)` endpoint table, one privilege tier plus a bootstrap-Admin `fullAccess` short-circuit, enumerated read-only cross-module closures, `modules` on `AdminSessionDto`, Console navigation/landing/in-place 403 derived from it, fail-closed startup validation, per-account login limiting with a source backstop, and `actor_admin` attribution with migration 015 and an `actorAdmin` audit filter. Console account-access layer only: no MCP Tool, Tool contract, provider, request lifecycle, governance, or Salesforce behavior change. |
+
+## P11-A engineering baseline (2026-10-19)
+
+Authorized A00–A09 only, based on main@12df237f7ab03c4771109813b84f715a29e9e32d.
+MCP CI uses Node 22.23.1 and Yarn 1.22.22; the earlier Node 24 workstation
+snapshot above remains historical. A shared build dependency graph replaces
+manual workspace order; root build still covers every workspace. No business
+source, applied migration, dependency declaration, runtime default or Tool
+contract changes. B1/B2/C remain later specifications. See [plan](P11_PLAN.md),
+[implementation/gates](P11A_IMPLEMENTATION_REPORT.md) and [branch inventory](P11_BRANCH_INVENTORY.md).

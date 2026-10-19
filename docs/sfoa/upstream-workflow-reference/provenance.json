@@ -1,0 +1,64 @@
+{
+  "sourceRepository": "https://github.com/ElioLin/sfoa-enterprise-mcp",
+  "sourceCommit": "12df237f7ab03c4771109813b84f715a29e9e32d",
+  "upstream": "https://github.com/salesforcecli/mcp",
+  "files": [
+    {
+      "file": "automerge.yml",
+      "sha256": "a373ee31b5ac9cc5f0297b7289dc537e82aab0564d0a77cfb45a0cec0f8748fe"
+    },
+    {
+      "file": "create-github-release.yml",
+      "sha256": "9bc8d2c979c57c8db5dfc1246dac23217aa54045ae4d00c1dc26535458200a1c"
+    },
+    {
+      "file": "devScripts.yml",
+      "sha256": "1af9cfb1bf5b8abd1943d8450339f5cbfcc2e980cffeac507ccfe1d72703b139"
+    },
+    {
+      "file": "e2e.yml",
+      "sha256": "f4f37ae2ea80429fa80e17b2bb788479c9af7a17390e73b93f70a409468149b4"
+    },
+    {
+      "file": "failureNotifications.yml",
+      "sha256": "13973ce46dfcd729b3ff0b95ee23a213a2cc4722f6352742754d8609454faee5"
+    },
+    {
+      "file": "notify-slack-on-pr-open.yml",
+      "sha256": "136294233ed559ac0968df428142c5b9af54446970b03e6e263692a3749059a3"
+    },
+    {
+      "file": "onRelease.yml",
+      "sha256": "5ec952ab8bab34ab3367e5cc2a338490802363c92324e1c34116b5546e70972a"
+    },
+    {
+      "file": "promote-mcp-server.yml",
+      "sha256": "c88510a2bca10b0e35e2140eba14357bc60b650b8409cc547e1867edfe090ebc"
+    },
+    {
+      "file": "publish-mcp-server.yml",
+      "sha256": "4921464c89b8d971780674b26c82c56ca877efdf2e94f555fc6686c9d3e01282"
+    },
+    {
+      "file": "publish-providers.yml",
+      "sha256": "8715049fcc9ac4f56f8b597a041c0c364da05de07ade249c35d47b3c65a16cc3"
+    },
+    {
+      "file": "tempUnitTestsLinux.yml",
+      "sha256": "9f07c4ac001235cd8e1c2f56ac18e60cd30f29c29f9a43b6e279f8c9b905aa26"
+    },
+    {
+      "file": "tempUnitTestsWindows.yml",
+      "sha256": "f6e798c379cabd88c829249d93e775f176feb1bbdf3aaaf5ed9f7c623398a608"
+    },
+    {
+      "file": "test.yml",
+      "sha256": "8fc6bc3497e380b8ed591b596dd44f1cb1a6d218429b40711f26716d82154847"
+    },
+    {
+      "file": "validate-pr.yml",
+      "sha256": "951567b44d17dc5f0655a2351c427bcfa8cb7b3e814c3c1a406f9519f30f6c62"
+    }
+  ],
+  "byteBasis": "Git source blob bytes (LF), portable across checkout line-ending settings"
+}

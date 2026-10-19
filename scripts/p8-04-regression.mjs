@@ -10,10 +10,12 @@ const packages = ['sfoa-identity-runtime', 'sfoa-control-plane', 'mcp-provider-s
 const selected = process.argv.slice(2);
 const results = [];
 async function run(name, workspace, args) {
+  if (workspace === 'sfoa-mcp-server' && args.includes('--test')) args = ['--import', new URL('./node-test-lifecycle.mjs', import.meta.url).href,
+    '--test-timeout=300000', ...args];
   const start = performance.now();
   let text = '';
   const status = await new Promise((resolve) => {
-    const child = spawn(process.execPath, args, { cwd: path.join(root, 'packages', workspace), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, args, { cwd: workspace ? path.join(root, 'packages', workspace) : root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.on('data', (chunk) => { text += chunk; });
     child.stderr.on('data', (chunk) => { text += chunk; });
     child.on('error', () => resolve(1));
@@ -27,13 +29,12 @@ async function run(name, workspace, args) {
   if (status !== 0) process.exitCode = 1;
   return status === 0;
 }
+if (!await run('sfoa-build', null, ['scripts/build-workspaces.mjs', '--target', 'sfoa'])) process.exit(1);
 for (const workspace of packages.filter((name) => !selected.length || selected.includes(name))) {
   if (workspace === 'sfoa-admin-web') {
     if (!await run(`${workspace}-lint`, workspace, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json', '--noEmit'])) continue;
-    await run(`${workspace}-build`, workspace, ['node_modules/vite/bin/vite.js', 'build']);
     await run(`${workspace}-test`, workspace, ['node_modules/vitest/vitest.mjs', 'run']);
   } else {
-    if (!await run(`${workspace}-build`, workspace, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'])) continue;
     await run(`${workspace}-lint`, workspace, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json', '--noEmit']);
     await run(`${workspace}-test`, workspace, ['--test-concurrency=1', '--test', 'dist/test/*.test.js']);
     if (workspace === 'sfoa-control-plane') await run(`${workspace}-mysql`, workspace, ['--test-concurrency=1', '--test', 'dist/mysql-test/*.test.js']);

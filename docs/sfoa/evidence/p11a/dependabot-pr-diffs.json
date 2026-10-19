@@ -1,0 +1,122 @@
+[
+  {
+    "number": 1,
+    "files": [
+      {
+        "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -18,7 +18,7 @@\n     \"zod\": \"^3.25.76\"\n   },\n   \"devDependencies\": {\n-    \"@eslint/js\": \"^9.35.0\",\n+    \"@eslint/js\": \"^9.39.5\",\n     \"@types/node\": \"^22.16.5\",\n     \"@vitest/coverage-istanbul\": \"^3.2.4\",\n     \"eslint\": \"^9.35.0\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 2,
+    "files": [
+      {
+        "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -20,7 +20,7 @@\n   \"devDependencies\": {\n     \"@eslint/js\": \"^9.35.0\",\n     \"@types/node\": \"^22.16.5\",\n-    \"@vitest/coverage-istanbul\": \"^3.2.4\",\n+    \"@vitest/coverage-istanbul\": \"^3.2.7\",\n     \"eslint\": \"^9.35.0\",\n     \"rimraf\": \"^6.0.1\",\n     \"typescript\": \"^5.9.2\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 3,
+    "files": [
+      {
+        "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -24,7 +24,7 @@\n     \"eslint\": \"^9.35.0\",\n     \"rimraf\": \"^6.0.1\",\n     \"typescript\": \"^5.9.2\",\n-    \"typescript-eslint\": \"^8.44.0\",\n+    \"typescript-eslint\": \"^8.67.0\",\n     \"vite\": \"^7.1.5\",\n     \"vitest\": \"^3.2.4\"\n   },"
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 4,
+    "files": [
+      {
+        "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -26,7 +26,7 @@\n     \"typescript\": \"^5.9.2\",\n     \"typescript-eslint\": \"^8.44.0\",\n     \"vite\": \"^7.1.5\",\n-    \"vitest\": \"^3.2.4\"\n+    \"vitest\": \"^3.2.7\"\n   },\n   \"files\": [\n     \"dist\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 5,
+    "files": [
+      {
+        "path": "packages/EXAMPLE-MCP-PROVIDER/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -13,7 +13,7 @@\n   \"main\": \"dist/index.js\",\n   \"types\": \"dist/index.d.ts\",\n   \"dependencies\": {\n-    \"@modelcontextprotocol/sdk\": \"^1.18.0\",\n+    \"@modelcontextprotocol/sdk\": \"^1.30.0\",\n     \"@salesforce/mcp-provider-api\": \"^0.6.0\",\n     \"zod\": \"^3.25.76\"\n   },"
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 6,
+    "files": [
+      {
+        "path": "packages/mcp/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -38,7 +38,7 @@\n     \"node\": \">=20.0.0\"\n   },\n   \"dependencies\": {\n-    \"@modelcontextprotocol/sdk\": \"^1.18.0\",\n+    \"@modelcontextprotocol/sdk\": \"^1.30.0\",\n     \"@oclif/core\": \"^4.5.1\",\n     \"@salesforce/agents\": \"^0.25.1\",\n     \"@salesforce/apex-node\": \"^8.2.1\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 7,
+    "files": [
+      {
+        "path": "packages/mcp-provider-api/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -20,7 +20,7 @@\n     \"eslint\": \"^9.35.0\",\n     \"rimraf\": \"^6.0.1\",\n     \"typescript\": \"^5.9.2\",\n-    \"typescript-eslint\": \"^8.44.0\"\n+    \"typescript-eslint\": \"^8.67.0\"\n   },\n   \"files\": [\n     \"dist\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 8,
+    "files": [
+      {
+        "path": "packages/mcp-provider-api/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -15,7 +15,7 @@\n     \"zod\": \"^3.25.76\"\n   },\n   \"devDependencies\": {\n-    \"@eslint/js\": \"^9.35.0\",\n+    \"@eslint/js\": \"^9.39.5\",\n     \"@types/node\": \"^22.16.5\",\n     \"eslint\": \"^9.35.0\",\n     \"rimraf\": \"^6.0.1\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 9,
+    "files": [
+      {
+        "path": "packages/mcp-provider-api/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -7,7 +7,7 @@\n   \"main\": \"dist/index.js\",\n   \"types\": \"dist/index.d.ts\",\n   \"dependencies\": {\n-    \"@modelcontextprotocol/sdk\": \"^1.18.0\",\n+    \"@modelcontextprotocol/sdk\": \"^1.30.0\",\n     \"@salesforce/core\": \"^8.29.0\",\n     \"@salesforce/ts-types\": \"^2\",\n     \"@types/semver\": \"^7.7.1\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  },
+  {
+    "number": 10,
+    "files": [
+      {
+        "path": "packages/mcp-provider-dx-core/package.json",
+        "additions": 1,
+        "deletions": 1,
+        "patch": "@@ -35,7 +35,7 @@\n     \"package.json\"\n   ],\n   \"dependencies\": {\n-    \"@modelcontextprotocol/sdk\": \"^1.18.0\",\n+    \"@modelcontextprotocol/sdk\": \"^1.30.0\",\n     \"@salesforce/agents\": \"^1.3.0\",\n     \"@salesforce/apex-node\": \"^8.4.22\",\n     \"@salesforce/core\": \"^8.29.0\","
+      }
+    ],
+    "manifestOnlyWithoutLock": true
+  }
+]

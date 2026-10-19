@@ -1,3 +1,5 @@
+> **2026-10-19 P11-A current build guidance (pending PR review):** MCP Node 22.23.1 / Yarn 1.22.22; run `yarn install --frozen-lockfile --non-interactive`, then `yarn build:sfoa` for the complete SFoA dependency closure including the data provider. `yarn build` now orders and builds all workspaces. Historical sequences and incidents below describe their original dates; the old claim that root build was explicitly parallel was inaccurate (the actual old command was `yarn workspaces run build`, with incomplete ordering). No server command, deployment or restart was executed for P11-A. Review evidence: [report](P11A_IMPLEMENTATION_REPORT.md).
+
 # 测试服务器部署指南（SFoA Enterprise MCP）
 
 > 本文档基于**实际部署的测试服务器**（`crm-ex-test02` / `192.168.156.203`）归纳而成：目录布局、Nginx 位置、systemd 单元文件、本机打包部署流程、启动/停止/查看日志等命令，均与本次一起完成部署的服务器一致，可直接照抄执行。同时汇总了本次部署过程中踩过的所有坑及对应修复。

@@ -194,3 +194,33 @@ These findings keep the repository-wide lint Gate red but do not justify a broad
 P8-06 changes zero official Salesforce implementation files and no SDK/dependency
 pins. Discovery reuses public Providers, Tool configs and MCP SDK composition.
 The root README SFoA-preface update is covered by the existing README matrix row.
+
+## P11-A engineering divergence (2026-10-19)
+
+Business/official TypeScript, every non-scripts manifest field, engines/nohoist/exports,
+Tool contracts and migration bytes remain frozen. Three SFoA package manifests have
+scripts-only Node 22 test compatibility changes: Control Plane/Admin API use the
+experimental none-isolation spelling; MCP server test commands preload a test-only
+lifecycle bootstrap and native timeout without changing scopes or process isolation. Existing root package.json and
+yarn.lock matrix entries now also cover the shared build graph and missing current
+selectors; lock resolution details are in P11A_LOCKFILE_REPORT.md. No SDK upgrade.
+
+| File | Reason | Change | Alternative considered | Merge risk |
+| --- | --- | --- | --- | --- |
+| .github/workflows/test.yml, tempUnitTestsLinux.yml, tempUnitTestsWindows.yml | Old cold builds lacked ordering and coverage | Local fixed-toolchain, full cold builds/tests and stable required result | Continue remote @main/retry/implicit lock updates; rejected | MEDIUM: retain trigger/check-name review |
+| .github/workflows/e2e.yml, validate-pr.yml | External Org tests and official metadata automation were mixed into core | Opt-in isolated Org tests; local metadata validation | Acquire official secrets; rejected | LOW |
+| Nine retired workflows | Inapplicable official publish/automerge/Slack schedules | Exact source snapshots retained in docs/sfoa/upstream-workflow-reference | Disable all CI; rejected, core quality coverage expanded | LOW |
+| .github/dependabot.yml | Four per-directory entries ignored shared workspace topology | Root shared-lock npm policy, pause routine PRs, bounded Actions policy | Merge/close old bot PRs during freeze; rejected | LOW |
+| DEVELOPING.md, README.md, CHANGELOG.md | Discoverable current SFoA engineering instructions | Short current prefaces; official/historical text preserved | Leave contradictory publishing/build guidance unqualified; rejected | LOW |
+
+Every original workflow's triggers, retained coverage and recovery path are in
+[workflow matrix](upstream-workflow-reference/README.md). No remote is removed and
+no old branch/PR is deleted/closed. Preserve this localized engineering layer during
+upstream sync and rerun both OS cold gates before accepting new upstream manifests.
+
+The Node 22 test bootstrap lives in scripts/node-test-lifecycle.mjs, never in the
+server start path. All existing timeouts/unref behavior, tests and assertions stay
+unchanged. The initial real Linux default run exposed 47 cancellations (no failed
+assertions); the test-only fix yields 2288 passed and 0 skipped/cancelled in the
+pre-PR Linux run. Frozen MySQL migration expectations and one ambiguous browser
+locator remain failing and are reported as BLOCKED, with their main byte provenance.

@@ -106,3 +106,49 @@ not evidence: the boundary is the Admin API, so a scoped account's direct reques
 module it does not hold must be shown refused.
 
 For request-resource lifecycle changes, automated call-count evidence is mandatory: scope creation and local/protocol methods stay at zero; the first Salesforce operation creates one Connection; repeated/concurrent access in one scope stays at one; two scopes create two isolated Connections; Diagnostic execution creates only its DIAGNOSTIC Connection. Also cover lazy auth/Connection failure taxonomy and unused/failed/aborted cleanup.
+
+## P11-A CI evidence
+
+The tests workflow runs for main-target PRs, main pushes and manual dispatch after
+merge. Linux and Windows each install frozen from a clean checkout, build every
+workspace and execute the original default workspace tests. Linux also executes
+P3/P4/P5/P7, ephemeral MySQL 8.0.30 Control Plane and runtime integration, Admin
+browser/fullstack, stdio/upstream compatibility and Skill/Agent drift gates.
+Java 11 is retained for upstream analyzer/PMD tests; it is not the MCP Node runtime.
+
+Run yarn test:engineering for build-order/closure/cycle/failure propagation and
+CI evidence tests. scripts/ci-run.mjs records actual exit codes and test counts;
+--tests requires a positive passed count, --no-skips additionally rejects skipped,
+cancelled or todo tests. Required MySQL gates use both; missing DB configuration
+cannot turn an all-SKIP exit 0 into PASS. Reports contain bounded redacted output
+in .temp/p11a-ci. No retries, continue-on-error, assertion changes or test removal
+waive failures. Independent suites still execute after a failed suite if build
+succeeded, while the job and final P11-A gate remain failed.
+
+Real Salesforce Org E2E is a separate explicit opt-in workflow requiring the
+sfoa-test-org environment. No real Org credentials are used by core CI.
+Unrun Org/UAT gates remain NOT_TESTED/NOT_CONFIGURED.
+
+`yarn lock:check` must pass before both cold CI installs. Its exact-selector check catches the workspace-manifest drift that the old URL-only lockfile lint and Classic frozen behavior missed. The 19 engineering tests cover this distinction and real all-skipped/partial-skipped suite rejection.
+
+Analyzer test:e2e exercises the original stdio host against local PMD fixtures and needs no Salesforce credential. Keep it in both cold CI jobs; only DX Core real-Org E2E moves behind the isolated test-org opt-in workflow.
+
+Node 22.23.1 accepts `--experimental-test-isolation=none`, not the later `--test-isolation=none` spelling. Control Plane and Admin API keep their existing none isolation via the compatible spelling (also accepted by Node 24); do not remove tests or change assertions to work around exit 9. MCP host default tests retain their existing process isolation.
+
+P11-A 的 frozen install 后再运行一次标准 Yarn install 并检查 manifest/lock diff 为零，验证传递项也形成完整的 canonical lock；这一步若产生修改必须失败，不能把它作为 CI 自动补锁。
+
+P11-A additionally loads scripts/node-test-lifecycle.mjs only in MCP test processes:
+Node 22 exits/cancels a pending test that only awaits an unref deadline, while the
+existing runtime intentionally unrefs those deadlines. The test bootstrap keeps
+one handle until node:test after(), with native --test-timeout=300000 bounding a
+real hang. Three subprocess tests prove assertion execution, nonzero failure and
+nonzero timeout. Default MCP process isolation, none mode in validate:p5 and
+P8's original concurrency/scopes stay unchanged. Never import this bootstrap in
+normal server startup or alter runtime timeout semantics to accommodate tests.
+
+CI fullstack generates and masks its own short-lived MCP_CLIENT_TOKEN in the
+fullstack step, keeping internal_bearer authentication enabled. It uses no .env.local
+or deployed credentials. Missing test configuration is a CI environment failure;
+a stale migration expectation or ambiguous Playwright locator is a frozen test
+failure. Record source/fixture provenance and the real nonzero result; P11-A
+must not change their assertions or reduce the suites to obtain a green gate.

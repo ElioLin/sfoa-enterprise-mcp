@@ -1,0 +1,34 @@
+{
+  "status": "BLOCKED_BY_FROZEN_MYSQL_AND_BROWSER_ASSERTIONS",
+  "runId": 39222820613,
+  "head": "b6b400deaf702e2cc4d2fb020e39ca3cf92972b2",
+  "jobId": 117961903200,
+  "failures": [
+    {
+      "path": "packages/sfoa-control-plane/src/mysql-test/mysql.integration.test.ts",
+      "failure": "Static expected migration list stops at 013; default migrations include 014 and 015",
+      "proposal": "After separate approval, update the reviewed explicit expected migrations in both cases through 015, preserving schema/data/locking assertions; do not remove either migration or use a loose nonempty check.",
+      "baseline": "12df237f7ab03c4771109813b84f715a29e9e32d",
+      "baselineSha256": "62f60582333e980914ea4c693f4f58642c6d48de02b87a0c6741f1926c091622",
+      "currentSha256": "62f60582333e980914ea4c693f4f58642c6d48de02b87a0c6741f1926c091622",
+      "identical": true,
+      "comparison": "Same Node22/Yarn/MySQL/Chromium pre-PR environment executed unchanged baseline source and assertions via feature build. Separate cold main build cannot pass its known build-order/Node flag defects; no independent all-main PASS is claimed."
+    },
+    {
+      "path": "packages/sfoa-admin-web/e2e/admin-control-plane.spec.ts",
+      "failure": "getByText('correlation-e2e') also matches the fixture correlation-e2e-error",
+      "proposal": "After separate approval, use an exact or row-scoped locator and retain success/error audit coverage; do not disable strict mode or remove the error fixture.",
+      "baseline": "12df237f7ab03c4771109813b84f715a29e9e32d",
+      "baselineSha256": "75220a742ece586ea3b34b033caaa941ac914378dd6c9bd316c7bbc90b9a2bbb",
+      "currentSha256": "75220a742ece586ea3b34b033caaa941ac914378dd6c9bd316c7bbc90b9a2bbb",
+      "identical": true,
+      "comparison": "Same Node22/Yarn/MySQL/Chromium pre-PR environment executed unchanged baseline source and assertions via feature build. Separate cold main build cannot pass its known build-order/Node flag defects; no independent all-main PASS is claimed."
+    }
+  ],
+  "ciEnvironmentFailure": {
+    "label": "admin-fullstack",
+    "error": "MCP_CLIENT_TOKEN is required when MCP_AUTH_MODE=internal_bearer.",
+    "fix": "Final Linux fullstack step generates and masks an ephemeral random internal token; requires final PR-head rerun",
+    "runtimeDefaultsChanged": false
+  }
+}

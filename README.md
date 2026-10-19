@@ -1,3 +1,5 @@
+> **SFoA P11-A engineering:** Node 22.23.1, Yarn 1.22.22. Install frozen, run `yarn build` (all workspaces) or `yarn build:sfoa` (SFoA dependency closure). Windows package scripts use Git Bash for the upstream analyzer cp step. Core CI is review-only; upstream automatic publishing/automerge/Slack workflows are archived in this branch and stop on main after reviewed merge. Historical instructions below do not authorize publishing. See [P11-A report](docs/sfoa/P11A_IMPLEMENTATION_REPORT.md).
+
 # SFoA Enterprise MCP
 
 P8-06 adds independent `MCP_WECOM_CLIENT_TOKEN` channel authentication. WeCom

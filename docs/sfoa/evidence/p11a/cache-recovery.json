@@ -1,0 +1,22 @@
+{
+  "sourceCacheEncryptedAttributes": 16416,
+  "copyFileReproducedOnNode": [
+    "22.23.1",
+    "24.13.0"
+  ],
+  "copyFileResult": "UNKNOWN for encrypted cache source; normal workspace source copy succeeds",
+  "isolatedCache": "D:/mcp-backup/p11a-20261019/yarn-cache",
+  "offlineMirror": "D:/mcp-backup/p11a-20261019/verified-tarballs",
+  "method": "Compressed public npm tarballs only; independently checked against Yarn metadata SRI/hash; standard Yarn performs installation; no installed node_modules or build artifacts copied",
+  "tarballCount": 1770,
+  "failures": [],
+  "isolatedCacheCopyProbe": "PASS",
+  "linkDuplicatesAttempt": {
+    "exitCode": 1,
+    "classification": "WINDOWS_EEXIST_HARDLINK",
+    "retainedInCI": false
+  },
+  "isolatedAttemptCommand": "yarn install --offline --non-interactive --cache-folder D:/mcp-backup/p11a-20261019/yarn-cache",
+  "installationOutcome": "WINDOWS_NOT_COMPLETED; see local-validation.json and install-link-diagnostic.json",
+  "finalFrozenAcceptance": "Final PR Linux/Windows cold CI, independent of recovered local download cache"
+}
