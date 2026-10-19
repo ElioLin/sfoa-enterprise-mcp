@@ -56,7 +56,11 @@ function workspaceGateCommands(workspace, gate) {
     return [lint, ['./node_modules/vite/bin/vite.js', 'build']];
   }
   if (gate === 'build') return [build];
-  const nodeTests = (pattern) => ['--experimental-test-isolation=none', '--test', pattern];
+  const nodeTests = (pattern) => [
+    ...(workspace === '@sfoa/mcp-server' ? ['--import', new URL('./node-test-lifecycle.mjs', import.meta.url).href,
+      '--test-timeout=300000'] : []),
+    '--experimental-test-isolation=none', '--test', pattern,
+  ];
   if (workspace === '@sfoa/control-plane' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];
   if (workspace === '@sfoa/control-plane' && gate === 'test:mysql') return [build, nodeTests('dist/mysql-test/*.test.js')];
   if (workspace === '@sfoa/identity-runtime' && gate === 'test') return [build, nodeTests('dist/test/*.test.js')];

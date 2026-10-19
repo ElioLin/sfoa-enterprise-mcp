@@ -78,3 +78,21 @@ does not contain, which is the failure mode a file-only check cannot see. Note t
 systemd probe of any env file must live somewhere systemd itself may read: under
 Enforcing SELinux a file in `/tmp` is refused (`Failed to load environment files:
 Permission denied`) even for root.
+
+## P11-A reproducible engineering (2026-10-19)
+
+Use Node 22.23.1 and Yarn Classic 1.22.22 for MCP engineering/CI, matching the
+MCP deployment record; OpenClaw's Node 24 is a separate toolchain. Run
+`yarn install --frozen-lockfile --non-interactive`, then `yarn build` for all
+workspaces or `yarn build:sfoa` for SFoA targets and their full prerequisite
+closure. Both use scripts/build-workspaces.mjs: Yarn's actual workspace resolution,
+TypeScript references and Wireit build prerequisites determine one stable sequential
+plan. Published versions that do not match local workspaces remain published; an
+explicit TypeScript reference only orders local artifacts and never changes linking.
+Each original package build (including analyzer resource copies) is preserved.
+
+On Windows run Yarn package scripts with Git Bash (npm_config_script_shell set to
+the installed Git Bash executable) so upstream cp still works. No node_modules,
+dist/lib, .wireit or tsbuildinfo is restored in CI. yarn p5:dev, validate:p5 and
+p5:e2e:fullstack prebuild through the shared graph. See docs/sfoa/P11_PLAN.md and
+docs/sfoa/P11A_IMPLEMENTATION_REPORT.md for the bounded phase and actual gates.

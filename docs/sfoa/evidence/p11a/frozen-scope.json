@@ -1,0 +1,10 @@
+{
+  "baseline": "12df237f7ab03c4771109813b84f715a29e9e32d",
+  "nonScriptManifestChanges": [],
+  "businessSourceTestSqlConfigChangedPaths": [],
+  "manifestScriptExceptions": [
+    "packages/sfoa-admin-api/package.json scripts.test: Node22 experimental-test-isolation alias",
+    "packages/sfoa-control-plane/package.json scripts.test/test:mysql: same alias",
+    "packages/sfoa-mcp-server/package.json scripts.test/test:p3/test:p4/test:p5/test:p5:mysql/test:p7: test-only Node22 lifecycle bootstrap and native 300000ms test timeout; original compile/patterns/isolation retained"
+  ]
+}

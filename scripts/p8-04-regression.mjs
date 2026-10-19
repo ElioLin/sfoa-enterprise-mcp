@@ -10,6 +10,8 @@ const packages = ['sfoa-identity-runtime', 'sfoa-control-plane', 'mcp-provider-s
 const selected = process.argv.slice(2);
 const results = [];
 async function run(name, workspace, args) {
+  if (workspace === 'sfoa-mcp-server' && args.includes('--test')) args = ['--import', new URL('./node-test-lifecycle.mjs', import.meta.url).href,
+    '--test-timeout=300000', ...args];
   const start = performance.now();
   let text = '';
   const status = await new Promise((resolve) => {

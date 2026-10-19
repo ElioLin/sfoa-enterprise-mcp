@@ -1,0 +1,139 @@
+{
+  "date": "2026-10-19",
+  "node": "22.23.1",
+  "yarn": "1.22.22",
+  "baseline": "12df237f7ab03c4771109813b84f715a29e9e32d",
+  "freezeCheck": {
+    "result": "PASS",
+    "detail": "Business src/tests/SQL/config unchanged; every manifest non-scripts field unchanged; scripts-only exceptions in Control Plane, Admin API and MCP server documented."
+  },
+  "baselineLockMissingReferences": 50,
+  "engineering": {
+    "command": "yarn test:engineering",
+    "exitCode": 0,
+    "passed": 19,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "reference": "pre-pr-ci.json plus local Node22 subprocess lifecycle checks"
+  },
+  "skill": {
+    "validate": 0,
+    "check": 0,
+    "delivery": 0,
+    "testExit": 0,
+    "passed": 71,
+    "skipped": 0
+  },
+  "earlyRun": {
+    "url": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39205095941",
+    "sha": "0404b04362e52c050e5e33072edaaa93e69bb700",
+    "purpose": "Early branch push still used pre-adaptation workflows; not final acceptance evidence",
+    "dxCoreE2E": {
+      "status": "FAIL_NOT_CONFIGURED",
+      "reason": "NoDefaultDevHubError before scratch-org creation could proceed",
+      "jobUrl": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39205095941/job/117906087704"
+    },
+    "analyzerE2E": {
+      "status": "PASS_LOCAL_FIXTURE",
+      "jobUrl": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39205095941/job/117906087548",
+      "scope": "Local PMD/stdio fixtures; retained in both new core jobs; not real Org acceptance"
+    }
+  },
+  "baselineFrozenInstall": {
+    "command": "yarn install --frozen-lockfile --non-interactive --network-timeout 30000 --registry https://registry.npmjs.org --verbose",
+    "exitCode": 1,
+    "classification": "NETWORK_ESOCKETTIMEDOUT",
+    "package": "@ant-design/icons@6.3.4",
+    "stage": "fetch",
+    "lockModified": false,
+    "buildAfterFailedInstall": "NOT_RUN"
+  },
+  "node22TestCompatibility": {
+    "oldCommand": "node --test-isolation=none --version",
+    "oldExitCode": 9,
+    "verifiedCompatibleCommand": "node --experimental-test-isolation=none --version",
+    "compatibleExitCode": 0,
+    "isolationModeUnchanged": "none",
+    "workspaceScriptOnlyChanges": [
+      {
+        "workspace": "@sfoa/admin-api",
+        "path": "packages/sfoa-admin-api/package.json",
+        "script": "test"
+      },
+      {
+        "workspace": "@sfoa/control-plane",
+        "path": "packages/sfoa-control-plane/package.json",
+        "script": "test"
+      },
+      {
+        "workspace": "@sfoa/control-plane",
+        "path": "packages/sfoa-control-plane/package.json",
+        "script": "test:mysql"
+      }
+    ],
+    "baselineCiJob": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39205095941/job/117906171887",
+    "documentation": "https://nodejs.org/download/release/v22.23.1/docs/api/cli.html#--experimental-test-isolationmode"
+  },
+  "windowsInstall": {
+    "status": "NOT_COMPLETED",
+    "baselineNetworkExit": 1,
+    "encryptedCacheCopy": "UNKNOWN under Node22 and Node24; isolated verified-tarball cache used",
+    "freshDefaultAttempt": "INTERRUPTED_AFTER_PROLONGED_BIN_LINKING; no cold pass claimed",
+    "parallelPoolAttempt": {
+      "UV_THREADPOOL_SIZE": 32,
+      "exitCode": 1,
+      "errno": "EBUSY",
+      "detail": "Two workspace aliases resolve to the same physical README file; identity proven, collision cause remains an inference"
+    },
+    "serialPoolAttempt": {
+      "UV_THREADPOOL_SIZE": 1,
+      "status": "INTERRUPTED_BY_TOOL_KERNEL_RESTART",
+      "passClaimed": false
+    },
+    "manualNodeModulesRepair": false
+  },
+  "linuxDiagnostic": {
+    "head": "4b06f9ac365db05197ffa0b603422fe04c9c0874",
+    "run": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39217477942",
+    "temporary": true,
+    "repositoryPermission": "contents: read",
+    "status": "FAILED_DEFAULT_TEST_LIFECYCLE",
+    "finalAcceptance": "Final PR frozen CI is required independently.",
+    "results": {
+      "normalLockSync": 0,
+      "lockCheck": 0,
+      "frozenInstall": 0,
+      "manifestLockDrift": 0,
+      "buildAll21": 0,
+      "engineering": {
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0
+      },
+      "default": {
+        "exitCode": 1,
+        "passed": 2231,
+        "failed": 0,
+        "cancelled": 47,
+        "skipped": 0
+      }
+    }
+  },
+  "node22UnrefTests": {
+    "diagnosticHead": "4b06f9ac365db05197ffa0b603422fe04c9c0874",
+    "run": "https://github.com/ElioLin/sfoa-enterprise-mcp/actions/runs/39217477942",
+    "default": {
+      "exitCode": 1,
+      "passed": 2231,
+      "failed": 0,
+      "cancelled": 47,
+      "skipped": 0
+    },
+    "cause": "Node22 cancels tests waiting only on unref deadlines; source timeouts remain frozen",
+    "fix": "Test-only node-test-lifecycle.mjs bootstrap plus native 300000ms timeout",
+    "verification": "Three subprocess tests: assertion executes, failed assertion remains nonzero, never-resolved test times out nonzero; Linux default 2288 passed with 0 skipped/cancelled at b6b400d",
+    "manifestScriptException": "Six @sfoa/mcp-server test scripts only; process isolation/scopes unchanged"
+  },
+  "prePrCi": "pre-pr-ci.json"
+}

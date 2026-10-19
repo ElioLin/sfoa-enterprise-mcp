@@ -99,7 +99,10 @@ jobs:
         run: node scripts/ci-run.mjs admin-browser --tests --no-skips -- yarn p5:e2e
       - name: Real Admin API and temporary MySQL fullstack E2E
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: node scripts/ci-run.mjs admin-fullstack --tests --no-skips -- yarn p5:e2e:fullstack
+        run: |
+          export MCP_CLIENT_TOKEN="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
+          echo "::add-mask::$MCP_CLIENT_TOKEN"
+          node scripts/ci-run.mjs admin-fullstack --tests --no-skips -- yarn p5:e2e:fullstack
       - name: Original stdio compatibility regression (no real Org)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/ci-run.mjs stdio -- yarn workspace @sfoa/runtime-validation regress:stdio

@@ -1,0 +1,1241 @@
+{
+  "workspaces": [
+    {
+      "path": "packages/EXAMPLE-MCP-PROVIDER",
+      "manifest": {
+        "name": "@salesforce/EXAMPLE-MCP-PROVIDER",
+        "description": "(For Interal Use Only) YOUR DESCRIPTION GOES HERE",
+        "version": "0.0.1-alpha.1",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/EXAMPLE-MCP-PROVIDER"
+        },
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.35.0",
+          "@types/node": "^22.16.5",
+          "@vitest/coverage-istanbul": "^3.2.4",
+          "eslint": "^9.35.0",
+          "rimraf": "^6.0.1",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.44.0",
+          "vite": "^7.1.5",
+          "vitest": "^3.2.4"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.build.json --verbose",
+          "clean": "tsc --build tsconfig.build.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "lint": "eslint **/*.ts",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "tsc --build tsconfig.json --noEmit && vitest run --coverage"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp",
+      "manifest": {
+        "name": "@salesforce/mcp",
+        "version": "0.30.15",
+        "description": "MCP Server for interacting with Salesforce instances",
+        "bin": {
+          "sf-mcp-server": "bin/run.js"
+        },
+        "types": "lib/index.d.ts",
+        "license": "Apache-2.0",
+        "type": "module",
+        "scripts": {
+          "build": "wireit",
+          "build:watch": "yarn build --watch",
+          "clean": "tsc --build --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "fix-license": "eslint src test --fix --rule \"header/header: [2]\"",
+          "format": "wireit",
+          "link-check": "wireit",
+          "lint": "wireit",
+          "test": "wireit",
+          "test:only": "wireit"
+        },
+        "repository": "salesforcecli/mcp",
+        "bugs": {
+          "url": "https://github.com/salesforcecli/mcp/issues"
+        },
+        "homepage": "https://github.com/salesforcecli/mcp",
+        "files": [
+          "bin",
+          "lib",
+          "!lib/**/*.map",
+          "messages",
+          "LICENSE.txt",
+          "npm-shrinkwrap.json",
+          "package.json"
+        ],
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@oclif/core": "^4.5.1",
+          "@salesforce/agents": "^0.25.1",
+          "@salesforce/apex-node": "^8.2.1",
+          "@salesforce/core": "^8.29.0",
+          "@salesforce/kit": "^3.1.6",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "@salesforce/mcp-provider-dx-core": "0.9.8",
+          "@salesforce/mcp-provider-code-analyzer": "0.8.1",
+          "@salesforce/mcp-provider-lwc-experts": "0.7.0",
+          "@salesforce/mcp-provider-aura-experts": "0.3.7",
+          "@salesforce/mcp-provider-mobile-web": "0.3.0",
+          "@salesforce/mcp-provider-devops": "0.3.8",
+          "@salesforce/mcp-provider-scale-products": "0.0.6",
+          "@salesforce/mcp-provider-metadata-enrichment": "0.1.8",
+          "@salesforce/source-deploy-retrieve": "^12.35.0",
+          "@salesforce/source-tracking": "^7.8.14",
+          "@salesforce/telemetry": "^6.8.19",
+          "@salesforce/ts-types": "^2.0.12",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@salesforce/cli-plugins-testkit": "^5.3.39",
+          "@salesforce/dev-config": "^4.3.2",
+          "prettier": "^2.8.8",
+          "@types/node": "^22.16.5",
+          "wireit": "^0.14.12",
+          "eslint": "^8.57.1",
+          "mocha": "11.7.5",
+          "chai": "^4.3.10",
+          "@types/mocha": "^10.0.10",
+          "@types/chai": "^4.3.14",
+          "@types/sinon": "^10.0.20",
+          "sinon": "10.0.0",
+          "nyc": "^17.0.0",
+          "eslint-config-salesforce-license": "^1.0.1",
+          "eslint-config-salesforce-typescript": "4.0.1",
+          "@salesforce/prettier-config": "^0.0.3",
+          "oclif": "^4.21.0",
+          "ts-node": "^10.9.2",
+          "typescript": "^5.8.3"
+        },
+        "overrides": {
+          "nock": "^13.5.6"
+        },
+        "publishConfig": {
+          "access": "public"
+        },
+        "oclif": {
+          "bin": "sf-mcp-server",
+          "dirname": "sf-mcp-server",
+          "commands": {
+            "strategy": "single",
+            "target": "./lib/index.js"
+          }
+        },
+        "wireit": {
+          "build": {
+            "command": "tsc --build --pretty --incremental --verbose",
+            "files": [
+              "src/**/*.ts",
+              "**/tsconfig.json"
+            ],
+            "output": [
+              "lib/**",
+              "*.tsbuildinfo"
+            ],
+            "clean": "if-file-deleted"
+          },
+          "format": {
+            "command": "prettier --write \"+(src|test)/**/*.+(ts|js|json)\"",
+            "files": [
+              "src/**/*.ts",
+              "test/**/*.ts",
+              ".prettier*"
+            ],
+            "output": []
+          },
+          "lint": {
+            "command": "eslint src test --color --cache --cache-location .eslintcache",
+            "files": [
+              "src/**/*.ts",
+              "test/**/*.ts",
+              "**/.eslint*",
+              "**/tsconfig.json"
+            ],
+            "output": []
+          },
+          "test:compile": {
+            "command": "tsc -p \"./test\" --pretty",
+            "files": [
+              "test/**/*.ts",
+              "**/tsconfig.json"
+            ],
+            "output": []
+          },
+          "test": {
+            "command": "nyc mocha \"test/**/*.test.ts\"",
+            "env": {
+              "FORCE_COLOR": "2"
+            },
+            "files": [
+              "test/**/*.ts",
+              "src/**/*.ts",
+              "**/tsconfig.json",
+              ".mocha*",
+              ".nycrc"
+            ],
+            "dependencies": [
+              "test:compile",
+              "lint"
+            ],
+            "output": []
+          }
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-api",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-api",
+        "description": "(For Internal Use Only) API to implement a McpProvider that provides prompts, resources, and tools to be registered by an MCP server",
+        "version": "0.6.0",
+        "type": "module",
+        "license": "Apache-2.0",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/core": "^8.29.0",
+          "@salesforce/ts-types": "^2",
+          "@types/semver": "^7.7.1",
+          "semver": "^7.7.2",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.35.0",
+          "@types/node": "^22.16.5",
+          "eslint": "^9.35.0",
+          "rimraf": "^6.0.1",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.44.0"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.json --verbose",
+          "clean": "tsc --build tsconfig.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "format": "prettier --write .",
+          "lint": "echo 'no lint script available yet'",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "echo 'No unit tests are needed for this api module'"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-code-analyzer",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-code-analyzer",
+        "description": "(For Internal Use Only) Provides MCP Tools for Salesforce Code Analyzer to a MCP Server",
+        "version": "0.9.0",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/mcp-provider-code-analyzer"
+        },
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/code-analyzer-core": "^0.43.0",
+          "@salesforce/code-analyzer-engine-api": "^0.35.0",
+          "@salesforce/code-analyzer-eslint-engine": "^0.40.2",
+          "@salesforce/code-analyzer-pmd-engine": "^0.40.0",
+          "@salesforce/code-analyzer-regex-engine": "^0.33.0",
+          "@salesforce/code-analyzer-retirejs-engine": "^0.32.0",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "fast-xml-parser": "^5.7.2",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.39.1",
+          "@salesforce/mcp-test-client": "0.0.1",
+          "@types/node": "^22.16.5",
+          "@vitest/coverage-istanbul": "^4.0.14",
+          "eslint": "^9.39.1",
+          "rimraf": "^6.1.2",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.48.0",
+          "vite": "^7.2.4",
+          "vitest": "^4.0.14"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.build.json --verbose && cp -R src/data dist/data && cp -R src/templates dist/templates",
+          "clean": "tsc --build tsconfig.build.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "lint": "eslint **/*.ts",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "tsc --build tsconfig.json --noEmit && vitest run --coverage --exclude \"test/e2e/**/*.test.ts\"",
+          "test:e2e": "tsc --build tsconfig.json --noEmit && vitest run \"test/e2e\""
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-devops",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-devops",
+        "description": "MCP provider for DevOps tools and operations",
+        "version": "0.3.8",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/mcp-provider-devops"
+        },
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "@salesforce/core": "^8.29.0",
+          "@salesforce/source-deploy-retrieve": "^12.35.0",
+          "@salesforce/ts-types": "^2.0.12",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.35.0",
+          "@types/node": "^22.16.5",
+          "@vitest/coverage-istanbul": "^3.2.4",
+          "eslint": "^9.35.0",
+          "rimraf": "^6.0.1",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.44.0",
+          "vite": "^7.1.5",
+          "vitest": "^3.2.4"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.build.json --verbose",
+          "clean": "tsc --build tsconfig.build.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "lint": "eslint **/*.ts",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "vitest run"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-dx-core",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-dx-core",
+        "version": "0.10.0",
+        "description": "MCP provider for core Salesforce DX functionality",
+        "types": "lib/index.d.ts",
+        "license": "Apache-2.0",
+        "type": "module",
+        "scripts": {
+          "build": "wireit",
+          "build:watch": "yarn build --watch",
+          "clean": "tsc --build --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "format": "wireit",
+          "lint": "wireit",
+          "test": "wireit",
+          "test:e2e": "nyc mocha \"./test/e2e/**/*.test.ts\" --slow 4500 --timeout 600000 --parallel --jobs 20",
+          "test:only": "wireit"
+        },
+        "repository": "salesforcecli/mcp",
+        "bugs": {
+          "url": "https://github.com/salesforcecli/mcp/issues"
+        },
+        "homepage": "https://github.com/salesforcecli/mcp",
+        "exports": {
+          ".": {
+            "import": "./lib/index.js",
+            "types": "./lib/index.d.ts"
+          }
+        },
+        "files": [
+          "lib",
+          "!lib/**/*.map",
+          "messages",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/agents": "^1.3.0",
+          "@salesforce/apex-node": "^8.4.22",
+          "@salesforce/core": "^8.29.0",
+          "@salesforce/kit": "^3.2.6",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "@salesforce/source-deploy-retrieve": "^12.35.0",
+          "@salesforce/source-tracking": "^7.8.14",
+          "@salesforce/ts-types": "^2.0.12",
+          "open": "^10.1.2",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@salesforce/mcp-test-client": "0.0.1",
+          "@salesforce/dev-config": "^4.3.2",
+          "@salesforce/cli-plugins-testkit": "^5.3.39",
+          "@types/node": "^22.16.5",
+          "wireit": "^0.14.12",
+          "eslint": "^8.57.1",
+          "mocha": "11.7.5",
+          "chai": "^4.3.10",
+          "@types/mocha": "^10.0.10",
+          "@types/chai": "^4.3.14",
+          "@types/sinon": "^10.0.20",
+          "sinon": "10.0.0",
+          "nyc": "^17.0.0",
+          "eslint-config-salesforce-license": "^1.0.1",
+          "eslint-config-salesforce-typescript": "4.0.1",
+          "@salesforce/prettier-config": "^0.0.3",
+          "ts-node": "^10.9.2",
+          "typescript": "^5.8.3"
+        },
+        "publishConfig": {
+          "access": "public"
+        },
+        "wireit": {
+          "build": {
+            "command": "tsc --build --pretty --incremental --verbose",
+            "files": [
+              "src/**/*.ts",
+              "**/tsconfig.json",
+              "messages/**"
+            ],
+            "output": [
+              "lib/**",
+              "*.tsbuildinfo"
+            ],
+            "clean": "if-file-deleted"
+          },
+          "format": {
+            "command": "prettier --write \"+(src|test)/**/*.+(ts|js|json)\"",
+            "files": [
+              "src/**/*.ts",
+              "test/**/*.ts",
+              ".prettier*"
+            ],
+            "output": []
+          },
+          "lint": {
+            "command": "eslint src test --color --cache --cache-location .eslintcache",
+            "files": [
+              "src/**/*.ts",
+              "test/**/*.ts",
+              "**/.eslint*",
+              "**/tsconfig.json"
+            ],
+            "output": []
+          },
+          "test:compile": {
+            "command": "tsc -p \"./test\" --pretty",
+            "files": [
+              "test/**/*.ts",
+              "**/tsconfig.json"
+            ],
+            "output": []
+          },
+          "test": {
+            "command": "nyc mocha \"test/**/*.test.ts\" --exclude \"test/e2e/**/*.test.ts\"",
+            "env": {
+              "FORCE_COLOR": "2"
+            },
+            "files": [
+              "test/**/*.ts",
+              "src/**/*.ts",
+              "**/tsconfig.json",
+              ".mocha*",
+              ".nycrc"
+            ],
+            "dependencies": [
+              "test:compile",
+              "lint"
+            ],
+            "output": []
+          }
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-metadata-enrichment",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-metadata-enrichment",
+        "description": "MCP provider for enriching metadata in your Salesforce DX project",
+        "version": "0.1.8",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/mcp-provider-metadata-enrichment"
+        },
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "@salesforce/mcp-provider-dx-core": "^0.9.7",
+          "@salesforce/metadata-enrichment": "^0.0.17",
+          "@salesforce/source-deploy-retrieve": "^12.35.0",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.35.0",
+          "@salesforce/cli-plugins-testkit": "^5.3.41",
+          "@salesforce/mcp-test-client": "0.0.1",
+          "@types/node": "^22.16.5",
+          "@vitest/coverage-istanbul": "^3.2.4",
+          "eslint": "^9.35.0",
+          "rimraf": "^6.0.1",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.44.0",
+          "vite": "^7.1.5",
+          "vitest": "^3.2.4"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.build.json --verbose",
+          "clean": "tsc --build tsconfig.build.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "lint": "eslint **/*.ts",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "tsc --build tsconfig.json --noEmit && vitest run test/unit test/tools --coverage"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-mobile-web",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-mobile-web",
+        "description": "MCP Provider for Mobile Web development tools and utilities",
+        "version": "0.3.0",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/mcp-provider-mobile-web"
+        },
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.17.3",
+          "eslint": "^9.35.0",
+          "dedent": "^1.5.3",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "@salesforce/eslint-plugin-lwc-graph-analyzer": "^1.1.0-beta.2",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.35.0",
+          "@salesforce/prettier-config": "^0.0.3",
+          "@types/node": "^22.16.5",
+          "@vitest/coverage-istanbul": "^3.2.4",
+          "prettier": "^3.3.3",
+          "rimraf": "^6.0.1",
+          "tar": "^7.4.3",
+          "tsx": "^4.19.2",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.44.0",
+          "vite": "^7.1.5",
+          "vitest": "^3.2.4"
+        },
+        "files": [
+          "dist",
+          "resources",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.build.json --verbose",
+          "clean": "tsc --build tsconfig.build.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "format": "prettier --write \"+(src|test|resources)/**/*.+(ts|js|json)\"",
+          "lint": "eslint **/*.ts --no-warn-ignored",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "tsc --build tsconfig.json --noEmit && vitest run --coverage",
+          "update-resources": "tsx src/scripts/update-type-declarations.ts"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-scale-products",
+      "manifest": {
+        "name": "@salesforce/mcp-provider-scale-products",
+        "description": "(For Internal Use Only) MCP Provider for Salesforce Scale Products - Apex antipattern detection and recommendations",
+        "version": "0.0.6",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/mcp-provider-scale-products"
+        },
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "dependencies": {
+          "@apexdevtools/apex-parser": "^5.0.0-beta.5",
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/mcp-provider-api": "^0.6.0",
+          "zod": "^3.25.76"
+        },
+        "devDependencies": {
+          "@eslint/js": "^9.35.0",
+          "@types/node": "^22.16.5",
+          "@vitest/coverage-istanbul": "^3.2.4",
+          "eslint": "^9.35.0",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.44.0",
+          "vite": "^7.1.5",
+          "vitest": "^3.2.4"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "package.json"
+        ],
+        "scripts": {
+          "build": "tsc --build tsconfig.build.json --verbose",
+          "clean": "tsc --build tsconfig.build.json --clean",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "lint": "eslint **/*.ts",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "tsc --build tsconfig.json --noEmit && vitest run --coverage"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-sfoa-context",
+      "manifest": {
+        "name": "@sfoa/mcp-provider-sfoa-context",
+        "version": "0.1.0-p4",
+        "private": true,
+        "description": "P4 deterministic Salesforce diagnostic and record-action context Provider",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P4 SFoA Context Provider: package skipped')\"",
+          "test": "yarn build && node --test dist/test/*.test.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "1.18.2",
+          "@salesforce/core": "8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-sfoa-data",
+      "manifest": {
+        "name": "@sfoa/mcp-provider-sfoa-data",
+        "version": "0.1.0-p9",
+        "private": true,
+        "description": "P9 Salesforce data completeness Provider: SObject discovery, bounded query, org limits, SOSL search and Bulk API 2.0 query",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P9 SFoA Data Provider: package skipped')\"",
+          "test": "yarn build && node --test dist/test/*.test.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "1.18.2",
+          "@salesforce/core": "8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-provider-sfoa-dml",
+      "manifest": {
+        "name": "@sfoa/mcp-provider-sfoa-dml",
+        "version": "0.1.0-p3",
+        "private": true,
+        "description": "P3 generic Salesforce CREATE/UPDATE Provider with strict object-operation governance",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P3 SFoA DML Provider: package skipped')\"",
+          "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "1.18.2",
+          "@salesforce/core": "8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/mcp-test-client",
+      "manifest": {
+        "name": "@salesforce/mcp-test-client",
+        "description": "Type-safe MCP client for testing tools with Zod schema validation",
+        "version": "0.0.1",
+        "author": "Salesforce",
+        "license": "Apache-2.0",
+        "type": "module",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/salesforcecli/mcp.git",
+          "directory": "packages/mcp-test-client"
+        },
+        "main": "dist/index",
+        "types": "dist/index.d.ts",
+        "exports": {
+          ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          }
+        },
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "keywords": [
+          "mcp",
+          "model-context-protocol",
+          "testing",
+          "zod",
+          "typescript"
+        ],
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.17.3",
+          "zod": "^3.23.8"
+        },
+        "devDependencies": {
+          "prettier": "^3.6.2",
+          "@eslint/js": "^9.32.0",
+          "@types/node": "^22.16.5",
+          "eslint": "^9.32.0",
+          "rimraf": "^6.0.1",
+          "typescript": "^5.9.2",
+          "typescript-eslint": "^8.37.0",
+          "vite": "^7.0.6",
+          "vitest": "^3.2.4"
+        },
+        "files": [
+          "dist",
+          "LICENSE.txt",
+          "README.md"
+        ],
+        "prettier": {
+          "singleQuote": true
+        },
+        "scripts": {
+          "build": "tsc -p tsconfig.build.json",
+          "format": "prettier --write \"src/**/*.ts\"",
+          "clean": "rimraf dist",
+          "clean-all": "yarn clean && rimraf node_modules",
+          "lint": "eslint src/**/*.ts",
+          "postclean": "rimraf dist && rimraf ./*.tgz",
+          "package": "yarn pack",
+          "test": "echo 'No unit tests are needed for this api module'",
+          "typecheck": "tsc --noEmit"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-admin-api",
+      "manifest": {
+        "name": "@sfoa/admin-api",
+        "version": "0.1.0-p5",
+        "private": true,
+        "description": "Authenticated SFoA Control Plane API with the P6 Agent infrastructure Tool catalog",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "engines": {
+          "node": ">=22.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P5 Admin API: package skipped')\"",
+          "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test-isolation=none --test dist/test/*.test.js",
+          "start": "yarn build && node dist/main.js",
+          "dev": "yarn build && node --watch dist/main.js"
+        },
+        "dependencies": {
+          "@sfoa/agent-playbook": "0.1.0-p6-agent",
+          "@sfoa/control-plane": "0.1.0-p5",
+          "@sfoa/identity-runtime": "0.1.0-p4",
+          "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",
+          "@sfoa/mcp-provider-sfoa-data": "0.1.0-p9",
+          "@sfoa/mcp-provider-sfoa-dml": "0.1.0-p3",
+          "@sfoa/mcp-server": "0.1.0-p5",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-admin-web",
+      "manifest": {
+        "name": "@sfoa/admin-web",
+        "version": "0.1.0-p5",
+        "private": true,
+        "description": "P6 React Admin Console for SFoA governance, audit, and canonical Agent guidance",
+        "type": "module",
+        "engines": {
+          "node": ">=22.0.0"
+        },
+        "scripts": {
+          "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit && node ./node_modules/vite/bin/vite.js build",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P5 Admin Web: package skipped')\"",
+          "test": "node ./node_modules/vitest/vitest.mjs run",
+          "test:watch": "node ./node_modules/vitest/vitest.mjs",
+          "e2e": "node ./node_modules/@playwright/test/cli.js test",
+          "preview": "node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1"
+        },
+        "dependencies": {
+          "@ant-design/icons": "6.3.2",
+          "@sfoa/agent-playbook": "0.1.0-p6-agent",
+          "@sfoa/control-plane": "0.1.0-p5",
+          "@tanstack/react-query": "5.102.0",
+          "antd": "6.6.1",
+          "react": "19.2.8",
+          "react-dom": "19.2.8",
+          "react-router-dom": "7.18.2"
+        },
+        "devDependencies": {
+          "@playwright/test": "1.62.1",
+          "@testing-library/dom": "10.4.1",
+          "@testing-library/jest-dom": "7.0.1",
+          "@testing-library/react": "16.3.2",
+          "@testing-library/user-event": "14.6.6",
+          "@types/node": "22.16.5",
+          "@types/react": "19.2.18",
+          "@types/react-dom": "19.2.4",
+          "@vitejs/plugin-react": "6.1.0",
+          "jsdom": "29.0.0",
+          "typescript": "5.8.3",
+          "vite": "8.2.2",
+          "vitest": "4.1.11"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-agent-playbook",
+      "manifest": {
+        "name": "@sfoa/agent-playbook",
+        "version": "0.1.0-p6-agent",
+        "private": true,
+        "description": "Pure versioned Salesforce Agent operating contract and deterministic renderers for SFoA",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "exports": {
+          ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+          }
+        },
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P6 Agent Playbook package: package skipped')\"",
+          "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js",
+          "sync": "yarn build && node scripts/sync-generated.mjs --write",
+          "check": "yarn build && node scripts/sync-generated.mjs --check"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-control-plane",
+      "manifest": {
+        "name": "@sfoa/control-plane",
+        "version": "0.1.0-p5",
+        "private": true,
+        "description": "P5 MySQL persistence, governance snapshots, migrations, bootstrap, and durable audit",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "exports": {
+          ".": "./dist/index.js",
+          "./contracts": "./dist/contracts.js",
+          "./admin-contracts": "./dist/admin-contracts.js"
+        },
+        "engines": {
+          "node": ">=22.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P5 Control Plane: package skipped')\"",
+          "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test-isolation=none --test dist/test/*.test.js",
+          "test:mysql": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test-isolation=none --test dist/mysql-test/*.test.js",
+          "db:create": "yarn build && node dist/cli/database.js create",
+          "db:migrate": "yarn build && node dist/cli/database.js migrate",
+          "db:status": "yarn build && node dist/cli/database.js status",
+          "p5:bootstrap": "yarn build && node dist/cli/bootstrap.js"
+        },
+        "dependencies": {
+          "@sfoa/identity-runtime": "0.1.0-p4",
+          "kysely": "0.29.5",
+          "mysql2": "3.23.4",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-identity-runtime",
+      "manifest": {
+        "name": "@sfoa/identity-runtime",
+        "version": "0.1.0-p4",
+        "private": true,
+        "description": "Request-scoped Salesforce USER and server-owned P4 DIAGNOSTIC identity runtime",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P1 identity runtime: package skipped')\"",
+          "start:p1": "yarn build && node dist/main.js",
+          "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js",
+          "validate:p1": "yarn build && node dist/validation/main.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "1.18.2",
+          "@jsforce/jsforce-node": "3.10.13",
+          "@salesforce/core": "8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "@salesforce/mcp-provider-dx-core": "0.10.0",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-mcp-server",
+      "manifest": {
+        "name": "@sfoa/mcp-server",
+        "version": "0.1.0-p5",
+        "private": true,
+        "description": "P6 remote MCP runtime with request-scoped Salesforce, dynamic governance, audit, and MCP-native Agent guidance",
+        "type": "module",
+        "main": "dist/index.js",
+        "types": "dist/index.d.ts",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P5 remote MCP server: package skipped')\"",
+          "start": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/main.js",
+          "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js",
+          "test:p3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p3-test/*.test.js",
+          "test:p4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p4-test/*.test.js",
+          "test:p5": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p5-test/*.test.js",
+          "test:p7": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p7-test/*.test.js",
+          "test:p5:mysql": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/p5-test/mysql-runtime.integration.test.js",
+          "validate:upstream": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/upstream-compatibility.js",
+          "validate:p2": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/main.js",
+          "validate:p3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p3-main.js",
+          "validate:p4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p4-main.js",
+          "validate:p9": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p9-main.js",
+          "validate:p10": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-main.js",
+          "probe:p10": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-probe-main.js",
+          "milestone:p10-t2": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t2-live-main.js",
+          "milestone:p10-t3": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t3-live-main.js",
+          "milestone:p10-t4": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t4-live-main.js",
+          "milestone:p10-t5": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/p10-t5-live-main.js",
+          "validate:inspector": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/validation/inspector-gate.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "1.18.2",
+          "@salesforce/core": "8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "@salesforce/mcp-provider-dx-core": "0.10.0",
+          "@sfoa/control-plane": "0.1.0-p5",
+          "@sfoa/agent-playbook": "0.1.0-p6-agent",
+          "@sfoa/identity-runtime": "0.1.0-p4",
+          "@sfoa/mcp-provider-sfoa-context": "0.1.0-p4",
+          "@sfoa/mcp-provider-sfoa-data": "0.1.0-p9",
+          "@sfoa/mcp-provider-sfoa-dml": "0.1.0-p3",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-runtime-validation",
+      "manifest": {
+        "name": "@sfoa/runtime-validation",
+        "version": "0.0.0-p0-closure",
+        "private": true,
+        "description": "P0-Closure live SFoA JWT, official Provider, SOQL, and metadata validation harness",
+        "type": "module",
+        "main": "dist/main.js",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P0-Closure harness: package skipped')\"",
+          "regress:stdio": "yarn build && node dist/stdio-regression.js",
+          "test": "yarn build && node --test dist/test/*.test.js",
+          "validate": "yarn build && node dist/main.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "1.18.2",
+          "@salesforce/core": "8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "@salesforce/mcp-provider-dx-core": "0.10.0",
+          "zod": "3.25.76"
+        },
+        "devDependencies": {
+          "@types/node": "22.16.5",
+          "typescript": "5.8.3"
+        }
+      }
+    },
+    {
+      "path": "packages/sfoa-streamable-http-poc",
+      "manifest": {
+        "name": "@sfoa/streamable-http-poc",
+        "version": "0.0.0-p0",
+        "private": true,
+        "description": "P0-only Streamable HTTP proof of concept over official Salesforce DX MCP providers",
+        "type": "module",
+        "main": "dist/main.js",
+        "types": "dist/server.d.ts",
+        "engines": {
+          "node": ">=20.0.0"
+        },
+        "scripts": {
+          "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+          "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+          "clean-all": "yarn clean",
+          "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+          "package": "node -e \"console.log('Private P0 POC: package skipped')\"",
+          "start": "node dist/main.js",
+          "test": "yarn build && node --test dist/test/http-poc.test.js"
+        },
+        "dependencies": {
+          "@modelcontextprotocol/sdk": "^1.18.0",
+          "@salesforce/core": "^8.29.0",
+          "@salesforce/mcp-provider-api": "0.6.0",
+          "@salesforce/mcp-provider-dx-core": "0.10.0"
+        },
+        "devDependencies": {
+          "@types/node": "^22.16.5",
+          "typescript": "^5.8.3"
+        }
+      }
+    }
+  ],
+  "frozenTrees": {
+    "packages": {
+      "sha256": "b0d5db5dc58bcc87898fb0a781491818c7fcb07daa9fad7fe49645dd8f4248ec",
+      "trackedEntries": 876
+    },
+    ".env.example": {
+      "sha256": "c1b0937d83102938d94d55f03d60338b2a32a263f37564174b48742e55d97443",
+      "trackedEntries": 1
+    },
+    "config": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "trackedEntries": 1
+    },
+    "integrations": {
+      "sha256": "ef6bd28a07b7617142ac8f4b72a5aeb9160cb6c0c4b4861cff97bc42747feb14",
+      "trackedEntries": 12
+    }
+  },
+  "rootManifest": {
+    "name": "monorepo-for-salesforce-mcp-server-and-providers",
+    "private": true,
+    "license": "Apache-2.0",
+    "workspaces": {
+      "packages": [
+        "packages/*"
+      ],
+      "nohoist": [
+        "**"
+      ]
+    },
+    "devDependencies": {
+      "@commitlint/cli": "^19.0.0",
+      "@commitlint/config-conventional": "^19.0.0",
+      "@modelcontextprotocol/inspector": "^0.15.0",
+      "rimraf": "^6.0.1"
+    },
+    "overrides": {
+      "@salesforce/core": "^8.29.0",
+      "nock": "^13.5.6"
+    },
+    "scripts": {
+      "skill:validate": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs validate",
+      "skill:sync": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs sync",
+      "skill:check": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs check",
+      "skill:delivery": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs delivery",
+      "skill:package": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs package",
+      "skill:export": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs export",
+      "skill:test": "node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs",
+      "skill:runtime:sync": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-sync",
+      "skill:runtime:check": "node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-check",
+      "skill:smoke": "node skills/sfoa-mcp-maintainer/scripts/clean-checkout-smoke.mjs",
+      "ai:doctor": "node skills/sfoa-mcp-maintainer/scripts/doctor.mjs",
+      "ai:db": "node skills/sfoa-mcp-maintainer/scripts/db-inspect.mjs",
+      "ai:audit": "node skills/sfoa-mcp-maintainer/scripts/audit-trace.mjs",
+      "ai:snapshot": "node skills/sfoa-mcp-maintainer/scripts/project-snapshot.mjs",
+      "agent:sync": "yarn workspace @sfoa/agent-playbook run sync",
+      "agent:check": "yarn workspace @sfoa/agent-playbook run check",
+      "review:package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-review.ps1",
+      "build": "yarn workspaces run build",
+      "clean": "yarn workspaces run clean",
+      "clean-all": "yarn workspaces run clean-all && rimraf node_modules",
+      "lint": "yarn workspaces run lint",
+      "package": "yarn workspaces run package",
+      "test": "yarn workspaces run test",
+      "db:create": "yarn workspace @sfoa/control-plane db:create",
+      "db:migrate": "yarn workspace @sfoa/control-plane db:migrate",
+      "db:status": "yarn workspace @sfoa/control-plane db:status",
+      "p5:bootstrap": "yarn workspace @sfoa/control-plane p5:bootstrap",
+      "admin:api:dev": "yarn workspace @sfoa/admin-api dev",
+      "admin:web:dev": "yarn workspace @sfoa/admin-web dev",
+      "p5:dev": "node scripts/p5-dev.mjs",
+      "dev:sfoa": "node scripts/p5-dev.mjs",
+      "p5:test": "yarn workspace @sfoa/control-plane test && yarn workspace @sfoa/control-plane test:mysql && yarn workspace @sfoa/identity-runtime test && yarn workspace @sfoa/mcp-server test:p5 && yarn workspace @sfoa/admin-api test && yarn workspace @sfoa/admin-web test",
+      "p5:test:runtime:mysql": "yarn workspace @sfoa/mcp-server test:p5:mysql",
+      "p5:e2e": "yarn workspace @sfoa/admin-web e2e",
+      "p5:e2e:fullstack": "yarn workspace @sfoa/control-plane build && yarn workspace @sfoa/admin-api build && yarn workspace @sfoa/admin-web build && node scripts/p5-fullstack-e2e.mjs",
+      "validate:p5": "node scripts/validate-p5.mjs"
+    }
+  },
+  "toolchain": {
+    "mcpNode": "22.23.1",
+    "yarn": "1.22.22",
+    "workstationDefaultNode": "24.13.0",
+    "ciJava": "11.0.30+7",
+    "ephemeralMysql": "8.0.30",
+    "enginesAreUnchanged": true
+  }
+}
