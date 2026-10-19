@@ -1,18 +1,16 @@
 version: 2
 updates:
   - package-ecosystem: 'npm'
-    directories:
-      - '/packages/mcp'
-      - '/packages/mcp-provider-api'
-      - '/packages/mcp-provider-dx-core'
-      - '/packages/EXAMPLE-MCP-PROVIDER'
+    # One Yarn Classic workspace graph and one shared root lockfile, including all packages/*.
+    directory: '/'
     schedule:
       interval: 'weekly'
       day: 'saturday'
     versioning-strategy: 'increase'
     labels:
       - 'dependencies'
-    open-pull-requests-limit: 5
+    # Pause routine version PRs during P11; security updates use a separate GitHub limit.
+    open-pull-requests-limit: 0
     pull-request-branch-name:
       separator: '-'
     commit-message:
@@ -24,3 +22,12 @@ updates:
       - dependency-name: '@salesforce/dev-scripts'
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 2
+    groups:
+      actions-patch-minor:
+        patterns: ['*']
+        update-types: ['minor', 'patch']

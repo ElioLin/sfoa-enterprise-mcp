@@ -1,0 +1,36 @@
+name: tests
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+jobs:
+  yarn-lockfile-check:
+    uses: salesforcecli/github-workflows/.github/workflows/lockFileCheck.yml@main
+    
+  # Since the Windows unit tests take much longer, we run the linux unit tests first and then run the windows unit tests in parallel with NUTs
+  linux-unit-tests:
+    needs: yarn-lockfile-check
+#    uses: salesforcecli/github-workflows/.github/workflows/unitTestsLinux.yml@main
+    uses: ./.github/workflows/tempUnitTestsLinux.yml # temporary replacement
+  windows-unit-tests:
+    needs: linux-unit-tests
+#    uses: salesforcecli/github-workflows/.github/workflows/unitTestsWindows.yml@main
+    uses: ./.github/workflows/tempUnitTestsWindows.yml # temporary replacement
+  e2e:
+    # needs: linux-unit-tests
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        command:
+          - 'yarn test:e2e'
+        provider:
+          - 'mcp-provider-dx-core'
+          - 'mcp-provider-code-analyzer'
+      fail-fast: false
+    with:
+      os: ${{ matrix.os }}
+      command: ${{ matrix.command }}
+      provider: ${{ matrix.provider }}

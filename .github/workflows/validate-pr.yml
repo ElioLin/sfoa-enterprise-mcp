@@ -1,11 +1,24 @@
 name: pr-validation
-
 on:
   pull_request:
-    types: [opened, reopened, edited]
-    # only applies to PRs that want to merge to main
     branches: [main]
-
+    types: [opened, reopened, edited, synchronize]
+permissions:
+  contents: read
 jobs:
   pr-validation:
-    uses: salesforcecli/github-workflows/.github/workflows/validatePR.yml@main
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate conventional title and review evidence
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node <<'NODE'
+          const title = process.env.PR_TITLE ?? '';
+          const body = process.env.PR_BODY ?? '';
+          if (!/^(?:feat|fix|docs|chore|refactor|test|build|ci|perf|revert)(?:\([a-zA-Z0-9_.-]+\))?!?: .+$/u.test(title)) {
+            console.error('Use a conventional commit title.'); process.exitCode = 1;
+          }
+          if (!body.trim()) { console.error('Describe the change and validation in the PR body.'); process.exitCode = 1; }
+          NODE
