@@ -2,6 +2,8 @@
 
 本目录只保存脱敏摘要与可复现命令；不包含访问令牌、JWT、私钥、证书私钥、Salesforce Session ID、数据库口令或完整业务数据。
 
+交付分支：`feature/crm-openclaw-entry`，首个提交 `561bda4`（已推送 `origin`）。
+
 | 证据 | 文件 | 层级 |
 | --- | --- | --- |
 | 版本与目标环境 | [versions.md](versions.md) | REAL 环境只读探测 |

@@ -1,7 +1,7 @@
 # CRM OpenClaw 一期实现报告
 
 日期：2026-10-22
-分支：`feature/crm-openclaw-entry`（MCP 工程）
+分支：`feature/crm-openclaw-entry`（首个提交 `561bda4`，已推送 `origin`）
 状态：**IMPLEMENTED_PENDING_ENVIRONMENT_VERIFICATION**
 
 ## 1. 目标与边界

@@ -13,6 +13,7 @@
 | MCP 工程 | `D:\GitProject\sfoa-enterprise-mcp`，分支 `feature/crm-openclaw-entry`，基线 `origin/main@12df237` |
 | CRM 工程 | `D:\GitProject\crm`，分支 `uat`，开始 HEAD `a55870a`（不新建/不切换分支） |
 | OpenClaw | 测试服实际 `2026.9.5 (ec9c1a1)`；文档旧记 2026.9.3，以实测为准 |
+| 交付提交 | `feature/crm-openclaw-entry` 首个提交 `561bda4`，已推送 `origin/feature/crm-openclaw-entry` |
 | Salesforce | 沙盒 `runnergroup--uat.sandbox.my.sfcrmproducts.cn`，OrgId `00DC5000000lGFpMAM`，API 68.0 |
 | 本期范围 | 文本聊天；不做附件/语音/多模态、共享会话、Salesforce Action/Apex 自动生成、P11-A CI 治理 |
 
@@ -103,7 +104,7 @@ Salesforce LWC
 - [x] `CRM_OPENCLAW_DEPLOYMENT.md`
 - [x] `docs/sfoa/evidence/crm-openclaw/`
 - [x] CRM 精确 manifest + destructive manifest
-- [ ] 分支提交/推送（按项目提交授权；本次尚未提交）
+- [x] 分支提交/推送（`561bda4` + 本次文档补记；未合并 main、未删除分支）
 - [ ] 独立审查与用户 UAT
 
 ## 四、剩余事项（按优先级）
