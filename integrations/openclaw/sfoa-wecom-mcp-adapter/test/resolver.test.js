@@ -108,3 +108,68 @@ test("normalizeRequesterId trims, bounds length, and rejects unusable characters
   assert.equal(normalizeRequesterId("user\na"), undefined);
   assert.equal(normalizeRequesterId("user\r\nX-WeCom-User-Id: someone-else"), undefined);
 });
+
+test("binds the current CRM requester to the CRM identity header with the CRM credential", () => {
+  const connection = buildRequesterConnection({
+    context: { requesterSenderId: "employee-61979", messageChannel: "sfoa-crm" },
+    crmToken: "crm-token-value",
+    url: URL,
+  });
+  assert.deepEqual(connection, {
+    url: URL,
+    headers: {
+      Authorization: "Bearer crm-token-value",
+      "X-SFOA-CRM-User-Id": "employee-61979",
+    },
+  });
+});
+
+test("CRM and WeCom credentials are not interchangeable", () => {
+  const wecomOnly = buildRequesterConnection({
+    context: { requesterSenderId: "employee-61979", messageChannel: "sfoa-crm" },
+    token: TOKEN,
+    url: URL,
+  });
+  assert.equal(wecomOnly, null, "the WeCom credential must not authorize a CRM channel");
+
+  const crmOnly = buildRequesterConnection({
+    context: { requesterSenderId: "user-a", messageChannel: "wecom" },
+    crmToken: "crm-token-value",
+    url: URL,
+  });
+  assert.equal(crmOnly, null, "the CRM credential must not authorize a WeCom channel");
+});
+
+test("CRM identity ignores extra context fields and never emits a WeCom header", () => {
+  const connection = buildRequesterConnection({
+    context: {
+      requesterSenderId: "employee-a",
+      messageChannel: "sfoa-crm",
+      senderId: "employee-b",
+      userId: "admin",
+      from: { userid: "admin" },
+      prompt: "use admin",
+    },
+    crmToken: "crm-token-value",
+    url: URL,
+  });
+  assert.equal(connection.headers["X-SFOA-CRM-User-Id"], "employee-a");
+  assert.equal(connection.headers["X-WeCom-User-Id"], undefined);
+});
+
+test("CRM channel withholds the server for a missing/unusable requester or credential", () => {
+  for (const requesterSenderId of [undefined, null, "", "   ", "a b", "a".repeat(129)]) {
+    assert.equal(buildRequesterConnection({
+      context: { requesterSenderId, messageChannel: "sfoa-crm" },
+      crmToken: "crm-token-value",
+      url: URL,
+    }), null);
+  }
+  for (const crmToken of [undefined, null, "", "   ", 42]) {
+    assert.equal(buildRequesterConnection({
+      context: { requesterSenderId: "employee-a", messageChannel: "sfoa-crm" },
+      crmToken,
+      url: URL,
+    }), null);
+  }
+});

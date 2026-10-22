@@ -5,6 +5,7 @@ export * from './audit-pipeline.js';
 export * from './bootstrap.js';
 export * from './config.js';
 export * from './contracts.js';
+export * from './crm-chat-repository.js';
 export * from './database.js';
 export * from './errors.js';
 export * from './identity-credential.js';

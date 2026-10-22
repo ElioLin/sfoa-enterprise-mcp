@@ -18,7 +18,7 @@ export type RuntimeLogEvent = Readonly<{
   clientId?: string;
   platformUserId?: string;
   salesforceUsername?: string;
-  identitySource?: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER';
+  identitySource?: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER' | 'CRM_HEADER';
   identityCredentialId?: string;
   executionRole?: 'USER' | 'DIAGNOSTIC';
   toolName?: string;

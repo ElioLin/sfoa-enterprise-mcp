@@ -34,7 +34,7 @@ export interface ClientAuthenticator {
 
 export type CredentialAuthentication = Readonly<{
   clientId: string;
-  credentialChannel?: 'INTERNAL' | 'WECOM';
+  credentialChannel?: 'INTERNAL' | 'WECOM' | 'CRM';
   identitySource?: IdentitySource;
   boundPlatformUserId?: string;
   credentialId?: string;
@@ -163,6 +163,32 @@ export class WeComChannelCredentialAuthenticator implements CredentialAuthentica
   }
 }
 
+/**
+ * Salesforce 内嵌 CRM 聊天的渠道凭据。
+ *
+ * 与 WeCom 完全同构：凭据只标识“调用方是 CRM 接入服务”，**不是**最终用户身份。
+ * 最终用户必须由接入服务在服务端验证 Apex 签名后，通过独立的
+ * `X-SFOA-CRM-User-Id` 头注入；该头与 WeCom 头互斥，不能互相替代。
+ */
+export class CrmChannelCredentialAuthenticator implements CredentialAuthenticator {
+  private readonly authenticator: InternalBearerAuthenticator;
+
+  public constructor(token: string) {
+    this.authenticator = new InternalBearerAuthenticator(token);
+  }
+
+  public supports(token: string | undefined): boolean {
+    return token !== undefined && !token.startsWith(USER_BOUND_TOKEN_PREFIX) && this.authenticator.matches(token);
+  }
+
+  public async authenticate(token: string | undefined, correlationId: string): Promise<CredentialAuthentication> {
+    if (!this.supports(token)) {
+      throw new RemoteRuntimeError('MCP_CLIENT_AUTH_INVALID', 'The MCP CRM channel credential is invalid.', { correlationId });
+    }
+    return Object.freeze({ clientId: 'sfoa-crm-channel', credentialChannel: 'CRM' as const });
+  }
+}
+
 export class DisabledLoopbackCredentialAuthenticator implements CredentialAuthenticator {
   public supports(token: string | undefined): boolean {
     return token === undefined || !token.startsWith(USER_BOUND_TOKEN_PREFIX);
@@ -240,6 +266,7 @@ export type BuntuTokenCredentialAuthenticatorOptions = Readonly<{
   /** MCP_CLIENT_TOKEN used for deterministic exclusivity; compared with timing-safe digest. */
   clientToken: string;
   wecomClientToken?: string;
+  crmClientToken?: string;
   validateTokenUrl: string;
   rawTokenAuditEnabled?: boolean;
   /**
@@ -288,7 +315,8 @@ export class BuntuTokenCredentialAuthenticator implements CredentialAuthenticato
     return token !== undefined
       && !token.startsWith(USER_BOUND_TOKEN_PREFIX)
       && !timingSafeEqual(this.expectedClientDigest, digest(token))
-      && !(this.options.wecomClientToken !== undefined && timingSafeTokenEqual(this.options.wecomClientToken, token));
+      && !(this.options.wecomClientToken !== undefined && timingSafeTokenEqual(this.options.wecomClientToken, token))
+      && !(this.options.crmClientToken !== undefined && timingSafeTokenEqual(this.options.crmClientToken, token));
   }
 
   /**
@@ -467,6 +495,7 @@ export class UnifiedIdentityProvider implements IdentityProvider {
   public constructor(
     private readonly authenticators: readonly CredentialAuthenticator[],
     private readonly wecomChannelEnabled = false,
+    private readonly crmChannelEnabled = false,
   ) {
     if (authenticators.length === 0) {
       throw new RemoteRuntimeError(
@@ -500,7 +529,14 @@ export class UnifiedIdentityProvider implements IdentityProvider {
     platformIdentityHeaders: readonly string[],
     correlationId: string,
   ): Promise<AuthenticatedPrincipal> {
-    const resolution = validateCredentialIdentityHeaders(credential, headers, platformIdentityHeaders, correlationId, this.wecomChannelEnabled);
+    const resolution = validateCredentialIdentityHeaders(
+      credential,
+      headers,
+      platformIdentityHeaders,
+      correlationId,
+      this.wecomChannelEnabled,
+      this.crmChannelEnabled,
+    );
     // A bound credential (USER_BOUND / BUNTU) is itself the identity authority.
     // A matching platform identity header is optional context and must agree;
     // identity attribution stays with the credential source.
@@ -532,7 +568,11 @@ export class UnifiedIdentityProvider implements IdentityProvider {
     await credential.afterAuthenticated?.();
     return Object.freeze({
       clientId: credential.clientId,
-      identitySource: credential.credentialChannel === 'WECOM' ? 'WECOM_HEADER' : identitySourceForPlatformHeader(resolution.headerName, primaryHeader),
+      identitySource: identitySourceForCredentialChannel(
+        credential.credentialChannel,
+        resolution.headerName,
+        primaryHeader,
+      ),
       platformUserId,
       ...(credential.credentialId ? { credentialId: credential.credentialId } : {}),
       correlationId,
@@ -572,20 +612,45 @@ export function validateCredentialIdentityHeaders(
   platformIdentityHeaders: readonly string[],
   correlationId: string,
   wecomChannelEnabled: boolean,
+  crmChannelEnabled = false,
 ): PlatformIdentityHeaderResolution {
-  const channelBound = wecomChannelEnabled || credential.credentialChannel === 'WECOM';
+  const channelBound = wecomChannelEnabled
+    || crmChannelEnabled
+    || credential.credentialChannel === 'WECOM'
+    || credential.credentialChannel === 'CRM';
   const recognized = channelBound
-    ? [...new Set([...platformIdentityHeaders, 'X-Platform-User-Id', 'X-WeCom-User-Id'].map((name) => name.toLowerCase()))]
+    ? [...new Set([...platformIdentityHeaders, 'X-Platform-User-Id', 'X-WeCom-User-Id', 'X-SFOA-CRM-User-Id']
+      .map((name) => name.toLowerCase()))]
     : platformIdentityHeaders;
   const resolution = matchPlatformIdentityHeaders(headers, recognized);
   if (resolution.status === 'ambiguous' || resolution.status === 'conflict') throw platformIdentityConflict(correlationId);
   if (channelBound && credential.boundPlatformUserId === undefined && resolution.status === 'match') {
-    const expected = credential.credentialChannel === 'WECOM' ? 'x-wecom-user-id' : 'x-platform-user-id';
+    // 渠道凭据只能使用本渠道的身份头。WeCom 头、CRM 头和 Internal 头属于三个
+    // 不同的身份命名空间；允许互换会把一个渠道的 sender id 当成另一个渠道的用户。
+    const expected = credential.credentialChannel === 'WECOM'
+      ? 'x-wecom-user-id'
+      : credential.credentialChannel === 'CRM'
+        ? 'x-sfoa-crm-user-id'
+        : 'x-platform-user-id';
     if (resolution.headerName.toLowerCase() !== expected) {
       throw new RemoteRuntimeError('MCP_IDENTITY_CHANNEL_MISMATCH', 'The identity header does not belong to the authenticated channel.', { correlationId });
     }
   }
   return resolution;
+}
+
+/**
+ * 渠道凭据的身份来源由渠道本身决定，而不是由 header 名字推断。
+ * 这样即使以后新增别名，审计里的 `identity_source` 仍然只可能是渠道的真实来源。
+ */
+function identitySourceForCredentialChannel(
+  credentialChannel: CredentialAuthentication['credentialChannel'],
+  headerName: string,
+  primaryHeaderName: string | undefined,
+): IdentitySource {
+  if (credentialChannel === 'WECOM') return 'WECOM_HEADER';
+  if (credentialChannel === 'CRM') return 'CRM_HEADER';
+  return identitySourceForPlatformHeader(headerName, primaryHeaderName);
 }
 
 function parseBearerToken(headers: RequestHeaders, correlationId: string): string | undefined {
@@ -618,6 +683,7 @@ export type PlatformIdentityHeaderResolution =
 /** Well-known external identity-header channels and their audited identity source. */
 const PLATFORM_IDENTITY_HEADER_SOURCE_BY_LOWER_NAME: Readonly<Record<string, IdentitySource>> = Object.freeze({
   'x-wecom-user-id': 'WECOM_HEADER',
+  'x-sfoa-crm-user-id': 'CRM_HEADER',
 });
 
 /**

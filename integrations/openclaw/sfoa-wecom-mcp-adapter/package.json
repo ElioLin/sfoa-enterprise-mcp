@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "OpenClaw plugin that binds the statically declared sfoa-enterprise-mcp MCP server to the trusted WeCom message requester.",
+  "description": "OpenClaw plugin that binds the statically declared sfoa-enterprise-mcp MCP server to the trusted WeCom or Salesforce CRM requester.",
   "license": "Apache-2.0",
   "main": "src/index.js",
   "exports": {

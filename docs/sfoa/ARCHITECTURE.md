@@ -1066,3 +1066,37 @@ lifecycle, governance snapshot, audit writer or Salesforce path is touched: the 
 `actor_admin` audit filter with its index, and the shared contracts. Agents using the MCP tools are
 unaffected, and the MCP endpoint's own authentication and authorization are unchanged. See
 [ADR-0034](adr/ADR-0034-scoped-console-accounts.md).
+
+## CRM OpenClaw embedded chat
+
+The Salesforce entry reuses OpenClaw and this MCP runtime; it does not add a second agent or a
+Salesforce client to the browser. See [ADR-0035](adr/ADR-0035-crm-openclaw-embedded-chat.md),
+[the plan](CRM_OPENCLAW_PLAN.md) and [the implementation report](CRM_OPENCLAW_IMPLEMENTATION_REPORT.md).
+
+```mermaid
+flowchart TD
+  LWC[Salesforce LWC / Utility Bar] --> Apex[Apex SfoaCrmChatIdentity<br/>UserInfo + certificate signature]
+  Apex -->|v1 token, 90s| Svc[@sfoa/crm-gateway<br/>pinned cert, jti, binding, chat token]
+  Svc -->|credentialed HTTP ingress| Plugin[OpenClaw sfoa-crm-channel<br/>SenderId from verified platform user]
+  Plugin --> Route[official resolveAgentRoute<br/>conversation -> sessionKey]
+  Route --> OpenClaw[OpenClaw agent run]
+  OpenClaw -->|MCP transport resolver| Adapter[WeCom/CRM MCP adapter<br/>X-SFOA-CRM-User-Id]
+  Adapter --> MCP[SFOA MCP<br/>MCP_CRM_CLIENT_TOKEN -> CRM_HEADER]
+  MCP --> IR[existing Identity Route]
+  IR --> SF[Salesforce, real user authority]
+```
+
+| Contract | Boundary |
+| --- | --- |
+| Apex bootstrap | `iss`, `aud`, `orgId`, `userId`, `username`, `displayName`, `iat`, `exp`, `jti`; signed over `v1.<base64url(payload)>`; 30–120 s (default 90). |
+| Replay | `sfoa_crm_bootstrap_nonce.jti` primary key; duplicate = 409; survives service restart. |
+| Binding | `sfoa_crm_identity_binding (salesforce_org_id, salesforce_user_id) → platform_user_id`; route must be enabled and its `salesforce_username` must equal the Apex `username`; missing = deny. |
+| Browser | 15-minute opaque chat token in memory; MySQL stores SHA-256 only. Salesforce logout does not revoke instantly; maximum window = TTL. |
+| Conversation | CRM UUID → official OpenClaw `sessionKey`; chat text stays in OpenClaw; MySQL stores ownership/run status only. |
+| Runs | `(conversation_id, client_message_id)` unique; duplicate does not re-dispatch; unknown outcomes are `UNKNOWN` and never auto-retried. |
+| MCP channel | Independent `MCP_CRM_CLIENT_TOKEN` + `X-SFOA-CRM-User-Id`; audit `identity_source = CRM_HEADER`; WeCom/Internal headers are not interchangeable. |
+| Gateway token | Turn/abort/session-resolve use the CRM service credential; history uses a separate Gateway-authenticated trusted-operator route backed by `sessions.get`, with a server-side history-only credential (read-only device token preferred). It is never a user identity or a general `chat.send` credential. |
+
+The MCP audit model has no conversation/session/run id. The durable link is the CRM run record
+(`runId`, `sessionKey`, start/end) plus the OpenClaw run log, correlated to MCP audit rows by
+`platform_user_id + occurred_at` window. This is an observational correlation, not a foreign key.

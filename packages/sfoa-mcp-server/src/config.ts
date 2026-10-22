@@ -82,6 +82,13 @@ export type RemoteRuntimeConfig = Readonly<{
   wecomChannelEnabled?: boolean;
   wecomClientToken?: string;
   /**
+   * CRM 内嵌聊天渠道（Salesforce LWC -> 接入服务 -> OpenClaw -> SFOA MCP）。
+   * 与 WeCom 渠道完全独立：独立凭据、独立身份头、独立审计来源。
+   * 默认关闭；关闭时既有 Internal/WeCom/Buntu/UserBound 入口不受影响。
+   */
+  crmChannelEnabled?: boolean;
+  crmClientToken?: string;
+  /**
    * Primary HTTP header that carries the authenticated platform user id for
    * header-based (internal service) identities. Its value maps to
    * `INTERNAL_SERVICE_HEADER`. Never renamed for a partner channel such as WeCom:
@@ -132,6 +139,8 @@ const rawRemoteConfigSchema = z
     MCP_CLIENT_TOKEN: z.string().min(16).max(4096).optional(),
     MCP_WECOM_CHANNEL_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
     MCP_WECOM_CLIENT_TOKEN: z.string().min(32).max(4096).regex(/^\S+$/u).optional(),
+    MCP_CRM_CHANNEL_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    MCP_CRM_CLIENT_TOKEN: z.string().min(32).max(4096).regex(/^\S+$/u).optional(),
     MCP_PLATFORM_USER_HEADER: headerNameSchema.default('X-Platform-User-Id'),
     MCP_PLATFORM_USER_HEADER_ALIASES: z.string().trim().max(2048).optional(),
     MCP_MAX_BODY_BYTES: z.coerce.number().int().min(1024).max(10_485_760).default(1_048_576),
@@ -180,6 +189,8 @@ const REMOTE_ENVIRONMENT_NAMES = [
   'MCP_CLIENT_TOKEN',
   'MCP_WECOM_CHANNEL_ENABLED',
   'MCP_WECOM_CLIENT_TOKEN',
+  'MCP_CRM_CHANNEL_ENABLED',
+  'MCP_CRM_CLIENT_TOKEN',
   'MCP_PLATFORM_USER_HEADER',
   'MCP_PLATFORM_USER_HEADER_ALIASES',
   'MCP_MAX_BODY_BYTES',
@@ -270,6 +281,17 @@ export async function loadRemoteRuntimeConfig(
   if (parsed.data.MCP_WECOM_CHANNEL_ENABLED && (!wecomClientToken || parsed.data.MCP_AUTH_MODE !== 'internal_bearer')) {
     throw configurationError('MCP_WECOM_CHANNEL_ENABLED=true requires MCP_WECOM_CLIENT_TOKEN and MCP_AUTH_MODE=internal_bearer.');
   }
+  const crmClientToken = parsed.data.MCP_CRM_CLIENT_TOKEN;
+  if (crmClientToken?.startsWith(USER_BOUND_TOKEN_PREFIX)
+    || (crmClientToken && parsed.data.MCP_CLIENT_TOKEN && timingSafeTokenEqual(crmClientToken, parsed.data.MCP_CLIENT_TOKEN))
+    || (crmClientToken && wecomClientToken && timingSafeTokenEqual(crmClientToken, wecomClientToken))) {
+    throw configurationError(
+      'MCP_CRM_CLIENT_TOKEN must be independent of Internal, USER_BOUND and WeCom channel credentials.',
+    );
+  }
+  if (parsed.data.MCP_CRM_CHANNEL_ENABLED && (!crmClientToken || parsed.data.MCP_AUTH_MODE !== 'internal_bearer')) {
+    throw configurationError('MCP_CRM_CHANNEL_ENABLED=true requires MCP_CRM_CLIENT_TOKEN and MCP_AUTH_MODE=internal_bearer.');
+  }
   if (buntuIdentity.enabled && parsed.data.MCP_AUTH_MODE !== 'internal_bearer') {
     throw configurationError('MCP_BUNTU_IDENTITY_ENABLED=true requires MCP_AUTH_MODE=internal_bearer.');
   }
@@ -285,11 +307,11 @@ export async function loadRemoteRuntimeConfig(
   const platformUserHeader = parsed.data.MCP_PLATFORM_USER_HEADER;
   if (RESERVED_PARTNER_IDENTITY_HEADER_NAMES.has(platformUserHeader.toLocaleLowerCase('en-US'))) {
     // P8-05: the primary platform user header is the trusted internal-service
-    // channel. A reserved partner header (WeCom) as primary would misattribute
-    // WeCom identity headers as internal provenance; it is reachable only via
-    // MCP_PLATFORM_USER_HEADER_ALIASES.
+    // channel. A reserved partner header (WeCom / CRM) as primary would
+    // misattribute partner identity headers as internal provenance; it is
+    // reachable only via MCP_PLATFORM_USER_HEADER_ALIASES.
     throw configurationError(
-      `MCP_PLATFORM_USER_HEADER=${platformUserHeader} is a reserved partner identity header (WeCom). ` +
+      `MCP_PLATFORM_USER_HEADER=${platformUserHeader} is a reserved partner identity header (WeCom/CRM). ` +
         'Configure partner headers only through MCP_PLATFORM_USER_HEADER_ALIASES; the primary header is the internal-service channel.',
     );
   }
@@ -306,6 +328,15 @@ export async function loadRemoteRuntimeConfig(
     // so fail fast at configuration time.
     throw configurationError(
       'MCP_WECOM_CHANNEL_ENABLED=true requires MCP_PLATFORM_USER_HEADER_ALIASES to include X-WeCom-User-Id.',
+    );
+  }
+  if (parsed.data.MCP_CRM_CHANNEL_ENABLED && !platformUserHeaderAliases.some(
+    (alias) => alias.toLocaleLowerCase('en-US') === CRM_USER_ID_HEADER_NAME,
+  )) {
+    // CRM 渠道走独立身份头。缺少 alias 时凭据虽然能通过认证，但主体身份永远
+    // 无法匹配，表现为“已认证但无身份”，属于启动期就应失败的配置错误。
+    throw configurationError(
+      'MCP_CRM_CHANNEL_ENABLED=true requires MCP_PLATFORM_USER_HEADER_ALIASES to include X-SFOA-CRM-User-Id.',
     );
   }
   const publicUrl = parsed.data.MCP_PUBLIC_URL
@@ -358,6 +389,8 @@ export async function loadRemoteRuntimeConfig(
     authMode: parsed.data.MCP_AUTH_MODE,
     wecomChannelEnabled: parsed.data.MCP_WECOM_CHANNEL_ENABLED,
     ...(wecomClientToken ? { wecomClientToken } : {}),
+    crmChannelEnabled: parsed.data.MCP_CRM_CHANNEL_ENABLED,
+    ...(crmClientToken ? { crmClientToken } : {}),
     ...(parsed.data.MCP_CLIENT_TOKEN ? { clientToken: parsed.data.MCP_CLIENT_TOKEN } : {}),
     platformUserHeader,
     platformUserHeaderAliases,
@@ -594,9 +627,12 @@ function parseOrigins(value: string | undefined): readonly string[] {
  */
 // Always lower-case: HTTP header names are case-insensitive.
 export const WECOM_USER_ID_HEADER_NAME = 'x-wecom-user-id';
+/** Salesforce 内嵌 CRM 聊天渠道的可信身份头。 */
+export const CRM_USER_ID_HEADER_NAME = 'x-sfoa-crm-user-id';
 
 const RESERVED_PARTNER_IDENTITY_HEADER_NAMES: ReadonlySet<string> = new Set([
   WECOM_USER_ID_HEADER_NAME,
+  CRM_USER_ID_HEADER_NAME,
 ]);
 
 /**

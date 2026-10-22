@@ -19,6 +19,9 @@
       "mcpWecomClientToken": {
         "description": "SecretInput for the SFOA WeCom channel credential. Prefer a SecretRef."
       },
+      "mcpCrmClientToken": {
+        "description": "SecretInput for the SFOA CRM channel credential (Salesforce LWC entry). Prefer a SecretRef. Independent of the WeCom credential and never a user identity."
+      },
       "attachmentBridgeEnabled": {
         "type": "boolean",
         "default": false,

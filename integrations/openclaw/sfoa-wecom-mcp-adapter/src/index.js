@@ -49,17 +49,19 @@ import {
   resolveIngressUrl,
   selectInboundMedia,
 } from "./attachments.js";
-import { WECOM_CHANNEL_ID, buildRequesterConnection, SFOA_MCP_SERVER_NAME } from "./resolver.js";
+import { WECOM_CHANNEL_ID, CRM_CHANNEL_ID, buildRequesterConnection, SFOA_MCP_SERVER_NAME } from "./resolver.js";
 
 /** Loopback MCP endpoint; OpenClaw and the SFOA runtime share this host. */
 const DEFAULT_MCP_URL = "http://127.0.0.1:8080/mcp";
 
-/** Plugin config path used in secret-resolution diagnostics. */
+/** Plugin config path used in secret-resolution diagnostics (WeCom). */
 const TOKEN_CONFIG_PATH = "plugins.entries.sfoa-wecom-mcp-adapter.config.mcpWecomClientToken";
+/** Plugin config path used in secret-resolution diagnostics (CRM). */
+const CRM_TOKEN_CONFIG_PATH = "plugins.entries.sfoa-wecom-mcp-adapter.config.mcpCrmClientToken";
 
 /**
  * How long a resolved channel credential is reused before the SecretRef is
- * re-read. This caches the *shared client credential* only — never a user
+ * re-read. This caches a *shared channel credential* only — never a user
  * identity, which is derived fresh from each run's trusted context.
  */
 const TOKEN_CACHE_TTL_MS = 60_000;
@@ -69,9 +71,11 @@ const INGRESS_TIMEOUT_MS = 120_000;
 
 /**
  * @param {object} api OpenClaw plugin API.
- * @param {{ serverName: string, mcpUrl: string }} settings
+ * @param {string} configKey
+ * @param {string} configPath
+ * @param {string} label
  */
-function createTokenResolver(api, settings) {
+function createTokenResolver(api, configKey, configPath, label) {
   /** @type {{ value: string, expiresAt: number } | undefined} */
   let cached;
 
@@ -82,17 +86,17 @@ function createTokenResolver(api, settings) {
     const resolved = await resolveConfiguredSecretInputString({
       config: api.config,
       env: process.env,
-      value: api.pluginConfig?.mcpWecomClientToken,
-      path: TOKEN_CONFIG_PATH,
+      value: api.pluginConfig?.[configKey],
+      path: configPath,
     });
 
     if (resolved?.value === undefined) {
       // Unresolved or unconfigured: drop any cached value and withhold the server.
       cached = undefined;
       api.logger.warn(
-        `[${settings.serverName}] SFOA WeCom credential is unavailable` +
+        `[${SFOA_MCP_SERVER_NAME}] SFOA ${label} credential is unavailable` +
           (resolved?.unresolvedRefReason ? ` (${resolved.unresolvedRefReason})` : "") +
-          "; SFOA MCP is withheld for every requester.",
+          `; SFOA MCP is withheld for ${label} requesters.`,
       );
       return undefined;
     }
@@ -582,9 +586,9 @@ function resolveRunId(context, event) {
 /** @type {import("openclaw/plugin-sdk/core").OpenClawPluginDefinition} */
 const plugin = {
   id: "sfoa-wecom-mcp-adapter",
-  name: "SFoA WeCom MCP Adapter",
+  name: "SFoA WeCom/CRM MCP Adapter",
   description:
-    "Binds the sfoa-enterprise-mcp MCP server transport to the trusted WeCom message requester, and bridges the files that message carried into the SFOA Attachment Ingress.",
+    "Binds the sfoa-enterprise-mcp MCP server transport to the trusted WeCom or Salesforce CRM message requester, and bridges WeCom files into the SFOA Attachment Ingress.",
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -592,6 +596,7 @@ const plugin = {
       serverName: { type: "string" },
       mcpUrl: { type: "string" },
       mcpWecomClientToken: {},
+      mcpCrmClientToken: {},
       attachmentBridgeEnabled: { type: "boolean" },
       attachmentIngressPath: { type: "string" },
       attachmentWorkspaceRoot: { type: "string" },
@@ -620,7 +625,18 @@ const plugin = {
       );
     }
 
-    const resolveToken = createTokenResolver(api, { serverName, mcpUrl });
+    const resolveToken = createTokenResolver(
+      api,
+      "mcpWecomClientToken",
+      TOKEN_CONFIG_PATH,
+      "WeCom",
+    );
+    const resolveCrmToken = createTokenResolver(
+      api,
+      "mcpCrmClientToken",
+      CRM_TOKEN_CONFIG_PATH,
+      "CRM",
+    );
 
     api.registerMcpServerConnectionResolver({
       serverName,
@@ -633,24 +649,28 @@ const plugin = {
        * @param {{ requesterSenderId: string, agentAccountId?: string, messageChannel?: string }} ctx
        */
       async resolve(ctx) {
+        const channel = ctx?.messageChannel;
+        // Resolve only the credential the channel actually needs. A WeCom run
+        // never touches the CRM credential and vice versa.
         const connection = buildRequesterConnection({
           context: ctx,
-          token: await resolveToken(),
+          token: channel === WECOM_CHANNEL_ID ? await resolveToken() : undefined,
+          crmToken: channel === CRM_CHANNEL_ID ? await resolveCrmToken() : undefined,
           url: mcpUrl,
         });
 
         if (connection === null) {
-          // No trusted WeCom requester (or no credential) => no SFOA MCP.
+          // No trusted channel requester (or no credential) => no SFOA MCP.
           // Debug level so identity values never reach default-verbosity logs.
           api.logger.debug?.(
-            `[${serverName}] withheld: channel=${String(ctx?.messageChannel)} ` +
+            `[${serverName}] withheld: channel=${String(channel)} ` +
               `requesterSenderId=${String(ctx?.requesterSenderId)}`,
           );
           return null;
         }
 
         api.logger.debug?.(
-          `[${serverName}] bound channel=${WECOM_CHANNEL_ID} ` +
+          `[${serverName}] bound channel=${String(channel)} ` +
             `requesterSenderId=${String(ctx?.requesterSenderId)}`,
         );
         return connection;

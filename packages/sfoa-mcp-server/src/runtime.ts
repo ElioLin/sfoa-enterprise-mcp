@@ -21,6 +21,7 @@ import {
 } from '@sfoa/control-plane';
 import {
   BuntuTokenCredentialAuthenticator,
+  CrmChannelCredentialAuthenticator,
   DisabledLoopbackCredentialAuthenticator,
   InternalServiceCredentialAuthenticator,
   UnifiedIdentityProvider,
@@ -82,7 +83,11 @@ export async function startConfiguredRemoteRuntime(
         policySnapshotSource: new MySqlRuntimePolicySnapshotSource(database),
         discoveryPolicySnapshotSource: new MySqlRuntimeDiscoveryPolicySnapshotSource(database),
         loadUiSnapshot: (organizationId, objectApiName) => new MySqlUiSnapshotRepository(database).get(organizationId, objectApiName),
-        identityProvider: new UnifiedIdentityProvider(buildCredentialAuthenticators(config, store, databaseLogger), config.wecomChannelEnabled),
+        identityProvider: new UnifiedIdentityProvider(
+          buildCredentialAuthenticators(config, store, databaseLogger),
+          config.wecomChannelEnabled,
+          config.crmChannelEnabled,
+        ),
         ...(attachmentIngress ? { attachmentIngress } : {}),
       });
     } catch (error) {
@@ -199,7 +204,8 @@ function createInternalCredentialAuthenticator(
  * 1. USER_BOUND (exclusive by `sfoa_ub1_*` prefix),
  * 2. INTERNAL (exclusive by exact timing-safe MCP_CLIENT_TOKEN match),
  * 3. WECOM (exact independent channel token, when enabled),
- * 4. BUNTU (eligible other tokens, explicitly excluding both channel tokens).
+ * 4. CRM (exact independent channel token, when enabled),
+ * 5. BUNTU (eligible other tokens, explicitly excluding both channel tokens).
  *
  * The predicates are mutually exclusive, so ordering does not change the
  * routing outcome; Buntu is appended last for readability.
@@ -218,6 +224,7 @@ function buildCredentialAuthenticators(
     createInternalCredentialAuthenticator(config.authMode, config.clientToken),
   ];
   if (config.wecomChannelEnabled) authenticators.push(new WeComChannelCredentialAuthenticator(config.wecomClientToken ?? ''));
+  if (config.crmChannelEnabled) authenticators.push(new CrmChannelCredentialAuthenticator(config.crmClientToken ?? ''));
   if (config.buntuIdentity.enabled) {
     const validateTokenUrl = config.buntuIdentity.validateTokenUrl;
     if (!validateTokenUrl) {
@@ -233,6 +240,7 @@ function buildCredentialAuthenticators(
         logger,
         clientToken: config.clientToken ?? '',
         wecomClientToken: config.wecomClientToken,
+        crmClientToken: config.crmClientToken,
         validateTokenUrl,
         rawTokenAuditEnabled: config.buntuIdentity.rawTokenAuditEnabled,
       }),

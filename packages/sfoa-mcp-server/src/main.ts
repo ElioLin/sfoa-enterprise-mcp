@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 
 void main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : 'The SFoA MCP runtime failed to start.';
-  const secrets = [process.env.MCP_CLIENT_TOKEN, process.env.MCP_WECOM_CLIENT_TOKEN]
+  const secrets = [process.env.MCP_CLIENT_TOKEN, process.env.MCP_WECOM_CLIENT_TOKEN, process.env.MCP_CRM_CLIENT_TOKEN]
     .filter((value): value is string => Boolean(value));
   process.stderr.write(
     `${JSON.stringify({

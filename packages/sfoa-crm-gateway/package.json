@@ -1,0 +1,31 @@
+{
+  "name": "@sfoa/crm-gateway",
+  "version": "0.1.0-crm",
+  "private": true,
+  "description": "SFoA Salesforce embedded CRM chat access service: Apex identity bootstrap, short-lived chat credentials, conversation ownership, OpenClaw SSE bridging and run lifecycle.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean-all": "yarn clean",
+    "lint": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "package": "node -e \"console.log('Private CRM gateway: package skipped')\"",
+    "start": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/main.js",
+    "crm:bind": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node dist/cli/bind.js",
+    "test": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/test/*.test.js",
+    "test:mysql": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --test dist/mysql-test/*.test.js"
+  },
+  "dependencies": {
+    "@sfoa/control-plane": "0.1.0-p5",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.16.5",
+    "typescript": "5.8.3"
+  }
+}

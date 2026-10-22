@@ -30,6 +30,11 @@ Never print or paste `.env.local`. The diagnostic scripts load it locally and re
 - Effective CREATE / Dynamic Forms / UI snapshots: read [p8-04-effective-create.md](references/p8-04-effective-create.md).
 - Batch DML / display labels / compound intent / CREATE initial facts: read [p8-07-runtime-batch.md](references/p8-07-runtime-batch.md).
 - Skill or durable project-fact changes: read [skill-maintenance.md](references/skill-maintenance.md).
+- Salesforce embedded CRM chat, Apex identity bootstrap, or OpenClaw CRM channel: read
+  [architecture.md](references/architecture.md), [repository-map.md](references/repository-map.md),
+  and the `docs/sfoa/CRM_OPENCLAW_*.md` delivery set. The private key belongs in the Salesforce
+  certificate store, never in a Custom Setting, Apex, logs, or Git; the browser chat token is
+  short-lived and stored only as a hash.
 - The “Lead only; Account/Opportunity unavailable” validation case: read [acceptance-scenario.md](references/acceptance-scenario.md).
 
 ## Local diagnostic commands
@@ -45,6 +50,9 @@ yarn ai:audit --trace <publicAuditId>
 yarn ai:audit --correlation <correlationId>
 yarn ai:audit --user <platformUserId> --latest 5 --since 24h
 yarn ai:audit --ui-context <resolutionUuid> --since 24h --latest 20
+yarn workspace @sfoa/crm-gateway test
+yarn workspace @sfoa/crm-gateway test:mysql
+yarn workspace @sfoa/crm-gateway crm:bind --list
 ```
 
 These tools are workspace-only maintainer utilities, not MCP Tools. Database access is restricted to predefined `SELECT`/`SHOW`/`DESCRIBE`/`EXPLAIN` operations inside a read-only transaction. Payload bodies are not loaded by default.
@@ -54,6 +62,7 @@ The current P7 schema has `publicAuditId`, `correlationId`, per-Audit Event sequ
 ## Durable safety boundaries
 
 - Resolve remote identity from the authenticated principal to `platformUserId`, then the configured Salesforce route; Tool arguments never choose a Salesforce user.
+- CRM chat identity is Apex-signed and explicitly bound: `(orgId,userId) → platformUserId` must exist, the route must be enabled, and its `salesforce_username` must equal the token. `X-SFOA-CRM-User-Id` is only valid with `MCP_CRM_CLIENT_TOKEN`; it is never interchangeable with WeCom/Internal headers.
 - Salesforce Connection creation is lazy, request-scoped, and Promise-memoized. Scope creation, local/route-only Tools, and local MCP methods must not authenticate or call Salesforce; the first Salesforce-dependent operation creates exactly one role-bound Connection, never shared across requests or USER/DIAGNOSTIC roles.
 - Salesforce remains authoritative for CRUD, FLS, sharing, validation, Flow, Trigger, and native permissions.
 - Tool visibility and DML object/operation policy are independent. READ access through `run_soql_query` is not granted or restricted by DML policy.

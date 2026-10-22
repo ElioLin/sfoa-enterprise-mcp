@@ -1,0 +1,33 @@
+{
+  "id": "sfoa-crm-channel",
+  "enabledByDefault": true,
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "serviceToken": {
+        "description": "SecretInput shared with the SFoA CRM chat access service. Prefer a SecretRef. Required before any turn is accepted."
+      },
+      "allowRemoteService": {
+        "type": "boolean",
+        "default": false,
+        "description": "Allow the CRM ingress from a non-loopback access service. Default false: only same-host requests are accepted."
+      },
+      "maxMessageChars": {
+        "type": "number",
+        "description": "Maximum accepted user message length in UTF-16 characters. Defaults to 16000."
+      },
+      "turnTimeoutMs": {
+        "type": "number",
+        "description": "Maximum wall-clock time for one agent turn before it is aborted as CRM_TURN_TIMEOUT. Defaults to 600000."
+      },
+      "historyLimit": {
+        "type": "number",
+        "description": "Maximum messages returned by one history call. Defaults to 50."
+      }
+    }
+  }
+}

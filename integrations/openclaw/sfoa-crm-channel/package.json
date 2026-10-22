@@ -1,0 +1,28 @@
+{
+  "name": "@sfoa/openclaw-crm-channel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenClaw plugin that exposes a trusted CRM chat channel for the SFoA Salesforce LWC entry, without modifying OpenClaw core or the WeCom plugin.",
+  "license": "Apache-2.0",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "openclaw": {
+    "extensions": [
+      "./src/index.js"
+    ]
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.9.5"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  }
+}

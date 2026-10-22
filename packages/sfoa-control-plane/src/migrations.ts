@@ -260,6 +260,25 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
     'id', 'attachment_ref', 'platform_user_id', 'source_channel', 'run_id', 'file_name', 'mime_type',
     'byte_size', 'content_sha256', 'staged_path', 'state', 'failure_code', 'created_at', 'expires_at', 'consumed_at',
   ]),
+  sfoa_crm_identity_binding: Object.freeze([
+    'id', 'salesforce_org_id', 'salesforce_user_id', 'platform_user_id', 'display_name', 'enabled',
+    'row_version', 'created_at', 'updated_at',
+  ]),
+  sfoa_crm_conversation: Object.freeze([
+    'id', 'salesforce_org_id', 'salesforce_user_id', 'platform_user_id', 'title',
+    'openclaw_session_key', 'openclaw_agent_id', 'created_at', 'updated_at', 'last_message_at',
+  ]),
+  sfoa_crm_run: Object.freeze([
+    'id', 'conversation_id', 'client_message_id', 'status', 'openclaw_session_key', 'request_sha256',
+    'text_length', 'error_code', 'error_message_safe', 'started_at', 'completed_at', 'updated_at',
+  ]),
+  sfoa_crm_bootstrap_nonce: Object.freeze([
+    'jti', 'salesforce_org_id', 'salesforce_user_id', 'issued_at', 'expires_at', 'consumed_at',
+  ]),
+  sfoa_crm_chat_session: Object.freeze([
+    'token_hash', 'id', 'salesforce_org_id', 'salesforce_user_id', 'platform_user_id', 'display_name',
+    'salesforce_username', 'created_at', 'last_seen_at', 'expires_at', 'revoked_at',
+  ]),
 });
 
 const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; columns: readonly string[]; unique: boolean }>>> = Object.freeze({
@@ -310,6 +329,38 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   }),
   idx_sfoa_attachment_staging_expiry: Object.freeze({
     tableName: 'sfoa_attachment_staging', columns: Object.freeze(['state', 'expires_at']), unique: false,
+  }),
+  uq_sfoa_crm_identity_binding_user: Object.freeze({
+    tableName: 'sfoa_crm_identity_binding', columns: Object.freeze(['salesforce_org_id', 'salesforce_user_id']), unique: true,
+  }),
+  idx_sfoa_crm_binding_platform_user: Object.freeze({
+    tableName: 'sfoa_crm_identity_binding', columns: Object.freeze(['platform_user_id', 'enabled']), unique: false,
+  }),
+  idx_sfoa_crm_conversation_owner: Object.freeze({
+    tableName: 'sfoa_crm_conversation',
+    columns: Object.freeze(['salesforce_org_id', 'salesforce_user_id', 'updated_at', 'id']),
+    unique: false,
+  }),
+  idx_sfoa_crm_conversation_session: Object.freeze({
+    tableName: 'sfoa_crm_conversation', columns: Object.freeze(['openclaw_session_key']), unique: false,
+  }),
+  uq_sfoa_crm_run_client_message: Object.freeze({
+    tableName: 'sfoa_crm_run', columns: Object.freeze(['conversation_id', 'client_message_id']), unique: true,
+  }),
+  idx_sfoa_crm_run_conversation: Object.freeze({
+    tableName: 'sfoa_crm_run', columns: Object.freeze(['conversation_id', 'started_at', 'id']), unique: false,
+  }),
+  idx_sfoa_crm_run_status: Object.freeze({
+    tableName: 'sfoa_crm_run', columns: Object.freeze(['status', 'started_at']), unique: false,
+  }),
+  idx_sfoa_crm_bootstrap_expiry: Object.freeze({
+    tableName: 'sfoa_crm_bootstrap_nonce', columns: Object.freeze(['expires_at']), unique: false,
+  }),
+  uq_sfoa_crm_chat_session_id: Object.freeze({
+    tableName: 'sfoa_crm_chat_session', columns: Object.freeze(['id']), unique: true,
+  }),
+  idx_sfoa_crm_chat_session_expiry: Object.freeze({
+    tableName: 'sfoa_crm_chat_session', columns: Object.freeze(['expires_at']), unique: false,
   }),
 });
 

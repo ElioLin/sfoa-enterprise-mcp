@@ -224,7 +224,75 @@ export interface SchemaMigrationTable {
   applied_at: GeneratedTimestamp;
 }
 
+export interface CrmIdentityBindingTable {
+  id: Generated<number>;
+  salesforce_org_id: string;
+  salesforce_user_id: string;
+  platform_user_id: string;
+  display_name: string | null;
+  enabled: BooleanNumber;
+  row_version: Generated<number>;
+  created_at: GeneratedTimestamp;
+  updated_at: GeneratedTimestamp;
+}
+
+export interface CrmConversationTable {
+  id: string;
+  salesforce_org_id: string;
+  salesforce_user_id: string;
+  platform_user_id: string;
+  title: string | null;
+  openclaw_session_key: string | null;
+  openclaw_agent_id: string | null;
+  created_at: GeneratedTimestamp;
+  updated_at: GeneratedTimestamp;
+  last_message_at: Timestamp | null;
+}
+
+export interface CrmRunTable {
+  id: string;
+  conversation_id: string;
+  client_message_id: string;
+  status: 'STARTED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'STOPPED' | 'UNKNOWN';
+  openclaw_session_key: string | null;
+  request_sha256: string;
+  text_length: number;
+  error_code: string | null;
+  error_message_safe: string | null;
+  started_at: GeneratedTimestamp;
+  completed_at: Timestamp | null;
+  updated_at: GeneratedTimestamp;
+}
+
+export interface CrmBootstrapNonceTable {
+  jti: string;
+  salesforce_org_id: string;
+  salesforce_user_id: string;
+  issued_at: Timestamp;
+  expires_at: Timestamp;
+  consumed_at: GeneratedTimestamp;
+}
+
+export interface CrmChatSessionTable {
+  token_hash: string;
+  id: string;
+  salesforce_org_id: string;
+  salesforce_user_id: string;
+  platform_user_id: string;
+  display_name: string | null;
+  salesforce_username: string | null;
+  created_at: GeneratedTimestamp;
+  last_seen_at: GeneratedTimestamp;
+  expires_at: Timestamp;
+  revoked_at: Timestamp | null;
+}
+
 export interface ControlPlaneDatabase {
+  sfoa_crm_identity_binding: CrmIdentityBindingTable;
+  sfoa_crm_conversation: CrmConversationTable;
+  sfoa_crm_run: CrmRunTable;
+  sfoa_crm_bootstrap_nonce: CrmBootstrapNonceTable;
+  sfoa_crm_chat_session: CrmChatSessionTable;
   sfoa_ui_snapshot: UiSnapshotTable;
   sfoa_identity_route: IdentityRouteTable;
   sfoa_identity_credential: IdentityCredentialTable;

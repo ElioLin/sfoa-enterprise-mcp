@@ -100,6 +100,28 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
+2026-10-22: CRM OpenClaw Phase 1 adds a Salesforce-embedded text chat entry without changing the
+existing WeCom path or Salesforce authority. Apex `SfoaCrmChatIdentity` signs a 90-second
+`v1.*` bootstrap token with an org certificate (`Crypto.signWithCertificate`); the new
+`@sfoa/crm-gateway` service pins issuer/audience/org/public certificate, consumes the `jti`
+atomically (migration 016), maps an explicit `(orgId, userId) → platformUserId` binding to the
+existing Identity Route, and issues a 15-minute opaque chat token stored only as SHA-256. The new
+`sfoa-crm-channel` OpenClaw plugin registers channel `sfoa-crm`, sets `SenderId` only from its
+credentialed HTTP ingress, and uses the official route/session/reply pipeline; history uses a
+separate Gateway-authenticated trusted-operator route backed by `sessions.get`
+(`api.runtime.subagent.getSessionMessages`), with a server-side history-only credential preferred
+to be a read-only device token. MCP adds an
+independent `MCP_CRM_CLIENT_TOKEN` + `X-SFOA-CRM-User-Id` channel mapped to audit
+`identity_source = CRM_HEADER`; Tool/DML governance, request-scoped Salesforce execution and every
+existing identity source are unchanged. Text chat only; no attachments, shared sessions, CRM↔WeCom
+history merge or Salesforce Action generation. See
+[plan](CRM_OPENCLAW_PLAN.md), [implementation report](CRM_OPENCLAW_IMPLEMENTATION_REPORT.md),
+[test matrix](CRM_OPENCLAW_TEST_MATRIX.md), [CRM changeset](CRM_OPENCLAW_CRM_CHANGESET.md),
+[deployment](CRM_OPENCLAW_DEPLOYMENT.md) and
+[ADR-0035](adr/ADR-0035-crm-openclaw-embedded-chat.md). Status:
+**IMPLEMENTED_PENDING_ENVIRONMENT_VERIFICATION** — the CRM Apex/LWC are not deployed, and
+REAL_OPENCLAW / REAL_SALESFORCE / REAL_BROWSER evidence is still missing.
+
 2026-10-15: ADR-0034 gives the Console more than one account without giving it a user-management
 module. `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers plaintext accounts beside the existing
 `SFOA_ADMIN_USERNAME`/`SFOA_ADMIN_PASSWORD`, each naming the Console modules it may use; a **module**
@@ -537,3 +559,4 @@ All three criteria are satisfied. The completed P1 Gate subsequently received ma
 | MANAGED-LOOKUP-FALLBACK-1.0 | 2026-09-05 | Add explicit-user-first platform Lookup strategy, compatible ENUM/CHECK migration 010, safe capabilities and Playbook 1.5.0; preserve strict strategies, request identity, Salesforce authority, and audit summaries. |
 | MANAGED-LOOKUP-FALLBACK-HOTFIX01 | 2026-09-05 | Require CREATE-only fallback with migration 011 and Playbook 1.5.1; reject duplicate client aliases before lookup and align Action Context object casing. Preserve user deployment history and strict strategies. |
 | SCOPED-CONSOLE-ACCOUNTS-BL-1.0 | 2026-10-15 | Add config-file restricted Console accounts under ADR-0034: a nine-id module contract over an explicit default-deny `(method, path)` endpoint table, one privilege tier plus a bootstrap-Admin `fullAccess` short-circuit, enumerated read-only cross-module closures, `modules` on `AdminSessionDto`, Console navigation/landing/in-place 403 derived from it, fail-closed startup validation, per-account login limiting with a source backstop, and `actor_admin` attribution with migration 015 and an `actorAdmin` audit filter. Console account-access layer only: no MCP Tool, Tool contract, provider, request lifecycle, governance, or Salesforce behavior change. |
+| CRM-OPENCLAW-BL-1.0 | 2026-10-22 | Add the Salesforce-embedded CRM text chat entry under ADR-0035: Apex certificate-signed bootstrap token, pinned-key access service with atomic jti replay protection and explicit `(org,user) → platformUserId` binding, short-lived browser chat tokens, per-conversation official OpenClaw session keys, credentialed CRM channel plugin with SSE/stop/history, and a fourth MCP channel credential (`CRM_HEADER`). Migration 016 adds the audit enum value and five CRM tables. WeCom/Internal/UserBound/Buntu, Tool/DML governance, request-scoped Salesforce execution and stdio/HTTP are unchanged. Local implementation and tests complete; CRM deployment, real OpenClaw/Salesforce and browser UAT remain unverified. |

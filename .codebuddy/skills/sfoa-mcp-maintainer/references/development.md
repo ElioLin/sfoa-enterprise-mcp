@@ -28,4 +28,15 @@ Reasonable refactoring is allowed when evidence justifies it. Do not preserve ob
 - Audit list/detail never load `safe_payload` eagerly.
 - React changes cover loading, empty, error, narrow layout, URL/query state, and Chinese-first operator labels without obscuring technical codes.
 
+## CRM embedded chat review points
+
+- Apex token verification pins the certificate/issuer/audience/org; never fetch a key from the token or a URL and never negotiate the algorithm.
+- The `jti` consumption is a database primary-key insert, not a read-then-write; browser chat tokens are stored only as SHA-256.
+- `(orgId,userId) → platformUserId` is explicit, and the route's `salesforce_username` must equal the Apex `username`; no nickname/first-match/admin fallback.
+- Conversation, history, run events and stop must check `orgId + userId` ownership; cross-user access is 404.
+- A duplicate `clientMessageId` must not re-dispatch; unknown outcomes are `UNKNOWN` and never automatically retried.
+- `SenderId` is set only by the CRM plugin's credentialed ingress; message text/tool arguments/model output never choose identity.
+- Keep Salesforce credentials and the user-facing turn path free of the Gateway token. The one exception is the history-only `CRM_GATEWAY_HISTORY_TOKEN` behind the `auth:"gateway"` + trusted-operator route; never use it as a user identity or for arbitrary Gateway methods.
+- Run `yarn workspace @sfoa/crm-gateway test` and `test:mysql` when persistence changes; real OpenClaw/Salesforce/browser gates remain separate evidence layers.
+
 Avoid new dependencies or abstractions without a demonstrated repeated use. Do not refactor official Salesforce code for style.

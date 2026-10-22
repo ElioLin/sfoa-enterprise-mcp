@@ -40,6 +40,7 @@ import {
   UnifiedIdentityProvider,
   InternalServiceCredentialAuthenticator,
   WeComChannelCredentialAuthenticator,
+  CrmChannelCredentialAuthenticator,
   validateCredentialIdentityHeaders,
   type AuthenticatedPrincipal,
   type ClientAuthenticator,
@@ -261,9 +262,16 @@ function resolveIdentitySources(options: StartRemoteMcpServerOptions): readonly 
     const sources: string[] = ['USER_BOUND_TOKEN', 'INTERNAL_SERVICE_HEADER'];
     if (options.config.buntuIdentity.enabled) sources.push('BUNTU_TOKEN');
     if (options.config.wecomChannelEnabled || hasWecomIdentityHeaderAlias(options.config)) sources.push('WECOM_HEADER');
+    if (options.config.crmChannelEnabled) sources.push('CRM_HEADER');
     return Object.freeze(sources);
   }
-  if (options.config.wecomChannelEnabled) return Object.freeze(['INTERNAL_SERVICE_HEADER', 'WECOM_HEADER']);
+  if (options.config.wecomChannelEnabled || options.config.crmChannelEnabled) {
+    return Object.freeze([
+      'INTERNAL_SERVICE_HEADER',
+      ...(options.config.wecomChannelEnabled ? ['WECOM_HEADER'] : []),
+      ...(options.config.crmChannelEnabled ? ['CRM_HEADER'] : []),
+    ]);
+  }
   return Object.freeze(
     options.config.authMode === 'disabled' ? ['DEVELOPMENT_LOOPBACK'] : ['INTERNAL_SERVICE_HEADER'],
   );
@@ -573,7 +581,14 @@ async function executeMcpPost(
     observation.auditContext?.withAuthenticatedClient(credential.clientId);
   }
   if (credential?.credentialChannel === 'WECOM' && options.config.wecomChannelEnabled && classifyMcpRequest(parsedBody) === 'DISCOVERY') {
-    validateCredentialIdentityHeaders(credential, headers, options.config.platformIdentityHeaders, observation.correlationId, true);
+    validateCredentialIdentityHeaders(
+      credential,
+      headers,
+      options.config.platformIdentityHeaders,
+      observation.correlationId,
+      true,
+      options.config.crmChannelEnabled,
+    );
     if ((options.policySnapshotSource || options.config.controlPlane.mode === 'mysql') && !options.discoveryPolicySnapshotSource) {
       throw new RemoteRuntimeError('MCP_RUNTIME_CONTROL_PLANE_UNAVAILABLE', 'Global discovery governance source is required.');
     }
@@ -1286,11 +1301,16 @@ function logCleanupFailure(
 }
 
 function createIdentityProvider(config: RemoteRuntimeConfig, authenticator?: ClientAuthenticator): IdentityProvider {
-  if (config.wecomChannelEnabled && !authenticator) {
+  if ((config.wecomChannelEnabled || config.crmChannelEnabled) && !authenticator) {
     return new UnifiedIdentityProvider([
       new InternalServiceCredentialAuthenticator(config.clientToken ?? ''),
-      new WeComChannelCredentialAuthenticator(config.wecomClientToken ?? ''),
-    ], true);
+      ...(config.wecomChannelEnabled
+        ? [new WeComChannelCredentialAuthenticator(config.wecomClientToken ?? '')]
+        : []),
+      ...(config.crmChannelEnabled
+        ? [new CrmChannelCredentialAuthenticator(config.crmClientToken ?? '')]
+        : []),
+    ], config.wecomChannelEnabled, config.crmChannelEnabled);
   }
   return new LegacyHeaderIdentityProvider(authenticator ?? createAuthenticator(config));
 }

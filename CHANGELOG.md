@@ -1,3 +1,43 @@
+# Salesforce-embedded CRM chat enters through a certificate-signed identity, a controlled access service, and a trusted OpenClaw channel (2026-10-22)
+
+- **Apex proves the Salesforce user; the browser proves nothing.** `SfoaCrmChatIdentity` reads
+  `UserInfo` and signs a 90-second `v1.<payload>.<RSA-SHA256>` token with
+  `Crypto.signWithCertificate`. The private key stays in Setup → Certificate and Key Management;
+  the Custom Setting holds only the endpoint, certificate Unique Name, issuer, audience and TTL.
+- **The access service trusts pinned material, not the token.** `@sfoa/crm-gateway` pins the
+  public certificate (optional SHA-256 fingerprint), issuer, audience and allowed org ids, then
+  consumes the `jti` in `sfoa_crm_bootstrap_nonce` (primary key; migration 016). A replayed token
+  is 409, including after a service restart. It maps an explicit
+  `(salesforce_org_id, salesforce_user_id) → platform_user_id` binding to the existing Identity
+  Route and requires the route's `salesforce_username` to equal the Apex `username` exactly.
+- **Browser credentials are short and never stored in clear.** The exchange returns a 15-minute
+  opaque token; MySQL stores only its SHA-256. Salesforce logout does not revoke it instantly, and
+  the documentation states the maximum 15-minute window instead of claiming otherwise.
+- **One CRM conversation, one official OpenClaw session.** The new `sfoa-crm-channel` plugin
+  registers channel `sfoa-crm`, exposes a service-credentialed HTTP ingress, and uses
+  `resolveAgentRoute` → `finalizeInboundContext` → `recordInboundSession` →
+  `dispatchReplyWithBufferedBlockDispatcher`. `SenderId` is set only by that ingress (from the
+  verified `platformUserId`); message text, tool arguments and model output never choose identity.
+  Turns for one conversation are serialized; stop is scoped to the target run; history uses a
+  separate Gateway-authenticated trusted-operator route backed by `sessions.get`
+  (`api.runtime.subagent.getSessionMessages`). The access service holds a server-side
+  history-only credential (`CRM_GATEWAY_HISTORY_TOKEN`; a read-only device token is preferred) and
+  never treats it as a user identity.
+- **MCP gains a fourth channel credential, not a second identity engine.**
+  `MCP_CRM_CLIENT_TOKEN` + `X-SFOA-CRM-User-Id` mirror the WeCom pattern; the CRM credential can
+  only use the CRM header, WeCom/Internal credentials cannot use it, and the audit source is
+  `CRM_HEADER`. Tool/DML governance, request-scoped Salesforce Connections, stdio/HTTP and the
+  existing WeCom/Buntu/UserBound paths are unchanged.
+- **Delivery is text-only and honest about the gaps.** The LWC/Utility Bar, Apex class, Custom
+  Setting, Permission Set and exact manifest are implemented; the access service, MCP channel and
+  OpenClaw plugin have local tests. CRM metadata is not deployed, Apex tests are not run, and real
+  OpenClaw/Salesforce/browser/UAT evidence is still missing. Status:
+  `IMPLEMENTED_PENDING_ENVIRONMENT_VERIFICATION`. See
+  [the plan](docs/sfoa/CRM_OPENCLAW_PLAN.md), [implementation report](docs/sfoa/CRM_OPENCLAW_IMPLEMENTATION_REPORT.md),
+  [test matrix](docs/sfoa/CRM_OPENCLAW_TEST_MATRIX.md), [CRM changeset](docs/sfoa/CRM_OPENCLAW_CRM_CHANGESET.md),
+  [deployment](docs/sfoa/CRM_OPENCLAW_DEPLOYMENT.md) and
+  [ADR-0035](docs/sfoa/adr/ADR-0035-crm-openclaw-embedded-chat.md).
+
 # The Console gets a second account that cannot see everything — modules, a default-deny endpoint table, and an actor on the audit trail (2026-10-15)
 
 - **`SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers restricted Console accounts in the same config

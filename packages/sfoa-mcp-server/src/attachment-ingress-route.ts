@@ -236,7 +236,7 @@ async function logIngress(
   })).catch(() => undefined);
 }
 
-type TrustedRequestIdentitySource = 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER';
+type TrustedRequestIdentitySource = 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER' | 'CRM_HEADER';
 
 function assertOctetStream(request: IncomingMessage): void {
   const value = request.headers['content-type'];

@@ -11,6 +11,7 @@ Use `yarn ai:snapshot` before relying on this maintained map.
 | `packages/sfoa-control-plane` | `@sfoa/control-plane` | MySQL migrations, repositories, immutable policy snapshots, Audit queue/writer/read model |
 | `packages/sfoa-admin-api` | `@sfoa/admin-api` | Authenticated Admin REST API and P7 trace aggregation |
 | `packages/sfoa-admin-web` | `@sfoa/admin-web` | React/Vite/Ant Design Admin Console and Audit Trace Workbench |
+| `packages/sfoa-crm-gateway` | `@sfoa/crm-gateway` | Salesforce embedded CRM chat access service: Apex token verification, chat tokens, conversation ownership, OpenClaw SSE bridge |
 | `packages/mcp-provider-sfoa-dml` | `@sfoa/mcp-provider-sfoa-dml` | Generic one-record CREATE/UPDATE Provider |
 | `packages/mcp-provider-sfoa-context` | `@sfoa/mcp-provider-sfoa-context` | USER action context and DIAGNOSTIC Tooling/metadata Providers |
 | `packages/sfoa-agent-playbook` | `@sfoa/agent-playbook` | Pure canonical Salesforce Agent behavior contract and generated client artifacts |
@@ -38,5 +39,11 @@ Use `yarn ai:snapshot` before relying on this maintained map.
   is unreachable for every restricted account — a test asserts the table's ids match
   `ADMIN_MODULE_IDS` and that each module still reaches at least one endpoint.
 - Agent Playbook: `packages/sfoa-agent-playbook/src/` and `scripts/sync-generated.mjs`.
+- CRM embedded chat: `packages/sfoa-crm-gateway/` (Apex verifier, chat tokens, ownership, SSE),
+  `packages/sfoa-control-plane/src/crm-chat-repository.ts` + migration 016,
+  `integrations/openclaw/sfoa-crm-channel/` (trusted channel plugin) and
+  `integrations/openclaw/sfoa-wecom-mcp-adapter/src/resolver.js` (channel resolver). The MCP side
+  is the `CRM_HEADER` channel in `packages/sfoa-mcp-server/src/authenticator.ts` and
+  `config.ts` (`MCP_CRM_CHANNEL_ENABLED`, `MCP_CRM_CLIENT_TOKEN`, `X-SFOA-CRM-User-Id`).
 
 The root uses Yarn Classic workspaces with `packages/*` and `nohoist: ["**"]`. Use each workspace's project-local toolchain.
