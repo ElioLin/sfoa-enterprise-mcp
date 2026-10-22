@@ -11,6 +11,7 @@
 
 - 开始前工作区已存在大量未提交修改（约 147 个 `M`、94 个 `A`、2425 个未跟踪文件，含 `utilityBarAgentWrapper` 等既有组件）。这些都不是本次改动。
 - 本次只新增下列 14 个文件；未修改任何既有 Apex、Trigger、Flow、Layout、Profile、FlexiPage 或应用元数据。
+- 执行期间 CRM 索引中四个 Apex 文件显示为 `A`（工作区外部/IDE 自动暂存）；本次**未执行** CRM `git add`/`commit`。提交前请按本清单核对，避免与既有暂存内容混淆。
 - 未使用 `git add -A`、`commit -am`、reset、clean、stash；未切换分支、未 pull/rebase。
 - 本清单的哈希以本文档生成时的工作区文件为准；若后续修订文件，必须重算。
 
