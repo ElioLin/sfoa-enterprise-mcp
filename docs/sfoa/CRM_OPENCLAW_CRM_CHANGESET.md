@@ -4,8 +4,23 @@
 工程：`D:\GitProject\crm`
 当前分支：`uat`
 开始 HEAD：`a55870ad5a8a801f18e669933db325cd3c24760d`
+部署时远端/当前 HEAD：`3d65656`（fetch 后确认；该提交不含本次 14 个路径）
 本次是否提交：**否**
-本次是否部署：**否（仅本地修改）**
+本次是否部署：**是（UAT，2026-10-22）**
+
+## 零、UAT 部署结果
+
+| 项 | 值 |
+| --- | --- |
+| 目标 | `00DC5000000lGFpMAM` / `runnergroup--uat.sandbox.my.sfcrmproducts.cn` |
+| 部署账号 | UAT 部署管理员（具备 `ModifyMetadata`；业务 UAT 账号无此权限） |
+| Check-only Deployment ID | `0AfC5000005GOzZKAW`（12 组件、7 测试、0 错误） |
+| 正式 Deployment ID | `0AfC5000005GP4PKAW`（12 组件、7 测试、0 错误） |
+| 部署包 | 只含本次 14 个新增文件；未包含/覆盖任何既有 CRM 元数据 |
+| Custom Setting 记录 | `a2vC5000000M65BIAS`，`Enabled__c=false`，Endpoint/证书名为空 |
+| 未执行 | Permission Set 分配、Utility Bar 安装、证书创建、入口启用、接入服务/OpenClaw/MCP 部署 |
+
+完整证据：[uat-deployment-2026-10-22.md](../evidence/crm-openclaw/uat-deployment-2026-10-22.md)。
 
 ## 一、基线与原有改动区分
 
@@ -71,6 +86,6 @@
 ## 六、验证与回退
 
 - 静态验证：所有新增 XML 按 UTF-8 解析通过；LWC JS 去装饰器后 `node --check` 通过；Apex 未编译。
-- 部署验证：**尚未执行**；无 Deployment ID、无 Apex 测试结果。
+- 部署验证：**已执行 UAT metadata 部署**；check-only `0AfC5000005GOzZKAW`、正式 `0AfC5000005GP4PKAW`，12 组件、`SfoaCrmChatIdentityTest` 7/7、0 错误。真实证书签名、Permission Set 分配、Utility Bar 和浏览器 UAT 仍未完成。
 - 回退：先从 app 移除 Utility Bar 项，取消 Permission Set 分配；随后用 `destructiveChanges.xml` 删除本次组件；最后禁用/删除 Custom Setting 记录与证书引用。详见 `CRM_OPENCLAW_DEPLOYMENT.md`。
 - 本地交付位置：CRM 源码保留在本工程；完整补丁/校验值见本文件与 `docs/sfoa/evidence/crm-openclaw/`。

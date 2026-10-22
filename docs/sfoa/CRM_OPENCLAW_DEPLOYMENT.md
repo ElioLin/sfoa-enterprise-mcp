@@ -1,16 +1,28 @@
 # CRM OpenClaw 一期部署与回退
 
 日期：2026-10-22
-状态：本地实现完成；**未部署、未重启共享服务、未改动生产**。
+状态：UAT CRM 元数据已部署（默认禁用）；接入服务/OpenClaw/MCP 尚未部署。**未部署生产。**
 
-## 0. 前置条件与授权
+## 0. 2026-10-22 UAT 实际部署记录
+
+| 项 | 值 |
+| --- | --- |
+| Org | `00DC5000000lGFpMAM` / `runnergroup--uat.sandbox.my.sfcrmproducts.cn` |
+| Check-only | `0AfC5000005GOzZKAW`，12 组件、7 测试、0 错误 |
+| 正式部署 | `0AfC5000005GP4PKAW`，12 组件、7 测试、0 错误 |
+| Custom Setting | `a2vC5000000M65BIAS`，`Enabled__c=false`，Endpoint/证书名为空 |
+| 部署包 | 只含本次 14 个新增文件，未覆盖既有元数据 |
+
+注意：`sf project deploy validate` 在 SFoA 上报 `INVALID_TYPE: sObject type 'Organization' is not supported`；本次改用 Metadata API `sfdx force:mdapi:deploy`。业务账号缺少 `ModifyMetadata` 时会被拒绝，必须使用部署管理员。详细证据见 [uat-deployment-2026-10-22.md](evidence/crm-openclaw/uat-deployment-2026-10-22.md)。
+
+## 1. 前置条件与授权
 
 - 目标只允许沙盒/UAT：`runnergroup--uat.sandbox.my.sfcrmproducts.cn`（OrgId `00DC5000000lGFpMAM`）。生产未授权。
 - 需要用户明确批准沙盒 metadata 部署与 Apex 测试。
 - 需要维护窗口重启 `sfoa-mcp-server` 与 `openclaw-gateway`；本任务未执行。
 - 浏览器必须能通过 HTTPS 访问公司内网接入服务；不能要求用户关闭浏览器安全机制。
 
-## 1. Salesforce 证书（由管理员在 Setup 完成）
+## 2. Salesforce 证书（由管理员在 Setup 完成）
 
 推荐在 Salesforce 内生成自签名证书，私钥不离开 Salesforce：
 
@@ -27,9 +39,20 @@ openssl x509 -in apex-signing-cert.pem -outform DER | sha256sum
 5. 将 `apex-signing-cert.pem` 放到受控路径（例如 `/data/sfoa-enterprise-mcp/secrets/apex-signing-cert.pem`，公开证书可用 `0644`）。
 6. 记录 SHA-256，填入 `CRM_APEX_CERT_SHA256`；轮换证书时同步更新接入服务配置并重启。
 
-> Custom Setting 只保存证书 Unique Name，不保存私钥。Apex 使用 `Crypto.signWithCertificate('RSA-SHA256', input, certificateUniqueName)`。
+### 证书/指纹到底用在哪里
 
-## 2. 部署 CRM 元数据（沙盒，需授权）
+| 值 | 放置位置 | 用途 |
+| --- | --- | --- |
+| 证书 **Unique Name**（如 `SFOA_CRM_Chat_Signing`） | Custom Setting `SFOA_CRM_Chat_Config__c.Certificate_Name__c` | Apex `Crypto.signWithCertificate(..., certificateName)` 用该证书的私钥签 bootstrap token |
+| **公开证书 PEM** | 接入服务主机 `CRM_APEX_PUBLIC_KEY_PATH` | 接入服务 `ApexTokenVerifier` 用固定公钥验签，绝不下发私钥 |
+| **证书 DER SHA-256** | `CRM_APEX_CERT_SHA256` | 防止公钥替换；不匹配则启动/验签失败 |
+| Salesforce 证书私钥 | Salesforce Certificate and Key Management | 仅 Salesforce 持有；不进入 Custom Setting、Apex、日志、Git 或浏览器 |
+
+UAT 中已观察到一张既有证书 `SelfSignedCert_02Mar2026_092840`。建议**新建专用证书**用于 CRM 聊天，避免与其他用途共用和轮换耦合；如复用，必须确认其私钥可用并单独导出其公开证书。
+
+> “Export to Keystore”会包含私钥，**不要**交给接入服务；接入服务只需要 “Download Certificate” 得到的公开 `.crt`。Custom Setting 只保存证书 Unique Name。
+
+## 3. 部署 CRM 元数据（沙盒，需授权）
 
 CRM 工程没有 `sfdx-project.json`；推荐在**仓库外**建立一次性 source-format 部署目录，避免改动 CRM 工程：
 
@@ -65,13 +88,13 @@ sf project deploy start --manifest "$temp\manifest\package.xml" `
 
 部署前必须显式核对目标 OrgId/实例，不要依赖含糊默认 Org。不要部署生产，不要全量 retrieve/推送。
 
-## 3. Custom Setting 记录
+## 4. Custom Setting 记录
 
 Setup → Custom Settings → **SFoA CRM 聊天配置** → Manage → New（组织级），填写：
 
 | 字段 | 值 |
 | --- | --- |
-| Enabled__c | true |
+| Enabled__c | 先 `false`；证书/Endpoint 就绪并验证后改为 `true` |
 | Endpoint__c | `https://crm-chat.example.internal/crm`（实际接入服务基地址，含 `/crm`） |
 | Certificate_Name__c | `SFOA_CRM_Chat_Signing`（证书 Unique Name） |
 | Issuer__c | `sfoa-crm-apex` |
@@ -86,14 +109,25 @@ sf data create record --sobject SFOA_CRM_Chat_Config__c `
   --target-org <sandbox-alias>
 ```
 
-## 4. Permission Set 与入口
+UAT 已创建一条禁用记录（`a2vC5000000M65BIAS`）。证书与 Endpoint 就绪后更新并启用：
+
+```powershell
+sf data update record --sobject SFOA_CRM_Chat_Config__c `
+  --record-id a2vC5000000M65BIAS `
+  --values "Enabled__c=true Endpoint__c=https://crm-chat.example.internal/crm Certificate_Name__c=SFOA_CRM_Chat_Signing" `
+  --target-org <sandbox-alias>
+```
+
+启用前先确认接入服务 `/crm/ready` 为 UP；否则用户会看到明确的连接错误。
+
+## 5. Permission Set 与入口
 
 1. 将 `Sfoa_Crm_Chat_Access` 分配给需要使用的用户（最小范围；不要批量改 Profile）。
 2. 打开目标 Lightning App → Setup → App Manager → 目标 app → Utility Bar → 添加 `sfoaCrmChatUtilityBar`；高度建议 480–560px。
 3. 也可把 `sfoaCrmChat` 放到 Record/App/Home Page，但 Utility Bar 是首选。
 4. 在 Setup → CSP Trusted Sites 添加接入服务 origin（如 `https://crm-chat.example.internal`），指令至少包含 `connect-src`。不要关闭 LWS/浏览器安全策略。
 
-## 5. 接入服务部署
+## 6. 接入服务部署
 
 构建（在 MCP 工程）：
 
@@ -167,7 +201,7 @@ curl -fsS http://127.0.0.1:8090/crm/health
 curl -fsS http://127.0.0.1:8090/crm/ready
 ```
 
-## 6. OpenClaw CRM 渠道插件
+## 7. OpenClaw CRM 渠道插件
 
 1. 复制 `integrations/openclaw/sfoa-crm-channel/` 到 `/data/openclaw/plugins/sfoa-crm-channel`（不要改 Core/node_modules/企微插件）。
 2. 在 `/data/openclaw/secrets/credentials.json` 增加（值现场生成，不打印）：
@@ -192,7 +226,7 @@ curl -fsS -H "Authorization: Bearer $TOKEN" \
   http://127.0.0.1:18789/plugins/sfoa-crm/health
 ```
 
-## 7. MCP 运行时启用
+## 8. MCP 运行时启用
 
 先迁移数据库：
 
@@ -216,7 +250,7 @@ curl -fsS http://127.0.0.1:8080/health
 
 WeCom 的 `MCP_WECOM_*` 保持不变；CRM 启用不会关闭企微。
 
-## 8. 管理员身份绑定
+## 9. 管理员身份绑定
 
 对每个真实用户，先确认其现有 Identity Route 的 `platformUserId` 与 `salesforce_username`，再执行：
 
@@ -234,7 +268,7 @@ yarn workspace @sfoa/crm-gateway crm:bind \
 - 禁用：同一命令加 `--disable`。
 - 查看：`yarn workspace @sfoa/crm-gateway crm:bind --list`。
 
-## 9. 验证顺序
+## 10. 验证顺序
 
 1. 接入服务 `/crm/health`、`/crm/ready`（DB/OpenClaw 均 UP）。
 2. 插件 `/plugins/sfoa-crm/health`（service token）。
@@ -247,7 +281,7 @@ yarn workspace @sfoa/crm-gateway crm:bind \
 6. 并发：两名用户同时发送；再 10–20 并发会话，检查无串号、无跨用户历史。
 7. 审计关联：用 `yarn ai:audit --user <platformUserId> --since 24h` 或控制台按时间窗核对；插件日志中的 runId/sessionKey 与 CRM 运行记录关联。
 
-## 10. 回退
+## 11. 回退
 
 按影响面从小到大：
 
@@ -261,10 +295,10 @@ yarn workspace @sfoa/crm-gateway crm:bind \
 8. **证书**：停用/删除 `SFOA_CRM_Chat_Signing`；同步移除接入服务公钥配置。轮换时两端必须一起更新。
 9. **数据库**：迁移 016 是加性变更；无需要可不回滚。不要删除审计行；如需清理 CRM 表，先备份并按保留策略执行。
 
-## 11. 需要用户集中完成的动作
+## 12. 需要用户集中完成的动作
 
-- [ ] 明确批准沙盒 metadata 部署与 Apex 测试。
-- [ ] 在 Salesforce 创建/确认签名证书，导出公开证书 PEM 与 SHA-256。
+- [x] 沙盒 metadata 部署与 Apex 测试（2026-10-22，Deployment `0AfC5000005GP4PKAW`）。
+- [ ] 在 Salesforce 创建专用签名证书（建议 `SFOA_CRM_Chat_Signing`），导出公开证书 PEM 与 SHA-256；填写 `Certificate_Name__c`/`Endpoint__c` 后启用。
 - [ ] 提供两名测试用户的 `platformUserId`、Salesforce User Id、Username 及绑定批准。
 - [ ] 确认接入服务内网域名、TLS 证书、DNS、nginx 入口。
 - [ ] 确认 Lightning 实际 origin（CSP/CORS）。

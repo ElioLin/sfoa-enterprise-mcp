@@ -13,7 +13,7 @@
 | MCP 工程 | `D:\GitProject\sfoa-enterprise-mcp`，分支 `feature/crm-openclaw-entry`，基线 `origin/main@12df237` |
 | CRM 工程 | `D:\GitProject\crm`，分支 `uat`，开始 HEAD `a55870a`（不新建/不切换分支） |
 | OpenClaw | 测试服实际 `2026.9.5 (ec9c1a1)`；文档旧记 2026.9.3，以实测为准 |
-| 交付提交 | `feature/crm-openclaw-entry` 首个提交 `561bda4`，已推送 `origin/feature/crm-openclaw-entry` |
+| 交付提交 | `feature/crm-openclaw-entry`：`561bda4`、`91d0d0c`、`44887a1`；已推送 `origin` |
 | Salesforce | 沙盒 `runnergroup--uat.sandbox.my.sfcrmproducts.cn`，OrgId `00DC5000000lGFpMAM`，API 68.0 |
 | 本期范围 | 文本聊天；不做附件/语音/多模态、共享会话、Salesforce Action/Apex 自动生成、P11-A CI 治理 |
 
@@ -56,8 +56,8 @@ Salesforce LWC
 - [x] 接入服务 Apex token 验签、时间/组织/接收方/一次性兑换
 - [x] 短期聊天凭证签发/校验/过期/撤销
 - [x] Apex 测试类、Permission Set、精确 manifest
-- [ ] **CRM 元数据未编译、未部署、Apex 测试未运行**
-- [ ] 真实 Salesforce 证书创建与下载（待用户执行）
+- [x] **CRM 元数据已部署 UAT**：12 组件、`SfoaCrmChatIdentityTest` 7/7、0 错误（Deployment `0AfC5000005GP4PKAW`）
+- [ ] 真实 Salesforce 证书创建/下载与实际签名（待用户执行）
 
 ### M2 可信 CRM 渠道与现有 MCP 真实调用
 
@@ -90,7 +90,7 @@ Salesforce LWC
 - [x] OpenClaw 适配器 68 项；CRM 插件 26 项
 - [x] REAL_OPENCLAW 隔离 Gateway（mock MCP）：turn + session route + history + header 注入
 - [x] 本地迁移 016 + schema 校验
-- [ ] **CRM Apex 测试在沙盒运行**
+- [x] CRM 元数据部署 UAT + Apex 测试 7/7（Deployment `0AfC5000005GP4PKAW`）
 - [ ] **真实双用户并发（10–20 规模）**
 - [ ] **真实浏览器 UAT**
 - [x] 未有本次新增回归（已执行范围内）
@@ -104,20 +104,20 @@ Salesforce LWC
 - [x] `CRM_OPENCLAW_DEPLOYMENT.md`
 - [x] `docs/sfoa/evidence/crm-openclaw/`
 - [x] CRM 精确 manifest + destructive manifest
-- [x] 分支提交/推送（`561bda4` + 本次文档补记；未合并 main、未删除分支）
+- [x] 分支提交/推送（`561bda4` + 文档补记 `91d0d0c`/`44887a1`；未合并 main、未删除分支）
 - [ ] 独立审查与用户 UAT
 
 ## 四、剩余事项（按优先级）
 
-1. 让用户确认目标沙盒部署授权；执行 `deploy validate`，运行 `SfoaCrmChatIdentityTest`，修复编译/测试问题。
-2. 在沙盒创建证书并导出公钥；配置 Custom Setting；执行 CRM 绑定 CLI。
-3. 在测试服 203 启动隔离 OpenClaw 实例和隔离 MCP 实例，验证真实 `REAL_OPENCLAW` 链路；不得复用企微长连接，不重启共享服务。
-4. 配置 nginx HTTPS、CSP Trusted Site、Access Service、Gateway 插件；做两名真实账号的只读/并发验证。
+1. 在 UAT 创建专用签名证书（Setup → Certificate and Key Management），导出公开证书 PEM/SHA-256；填写 `Certificate_Name__c` 与 `Endpoint__c`，再将 `Enabled__c=true`。
+2. 分配 `Sfoa_Crm_Chat_Access` Permission Set；把 `sfoaCrmChatUtilityBar` 加入目标 Lightning App 的 Utility Bar（不改既有 app 元数据可由管理员手工完成）。
+3. 部署接入服务、OpenClaw CRM 插件、MCP CRM 渠道；执行 `crm:bind` 两名用户绑定；配置 `CRM_GATEWAY_HISTORY_TOKEN`。
+4. 两名真实账号的只读/权限/并发验证，再 10–20 并发规模；不得复用企微长连接，不重启共享服务。
 5. 在真实 Lightning 页面完成 Utility Bar/LWC UAT。
 6. 视结果将状态提升为 `READY_FOR_UAT` 或记录 `BLOCKED`。
 
 ## 五、状态口径
 
-- 当前不能称 COMPLETE：真实 Salesforce/OpenClaw/Browser/UAT 均未完成。
-- 当前也不能称 READY_FOR_UAT：Apex 尚未编译，真实链路未跑通。
-- 本计划选择的交付状态是 **IMPLEMENTED_PENDING_ENVIRONMENT_VERIFICATION**；若沙盒部署发现编译/运行缺陷，则按 `BLOCKED` 记录具体项。
+- 当前不能称 COMPLETE：真实 Salesforce 业务调用、浏览器 UAT 仍未完成；入口默认禁用。
+- 当前也不能称 READY_FOR_UAT：证书/接入服务/OpenClaw/MCP 未配置，真实链路未跑通。
+- 本计划选择的交付状态是 **IMPLEMENTED_PENDING_ENVIRONMENT_VERIFICATION**；若后续发现运行缺陷，则按 `BLOCKED` 记录具体项。

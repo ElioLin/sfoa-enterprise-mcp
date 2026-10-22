@@ -1,7 +1,8 @@
 # CRM OpenClaw 一期实现报告
 
 日期：2026-10-22
-分支：`feature/crm-openclaw-entry`（首个提交 `561bda4`，已推送 `origin`）
+分支：`feature/crm-openclaw-entry`（`561bda4`、`91d0d0c`、`44887a1`，已推送 `origin`）
+UAT：CRM 元数据已部署（Deployment `0AfC5000005GP4PKAW`，12 组件、7/7 Apex tests）；Custom Setting 默认禁用；接入服务/OpenClaw/MCP 尚未部署。
 状态：**IMPLEMENTED_PENDING_ENVIRONMENT_VERIFICATION**
 
 ## 1. 目标与边界
@@ -205,11 +206,11 @@ SSE 事件：`run.accepted`、`run.started`、`message.delta`、`message.replace
 
 未验证：
 
-- Apex 编译/测试、证书实际签名、沙盒部署。
+- 真实证书的**成功签名**路径（Apex 已编译、7/7 测试通过，但当前未配置专用证书）。
 - 真实 Salesforce 双用户 OpenClaw→MCP→Salesforce 调用（隔离 Gateway 的 MCP 为 mock）。
-- 真实浏览器 UAT、CORS/CSP/HTTPS/nginx 真机配置。
+- 真实浏览器 UAT、CORS/CSP/HTTPS/nginx 真机配置；LWC/Aura 已部署但未加入 Utility Bar、未分配 Permission Set。
 - 接入服务进程与真实插件/MySQL 的整链联调（当前分别以 HTTP 客户端测试与插件直连验证）。
 
-已取得：隔离 OpenClaw 2026.9.5 中插件注册、真实模型 turn、官方 session route、`sessions.get` 历史与 `X-SFOA-CRM-User-Id` 到达 MCP mock 的证据；见 [real-openclaw-gate.md](evidence/crm-openclaw/real-openclaw-gate.md)。
+已取得：UAT metadata 部署（Deployment `0AfC5000005GP4PKAW`，12 组件、7/7 Apex tests）与隔离 OpenClaw 2026.9.5 的插件注册、真实模型 turn、官方 session route、`sessions.get` 历史、`X-SFOA-CRM-User-Id` 到达 MCP mock 证据。
 
 这些均在测试矩阵中标记为 `NOT_VERIFIED`，不得以 mock 结果替代。

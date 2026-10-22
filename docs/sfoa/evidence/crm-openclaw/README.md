@@ -14,10 +14,11 @@
 | 企微适配器回归 | [adapter-regression.md](adapter-regression.md) | UNIT / MOCK |
 | CRM 元数据静态检查 | [crm-static-checks.md](crm-static-checks.md) | UNIT（静态） |
 | 隔离 OpenClaw 真实 Gateway | [real-openclaw-gate.md](real-openclaw-gate.md) | REAL_OPENCLAW + MOCK MCP |
+| UAT 实际部署 | [uat-deployment-2026-10-22.md](uat-deployment-2026-10-22.md) | REAL_SALESFORCE（metadata + Apex tests） |
 
 ## 未取得的证据
 
-- REAL_SALESFORCE：尚未对沙盒执行 Apex 测试或真实 MCP 只读调用。
+- REAL_SALESFORCE 业务调用：只完成了 metadata 部署与 Apex 测试，未做真实 MCP 只读/权限差异调用。
 - REAL_BROWSER：尚未在真实 Salesforce Lightning 页面验证 Utility Bar/LWC。
 - HUMAN_UAT：未进行。
 
