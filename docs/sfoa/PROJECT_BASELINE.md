@@ -112,8 +112,11 @@ dependency, not a forced user dialog. UI API/Describe field semantics, Picklist
 continuation, label-first permission text and full text fallback improve evidence
 delivery without changing DML/identity authority. Task field projection recovers
 oversized client responses while retaining required fields and controllers.
-Test-server rollout, native same-model mock DML and a real 2026-10-27 11:14 WeCom
-read-only request have evidence; this is partial runtime verification, not live
+Test-server rollout, native same-model mock DML and real 2026-10-27 WeCom read-only
+requests have evidence. The user-reported 12:22 follow-up read the two current
+Skills and received one complete projected context after recovering from a stale
+Record Type; trusted identity and zero mutations are audited. Response-quality
+limits remain recorded. This is partial runtime verification, not live
 Salesforce write or attachment/voice acceptance. See [delivery](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md).
 This current contract supersedes the historical interaction restrictions below;
 historical test/deployment evidence is retained as historical evidence.

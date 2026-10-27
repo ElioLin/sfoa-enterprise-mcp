@@ -23,6 +23,7 @@
 | 服务 | systemd 重启 MCP / Admin API / Gateway；三者 active，8080/health、8081/admin/api/health 与 nginx9000/ 都 200 |
 | 可信企微请求 | 用户 11:14:38 发送的真实只读消息，5 个 MCP 调用均 WECOM_HEADER、零 DML，返回业务标签；发生于 Skill 目录修正前，不作为新版 Skill 已读证据 |
 | 正确目录后的加载 | 新 Gateway CLI Run `2626b961-ba9b-4f3c-bd9e-0e5d5ed3c561` 实际 read 四份新正文，hash/新规则可核对；无企微 requester，不冒充企微端到端 |
+| 修复后可信企微只读 | 用户报告 12:22 发出，服务器 12:23:06 收到、12:23:49 回复（北京时间）；两份当前 Skill 完整正文 read，三次 MCP 均 WECOM_HEADER、零 DML。一次旧类型拒绝后自行恢复；成功 context 38/80 字段、144 选项、单份 JSON 未被客户端裁切。业务答复仍有过度外推，不能评为全部正确 |
 | 模型/写入评测 | 18 个合成固定样本，原生 OpenClaw 同主模型、实际 Skills/Playbook，真实 generic DML Tool→内存 SDK；三组直接核对实际 Provider HTTP 输入元数据。未写真实 Salesforce 数据 |
 
 两项发布纠正必须保留：首次 `--runtime-root` 错填 workspace 父目录，脚本成功
@@ -33,11 +34,15 @@
 后续应在同步前固定暂存根目录的可遍历权限，备份目录继续私有。
 
 原始证据留在 `/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/`，私有模型
-配置不导出。PDF 原生提取原语通过，附件→本轮模型、Office、语音转写和修复后
-可信企微完整业务回合按实际缺项标 NOT RUN；不能用文件存在或 CLI 风格代替。
+配置不导出。PDF 原生提取原语通过，附件→本轮模型、Office、语音转写与真实
+Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读链路已有实证，
+当前真实回合的 Provider HTTP body 未捕获。不能用文件存在或 CLI 风格代替。
 规则审计、精确分层验收与剩余质量限制见
 [交付报告](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md) 和
 [合成评测证据](evidence/openclaw-business-autonomy-20261027.json)。
+修复后真实企微的[脱敏审计与加载证据](evidence/openclaw-wecom-20261027-1222.json)
+单独保留，包含失败/恢复、覆盖边界与回复质量限制；没有 requester、Salesforce
+用户名、默认 Owner ID、凭据或真实业务记录。
 
 ## 部署记录 · ADR-0034 受限控制台账号（BTIT）（2026-10-15）
 

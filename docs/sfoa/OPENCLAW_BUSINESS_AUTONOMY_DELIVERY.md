@@ -7,6 +7,7 @@
 - Canonical Playbook：`1.12.0`。四个 canonical 业务 Skill 位于 `skills/`；生成副本由命令生成。
 - 源码提交：`2d7a1f4ea6f00fcc562c128a1e7b383449c38cb3`（主要实现）、`83818ca75fda6170cb58494c9b16e4ff550e2a55`（最终上下文镜像、投影及诊断证据范围修复）。最终交付提交还包含本报告、合成评测证据及 Linux 测试夹具的请求存活修正；最终 HEAD / smoke SHA 见交付回复与本地 `.temp/autonomy-skill-smoke-final.log`。
 - 工程验收包括源码、确定性测试、生成物以及测试服务器上的原生 OpenClaw mock DML 评测。可信企微请求身份的端到端验收另行标识，CLI 不冒充企微 requester。
+- 12:22 真实企微补充实证的提交只更新文档与脱敏证据，不改运行代码；对应提交的 smoke 单独记录于 `.temp/autonomy-skill-smoke-wecom1222.log`。源码套件与原交付 smoke 已在 `85f9a9c228fde9d95bca20bee9d3806d20f4e54c` 上通过。
 
 ## 规则审计
 
@@ -98,11 +99,15 @@
 | 模型收到工具上下文 | PASS（隔离评测范围）：三组实际 Provider HTTP body 的安全元数据，含完整 Playbook、字段/候选/投影；不是通过服务器 JSON 或 cache 占位符推定 |
 | mock DML / 业务行为 | PASS（固定 fixture 标准）：18 例，真实 generic DML Tool→内存 SDK；质量缺口如上，不代表所有用户任务保证通过 |
 | 可信企微只读 | 用户 11:14:38 的真实消息，5 个 MCP 调用均 WECOM_HEADER，零 DML；完整 CREATE Playbook 正文 27,326 bytes 到原生工具结果，回复使用业务字段标签，披露部分覆盖。此轮发生于 Skill 目标目录纠正前，未发生 Skill read，不能证明新版 Skill 已读或修复后企微全链路 |
-| 修复后可信企微再测 | 若没有后续真实消息，则 NOT RUN；不能伪造 requester。当前请求与日志仅作实际已覆盖范围的证据 |
+| 修复后可信企微再测 | 已核实用户 12:22 发出的真实消息（服务器入库 12:23:06、回复 12:23:49，北京时间）：实际 read 两份当前完整 Skill 正文，三次 MCP 调用均 WECOM_HEADER，零 DML。Playbook 正文 27,775 bytes；action context 投影返回 38/80 字段、144 个选项，遗漏 42 字段明示，单份 JSON 无客户端正文裁切。一次旧 Record Type 拒绝后自动恢复，失败未删除。见[脱敏实证](evidence/openclaw-wecom-20261027-1222.json) |
 | 真实 Salesforce 写入 | NOT RUN：本次行为写入均 mock，不以生产数据试验，不冒称真实组织自动化/最终 Owner 验收 |
 
 后续发布复用现有流程：核对当前配置/路径 → `git archive <交付SHA>` 并核 hash → 备份源文件/dist/四 Skill/独立导出包 → 确保暂存根与 app 根可遍历后 rsync（无 --delete）→ 依赖构建、检查 dist DAC/restorecon → `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` / `skill:runtime:check` → 独立 `skill:export` → systemd 按需重启 → hash、skills.status、新会话 read、实际模型工具输入、可信企微行为分层验收。业务只发布四个 Skill；独立导出另同步。
 
 PDF 原生提取原语已在测试机读取合成 PDF，得到全部四行业务事实（PASS）；附件入口→本轮模型→字段全过程未实测。图像能力有已配置模型，但无真实图像回合；Office 未取得完整提取回合。已追踪当前企微插件：机器人 `message-parser.js:162` 消费 `voice.content` 平台转写，应用 XML 入口消费 `Recognition`；不需要把这两条现成文字入口替换成 Salesforce ASR。音频配置未见 audio model，但这不等于平台没有转写。真实语音/转写回合仍 NOT RUN；先发送实际测试语音核对平台正文是否进入当轮，只有纯音频确实没有转写时再配置获准 ASR。缺实际提取结果不能靠 Prompt 宣称已读。通用解析不放入 Salesforce MCP。
 
-交付状态：**源码、确定性测试、合成真实模型评测与测试环境部署完成；运行验证为分层部分覆盖。** 真实写入、修复后企微全链路及附件/语音验收仍按上表明确保留，生产发布未执行。
+12:22 回合关闭了“修复后真实企微是否读新 Skill / 是否得到单份字段上下文”的缺口：同一企微会话的新轮次，按用户明确要求 read 两份 Skill，正文完整包含 canonical/runtime 同 hash 的当前内容；这不证明所有自然业务请求都会自动读取 Skill。action context 包含真实帮助文本、长度/精度/小数位、依赖与两个托管字段描述。三次审计为两次 SUCCESS、一次 `MCP_RECORD_TYPE_NOT_AVAILABLE`；两份字段上下文审计完整性为 PARTIAL，不能冒称完整取证链。旧类型被拒后，Agent 无需追问即重新读取当前候选。当前真实回合没有捕获 Provider HTTP body；会话工具结果实证与之前三组隔离 HTTP 输入实证分别保留。
+
+该回合的业务答复仍不能评为全部正确：它把当前记录类型推广到后续创建，且无已验证分类映射就说某产品线“只能”选择其他产品；也从姓名组合布局标记列出了多个单独必填项，尚未核对组合控件约束。真实选项缺少某文字，不足以证明唯一业务归类；当前可用类型也不能外推到未来身份/上下文。这些限制已保留，未因只读链路通过而隐藏。
+
+交付状态：**源码、确定性测试、合成真实模型评测、测试环境部署及修复后可信企微只读链路已验证；业务回复质量仍有上述限制。** 真实 Salesforce 写入与附件/语音端到端仍 NOT RUN，生产发布未执行。

@@ -1,0 +1,148 @@
+{
+  "evidence": "REAL_TRUSTED_WECOM_READ_ONLY_AFTER_CORRECTED_SKILL_SYNC",
+  "reportedSendTime": "2026-10-27 12:22 Asia/Shanghai",
+  "serverReceivedAt": "2026-10-27T04:23:06.374Z",
+  "serverReplyAt": "2026-10-27T04:23:49.569Z",
+  "codeSha": "83818ca75fda6170cb58494c9b16e4ff550e2a55",
+  "deliveryCodeTestSha": "85f9a9c228fde9d95bca20bee9d3806d20f4e54c",
+  "sessionId": "33b42c7c-fa26-4d4c-8fd1-287d61b50825",
+  "channel": "wecom",
+  "provider": "custom-192-168-155-105-3001",
+  "model": "deepseek-flash",
+  "skillReads": [
+    {
+      "name": "sfoa-crm-core",
+      "canonicalSha256": "534ee69f63f067d77360f4e8c5d9d4b83122689e831b18c23b2a1d7f85170381",
+      "runtimeSha256": "534ee69f63f067d77360f4e8c5d9d4b83122689e831b18c23b2a1d7f85170381",
+      "containsCurrentBody": true,
+      "containsTaskProjection": true,
+      "containsTaskPrinciple": true,
+      "bytes": 7408,
+      "clipped": false
+    },
+    {
+      "name": "sfoa-record-change",
+      "canonicalSha256": "d22efbfad12d397b0c36499c6c8cbf70e4a4ba0755846e99aabe267c95067189",
+      "runtimeSha256": "d22efbfad12d397b0c36499c6c8cbf70e4a4ba0755846e99aabe267c95067189",
+      "containsCurrentBody": true,
+      "containsTaskProjection": true,
+      "containsTaskPrinciple": true,
+      "bytes": 18309,
+      "clipped": false
+    }
+  ],
+  "playbook": [
+    {
+      "bytes": 28839,
+      "guidanceBytes": 27775,
+      "textBlocks": 1,
+      "parseableJsonBlocks": 1,
+      "clipped": false,
+      "containsOldRestriction": false
+    }
+  ],
+  "mcpCalls": [
+    {
+      "order": 1,
+      "name": "sfoa-enterprise-mcp__get_agent_playbook",
+      "workflow": "CREATE",
+      "explicitRecordType": false
+    },
+    {
+      "order": 2,
+      "name": "sfoa-enterprise-mcp__get_record_action_context",
+      "action": "CREATE",
+      "objectApiName": "Lead",
+      "explicitRecordType": true,
+      "taskProjectionFieldCount": 12
+    },
+    {
+      "order": 3,
+      "name": "sfoa-enterprise-mcp__get_record_action_context",
+      "action": "CREATE",
+      "objectApiName": "Lead",
+      "explicitRecordType": false,
+      "taskProjectionFieldCount": 12
+    }
+  ],
+  "actionContext": {
+    "objectLabel": "线索",
+    "bytes": 56076,
+    "textBlocks": 1,
+    "parseableJsonBlocks": 1,
+    "clientTextClipped": false,
+    "returnedFields": 38,
+    "totalVisibleFields": 80,
+    "omittedFields": 42,
+    "unresolvedRequestedFields": 0,
+    "fieldsWithHelp": 1,
+    "fieldsWithConstraintProperties": 38,
+    "returnedPicklistValues": 144,
+    "fieldsWithPicklist": 7,
+    "fieldsWithControllers": 2,
+    "dependenciesIncomplete": false,
+    "serverCoverageTruncated": true,
+    "managedDmlFieldCount": 2
+  },
+  "audit": [
+    {
+      "publicAuditId": "2c9df14e-f9d5-4a98-b4c1-279d72601f4c",
+      "startedAt": "2026-10-27T04:23:29.969Z",
+      "completedAt": "2026-10-27T04:23:32.466Z",
+      "toolName": "get_record_action_context",
+      "identitySource": "WECOM_HEADER",
+      "executionRole": "USER",
+      "result": "PASS",
+      "outcome": "SUCCESS",
+      "errorCode": null,
+      "auditIntegrityStatus": "PARTIAL"
+    },
+    {
+      "publicAuditId": "b702d8fc-3384-4493-b99b-1ec9fb33a63f",
+      "startedAt": "2026-10-27T04:23:24.143Z",
+      "completedAt": "2026-10-27T04:23:25.304Z",
+      "toolName": "get_record_action_context",
+      "identitySource": "WECOM_HEADER",
+      "executionRole": "USER",
+      "result": "ERROR",
+      "outcome": "FAILED",
+      "errorCode": "MCP_RECORD_TYPE_NOT_AVAILABLE",
+      "auditIntegrityStatus": "PARTIAL"
+    },
+    {
+      "publicAuditId": "2e24efbd-2591-4f4c-9d3c-5c53fa0c0197",
+      "startedAt": "2026-10-27T04:23:19.749Z",
+      "completedAt": "2026-10-27T04:23:19.781Z",
+      "toolName": "get_agent_playbook",
+      "identitySource": "WECOM_HEADER",
+      "executionRole": "USER",
+      "result": "PASS",
+      "outcome": "SUCCESS",
+      "errorCode": null,
+      "auditIntegrityStatus": "COMPLETE"
+    }
+  ],
+  "samePlatformIdentityAcrossAuditedCalls": true,
+  "mutationToolCalls": 0,
+  "outcomes": {
+    "skillLoading": "PASS: two current bodies actually read in the real WeCom turn; canonical/runtime hashes match",
+    "requestIdentity": "PASS: three MCP calls have WECOM_HEADER; no requester fabrication",
+    "managedContextMirror": "PASS: successful Host-enriched action context has one parseable JSON text block, not two stale mirrors",
+    "responseDelivery": "PASS_WITH_COVERAGE: 38/80 fields and 144 Picklist values returned; 42 omitted explicitly, no client text clipping",
+    "oldRecordType": "EXPECTED_DENIAL_AND_RECOVERY: stale explicit type rejected with MCP_RECORD_TYPE_NOT_AVAILABLE; Agent retried without explicit type and used current available candidate",
+    "readOnly": "PASS: no CREATE/UPDATE Tool call",
+    "actualProviderHttpBody": "NOT_CAPTURED_FOR_THIS_REAL_WECOM_RUN; prior isolated Provider-bound proof remains separate",
+    "liveSalesforceWrite": "NOT_RUN",
+    "mediaEndToEnd": "NOT_RUN"
+  },
+  "businessResponseReview": {
+    "labels": "Uses current business object/field/option labels and discloses 38 returned / 42 omitted fields and unevaluated Dynamic Forms.",
+    "limitations": [
+      "The reply generalized the current Record Type to future creates; it must remain scoped to the current USER/context.",
+      "The reply said a water-purification lead could only choose the other-products option; no verified product taxonomy mapping supports that exclusive recommendation.",
+      "The reply listed compound name members as individually required from layout flags. API-required and layout/group-required evidence differ; this read-only turn does not prove every child must be filled."
+    ],
+    "status": "READ_ONLY_CHAIN_VERIFIED; full business-response correctness is not claimed"
+  },
+  "privacy": "No requester ID, Salesforce username/default owner ID, credentials, raw business records or raw material retained here."
+}

@@ -4316,7 +4316,7 @@
       ],
       "skillReadInThisTurn": false,
       "evidenceBoundary": "Read-only trusted WeCom transport and business-label response. This occurred before corrected Skill-directory sync; it does not prove new Skill reading or final C2 field projection end-to-end.",
-      "postCorrectionTrustedWecom": "NOT_RUN unless a later real user message is separately captured; no requester is fabricated."
+      "postCorrectionTrustedWecom": "READ_ONLY_CHAIN_VERIFIED: user reported 12:22; server 12:23:06 +08. See openclaw-wecom-20261027-1222.json. Business-response limitations and real Provider HTTP boundary remain explicit."
     },
     "media": {
       "pdfPrimitive": "PASS: native extractor returned the four synthetic business-fact lines",
@@ -4329,6 +4329,19 @@
       "Private staging-root mode transferred to app via rsync -a; restored app root to 755, dist DAC/SELinux checked, nginx 200.",
       "runtime-root was initially the parent workspace, so the running Agent read old Skills. Corrected to actual skills directory; all four canonical/runtime hashes now match and a fresh gateway Run read all four current bodies.",
       "Misplaced task-created copies were preserved in the deployment backup, not deleted."
-    ]
+    ],
+    "correctedTrustedWecom": {
+      "evidenceFile": "openclaw-wecom-20261027-1222.json",
+      "skillBodiesRead": 2,
+      "trustedMcpCalls": 3,
+      "successfulMcpCalls": 2,
+      "staleRecordTypeDeniedThenRecovered": true,
+      "mutationCalls": 0,
+      "returnedFields": 38,
+      "omittedFields": 42,
+      "textMirrorBlocks": 1,
+      "clientTextClipped": false,
+      "businessResponse": "NOT_FULLY_ACCEPTED; limitations recorded in the referenced evidence"
+    }
   }
 }
