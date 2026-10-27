@@ -87,7 +87,7 @@
 
 开发副本：`skill:sync` 生成 `.agents/.claude/.codebuddy`；Playbook 的 definition / renderer / version 同时维护，`agent:sync/check` 校验；独立 `sfoa` 包通过 `skill:export` 单独生成，四 Skill 的 runtime-sync 不负责这个包。maintainer Skill/脚本只留开发端，不向业务 Agent 发布。
 
-已按 [测试部署记录](TEST_SERVER_DEPLOYMENT.md#2026-10-27-openclaw-业务自主处理) 发布到 `crm-ex-test02`，当前运行源码 `83818ca…`；C1 归档 SHA256 为 `4d26f0fe…40b1`，C2 为 `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`，本地/服务器一致。两次备份位于 `/data/sfoa-enterprise-mcp/backups/autonomy-20261027-<完整源码SHA>/`。Playbook、Context、Data、Server、Admin API/Web 已按依赖构建，独立 `sfoa` 导出包和 adapter 附件说明同步。MCP/API/Gateway active，HTTP health 与 nginx 均 200。未修改配置凭据、身份策略、数据库模式或生产环境。
+已按 [测试部署记录](TEST_SERVER_DEPLOYMENT.md#2026-10-27-1437-lf-重部署0a7649e) 发布到 `crm-ex-test02`。11:51 的 C2 归档 `e1f7226f…` 实际是 CRLF（`skills/sfoa-crm-core/SKILL.md` 7465 B / 57 CR），app 与 runtime 继承了 CRLF；14:37 已用 `0a7649e` 的 LF 归档重部署，并按 `skill:runtime:sync` 重新发布四个业务 Skill，runtime 与 canonical HEAD 逐字节一致（详见同页记录）。两次备份位于 `/data/sfoa-enterprise-mcp/backups/autonomy-20261027-<完整源码SHA>/`。Playbook、Context、Data、Server、Admin API/Web 已按依赖构建，独立 `sfoa` 导出包和 adapter 附件说明同步。MCP/API/Gateway active，HTTP health 与 nginx 均 200。未修改配置凭据、身份策略、数据库模式或生产环境。
 
 发布时修正并保留了两项失败证据：私有暂存目录权限经 rsync 带到 app 根目录导致 nginx 500，恢复该目录 755、检查 dist DAC/SELinux 后 200；最初 `--runtime-root` 误填 workspace 父目录，脚本检查成功但实际 Skill 未更新。现已使用真实 **`/data/openclaw/workspace/skills`**，四个 canonical/runtime SKILL.md SHA256 全部一致，错误位置副本移入备份保留。没有将 maintainer 发布给业务 Agent。
 

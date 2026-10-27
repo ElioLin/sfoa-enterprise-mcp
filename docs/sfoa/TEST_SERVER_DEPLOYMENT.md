@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-27 14:37 LF 重部署（`0a7649e`）
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 部署内容 | `codex/openclaw-business-autonomy` @ `0a7649e7`（HEAD）。运行时源码与 11:52 已部署的 `83818ca` 相同；`83818ca..0a7649e` 仅文档/证据、maintainer 参考、一个测试文件与 harness fixture 有差异 |
+| 归档 | `incoming/sfoa-deploy-0a7649e-20261027-143611.tar.gz`（3,925,893 B，sha256 `56362ccffce89fa85740757b02958651c881670f404caff310a9d1313e5d55b4`，1655 entries）。归档内 `skills/sfoa-crm-core/SKILL.md` 7408 B / 0 CR，`packages/sfoa-mcp-server/src/http-server.ts` 0 CR |
+| **CRLF 纠正** | 11:51 的 `autonomy-source-c2.tar.gz`（sha256 `e1f7226f…`，本机/服务器一致）**实际是 CRLF**：`skills/sfoa-crm-core/SKILL.md` 7465 B / 57 CR。app 与 runtime 副本都继承了 CRLF；去掉 CR 后与 canonical 相同。原记录的“来自 tracked LF 字节”只对 C1 归档成立 |
+| 备份 | `backups/autonomy-0a7649e-20261027-143611/`（私有 700）：app 源码 `app-source-pre-0a7649e.tar.gz`（11 MB），四个业务 Skill 与独立 `sfoa` 包 |
+| 落盘 | 先解到权限 755 的 staging，再 `rsync -a`（无 `--delete`）覆盖 `app/`；`.env.local` 与 `packages/mcp/README.md` 软链保留 |
+| 字节验证 | staging 清单 1394 个文件，`sha256sum -c` 全部 OK；清单内文本文件 CR=0；app 的四个业务 Skill 与 git HEAD 逐字节一致 |
+| 构建/重启 | **未重建、未重启**：`83818ca..0a7649e` 的运行时源码差异为 0（`packages/` 仅一个 `src/test` 文件，`integrations/` 仅 harness fixture）。MCP / Admin API 仍为 11:52 启动的 PID，`NRestarts=0` |
+| Skill 发布 | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` 重新发布；`skill:runtime:check` 四个 Skill `drift: []`；runtime 36 个文件与 canonical HEAD 全部 hash 一致；maintainer 不在 runtime |
+| 独立导出 | `skill:export` 临时生成后与 runtime `sfoa/` 逐字节一致（Playbook 1.12.0） |
+| 进程可见性 | `openclaw gateway call skills.status`：四个业务 Skill `eligible=true` / `modelVisible=true`；maintainer 不存在 |
+| 健康 | `/health` 200、`/admin/api/ready` 200、nginx `:9000/` 与 `:9000/admin/api/ready` 200；MCP / Admin API / Gateway / nginx 均 active |
+| 记录同步 | 本条与交付报告的更正提交后，按 git blob 的 LF 字节同步到服务器 `app/`；其余 tracked 文件仍为 `0a7649e` 的全量验证结果 |
+
 ## 2026-10-27 OpenClaw 业务自主处理
 
 本次仅测试服务器，生产未发布；Salesforce 内嵌 OpenClaw 暂停分支未合并。
@@ -13,8 +30,8 @@
 
 | 项目 | 实际记录 |
 | --- | --- |
-| 源码归档 | `incoming/autonomy-source-20261027.tar.gz`（2d7a1f4）、`incoming/autonomy-source-c2.tar.gz`（83818ca），来自已提交 tracked LF 字节 |
-| 最终归档 hash | `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`；本地/服务器一致 |
+| 源码归档 | `incoming/autonomy-source-20261027.tar.gz`（2d7a1f4，LF）、`incoming/autonomy-source-c2.tar.gz`（83818ca，**实为 CRLF**；见上方 14:37 重部署记录） |
+| 最终归档 hash | `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`；本地/服务器一致。该归档的 `skills/sfoa-crm-core/SKILL.md` 为 7465 B / 57 CR，部署树与 runtime 因而继承 CRLF；去掉 CR 后才与 canonical 一致，14:37 已以 LF 归档重部署 |
 | 备份 | `/data/sfoa-enterprise-mcp/backups/autonomy-20261027-<完整源码SHA>/`，保留 app 源码/dist、四个业务 Skill、独立 sfoa 导出包、adapter 附件文件、构建/同步记录 |
 | 构建 | Playbook → Context / Data → Server → Admin API / Web；C2 未改 Data 代码，复用 C1 已重建产物；Web 检查 DAC + restorecon |
 | 实际配置 | Gateway 使用 `/data/openclaw/state/openclaw.json`，main workspace `/data/openclaw/workspace`，主模型 `custom-192-168-155-105-3001/deepseek-flash`，thinking=max；OpenClaw 2026.9.5(ec9c1a1)，实际 Gateway Node24.19.0 |
