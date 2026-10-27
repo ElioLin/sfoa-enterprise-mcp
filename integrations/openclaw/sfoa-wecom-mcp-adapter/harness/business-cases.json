@@ -3,7 +3,7 @@
     "id":"oversized-action-context", "request":"创建一条线索，客户公司在厦门。工具正文过长时自行取得相关字段上下文，不需要逐字段问我。",
     "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
     "fields":[{"apiName":"Country","label":"公司国家","type":"string"},{"apiName":"State","label":"公司省份","type":"string"},{"apiName":"City","label":"公司城市","type":"string"}],
-    "context":{"oversizedFields":80}, "requiredValues":{"Country":"中国","State":"福建省","City":"厦门市"},
+    "context":{"oversizedFields":80}, "requiredValues":{"Country":"中国","State":"福建省"}, "allowedValues":{"City":["厦门","厦门市"]},
     "requiredFieldProjection":["Country","State","City"], "candidateFields":{"Country":"中国","State":"福建省","City":"厦门市"},
     "review":["任务字段投影到达实际工具调用；最终模型输入保留字段标签和约束，真实 SDK 收到国家省市，无无关字段"]
   },

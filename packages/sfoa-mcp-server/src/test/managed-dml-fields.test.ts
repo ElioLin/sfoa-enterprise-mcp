@@ -25,7 +25,11 @@ const CONTACT_A = '003000000000001AAA';
 const CONTACT_B = '003000000000002AAA';
 
 for (const operation of ['CREATE', 'UPDATE'] as const) {
-  test(`batch ${operation} dispatch timeout reports every item UNKNOWN without retry even if audit throws`, async () => {
+  test(`batch ${operation} dispatch timeout reports every item UNKNOWN without retry even if audit throws`, async (t) => {
+    // The real HTTP request keeps a handle alive while the production timeout
+    // is unref'ed. This pending in-memory SDK fixture has no socket of its own.
+    const requestLiveness = setTimeout(() => {}, 2000);
+    t.after(() => clearTimeout(requestLiveness));
     let dispatches = 0; let started = false;
     let finish: ((value: unknown) => void) | undefined;
     const mutation = async () => { dispatches++; return new Promise((resolve) => { finish = resolve; }); };

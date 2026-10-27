@@ -5,6 +5,7 @@
 - 实际拉取的 `origin/main`：`12df237f7ab03c4771109813b84f715a29e9e32d`。
 - 工作分支：`codex/openclaw-business-autonomy`。未修改或合并暂停的 `feature/crm-openclaw-entry`。
 - Canonical Playbook：`1.12.0`。四个 canonical 业务 Skill 位于 `skills/`；生成副本由命令生成。
+- 源码提交：`2d7a1f4ea6f00fcc562c128a1e7b383449c38cb3`（主要实现）、`83818ca75fda6170cb58494c9b16e4ff550e2a55`（最终上下文镜像、投影及诊断证据范围修复）。最终交付提交还包含本报告、合成评测证据及 Linux 测试夹具的请求存活修正；最终 HEAD / smoke SHA 见交付回复与本地 `.temp/autonomy-skill-smoke-final.log`。
 - 工程验收包括源码、确定性测试、生成物以及测试服务器上的原生 OpenClaw mock DML 评测。可信企微请求身份的端到端验收另行标识，CLI 不冒充企微 requester。
 
 ## 规则审计
@@ -36,7 +37,9 @@
 
 **标签。** 字段权限解释文本优先对象/字段/权限集真实标签，原始 API、grant、DIAGNOSTIC Describe 与 `executionIdentityView` 留在 structuredContent；对象标签复用已经读取的 Describe，没有新增逐字段请求，DIAGNOSTIC 布尔值不裁决目标 USER 权限。
 
-**OpenClaw 消费。** get_agent_playbook 的 text 包含完整 structuredContent（包括 guidance）；Context / Data 成功 text 使用 SDK 风格的完整 JSON 镜像。测试机原生 `mcp-content-Dj8o6nFL.mjs` 已读取确认：投影 structuredContent 给模型，并仅删除与 `JSON.stringify(structuredContent, null, 2)` 完全相同的镜像。旧紧凑 JSON 会重复；本次使用该现有扩展点兼容文本客户端并避免原生重复，没有修改 OpenClaw Core。模型最终输入仍通过每次 Run 的原生 cache trace 检查，不以返回 JSON 替代。
+**OpenClaw 消费。** get_agent_playbook 的 text 包含完整 structuredContent（包括 guidance）；Context / Data / display-values 的成功 text 使用 SDK 风格的完整 JSON 镜像。测试机原生 `mcp-content-Dj8o6nFL.mjs` 仅消除与最终 structuredContent 完全相同的 pretty JSON。真实企微请求暴露出 Host 补充 managed 字段后镜像过时、上下文重复的问题，现已在同一 composition seam 刷新最终镜像。原生 `builtin-openclaw-C7-lQJ2Z.mjs` 还会在发往 Provider 前限制工具正文；增加可选 `fieldApiNames`，在完整 USER/可见性计算之后投影任务字段，保留必填、条件必填及已知控制依赖，显式报告遗漏和未知字段。没有修改 OpenClaw Core，也没有以扩大虚假模型窗口绕过限制。
+
+原生 cache trace 会将大 JSON 替换为诊断脱敏占位，不能证明字段已到模型。隔离评测通过只记录安全元数据的本地转发，检查**实际发往同一模型的 HTTP body**：三组前后回合均收到了完整 guidance（新版 43,120 bytes），材料字段标签/帮助/长度/缺失约束、Picklist 候选与依赖标记也进入模型；大表投影为 3/83 字段，遗漏 80，未被客户端裁切。转发不保存凭据、授权头、用户原文或人格提示。原生 host 自动消费 initialize instructions、Resources、Prompt 的完整正文未取得等价实证；本次可证的完整 Playbook 路线是 `get_agent_playbook`，没有声称其它三个表面已自动加载。
 
 **附件。** adapter 只挂载当前可信请求的附件引用，新增明确“元信息不证明正文或转写已读”的说明。文件上传无需强制解析；按材料创建必须取得实际解析/转写结果。通用 ASR / Office 解析没有搬入 Salesforce MCP。
 
@@ -47,37 +50,59 @@
 | 检查 | 当前结果 |
 | --- | --- |
 | Playbook test（含生成漂移） | PASS 42/42 |
-| Context Provider build/test/lint | PASS 218/218；含 help/约束有值/缺失/截断、Dynamic Forms、续取和 text/structured 契约 |
+| Context Provider build/test/lint | PASS 220/220；含 help/约束有值/缺失/截断、Dynamic Forms、续取、必填/控制依赖投影和 text/structured 契约 |
 | Data Provider build/test/lint | PASS 156/156 |
-| Server build/test | PASS 392/392 |
+| Server build/test/lint | PASS 392/392；最终完整套件在测试服务器 Linux/Node 22 运行，包含最终镜像测试与下面的夹具修正 |
 | Server p3 / p4 / p5 / p7 | PASS 25 / 16 / 6 / 6；身份隔离、managed、拒绝、未知结果、MySQL 路由与 Audit 边界 |
-| adapter tests | PASS 69/69；最新 runner/fixture 改动后复验结果在最终验收记录中更新 |
-| Skill tests | PASS 75/75；最终生成与 Git delivery 复验后记录 |
+| adapter tests | PASS 71/71；含实际转发输入投影、凭据/正文不落盘、真实 DML Tool→mock SDK |
+| Skill tests | PASS 75/75 |
 | agent:sync / agent:check | PASS，5 个生成表面 |
-| skill:sync / skill:check / skill:delivery / skill:export | 已执行；最终提交与 smoke 后记录 |
+| skill:sync / skill:check / skill:delivery / skill:export | PASS；新文件进入 Git 索引，独立导出包含新原则 |
+| ai:snapshot | PASS；记录基线与本次工程快照 |
+| skill:smoke | 已在包含主要实现的 `2d7a1f4…` 上 PASS；最终交付提交再次执行，精确 SHA/结果见交付回复和上述日志，不用旧 HEAD 证明未提交工作 |
 
-曾观察到两类环境问题，已保留原始失败日志：暂停分支留下的 8 个 orphan 编译测试文件（当前 main 无对应源码）已备份移出；中断期间的 Git 子进程/本机隧道失效不算源码或模型效果 PASS。之后的通过结果来自本次源码，不依赖那些旧编译测试。
+失败证据均保留：暂停分支留下的 8 个 orphan 编译测试文件（main 无源码）备份移出；Windows 并行重跑分别遇到 Temp 清理 EPERM 与旧 Buntu 测试的定时完成顺序波动；一次手动串行命令使用了错误 cwd，两个静态测试因此失败。Linux 首跑有 47 项取消，起因是 pending SDK 夹具没有真实 HTTP socket，生产 unref timeout 不能维持测试进程。只在那两条夹具中添加有界的请求存活句柄，未改运行时超时、批量事务或 UNKNOWN 策略；随后同一 workspace 命令 392/392、0 取消。不得把这些失败日志抹成 PASS。
 
 ## 真实 Agent 评测与前后样本
 
 测试机：`crm-ex-test02`，OpenClaw `2026.9.5 (ec9c1a1)`；实际 main primary 为 `custom-192-168-155-105-3001/deepseek-flash`，fallback 为 qwen3-vl，thinking 为 max。实际进程 allowlist 包含四个业务 Skill。独立评测复用该模型/参数与工作区人格文件，只有 read 和同构 mock MCP，关闭真实 MCP / channel / plugin；每例独立状态，所有 CREATE/UPDATE 均经真实 generic DML Tool 到内存 SDK stub。
 
-17 个固定样本涵盖材料、否定/多主体、厦门/杭州、迁址、地点角色、明确字段限制、同名/冲突/截断、API≠Label / Lookup / Record Type、Owner、业务/技术诊断。fixture 的 candidateFields/candidateReply 不进入 Agent 输入；人工审阅可接受多种忠实表达，问题次数来自真实转录。每例保存实际模型、runId、最终回复、工具参数、SDK dispatch 和最终模型上下文。参数断言与语义审阅分开。
+18 个固定样本涵盖材料、否定/多主体、厦门/杭州、迁址、地点角色、明确字段限制、同名/冲突/截断、API≠Label / Lookup / Record Type、Owner、业务/技术诊断和过大上下文。`candidateFields/candidateReply` 不进入 Agent 输入。由交付 Agent 独立于受测模型复核语义，**没有冒称人工签字验收**；接受多种正确表达（如厦门/厦门市），不按固定措辞或自报置信度判定。逐例实际模型、Run、前后回复、DML 参数、SDK dispatch、问题次数、质量缺口和 Provider 输入元数据见 [脱敏合成证据](evidence/openclaw-business-autonomy-20261027.json)。
 
-已取得的基线真实结果（服务器本地 mock）：
+比较的是 **main 旧指导与新指导**，每组保持相同现行 mock 工具和模型；不是两套 Salesforce 二进制/真实权限的端到端对比。最终采用每例最近源码对应的回合：17 例共同批次，加诊断修正规则后的两例重跑与三例 HTTP 输入观察；未选择“最好的一次”回复。旧迭代、超时与跨机隧道 FAILED_ENV 保留在证据中。参数断言由旧指导 15/18 到新版 18/18；新版 18 例通过限定的业务核心语义标准，仍存在下面的质量限制。
 
-- 厦门：旧版 run `499fddec-191e-4b2a-8e48-eaa9d5dc2942` 仅提交 `City=厦门`，回复国家/省份未填，可另行补充。
-- Owner：旧版 run `51fcc5af-9884-4abc-9d2a-d2a4d326c707` 固定问“回复默认/当前用户，我就创建”，没有执行 CREATE。
-- 材料：旧版 run `4f76452b-4bc7-4674-969e-176434b9c031` 已能忠实分配总结/诉求/计划；不能把此能力宣称为本次才首次实现。
+| 样本（均为真实模型 + 合成资料 / mock DML） | 旧指导实际结果 | 新版实际结果 |
+| --- | --- | --- |
+| 固定拜访材料 | 某些回合已能正确提炼；最新对照将合作意向/数量未定也放进客户诉求 | 总结：“客户对合作有兴趣，但认为当前报价偏高；样品仍在测试中，采购数量尚未确定。”诉求只写价格异议；计划为下周跟进测试、报价与数量。无通过/订单/金额/数量承诺；实际 SDK 有三个字段 |
+| 厦门与杭州公司 | 厦门有的回合仅城市，有的已补全；杭州最终对照只写 BillingCity=杭州，明确拒绝补省份国家 | 厦门 CREATE 实际 Country=中国、State=福建省、City=厦门市；杭州实际同时写中国/浙江省/杭州市。不能声称基线从未会补全 |
+| 迁址 / 地点角色 / 只改总结 | 这些基线样本也能正确执行 | 迁址只改省市，不重发未变国家；去厦门拜访只写拜访地点；只改总结不改公司地址 |
+| 填空但深圳/厦门冲突 | 先写福建省，留下深圳/福建不一致，再问 | 写入前集中核对地点角色与迁址意图，SDK 无写入 |
+| Owner fallback | 等待用户回复“默认/就我”，没有 CREATE | 无固定询问，实际 CREATE 省略 OwnerId。mock 不执行 Host 注入，最终负责人由 Server 测试覆盖；模型回复“已填充”不能替代平台证据 |
+| 成功对照订单 | 无依据地排除客户主数据、将未知代码/null 当缺失映射 | 只确认该客户在对照单交易条件下曾成功；当前仍核对业务条件与资料，差异不算根因，ZQ-17 本轮未取得真实含义 |
 
-本次新版结果、逐例语义复核和前后工具/问题次数将在当前服务器本地回合结束后写入本报告。之前使用跨机隧道的一批在本机中断后失去 mock 连接，保留为 FAILED_ENV，不纳入前后效果统计。
+代表性 MCP 调用数：材料 5→3、杭州 8→6、业务诊断 15→8、技术诊断 15→12；拜访地点 6→11、指定负责人未找到 6→15，**并非每例都减少**。Owner 确认从 1 轮到 0；同名/冲突/真正多类型歧义仍需 1 轮。多类型歧义例虽没有写错，仍额外询问客户/日期/主题；指定负责人例也有额外信息问题。技术诊断仍偏长，合成取证路径中存在猜测关系字段和无收益读取，未宣称已达到理想效率。早期新版把同一摘要重复返回误说成多次一致，已保留该失败并用“本轮未取得≠系统未维护、重复返回≠独立历史”修正规则重跑。
 
 ## 同步、运行验收与剩余边界
 
 开发副本：`skill:sync` 生成 `.agents/.claude/.codebuddy`；Playbook 的 definition / renderer / version 同时维护，`agent:sync/check` 校验；独立 `sfoa` 包通过 `skill:export` 单独生成，四 Skill 的 runtime-sync 不负责这个包。maintainer Skill/脚本只留开发端，不向业务 Agent 发布。
 
-运行发布按 `TEST_SERVER_DEPLOYMENT.md`：从提交归档 tracked LF 字节，核对包 hash，先备份目标源文件与 dist，再 rsync（不使用 --delete），保留服务器配置与 node_modules。按实际依赖构建 Playbook、Context、Data、Server；Admin Web 在 Playbook 后构建。四个业务 Skill 通过实际 workspace 的 `skill:runtime:sync/check` 更新，独立导出包与 adapter 使用已核实的插件路径；必要重启使用 systemd，不用会跳过非默认目录的 gateway restart。配置、凭据、身份策略与数据库模式不变。
+已按 [测试部署记录](TEST_SERVER_DEPLOYMENT.md#2026-10-27-openclaw-业务自主处理) 发布到 `crm-ex-test02`，当前运行源码 `83818ca…`；C1 归档 SHA256 为 `4d26f0fe…40b1`，C2 为 `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`，本地/服务器一致。两次备份位于 `/data/sfoa-enterprise-mcp/backups/autonomy-20261027-<完整源码SHA>/`。Playbook、Context、Data、Server、Admin API/Web 已按依赖构建，独立 `sfoa` 导出包和 adapter 附件说明同步。MCP/API/Gateway active，HTTP health 与 nginx 均 200。未修改配置凭据、身份策略、数据库模式或生产环境。
 
-运行验收分别记录：①文件同步；②gateway skills.status 进程可见；③新 Run 的 Skill 正文 read；④最终模型收到工具上下文；⑤实际 DML/业务回复。仅文件存在、CLI skills list 或风格相似不算第③～⑤层。可信 WeCom channel + requesterSenderId 仍是业务身份来源；CLI mock 没有 requester，不作为企微端到端。
+发布时修正并保留了两项失败证据：私有暂存目录权限经 rsync 带到 app 根目录导致 nginx 500，恢复该目录 755、检查 dist DAC/SELinux 后 200；最初 `--runtime-root` 误填 workspace 父目录，脚本检查成功但实际 Skill 未更新。现已使用真实 **`/data/openclaw/workspace/skills`**，四个 canonical/runtime SKILL.md SHA256 全部一致，错误位置副本移入备份保留。没有将 maintainer 发布给业务 Agent。
 
-PDF、Office、视觉与音频的部署可用性、实际解析正文是否进入当前轮次，以及测试发布的最终状态，将以本次服务器取证结果收口；缺少凭据、真实附件/转写入口或可信企微请求时标 NOT RUN/BLOCKED，不写为 PASS。生产发布不在本次授权范围。
+| 运行验收层 | 实证与边界 |
+| --- | --- |
+| 文件同步 | PASS：实际 skills 目录四个正文与 canonical hash 一致；runtime-sync/check 输出及备份保留 |
+| 进程可见 | PASS：运行 Gateway 的 skills.status 四个业务 Skill eligible=true，maintainer 不存在 |
+| 新 Run 已读正文 | PASS：实际 Gateway main 新 CLI 会话 Run `2626b961-ba9b-4f3c-bd9e-0e5d5ed3c561` 四次 read；已看到新任务投影与诊断范围规则。该 CLI 无企微 requester，仅证明加载 |
+| 模型收到工具上下文 | PASS（隔离评测范围）：三组实际 Provider HTTP body 的安全元数据，含完整 Playbook、字段/候选/投影；不是通过服务器 JSON 或 cache 占位符推定 |
+| mock DML / 业务行为 | PASS（固定 fixture 标准）：18 例，真实 generic DML Tool→内存 SDK；质量缺口如上，不代表所有用户任务保证通过 |
+| 可信企微只读 | 用户 11:14:38 的真实消息，5 个 MCP 调用均 WECOM_HEADER，零 DML；完整 CREATE Playbook 正文 27,326 bytes 到原生工具结果，回复使用业务字段标签，披露部分覆盖。此轮发生于 Skill 目标目录纠正前，未发生 Skill read，不能证明新版 Skill 已读或修复后企微全链路 |
+| 修复后可信企微再测 | 若没有后续真实消息，则 NOT RUN；不能伪造 requester。当前请求与日志仅作实际已覆盖范围的证据 |
+| 真实 Salesforce 写入 | NOT RUN：本次行为写入均 mock，不以生产数据试验，不冒称真实组织自动化/最终 Owner 验收 |
+
+后续发布复用现有流程：核对当前配置/路径 → `git archive <交付SHA>` 并核 hash → 备份源文件/dist/四 Skill/独立导出包 → 确保暂存根与 app 根可遍历后 rsync（无 --delete）→ 依赖构建、检查 dist DAC/restorecon → `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` / `skill:runtime:check` → 独立 `skill:export` → systemd 按需重启 → hash、skills.status、新会话 read、实际模型工具输入、可信企微行为分层验收。业务只发布四个 Skill；独立导出另同步。
+
+PDF 原生提取原语已在测试机读取合成 PDF，得到全部四行业务事实（PASS）；附件入口→本轮模型→字段全过程未实测。图像能力有已配置模型，但无真实图像回合；Office 未取得完整提取回合。已追踪当前企微插件：机器人 `message-parser.js:162` 消费 `voice.content` 平台转写，应用 XML 入口消费 `Recognition`；不需要把这两条现成文字入口替换成 Salesforce ASR。音频配置未见 audio model，但这不等于平台没有转写。真实语音/转写回合仍 NOT RUN；先发送实际测试语音核对平台正文是否进入当轮，只有纯音频确实没有转写时再配置获准 ASR。缺实际提取结果不能靠 Prompt 宣称已读。通用解析不放入 Salesforce MCP。
+
+交付状态：**源码、确定性测试、合成真实模型评测与测试环境部署完成；运行验证为分层部分覆盖。** 真实写入、修复后企微全链路及附件/语音验收仍按上表明确保留，生产发布未执行。

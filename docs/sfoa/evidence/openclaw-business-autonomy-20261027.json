@@ -1,0 +1,4334 @@
+{
+  "baseline": "12df237f7ab03c4771109813b84f715a29e9e32d",
+  "codeCommits": [
+    "2d7a1f4ea6f00fcc562c128a1e7b383449c38cb3",
+    "83818ca75fda6170cb58494c9b16e4ff550e2a55"
+  ],
+  "branch": "codex/openclaw-business-autonomy",
+  "date": "2026-10-27",
+  "methodology": {
+    "model": "actual main primary custom-192-168-155-105-3001/deepseek-flash; thinking=max",
+    "comparison": "Baseline main guidance versus current guidance with the same current mock tools within each batch. This is not a comparison of two live Salesforce server binaries.",
+    "isolation": "Native OpenClaw agent exec, fresh state per case, actual four Skills and persona files, real generic DML Tool into memory SDK; no real MCP, Salesforce, channels, or WeCom requester.",
+    "finalSelection": "Latest source-specific run for each case: common 17-pair batch, two diagnosis reruns after scope correction, three HTTP-observed pairs. All earlier successful/failed iterations are retained; no best-of-response selection.",
+    "questionUnit": "One user clarification turn in this single-turn corpus; distinct information items reported separately where over-questioning remains.",
+    "limits": [
+      "Synthetic read responses do not emulate Salesforce authorization, automation or full UI.",
+      "Most read schemas/descriptions are reused; fixture output is synthetic, not live log/source evidence.",
+      "Native cache trace redacts large JSON and is not full model-input proof.",
+      "Provider-input proof is available for three pairs only; only metadata/hashes persist, no prompts or authorization headers.",
+      "No live Salesforce mutation or WeCom material/voice end-to-end acceptance claimed."
+    ]
+  },
+  "summary": {
+    "cases": 18,
+    "afterParametersPassed": 18,
+    "afterCoreSemanticPassed": 18,
+    "beforeParametersPassed": 15,
+    "beforeCoreSemanticPassed": 14,
+    "note": "PASS is limited to the declared fixture criteria and Agent payload. Known quality limitations are retained; no universal no-hallucination or fewer-tools claim."
+  },
+  "cases": [
+    {
+      "id": "oversized-action-context",
+      "before": {
+        "id": "oversized-action-context",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Country": "中国",
+                "State": "福建省",
+                "City": "厦门"
+              }
+            }
+          }
+        ],
+        "reply": "已完成。我按“厦门”将客户地址补齐为：公司国家 中国、公司省份 福建省、公司城市 厦门；这三项已写入新建线索，创建成功。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "任务字段投影到达实际工具调用；最终模型输入保留字段标签和约束，真实 SDK 收到国家省市，无无关字段"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "38ad5e92-1bc4-4891-806e-52c7896407a1",
+        "model": "deepseek-flash",
+        "batch": "observed",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/provider-observed-runs/states/before-oversized-action-context/provider-input.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际调用 fieldApiNames 包含国家/省份/城市，返回83字段中的3字段、omittedFields=80；实际 provider HTTP 输入包含完整投影/标签/长度/缺失约束和完整 guidance；SDK CREATE 含国家省市，没有无关字段。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际调用 fieldApiNames 包含国家/省份/城市，返回83字段中的3字段、omittedFields=80；实际 provider HTTP 输入包含完整投影/标签/长度/缺失约束和完整 guidance；SDK CREATE 含国家省市，没有无关字段。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Country": "中国",
+              "State": "福建省",
+              "City": "厦门",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "CREATE",
+              "fieldApiNames": [
+                "Country",
+                "State",
+                "City",
+                "Company",
+                "LastName",
+                "FirstName",
+                "Status",
+                "LeadSource",
+                "Phone",
+                "Email",
+                "OwnerId",
+                "RecordTypeId"
+              ]
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "fieldLimit": 300
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "oversized-action-context",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Country": "中国",
+                "State": "福建省",
+                "City": "厦门市"
+              }
+            }
+          }
+        ],
+        "reply": "已创建线索，并按厦门补全了公司地址：\n\n- 公司国家：中国\n- 公司省份：福建省\n- 公司城市：厦门市\n\n已回读核对，三项地址与提交值一致。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "任务字段投影到达实际工具调用；最终模型输入保留字段标签和约束，真实 SDK 收到国家省市，无无关字段"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "3b112078-c458-4f7a-88e7-112c427acea7",
+        "model": "deepseek-flash",
+        "batch": "observed",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/provider-observed-runs/states/after-oversized-action-context/provider-input.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际调用 fieldApiNames 包含国家/省份/城市，返回83字段中的3字段、omittedFields=80；实际 provider HTTP 输入包含完整投影/标签/长度/缺失约束和完整 guidance；SDK CREATE 含国家省市，没有无关字段。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际调用 fieldApiNames 包含国家/省份/城市，返回83字段中的3字段、omittedFields=80；实际 provider HTTP 输入包含完整投影/标签/长度/缺失约束和完整 guidance；SDK CREATE 含国家省市，没有无关字段。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Country": "中国",
+              "State": "福建省",
+              "City": "厦门市",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "CREATE",
+              "fieldApiNames": [
+                "Company",
+                "LastName",
+                "FirstName",
+                "Salutation",
+                "Title",
+                "Phone",
+                "Email",
+                "City",
+                "State",
+                "Country",
+                "Street",
+                "PostalCode",
+                "Industry",
+                "LeadSource",
+                "Status",
+                "Rating",
+                "Website",
+                "Description"
+              ]
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "visit-material",
+      "before": {
+        "id": "visit-material",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Summary__c": "客户觉得报价偏高，样品还在测试，对合作有兴趣，数量没定。",
+                "Requests__c": "客户认为报价偏高；对合作有兴趣；采购数量尚未确定。",
+                "Next_Plan__c": "下周联系客户，跟进样品测试结果与报价反馈；数量待客户确认。"
+              }
+            }
+          }
+        ],
+        "reply": "已创建客户拜访记录（Visit__c），写入内容如下：\n\n- 拜访总结：客户觉得报价偏高，样品还在测试，对合作有兴趣，数量没定。\n- 客户诉求：客户认为报价偏高；对合作有兴趣；采购数量尚未确定。\n- 后续计划：下周联系客户，跟进样品测试结果与报价反馈；数量待客户确认。\n\n记录已回读核对，三个字段均与原文一致。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "保留合作意向、价格异议、测试中、数量未定及下周联系五个事实",
+          "总结、诉求、计划按真实字段语义分配，不复制同一原文到全部字段",
+          "不编造测试通过、订单确认、金额数量或精确承诺日期；多种忠实表达均可接受"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "34f74539-f2c5-4d58-81de-131fa3b05cee",
+        "model": "deepseek-flash",
+        "batch": "observed",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/provider-observed-runs/states/before-visit-material/provider-input.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "总结保留合作意向、价格异议、测试中、数量未定，计划为下周联系；新版诉求集中价格异议。无金额、采购数量值、测试通过或确认订单；计划中的继续沟通不是已经承诺。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "总结保留合作意向、价格异议、测试中、数量未定，计划为下周联系；新版诉求集中价格异议。无金额、采购数量值、测试通过或确认订单；计划中的继续沟通不是已经承诺。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Summary__c": "客户觉得报价偏高，样品还在测试，对合作有兴趣，数量没定。",
+              "Requests__c": "客户认为报价偏高；对合作有兴趣；采购数量尚未确定。",
+              "Next_Plan__c": "下周联系客户，跟进样品测试结果与报价反馈；数量待客户确认。",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "visit-material",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 3,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Summary__c": "客户对合作有兴趣，但认为当前报价偏高；样品仍在测试中，采购数量尚未确定。",
+                "Requests__c": "客户反馈报价偏高，对价格存在异议。",
+                "Next_Plan__c": "下周联系客户，跟进样品测试进展，并就报价与采购数量继续沟通。"
+              }
+            }
+          }
+        ],
+        "reply": "已按材料创建客户拜访记录。\n\n- 拜访总结：客户对合作有兴趣，但认为当前报价偏高；样品仍在测试中，采购数量尚未确定。\n- 客户诉求：客户反馈报价偏高，对价格存在异议。\n- 后续计划：下周联系客户，跟进样品测试进展，并就报价与采购数量继续沟通。\n\n记录已成功创建（Visit__c），以上为实际写入的字段内容。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "保留合作意向、价格异议、测试中、数量未定及下周联系五个事实",
+          "总结、诉求、计划按真实字段语义分配，不复制同一原文到全部字段",
+          "不编造测试通过、订单确认、金额数量或精确承诺日期；多种忠实表达均可接受"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "ca80b521-ae28-452f-95b1-b1d7f052b4b7",
+        "model": "deepseek-flash",
+        "batch": "observed",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/provider-observed-runs/states/after-visit-material/provider-input.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "总结保留合作意向、价格异议、测试中、数量未定，计划为下周联系；新版诉求集中价格异议。无金额、采购数量值、测试通过或确认订单；计划中的继续沟通不是已经承诺。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "总结保留合作意向、价格异议、测试中、数量未定，计划为下周联系；新版诉求集中价格异议。无金额、采购数量值、测试通过或确认订单；计划中的继续沟通不是已经承诺。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Summary__c": "客户对合作有兴趣，但认为当前报价偏高；样品仍在测试中，采购数量尚未确定。",
+              "Requests__c": "客户反馈报价偏高，对价格存在异议。",
+              "Next_Plan__c": "下周联系客户，跟进样品测试进展，并就报价与采购数量继续沟通。",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "negation-and-subjects",
+      "before": {
+        "id": "negation-and-subjects",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordId": "a01000000000001AAA",
+              "fields": {
+                "Summary__c": "甲客户拜访总结：客户未承诺采购，若测试符合要求再讨论；计划下周送样。"
+              }
+            }
+          }
+        ],
+        "reply": "已完成甲客户拜访记录的总结更新，只修改了 Summary（拜访总结）字段，其他字段未动。\n\n写入内容：\n「甲客户拜访总结：客户未承诺采购，若测试符合要求再讨论；计划下周送样。」\n\n说明：材料中「乙客户上周已完成测试」属于另一客户的内容，未写入甲客户这条记录。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "不得把乙已完成测试赋给甲",
+          "保留未承诺、测试条件及计划送样状态，不变成已执行或确定采购"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "98a832c3-a42f-4b05-8615-55565e7a1e77",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-negation-and-subjects/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "仅 Summary__c；甲未承诺采购、以测试合格为条件、计划下周送样；没有把乙已完成测试写给甲。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "仅 Summary__c；甲未承诺采购、以测试合格为条件、计划下周送样；没有把乙已完成测试写给甲。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Id": "a01000000000001AAA",
+              "Summary__c": "甲客户拜访总结：客户未承诺采购，若测试符合要求再讨论；计划下周送样。"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "negation-and-subjects",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordId": "a01000000000001AAA",
+              "fields": {
+                "Summary__c": "甲客户本次未承诺采购，表示若测试符合要求再作讨论；我方准备下周送样。"
+              }
+            }
+          }
+        ],
+        "reply": "已更新该拜访记录（a01000000000001AAA）的拜访总结，只修改了 Summary__c，其他字段未动。\n\n写入内容：\n「甲客户本次未承诺采购，表示若测试符合要求再作讨论；我方准备下周送样。」\n\n说明：材料中「乙客户上周已完成测试」属于另一客户的进展，未并入甲客户的拜访总结。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "不得把乙已完成测试赋给甲",
+          "保留未承诺、测试条件及计划送样状态，不变成已执行或确定采购"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "45f59c13-4b0a-4235-b76e-d760780e1748",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-negation-and-subjects/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "仅 Summary__c；甲未承诺采购、以测试合格为条件、计划下周送样；没有把乙已完成测试写给甲。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "仅 Summary__c；甲未承诺采购、以测试合格为条件、计划下周送样；没有把乙已完成测试写给甲。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Id": "a01000000000001AAA",
+              "Summary__c": "甲客户本次未承诺采购，表示若测试符合要求再作讨论；我方准备下周送样。"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "company-xiamen-text",
+      "before": {
+        "id": "company-xiamen-text",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Country": "中国",
+                "State": "福建省",
+                "City": "厦门"
+              }
+            }
+          }
+        ],
+        "reply": "线索已创建成功 ✅\n\n- 公司城市：厦门\n- 公司省份：福建省（按厦门归属补全）\n- 公司国家：中国\n\n记录 ID：00Q000000000001AAA",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "国家和省份未点名仍进入实际 CREATE 参数；其他必填在隔离上下文中由适用默认满足"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "c97a36f7-d2ac-4f77-bbbd-544d6b6115b8",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-company-xiamen-text/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "SDK CREATE 实际含 Country=中国、State=福建省、City=厦门/厦门市，用户未逐项点名国家省份。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "SDK CREATE 实际含 Country=中国、State=福建省、City=厦门/厦门市，用户未逐项点名国家省份。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Country": "中国",
+              "State": "福建省",
+              "City": "厦门",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "CREATE",
+              "draftFields": {
+                "Country": "中国",
+                "State": "福建省",
+                "City": "厦门市"
+              }
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "company-xiamen-text",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Country": "中国",
+                "State": "福建省",
+                "City": "厦门市"
+              }
+            }
+          }
+        ],
+        "reply": "线索已创建成功。\n\n公司所在地已按厦门补全为：\n- 公司国家：中国\n- 公司省份：福建省\n- 公司城市：厦门市\n\n记录类型：适用业务类型。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "国家和省份未点名仍进入实际 CREATE 参数；其他必填在隔离上下文中由适用默认满足"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "0c17035a-3e1d-4b1a-8241-69cf673c61ac",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-company-xiamen-text/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "SDK CREATE 实际含 Country=中国、State=福建省、City=厦门/厦门市，用户未逐项点名国家省份。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "SDK CREATE 实际含 Country=中国、State=福建省、City=厦门/厦门市，用户未逐项点名国家省份。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Country": "中国",
+              "State": "福建省",
+              "City": "厦门市",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": true,
+              "fieldLimit": 200
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "CREATE",
+              "draftFields": {
+                "Country": "中国",
+                "State": "福建省",
+                "City": "厦门"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "company-hangzhou-text",
+      "before": {
+        "id": "company-hangzhou-text",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "FAIL",
+        "failures": [
+          "incorrect or missing BillingCountry",
+          "incorrect or missing BillingState",
+          "incorrect or missing BillingCity"
+        ],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 8,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Account",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "BillingCity": "杭州"
+              }
+            }
+          }
+        ],
+        "reply": "已创建客户记录，账单城市写入「杭州」，并已回读确认。\n\n说明：该对象当前可写的地址字段只有 BillingCountry、BillingState、BillingCity。这次只填写了你明确给出的城市，省份和国家没有擅自补全。如果需要补成「浙江省 / 中国」或其他地址信息，告诉我即可。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "补全流程不能仅硬编码厦门"
+        ],
+        "businessAcceptance": "NOT_VERIFIED",
+        "runId": "a97985bb-a555-4710-8640-e92ef77e8271",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-company-hangzhou-text/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版 SDK CREATE 同时保存中国、浙江省、杭州市；旧版仅 BillingCity=杭州并明确拒绝补全省份国家。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版 SDK CREATE 同时保存中国、浙江省、杭州市；旧版仅 BillingCity=杭州并明确拒绝补全省份国家。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Account",
+            "fields": {
+              "BillingCity": "杭州",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Account",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Account"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "company-hangzhou-text",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Account",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "BillingCountry": "中国",
+                "BillingState": "浙江省",
+                "BillingCity": "杭州市"
+              }
+            }
+          }
+        ],
+        "reply": "已完成创建客户记录（Account 记录 ID `a01000000000001AAA`，记录类型：适用业务类型）。\n\n公司所在地已根据“杭州”补全：\n- 国家：中国\n- 省/州：浙江省\n- 城市：杭州市\n\n已验证：创建接口返回成功；重新读取该记录后，确认 BillingCountry、BillingState、BillingCity 这三个字段已保存为上述值。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "补全流程不能仅硬编码厦门"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "f6ab0dc6-b1b4-42e0-9afa-7d9b19e0eaa2",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-company-hangzhou-text/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版 SDK CREATE 同时保存中国、浙江省、杭州市；旧版仅 BillingCity=杭州并明确拒绝补全省份国家。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版 SDK CREATE 同时保存中国、浙江省、杭州市；旧版仅 BillingCity=杭州并明确拒绝补全省份国家。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Account",
+            "fields": {
+              "BillingCountry": "中国",
+              "BillingState": "浙江省",
+              "BillingCity": "杭州市",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Account",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Account",
+              "includeFields": true,
+              "fieldLimit": 1000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "relocation",
+      "before": {
+        "id": "relocation",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordId": "00Q000000000001AAA",
+              "fields": {
+                "City": "厦门市",
+                "State": "福建省"
+              }
+            }
+          }
+        ],
+        "reply": "已将这条线索（Lead）的公司地址改为厦门：\n\n- 城市：深圳市 → **厦门市**\n- 省份：广东省 → **福建省**\n- 国家：中国（未变）\n\n其余字段未改动。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "联动修正旧省份，未变化的国家不重发"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "879f9267-e6ea-4015-8950-129843e15def",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-relocation/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 UPDATE 只有 State=福建省、City=厦门市（SDK 加目标 Id）；未重发不变 Country，无 Owner/Industry。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 UPDATE 只有 State=福建省、City=厦门市（SDK 加目标 Id）；未重发不变 Country，无 Owner/Industry。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Id": "00Q000000000001AAA",
+              "City": "厦门市",
+              "State": "福建省"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "relocation",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordId": "00Q000000000001AAA",
+              "fields": {
+                "State": "福建省",
+                "City": "厦门市"
+              }
+            }
+          }
+        ],
+        "reply": "已改好，回读确认生效：\n\n- 原地址：中国 广东省 深圳市\n- 现地址：中国 福建省 厦门市\n- 本次修改：省份改为「福建省」、城市改为「厦门市」；国家保持「中国」\n\n厦门属福建省，所以省份一并修正了。街道地址未动，需要补具体街道或门牌再告诉我。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "联动修正旧省份，未变化的国家不重发"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "17c771aa-a5c1-42d2-a50f-93e89793abc7",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-relocation/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 UPDATE 只有 State=福建省、City=厦门市（SDK 加目标 Id）；未重发不变 Country，无 Owner/Industry。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 UPDATE 只有 State=福建省、City=厦门市（SDK 加目标 Id）；未重发不变 Country，无 Owner/Industry。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Id": "00Q000000000001AAA",
+              "State": "福建省",
+              "City": "厦门市"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": false
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "visit-location",
+      "before": {
+        "id": "visit-location",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 6,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Visit_Location__c": "厦门"
+              }
+            }
+          }
+        ],
+        "reply": "已创建本次拜访记录，拜访地点：**厦门**。\n\n说明：\n- 只写入了 `Visit__c` 的「拜访地点」字段，没有修改任何客户或账户记录；按你所说，客户总部仍在深圳，因此保持不变。\n- 另外，当前环境的 `Visit__c` 只有「Visit_Location__c（拜访地点）」这一个字段，没有客户关联字段，因此这条记录暂时无法挂到具体客户名下。若需要按客户归档拜访，需要先在该对象上增加客户 Lookup 字段。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "拜访地点不改客户公司地址"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "94a7f523-e695-4653-a5f0-33b8369d7fd7",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-visit-location/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 CREATE 只有拜访地点厦门，没有公司地址字段；厦门/厦门市是同一文本地点的正确表达。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 CREATE 只有拜访地点厦门，没有公司地址字段；厦门/厦门市是同一文本地点的正确表达。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Visit_Location__c": "厦门",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "visit-location",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 11,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Visit_Location__c": "厦门"
+              }
+            }
+          }
+        ],
+        "reply": "已记录本次拜访：\n\n- 拜访地点：厦门\n- 客户总部：仍为深圳，未改动客户公司地址\n\n拜访记录已创建成功，记录类型为「适用业务类型」。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "拜访地点不改客户公司地址"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "7b33b6a2-5994-44aa-81dd-b1aec788d2f6",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-visit-location/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 CREATE 只有拜访地点厦门，没有公司地址字段；厦门/厦门市是同一文本地点的正确表达。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 CREATE 只有拜访地点厦门，没有公司地址字段；厦门/厦门市是同一文本地点的正确表达。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Visit_Location__c": "厦门",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "draftFields": {
+                "Visit_Location__c": "厦门"
+              }
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Account"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "summary-only",
+      "before": {
+        "id": "summary-only",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 7,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordId": "a01000000000001AAA",
+              "fields": {
+                "Summary__c": "在厦门沟通，客户仍在测试。"
+              }
+            }
+          }
+        ],
+        "reply": "已完成，只修改了总结字段，其他字段未动。\n\n- 记录：Visit__c（当前唯一一条记录）\n- 总结：在厦门沟通，客户仍在测试。\n- 已回读确认，值已成功写入。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "不得顺带修改公司地址或 Owner"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "f5d14402-ba5f-49ae-b60e-ed09736f0c1a",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-summary-only/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 UPDATE 仅 Summary__c，不顺带更新公司地址或 Owner；材料测试中没有变为通过。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 UPDATE 仅 Summary__c，不顺带更新公司地址或 Owner；材料测试中没有变为通过。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Id": "a01000000000001AAA",
+              "Summary__c": "在厦门沟通，客户仍在测试。"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA",
+              "draftFields": {
+                "Summary__c": "在厦门沟通，客户仍在测试。"
+              }
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "summary-only",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordId": "a01000000000001AAA",
+              "fields": {
+                "Summary__c": "在厦门沟通，客户仍在测试。"
+              }
+            }
+          }
+        ],
+        "reply": "已更新，本次只修改了拜访记录的“总结”字段，其他内容均未改动。\n\n- 记录：Visit__c（a01000000000001AAA）\n- 总结：在厦门沟通，客户仍在测试。\n- 回读核对：已确认保存成功",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "不得顺带修改公司地址或 Owner"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "5847a349-0292-4fd8-8c11-a0be1797ca05",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-summary-only/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 UPDATE 仅 Summary__c，不顺带更新公司地址或 Owner；材料测试中没有变为通过。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 UPDATE 仅 Summary__c，不顺带更新公司地址或 Owner；材料测试中没有变为通过。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Id": "a01000000000001AAA",
+              "Summary__c": "在厦门沟通，客户仍在测试。"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "same-name-region",
+      "before": {
+        "id": "same-name-region",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 7,
+        "finalPayloads": [],
+        "reply": "「公司城市」填入 “Springfield” 时，匹配到两个候选，无法唯一确定是哪一个：\n\n- Springfield, Illinois, US\n- Springfield, Missouri, US\n\n请确认选哪一个，或者告诉我对应的州；确认后我再写入。目前尚未修改任何记录。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "先尝试已有上级地域上下文，仍不唯一才问州/国家；不得取第一条"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "af670500-b2c4-47ed-a957-20e1a198ccd0",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-same-name-region/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "无 SDK 写入；回复列出 Illinois/Missouri 两个真实合成候选并询问州，没有取第一条。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "无 SDK 写入；回复列出 Illinois/Missouri 两个真实合成候选并询问州，没有取第一条。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": true,
+              "fieldLimit": 1000
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "City__c",
+              "includeFields": true,
+              "fieldLimit": 200
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "same-name-region",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 4,
+        "finalPayloads": [],
+        "reply": "“Springfield”在 Lead 的公司城市里有 2 个可选值，我无法判断该填哪一个，需要你确认：\n\n- Springfield, Illinois, US（伊利诺伊州）\n- Springfield, Missouri, US（密苏里州）\n\n请回复对应州名或序号，确认后我再更新。目前没有修改任何记录。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "先尝试已有上级地域上下文，仍不唯一才问州/国家；不得取第一条"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "a8cfe7c0-1885-4a1e-888b-50c0367def15",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-same-name-region/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "无 SDK 写入；回复列出 Illinois/Missouri 两个真实合成候选并询问州，没有取第一条。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "无 SDK 写入；回复列出 Illinois/Missouri 两个真实合成候选并询问州，没有取第一条。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": true,
+              "fieldLimit": 300
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "fill-empty-conflict",
+      "before": {
+        "id": "fill-empty-conflict",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "FAIL",
+        "failures": [
+          "unexpected mutation",
+          "missing or unexpected proven SDK dispatch",
+          "SDK dispatch does not match Agent payload"
+        ],
+        "questions": 1,
+        "mutationCount": 1,
+        "toolCallCount": 14,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordId": "00Q000000000001AAA",
+              "fields": {
+                "State": "福建省"
+              }
+            }
+          }
+        ],
+        "reply": "我已按你提到的材料线索把这条 Lead 的省份补为「福建省」，依据是材料中提到厦门，而厦门属于福建省；写入成功。\n\n另有一个地址不一致的问题要提醒你：记录里的城市仍是「深圳市」，而深圳市属于广东省。如果材料中的厦门才是公司地址，建议把城市也改为「厦门市」，否则省份和城市对不上；如果深圳市才是正确地址，那么省份应改为「广东省」，你告诉我，我再调整。\n\n本次只修改了省份，没有改动城市。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "公司现有城市与材料冲突，先核对地址角色与迁址/填空意图"
+        ],
+        "businessAcceptance": "NOT_VERIFIED",
+        "runId": "fd645183-9163-4b10-b842-c34c458cbe43",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-fill-empty-conflict/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版在写入前说明现有深圳与材料厦门冲突并询问地点角色；旧版直接 State=福建省，留下深圳/福建不一致。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版在写入前说明现有深圳与材料厦门冲突并询问地点角色；旧版直接 State=福建省，留下深圳/福建不一致。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Id": "00Q000000000001AAA",
+              "State": "福建省"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA",
+              "draftFields": {
+                "State": "福建省"
+              }
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": true
+            }
+          },
+          {
+            "name": "resolve_field_display_values",
+            "arguments": {
+              "query": "SELECT Id, City, State FROM Lead WHERE Id = '00Q000000000001AAA'",
+              "objectApiName": "Lead"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Material__c",
+              "includeFields": false
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "fill-empty-conflict",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 7,
+        "finalPayloads": [],
+        "reply": "我先没有改动这条线索，因为现在有一个地点冲突需要您确认：\n\n- 记录当前的公司城市是「深圳市」，省份为空。\n- 材料提到「厦门」，厦门属于福建省，和深圳不属于同一个省。\n\n请您确认厦门在材料里的角色：\n\n1. 如果厦门只是拜访或收货地点，公司仍在深圳，我就补省份「广东省」。\n2. 如果公司已迁到厦门，我就把城市改为「厦门市」、省份补「福建省」。\n\n另外，这次消息里没有附上材料正文，只有「材料提到厦门」这一句。您可以把材料原文或附件发我，我按原文核对后，再写入这条记录。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "公司现有城市与材料冲突，先核对地址角色与迁址/填空意图"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "564b4982-3ae9-4e1e-923b-db6c56a5971c",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-fill-empty-conflict/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版在写入前说明现有深圳与材料厦门冲突并询问地点角色；旧版直接 State=福建省，留下深圳/福建不一致。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版在写入前说明现有深圳与材料厦门冲突并询问地点角色；旧版直接 State=福建省，留下深圳/福建不一致。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "picklist-and-lookup",
+      "before": {
+        "id": "picklist-and-lookup",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 14,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Customer__c",
+              "recordTypeId": "012000000000002AAA",
+              "fields": {
+                "Nation__c": "CN_B",
+                "Province__c": "FJ_B",
+                "City_Link__c": "a0G000000000001AAA"
+              }
+            }
+          }
+        ],
+        "reply": "客户已创建成功。按材料核对并回读确认：\n\n- 国家：中国\n- 省份：福建省\n- 城市：厦门市\n- 记录类型：适用业务类型\n\n创建后的客户记录已确认，国家、省份和城市之间的关联均正确写入。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "Label 与 API Value 不同仍保存 API Value，不能混用另一个 Record Type 的 CN_A/FJ_A",
+          "Lookup 仅保存当前实际解析的 ID"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "fb65c26b-8abd-4ca3-ab7e-6934b2d19722",
+        "model": "deepseek-flash",
+        "batch": "observed",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/provider-observed-runs/states/before-picklist-and-lookup/provider-input.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "真实 generic DML 到 mock SDK：Nation__c=CN_B、Province__c=FJ_B、City_Link__c=a0G000000000001AAA、RecordTypeId=012000000000002AAA；没有用中文 Label 替代 API 或 Lookup ID。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "真实 generic DML 到 mock SDK：Nation__c=CN_B、Province__c=FJ_B、City_Link__c=a0G000000000001AAA、RecordTypeId=012000000000002AAA；没有用中文 Label 替代 API 或 Lookup ID。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Customer__c",
+            "fields": {
+              "Nation__c": "CN_B",
+              "Province__c": "FJ_B",
+              "City_Link__c": "a0G000000000001AAA",
+              "RecordTypeId": "012000000000002AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Customer__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000002AAA",
+              "draftFields": {
+                "Country__c": "CN_B",
+                "Province__c": "FJ_B"
+              }
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Customer__c"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Region__c",
+              "includeFields": false
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Region__c",
+              "action": "UPDATE",
+              "recordId": "a0G000000000001AAA"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Region__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "picklist-and-lookup",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 7,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Customer__c",
+              "recordTypeId": "012000000000002AAA",
+              "fields": {
+                "Nation__c": "CN_B",
+                "Province__c": "FJ_B",
+                "City_Link__c": "a0G000000000001AAA"
+              }
+            }
+          }
+        ],
+        "reply": "已按材料创建客户记录。\n\n- 国家：中国\n- 省份：福建省\n- 城市：厦门市（关联已存在的城市记录）\n- 记录类型：适用业务类型\n\n创建成功，记录 ID：a01000000000001AAA。该客户对象当前可用字段就是国家、省份、城市三项，材料里没有其他信息，因此未补充其他内容。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "Label 与 API Value 不同仍保存 API Value，不能混用另一个 Record Type 的 CN_A/FJ_A",
+          "Lookup 仅保存当前实际解析的 ID"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "6adb6267-91ac-41f2-9949-4d1f03ae8665",
+        "model": "deepseek-flash",
+        "batch": "observed",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/provider-observed-runs/states/after-picklist-and-lookup/provider-input.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "真实 generic DML 到 mock SDK：Nation__c=CN_B、Province__c=FJ_B、City_Link__c=a0G000000000001AAA、RecordTypeId=012000000000002AAA；没有用中文 Label 替代 API 或 Lookup ID。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "真实 generic DML 到 mock SDK：Nation__c=CN_B、Province__c=FJ_B、City_Link__c=a0G000000000001AAA、RecordTypeId=012000000000002AAA；没有用中文 Label 替代 API 或 Lookup ID。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Customer__c",
+            "fields": {
+              "Nation__c": "CN_B",
+              "Province__c": "FJ_B",
+              "City_Link__c": "a0G000000000001AAA",
+              "RecordTypeId": "012000000000002AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Customer__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000002AAA"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Region__c"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Customer__c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "truncated-candidates",
+      "before": {
+        "id": "truncated-candidates",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordId": "00Q000000000001AAA",
+              "fields": {
+                "City": "CN_FJ_XMN"
+              }
+            }
+          }
+        ],
+        "reply": "已完成修改 ✅\n\n- 记录：Lead `00Q000000000001AAA`\n- 字段：公司城市（City）\n- 原值：CN_GD_SZX（深圳）\n- 新值：CN_FJ_XMN（厦门市）\n\n已回读确认该记录当前 City 为 `CN_FJ_XMN`。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "续取 205 个候选中的相关页后取得真实 API Value，不把前 100 条当全集或假称唯一"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "7fa218db-3686-4196-97b1-74723c644bdd",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-truncated-candidates/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 action-context 调用使用 City offset=100，读取含第180项厦门的页，再以 CN_FJ_XMN 保存；没有把前100项当全集。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 action-context 调用使用 City offset=100，读取含第180项厦门的页，再以 CN_FJ_XMN 保存；没有把前100项当全集。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Id": "00Q000000000001AAA",
+              "City": "CN_FJ_XMN"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA",
+              "picklistValueOffsets": {
+                "City": 100
+              }
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "truncated-candidates",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 8,
+        "finalPayloads": [
+          {
+            "name": "update_record",
+            "arguments": {
+              "objectApiName": "Lead",
+              "recordId": "00Q000000000001AAA",
+              "fields": {
+                "City": "CN_FJ_XMN"
+              }
+            }
+          }
+        ],
+        "reply": "已将这条线索的“公司城市”更新为**厦门市**，并回读确认当前值为 `CN_FJ_XMN`（厦门市）。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "续取 205 个候选中的相关页后取得真实 API Value，不把前 100 条当全集或假称唯一"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "c01489e2-3da0-4f2b-a7fd-a2efd0eb6a1c",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-truncated-candidates/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "实际 action-context 调用使用 City offset=100，读取含第180项厦门的页，再以 CN_FJ_XMN 保存；没有把前100项当全集。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "实际 action-context 调用使用 City offset=100，读取含第180项厦门的页，再以 CN_FJ_XMN 保存；没有把前100项当全集。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "UPDATE",
+            "objectApiName": "Lead",
+            "fields": {
+              "Id": "00Q000000000001AAA",
+              "City": "CN_FJ_XMN"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Lead",
+              "action": "UPDATE",
+              "recordId": "00Q000000000001AAA",
+              "picklistValueOffsets": {
+                "City": 100
+              }
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Lead",
+              "includeFields": true,
+              "fieldLimit": 200
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "owner-fallback",
+      "before": {
+        "id": "owner-fallback",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "FAIL",
+        "failures": [
+          "missing create_record payload",
+          "unnecessary clarification",
+          "missing or unexpected proven SDK dispatch"
+        ],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 4,
+        "finalPayloads": [],
+        "reply": "按材料准备创建的拜访记录：\n\n- 摘要：样品仍在测试，下周跟进。\n- 业务类型：适用业务类型（当前唯一可用）\n\n创建前需要你确认记录的负责人（Owner）：这个字段是必填项，你可以指定其他同事；如果不指定，就按你当前账号处理。请回复「默认/就用我」，或者告诉我负责人的姓名。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "省略适用 fallback 交给 Runtime，无固定问题、不查当前用户 ID"
+        ],
+        "businessAcceptance": "NOT_VERIFIED",
+        "runId": "e17f4093-d310-428f-a1e3-b174a60c3061",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-owner-fallback/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版实际 CREATE 省略 OwnerId，无固定负责人确认、没有查询当前用户 ID；旧版停在确认默认/就我。此 mock 不运行 Host 注入，不证明最终 Salesforce 负责人，也不以模型“已填充”回复作为赋值证据。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版实际 CREATE 省略 OwnerId，无固定负责人确认、没有查询当前用户 ID；旧版停在确认默认/就我。此 mock 不运行 Host 注入，不证明最终 Salesforce 负责人，也不以模型“已填充”回复作为赋值证据。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000001AAA",
+              "draftFields": {
+                "Summary__c": "样品仍在测试，下周跟进。"
+              }
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "owner-fallback",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000001AAA",
+              "fields": {
+                "Summary__c": "样品仍在测试，下周跟进。"
+              }
+            }
+          }
+        ],
+        "reply": "已创建拜访记录（记录类型：适用业务类型）。\n\n摘要：样品仍在测试，下周跟进。\n负责人已由平台按当前身份自动填充。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "省略适用 fallback 交给 Runtime，无固定问题、不查当前用户 ID"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "672aa4b9-780b-4473-90c7-fdc4b887f332",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-owner-fallback/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版实际 CREATE 省略 OwnerId，无固定负责人确认、没有查询当前用户 ID；旧版停在确认默认/就我。此 mock 不运行 Host 注入，不证明最终 Salesforce 负责人，也不以模型“已填充”回复作为赋值证据。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版实际 CREATE 省略 OwnerId，无固定负责人确认、没有查询当前用户 ID；旧版停在确认默认/就我。此 mock 不运行 Host 注入，不证明最终 Salesforce 负责人，也不以模型“已填充”回复作为赋值证据。"
+        },
+        "qualityLimitations": [
+          "只验证 Agent 省略 OwnerId；mock 未运行 Host 身份注入，回复所说已填充不是平台验收。"
+        ],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Summary__c": "样品仍在测试，下周跟进。",
+              "RecordTypeId": "012000000000001AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "explicit-owner-unresolved",
+      "before": {
+        "id": "explicit-owner-unresolved",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 6,
+        "finalPayloads": [],
+        "reply": "这条拜访**还没有创建**。\n\n原因：在你指定的负责人中，「王经理」在当前人员目录里我查不到匹配用户（0 个匹配）。按照规则，当明确指定的负责人无法唯一解析时，我不能自动改用当前用户或其他候选人，所以我先停在这里。\n\n请补充两点，我就可以继续创建：\n\n1. 「王经理」的完整姓名或登录名；或者直接说明是否改成当前用户本人。\n2. 拜访的基本信息：拜访哪家客户、拜访日期、拜访目的。\n\n收到这两项后，我会按 Visit 对象的当前字段配置创建记录，并把 Owner 设为确认后的那个人。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "指定负责人未找到不偷偷采用当前用户 fallback"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "d73c1942-5aa7-47ab-93a9-0921f4efdd52",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-explicit-owner-unresolved/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "负责人王经理没有匹配，两版均无 SDK 写入；没有偷偷改为当前用户。新版仍有多余基础资料问题及重复查询。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "负责人王经理没有匹配，两版均无 SDK 写入；没有偷偷改为当前用户。新版仍有多余基础资料问题及重复查询。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "explicit-owner-unresolved",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 15,
+        "finalPayloads": [],
+        "reply": "这条拜访还没有创建。系统在 CRM 用户中按姓名查询后，没有匹配到「王经理」（0 个候选），因此我无法确定记录归属于哪一位真实的用户。负责人字段只能写入唯一解析出的用户，不能直接填人名，也不能在未确认的情况下改成平台默认负责人（也就是当前用户）。\n\n请补充以下信息，我会一次性建好并指派：\n\n- 王经理的完整姓名、工号或登录邮箱（任一能唯一定位的信息）\n- 拜访对象：客户或联系人\n- 拜访日期或时间段\n- 拜访目的或主题\n\n如果「王经理」就是你，或者先按默认负责人创建，也请直接说明。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "指定负责人未找到不偷偷采用当前用户 fallback"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "ab0b3083-4954-4361-b420-d3160ee5863a",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-explicit-owner-unresolved/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "负责人王经理没有匹配，两版均无 SDK 写入；没有偷偷改为当前用户。新版仍有多余基础资料问题及重复查询。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "负责人王经理没有匹配，两版均无 SDK 写入；没有偷偷改为当前用户。新版仍有多余基础资料问题及重复查询。"
+        },
+        "qualityLimitations": [
+          "额外基础信息问题与重复读仍可减少。"
+        ],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "includeFields": true,
+              "fieldLimit": 300
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000001AAA",
+              "draftFields": {
+                "Name": "客户拜访",
+                "OwnerId": "王经理"
+              },
+              "refinement": 1
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "User",
+              "includeFields": true,
+              "fieldLimit": 100
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "record-type-resolved",
+      "before": {
+        "id": "record-type-resolved",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000002AAA",
+              "fields": {
+                "Summary__c": "本次回访客户样品测试进展，样品仍在测试。"
+              }
+            }
+          }
+        ],
+        "reply": "已完成创建。\n\n- 记录类型：售后回访\n- 摘要：本次回访客户样品测试进展，样品仍在测试。\n\n已保存到 Salesforce，并已回读确认，记录类型与摘要均正确。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "从任务可合理确定类型，不固定问；先获取选定类型字段再写入"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "bb14236e-5705-4323-a452-371355fcee1a",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-record-type-resolved/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "任务售后回访对应真实候选 ID 012000000000002AAA；先获取选定类型上下文再 CREATE，未询问类型；旧版此样本也已能正确处理。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "任务售后回访对应真实候选 ID 012000000000002AAA；先获取选定类型上下文再 CREATE，未询问类型；旧版此样本也已能正确处理。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Summary__c": "本次回访客户样品测试进展，样品仍在测试。",
+              "RecordTypeId": "012000000000002AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000002AAA"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "record-type-resolved",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 1,
+        "toolCallCount": 5,
+        "finalPayloads": [
+          {
+            "name": "create_record",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "recordTypeId": "012000000000002AAA",
+              "fields": {
+                "Summary__c": "本次回访了解客户样品测试进展，样品仍在测试。"
+              }
+            }
+          }
+        ],
+        "reply": "已创建 **售后回访** 记录。\n\n- 记录类型：售后回访\n- 回访总结：本次回访了解客户样品测试进展，样品仍在测试。\n\n已回读确认：记录存在，类型与总结一致。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "从任务可合理确定类型，不固定问；先获取选定类型字段再写入"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "af753dcc-8806-4204-becc-93405efc96ae",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-record-type-resolved/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "任务售后回访对应真实候选 ID 012000000000002AAA；先获取选定类型上下文再 CREATE，未询问类型；旧版此样本也已能正确处理。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "任务售后回访对应真实候选 ID 012000000000002AAA；先获取选定类型上下文再 CREATE，未询问类型；旧版此样本也已能正确处理。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [
+          {
+            "operation": "CREATE",
+            "objectApiName": "Visit__c",
+            "fields": {
+              "Summary__c": "本次回访了解客户样品测试进展，样品仍在测试。",
+              "RecordTypeId": "012000000000002AAA"
+            }
+          }
+        ],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000002AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "record-type-ambiguous",
+      "before": {
+        "id": "record-type-ambiguous",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 3,
+        "finalPayloads": [],
+        "reply": "“拜访”记录有两种记录类型，请先确认创建哪一种：\n\n1. 售前拜访\n2. 售后回访\n\n告诉我选 1 或 2 即可；选定后，我会再按该类型的必填项和你确认具体信息。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "无业务含义线索且无适用默认时才问类型"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "2fce1454-6285-4750-8f33-35474307d4c1",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/before-record-type-ambiguous/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "无适用默认或任务线索，询问售前/售后且无 DML；新版同轮另问客户、日期、主题，缺少当前字段必填证据，记为质量缺口。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "无适用默认或任务线索，询问售前/售后且无 DML；新版同轮另问客户、日期、主题，缺少当前字段必填证据，记为质量缺口。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "record-type-ambiguous",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 1,
+        "mutationCount": 0,
+        "toolCallCount": 6,
+        "finalPayloads": [],
+        "reply": "我需要先确认几个关键信息，才能为你创建拜访记录：\n\n1. 记录类型：售前拜访，还是售后回访？两种都可用，系统没有默认类型。\n2. 客户或拜访对象是谁？\n3. 拜访时间是什么时候？\n4. 拜访主题或纪要要点是什么？\n\n另外说明一下：当前环境没有返回 Visit__c 的字段清单（合成测试资料），拿到上述信息后，我会按实际可用的字段核对必填项，再提交创建。目前尚未创建任何记录。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "无业务含义线索且无适用默认时才问类型"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "999d6050-fbde-4e3e-9d74-40e433034c15",
+        "model": "deepseek-flash",
+        "batch": "common",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-record-type-ambiguous/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "无适用默认或任务线索，询问售前/售后且无 DML；新版同轮另问客户、日期、主题，缺少当前字段必填证据，记为质量缺口。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "无适用默认或任务线索，询问售前/售后且无 DML；新版同轮另问客户、日期、主题，缺少当前字段必填证据，记为质量缺口。"
+        },
+        "informationItems": 4,
+        "qualityLimitations": [
+          "同轮三个额外基础信息问题无字段必填证据。"
+        ],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Visit__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000001AAA"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Visit__c",
+              "action": "CREATE",
+              "recordTypeId": "012000000000002AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "diagnosis-business",
+      "before": {
+        "id": "diagnosis-business",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 0,
+        "toolCallCount": 15,
+        "finalPayloads": [],
+        "reply": "**结论**：这张订单反复同步失败，原因是记录级的数据与映射问题，并非客户主数据问题，也不是普遍性的平台故障。直接信号是：订单 SO-TEST-001 携带的外部编码 **ZQ-17 没有可识别的含义（externalCodeMeaning 为空）**，同步时无法把客户或收货方对应到主数据，因此每次重试都卡在同一步。\n\n**支持证据**\n- 报错：“客户或收货方资料未识别”，观测时间 2026-10-20 10:30。\n- 本单外部编码：ZQ-17；externalCodeMeaning 为 null，即该编码在系统里没有解析出对应含义。\n- 对照订单 SO-TEST-002：与 SO-TEST-001 属于同一客户（sameCustomer=true），同步成功。这说明客户主数据本身没有问题，可以排除“客户资料缺失”这一解释。\n- 两单的差异只在“订单类型”和“产品分组”，说明本单走的是另一条同步映射或规则分支。\n\n**推断（需人工核实）**\n- 客户侧已被对照订单排除，问题更可能出在“收货方”一侧：ZQ-17 可能是收货方或客户的外部编码，而在外部编码对照表、客户收货方映射中，它缺失、失效或未启用，导致同步无法识别。\n- 错误多次重复且内容一致，更像是固定的数据不匹配，也就是映射缺失或失效，而不像偶发的异步作业异常。\n\n**证据边界**\n- 我尝试读取该订单和对照订单的业务记录、平台诊断和 Apex 日志，但当前环境返回的是合成测试资料，没有字段级明细和同步作业日志。\n- 平台诊断最多回看 168 小时，从今天 11:31 往前只能到 10-20 11:31 左右，覆盖不到 10-20 10:30 这个失败点；Apex 日志只有约 24 小时窗口，更早的失败无法回溯。\n- 因此，“具体是哪张映射表缺了 ZQ-17”目前是推断，还不能算已证实的字段级结论。\n\n**建议下一步（只读核查）**\n1. 在外部编码或客户收货方对照表中查 ZQ-17：记录是否存在、是否启用、含义字段是否为空。\n2. 对比 SO-TEST-002 使用的编码，以及它的订单类型和产品分组，确认它走的是哪条同步规则。\n3. 补齐或修正映射后再重跑同步；在映射修好之前，重复重试不会成功。\n\n如果你能提供首次失败时间和同步作业名称，我可以进一步把时间线与具体变更或作业对齐。",
+        "semanticReview": "REQUIRED",
+        "reviewCriteria": [
+          "使用业务标签、单号与处理方，不固定展示字段 API/代码/分类",
+          "不因成功对照单断言当前客户主数据完全正常，不把差异宣布根因",
+          "未知 SAP 代码不编造翻译；允许多种忠实表达"
+        ],
+        "businessAcceptance": "NOT_VERIFIED",
+        "runId": "c35862c1-880f-4774-b343-7b2291f39177",
+        "model": "deepseek-flash",
+        "batch": "diagnosis",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/c2-diagnosis-runs/states/before-diagnosis-business/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版保留订单单号和客户/收货方业务说明；成功对照单仅限那次交易条件，差异为待查条件；ZQ-17 只说本轮未取得含义。旧版明确排除客户主数据、把 null 当系统映射缺失并锁定差异，超出证据。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版保留订单单号和客户/收货方业务说明；成功对照单仅限那次交易条件，差异为待查条件；ZQ-17 只说本轮未取得含义。旧版明确排除客户主数据、把 null 当系统映射缺失并锁定差异，超出证据。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Order__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Order__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          },
+          {
+            "name": "resolve_field_display_values",
+            "arguments": {
+              "objectApiName": "Order__c",
+              "values": [
+                {
+                  "fieldApiName": "External_Code__c",
+                  "rawValue": "ZQ-17"
+                },
+                {
+                  "fieldApiName": "Sync_Status__c",
+                  "rawValue": "同步失败"
+                },
+                {
+                  "fieldApiName": "Order_Type__c",
+                  "rawValue": "ZQ-17"
+                }
+              ]
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "External_Code__c"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Sync_Log__c"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Integration_Log__c"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Order_Product__c"
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "diagnosis-business",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 0,
+        "toolCallCount": 8,
+        "finalPayloads": [],
+        "reply": "**结论**\n\nSO-TEST-001 的同步失败信息是「客户或收货方资料未识别」，记录时间为 2026-10-20 10:30。问题出在客户/收货方资料的识别环节，但**目前还不能确定具体是客户还是收货方、哪个字段或哪条映射规则导致的**。\n\n**已确认的事实**\n\n- 订单记录存在，单号为 SO-TEST-001，错误原文是「客户或收货方资料未识别」。\n- 同客户订单 SO-TEST-002 是「同步成功」，但它的订单类型、产品分组与 SO-TEST-001 不同。\n- 资料没有说明 SO-TEST-002 与 SO-TEST-001 是否使用同一个收货方。\n- 外部编码 ZQ-17 在本次资料中没有含义或映射，无法翻译，也不能据此判断故障原因。\n\n**对现有信息的判断**\n\n- SO-TEST-002 成功，只能说明「该客户 + 那次订单类型/产品分组」这个组合曾同步成功，**不能证明客户及收货方主数据全部正常**；如果两张单收货方不同，收货方资料仍是重点排查对象。\n- 订单类型、产品分组不同，可能是不同的同步规则或校验条件，但目前只是**待查条件，不是已证实的根因**。\n- 错误提示表明，同步时没能在目标系统中唯一匹配到客户或收货方资料，这属于合理推断，仍需当时的请求和映射结果来验证。\n\n**证据缺口**\n\n- 本轮没有取得该订单的字段明细，也没有 2026-10-20 的接口或 Apex 日志（现有 Apex 日志最多回溯 24 小时），因此无法定位到具体字段或代码。\n- 现有资料只记录了一次错误文本，不能证明每次失败的报错都完全一致。\n\n**建议下一步**\n\n1. 请订单/业务同事核对 SO-TEST-001 与 SO-TEST-002 的客户编码、收货方编码及地址、订单类型、产品分组，先确认两张单的收货方是否相同，以及失败单的客户/收货方资料是否为空、使用了旧编码或别名。\n2. 请集成/SAP 接口负责人查 ZQ-17 在接口映射表中的真实含义，并调取 2026-10-20 10:30 前后的同步请求和响应日志，确认到底是客户还是收货方未匹配、适用的是哪条匹配规则。\n3. 如需复现，请管理员先开启同步用户的跟踪，再重试一次 SO-TEST-001，然后读取日志；这样才能定位到具体环节。重复重试前建议先保存失败请求内容，避免覆盖现场。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "使用业务标签、单号与处理方，不固定展示字段 API/代码/分类",
+          "不因成功对照单断言当前客户主数据完全正常，不把差异宣布根因",
+          "未知 SAP 代码不编造翻译；允许多种忠实表达"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "dcf83c57-21c9-40c5-873c-a76901cd3833",
+        "model": "deepseek-flash",
+        "batch": "diagnosis",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/c2-diagnosis-runs/states/after-diagnosis-business/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "新版保留订单单号和客户/收货方业务说明；成功对照单仅限那次交易条件，差异为待查条件；ZQ-17 只说本轮未取得含义。旧版明确排除客户主数据、把 null 当系统映射缺失并锁定差异，超出证据。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "新版保留订单单号和客户/收货方业务说明；成功对照单仅限那次交易条件，差异为待查条件；ZQ-17 只说本轮未取得含义。旧版明确排除客户主数据、把 null 当系统映射缺失并锁定差异，超出证据。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Order__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Order__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "diagnosis-technical",
+      "before": {
+        "id": "diagnosis-technical",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 0,
+        "toolCallCount": 15,
+        "finalPayloads": [],
+        "reply": "沿用上一题的结论，这一轮只展开技术细节并核对证据。先界定范围：本次运行连接的是合成测试夹具（fixture），并非可读取真实数据的 live org。工具自己返回了 `Synthetic mock fixture; no Salesforce identity or live metadata.`，因此字段值、Apex 源码和日志正文都拿不到。下面严格区分“已证实”“推断”“未知”。\n\n**一、已证实的事实**\n\n- 对象：`Order__c`（业务标签「订单」），订单号 `SO-TEST-001`。\n- 记录：查询返回唯一 Id `a01000000000001AAA`（fixture 值，仅用于技术复核）。\n- 时间：`2026-10-20T10:30:00+08:00`，即 `2026-10-20T02:30:00Z`。\n- 异常位置：Apex 类 `SyncOrderHandler`，`logLine: 84`。\n- 错误原文：`客户或收货方资料未识别`。\n- 涉及字段 API 名：`Customer__c`、`ShipTo__c`。\n- 外部代码：`ZQ-17`；`externalCodeMeaning: null`（没有解析出含义）。\n\n本次实际读取到的结果也一并列出：\n\n- `describe_sobject(Order__c)`：`totalFields: 0`、`returnedFields: 0`、`custom: false`、`keyPrefix: null`。真实的自定义对象不应是这个形态，说明元数据没有加载。\n- `describe_sobject(Account)`：同样 `totalFields: 0`。真实 Account 不可能只有 0 个字段，进一步说明当前连接的是 mock。\n- 对 `Order__c` 的 SOQL：只返回 `[{\"Id\":\"a01000000000001AAA\"}]`，`currentValues: {}`，没有 `Customer__c`/`ShipTo__c` 的值。\n- `get_apex_logs`（近 1440 分钟）：没有返回 `logs`、`totalCount`、`observedStatuses`。这不能理解为“0 条日志”的标准空结果，只能理解为该日志来源在本次 mock 中未提供。\n- `get_platform_diagnostics`（168 小时，三节）：没有返回 `sections`/status。不能以此得出“平台无异常”的结论。\n- `get_record_action_context`（CREATE/UPDATE）：`fields: []`，`warnings` 明确写着 `Synthetic mock fixture; no Salesforce identity or live metadata.`\n\n**二、技术细节（推断层，不是已证实）**\n\n1. `SyncOrderHandler` 是订单同步处理器，典型执行链是：接收外部订单 → 用客户/收货方外部代码解析主数据 → 把解析出的记录 Id 写入 `Order__c.Customer__c` 与 `ShipTo__c` → upsert。\n2. 这次解析没有拿到唯一有效目标。可能是 `ZQ-17` 在映射表中缺行、`meaning` 为空、匹配到 0 条或多条、或目标记录被删除/不可见。\n3. 第 84 行是防御分支或抛出点，不等于根因行。错误文本是中文业务消息，更像解析失败后的显式 `throw`（自定义异常或 `AuraHandledException`），而不是系统 `NullPointerException` 或 `Invalid id`。不过异常类型还没有日志正文可以确认。\n4. 若异常未被捕获，同步事务会回滚，订单不会以“客户为空”的半成品状态提交；若被捕获，则可能只留下失败标记。两种行为取决于源码，目前未知。\n5. `externalCodeMeaning: null` 是当前最强线索：如果 handler 依赖 meaning 来决定客户/收货方，映射为空就会直接导致“未识别”。但“依赖 meaning”这一点没有代码证据，只能算推断。\n6. `Customer__c`/`ShipTo__c` 到底是 Lookup、Text(External ID) 还是 Formula，describe 没有返回字段类型。不同形态对应不同失败机制：Lookup 是 Id 解析/删除引用问题，Text 是外部编码匹配问题，Formula 是源字段为空问题。类型未确认前，不能把某一种机制当成结论。\n\n**三、候选根因（按证据强度排序）**\n\n1. **外部代码映射缺失或为空（最强）**：`ZQ-17` 查不到映射，或映射行存在但 `externalCodeMeaning` 为空。需要读取映射对象或自定义元数据中 `ZQ-17` 的记录，确认 key、meaning、启用状态，以及客户/收货方 Lookup 是否为空。\n2. **订单字段为空或 Lookup 无效（次强）**：`Customer__c` 或 `ShipTo__c` 为 null、指向已删除记录、或被 Lookup Filter 排除。需要读取订单原值及引用对象。\n3. **权限或共享限制（较弱）**：运行身份对客户/收货方对象无读权限，或记录级共享限制导致解析查询为空。同步一般用集成用户或系统上下文，可能性低于前两项，但需 `explain_field_access` 排除。\n4. **数据质量或唯一性问题**：外部代码对应多条主数据，解析无法确定唯一目标。需要有重复键的计数证据，目前没有。\n\n**四、要钉死根因，还差哪些证据**\n\n- 源码：`SELECT Id, Name, Body, SymbolTable FROM ApexClass WHERE Name = 'SyncOrderHandler'`（Tooling API），重点读第 70–95 行，确认第 84 行是哪个条件或哪次解引用；`SymbolTable` 可把行号映射到具体方法。\n- 订单值：`SELECT Id, Name, Customer__c, Customer__r.Name, ShipTo__c, ShipTo__r.Name FROM Order__c WHERE Id = 'a01000000000001AAA'`（关系名先 describe 确认）。\n- 映射：读取 `ZQ-17` 对应的外部代码或映射记录，区分“缺行”与“有行但 `meaning` 为空”。\n- 日志：读取 `2026-10-20 10:30 +08` 对应的 `ApexLog`。但 `get_apex_logs` 最大只能回看 24 小时，而且 trace 只对开启之后的执行生效，7 天前的这次执行无法靠新 trace 回溯，只能看日志保留或归档。\n- 变更：读取 `SetupAuditTrail` 在 `2026-10-20 09:30–10:30 +08` 的条目。`get_platform_diagnostics` 最大 168 小时；从今天 11:31 往前只到 10-20 11:31，比 10:30 晚 1 小时 1 分，正好覆盖不到。\n- 权限：`explain_field_access` 查 `Order__c.Customer__c`、`ShipTo__c` 及目标主数据对象；本次连接没有暴露该工具。\n\n**五、结论边界与下一步**\n\n能确认的是：`SyncOrderHandler` 第 84 行在客户/收货方解析失败时抛出「客户或收货方资料未识别」；`ZQ-17` 的 `externalCodeMeaning` 为空是最高优先级线索。不能确认的是：具体空的是哪个字段、映射表是否有 `ZQ-17` 行、异常类型与完整堆栈、是否已产生部分写入。\n\n目前最准确的说法是：“解析失败发生在第 84 行的判定/抛出点，根因在上游的客户/收货方解析；`ZQ-17` 含义为空是强候选，但还不是已证实的根因。”\n\n如果要继续，建议先做两件事：读 `SyncOrderHandler` 第 70–95 行源码，确认第 84 行到底判断什么；再读 `SO-TEST-001` 的 `Customer__c`/`ShipTo__c` 原值，确认实际空在哪。这两条到手，根因才能从推断升级为证据。另需注意：在不知道是否已部分提交、是否幂等之前，不建议直接重跑同步，避免重复订单或重复更新。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "明确技术受众时保留准确 API、fullName、日志行与错误原值，证据范围与业务诊断相同"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "e8d859e8-1e2c-4ff5-ab3d-fe3ee7f7e7ee",
+        "model": "deepseek-flash",
+        "batch": "diagnosis",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/c2-diagnosis-runs/states/before-diagnosis-technical/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "明确技术请求下保留给定 SyncOrderHandler/84、Customer__c/ShipTo__c、ZQ-17；说明来源为合成上下文，未取得源码/字段值/日志正文，不把候选假设当已证实根因。仍有冗长假设和无收益查询。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "明确技术请求下保留给定 SyncOrderHandler/84、Customer__c/ShipTo__c、ZQ-17；说明来源为合成上下文，未取得源码/字段值/日志正文，不把候选假设当已证实根因。仍有冗长假设和无收益查询。"
+        },
+        "qualityLimitations": [],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Order__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Order__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Account",
+              "fieldLimit": 50
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Order__c",
+              "action": "CREATE",
+              "draftFields": {
+                "Customer__c": "ZQ-17",
+                "ShipTo__c": "ZQ-17"
+              }
+            }
+          }
+        ]
+      },
+      "after": {
+        "id": "diagnosis-technical",
+        "evidence": "MODEL_CAPTURE",
+        "deterministic": "PASS",
+        "failures": [],
+        "questions": 0,
+        "mutationCount": 0,
+        "toolCallCount": 12,
+        "finalPayloads": [],
+        "reply": "先给出结论：这一步能展开的技术细节，只能到任务资料和工具返回结果里给出的原始值。本轮所有 SFOA 工具返回的都是同一份合成测试数据（`synthetic: true`），其中 `get_record_action_context` 的 `coverage.warnings` 原文为 **“Synthetic mock fixture; no Salesforce identity or live metadata.”**。因此，下面会把「已核实」和「推断」严格分开，不把推测写成代码或字段事实。\n\n**一、已核实的原始证据（逐字保留）**\n\n- 对象：`Order__c`（业务标签：订单）\n- 订单号：`SO-TEST-001`\n- 发生时间：`2026-10-20T10:30:00+08:00`\n- 错误原文：`客户或收货方资料未识别`\n- 代码位置：Apex 类 `fullName = SyncOrderHandler`，`logLine = 84`\n- 涉及字段 API：`Customer__c`、`ShipTo__c`\n- 外部代码：`ZQ-17`；`externalCodeMeaning = null`（本轮未取得含义，不能翻译或猜测）\n- 查询返回的记录 Id：`a01000000000001AAA`（只有 Id，没有字段值）\n\n**二、本轮取证过程与返回结果**\n\n1. `describe_sobject(Order__c)`：`totalFields=0`、`fields=[]`，同时返回 `custom=false`、`keyPrefix=null`、`label=Order__c`。这与真实自定义对象 Schema 的特征不一致，说明返回的是测试数据，不是真实组织元数据；`Customer__c` / `ShipTo__c` 的数据类型、`referenceTo`（指向 Account 还是其它对象）、是否必填、Lookup Filter 均未取得。\n\n2. 通过 `query_records` 和 `run_soql_query` 查询 `WHERE Name='SO-TEST-001'`：两条路径都只返回 1 条记录，且只有 Id `a01000000000001AAA`；`Customer__c`、`ShipTo__c`、`Customer__r.Name`、`ShipTo__r.Name` 均未出现在返回结果中，`currentValues={}`。因此无法判断“客户或收货方资料未识别”是字段为空、Lookup 指向无效记录，还是查询条件未匹配到。\n\n3. 用 Tooling API 查询 `ApexClass`：`SELECT Id, Name, ApiVersion, Status, LengthWithoutComments, Body FROM ApexClass WHERE Name='SyncOrderHandler'` 返回的仍是同一份场景数据，没有 `ApexClass` 行，也没有 `Body`。因此 `SyncOrderHandler` 第 84 行源码未取得，无法确认该行到底做了哪种判断。\n\n4. `get_apex_logs`：把时间窗口设到工具上限 1440 分钟（24 小时），返回结果中没有日志条目；而故障发生在 2026-10-20 10:30，距当前 2026-10-27 11:34 已约 6 天，远超该窗口。因此不能据此说“当时没有异常日志”，只能说明本次日志工具无法回溯到事发时。\n\n5. `get_platform_diagnostics`：我使用了最大 `windowHours=168`，最早只能覆盖到 2026-10-20 11:34，比故障时间 10:30 晚约 1 小时 4 分；并且返回中没有 `sections` / `timeline` 条目。因此未取得 Setup Audit Trail、异步作业失败、计划任务在事发前后的证据。\n\n6. `get_record_action_context(UPDATE, a01000000000001AAA)`：`fields=[]`、`returnedFields=0`；只返回一个 `recordType`：`012000000000001AAA`，名称为“适用业务类型”；同时明确给出上述 synthetic mock fixture 警告。这进一步说明本轮没有真实 Salesforce 身份、权限或字段级元数据可用。\n\n**三、能下的有限技术判断**\n\n- 错误“客户或收货方资料未识别”是业务级自定义提示，说明处理逻辑在 `SyncOrderHandler` 第 84 行对客户/收货方做识别时主动终止。这是根据错误文案作出的推断，不是已读代码。\n- 可能的技术分支（均未验证，不能选一个当根因）：`Customer__c` / `ShipTo__c` 为空；Lookup 指向已删除、停用或归档记录；外部编码 `ZQ-17` 未匹配到唯一主数据；Lookup Filter 或 Record Type 限制使查询返回 0 行；运行用户缺少目标对象/字段权限导致查询结果为空。\n- 订单记录本身存在（Id `a01000000000001AAA`），但无法确认 `Customer__c` / `ShipTo__c` 是否有值、指向哪条记录。\n\n**四、要真正展开，需要这些准确证据**\n\n- 真实环境中该订单的：`Customer__c`、`ShipTo__c` 原值，`Customer__r.Name`、`ShipTo__r.Name`，`RecordType.Name`，以及 `CreatedById` / `LastModifiedById`。\n- `SyncOrderHandler` 第 78–90 行源码、`ApiVersion`、`Status`（通过 Tooling API 的 `ApexClass.Body`）。\n- 2026-10-20 10:30 前后的 Debug Log：需要当时已开 `TraceFlag`；Apex 日志保留期短，当前无法回溯。下次复现前先开 trace，并记录 `RequestId`。\n- 平台时间线：Setup Audit Trail、`AsyncApexJob` 失败、Scheduled Job 在 10-20 10:00–11:00 的记录；当前工具最大 168 小时窗口已经覆盖不到 10:30。\n- `ZQ-17` 的来源系统映射表：当前 `externalCodeMeaning=null`，本轮尚未取得，不能靠猜补全。\n\n处理方建议：第 84 行逻辑找 Salesforce 开发/管理员；订单上的客户与收货方主数据找业务录入或集成方；`ZQ-17` 映射找集成/主数据负责人。本轮是合成测试数据，结论不能当作真实 UAT 组织的现状证据。",
+        "semanticReview": "REVIEWED",
+        "reviewCriteria": [
+          "明确技术受众时保留准确 API、fullName、日志行与错误原值，证据范围与业务诊断相同"
+        ],
+        "businessAcceptance": "PASS",
+        "runId": "06b11418-3714-4dcf-a533-d967ed539d88",
+        "model": "deepseek-flash",
+        "batch": "diagnosis",
+        "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/c2-diagnosis-runs/states/after-diagnosis-technical/logs/cache-trace.jsonl",
+        "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+        "reviewEvidence": "明确技术请求下保留给定 SyncOrderHandler/84、Customer__c/ShipTo__c、ZQ-17；说明来源为合成上下文，未取得源码/字段值/日志正文，不把候选假设当已证实根因。仍有冗长假设和无收益查询。",
+        "scopeReview": {
+          "verdict": "PASS",
+          "evidence": "明确技术请求下保留给定 SyncOrderHandler/84、Customer__c/ShipTo__c、ZQ-17；说明来源为合成上下文，未取得源码/字段值/日志正文，不把候选假设当已证实根因。仍有冗长假设和无收益查询。"
+        },
+        "qualityLimitations": [
+          "技术解释仍偏长，曾尝试无新增信息的查询；未证明源码/关系定义已取得。"
+        ],
+        "sdkDispatches": [],
+        "relevantReads": [
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Order__c"
+            }
+          },
+          {
+            "name": "get_record_action_context",
+            "arguments": {
+              "objectApiName": "Order__c",
+              "action": "UPDATE",
+              "recordId": "a01000000000001AAA"
+            }
+          },
+          {
+            "name": "describe_sobject",
+            "arguments": {
+              "objectApiName": "Customer__c"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "retainedCommonIteration": [
+    {
+      "id": "diagnosis-business",
+      "evidence": "MODEL_CAPTURE",
+      "deterministic": "PASS",
+      "failures": [],
+      "questions": 0,
+      "mutationCount": 0,
+      "toolCallCount": 15,
+      "finalPayloads": [],
+      "reply": "**结论**：目前只能确认同步失败发生在“客户或收货方资料未识别”这一环节，还不能确定具体是哪一项资料或哪条映射出了问题。同客户订单 SO-TEST-002 曾同步成功，但这只说明该客户组合在**那一单的订单类型和产品分组条件下**可行，不能据此断定当前订单的客户主数据没有问题，也不能把订单类型、产品分组差异直接当作已证实的根因。\n\n**已确认事实**\n- SO-TEST-001：2026-10-20 10:30 左右同步失败，错误为「客户或收货方资料未识别」，多次结果一致。\n- SO-TEST-002：同一客户，状态为“同步成功”；与 SO-TEST-001 的差异是订单类型、产品分组。\n- 外部代码 ZQ-17：当前没有可用的含义或映射说明，不能猜测它代表客户、收货方或其他资料。\n\n**倾向判断（待验证）**\n- 多次报同样的错，更像每次都会命中的资料或映射校验问题，而不是偶发的网络异常。\n- 优先核对订单上的客户编码、收货方编码是否缺失或无效，以及 ZQ-17 在客户/收货方映射表中是否有对应且生效的记录。\n- 订单类型、产品分组不同可能触发不同的客户或收货方校验规则，但这只是待查条件，目前没有日志证明它是根因。\n\n**建议下一步**\n1. 订单维护人打开 SO-TEST-001，核对客户与收货方字段：是否有值、是否与客户主数据一致，重点看收货方是否为空或填了外部代码。\n2. 集成管理员查 ZQ-17 在客户/收货方映射表中的定义与生效状态，并调取 2026-10-20 10:30 前后的同步日志或接口报文，确认报错具体对应哪个字段或哪条映射。\n3. 对比 SO-TEST-002 的订单类型、产品分组及对应映射规则，确认当前订单是否走了不同的校验分支。\n\n当前诊断接口只返回了这条失败摘要，没有可用的同步日志或异常堆栈，因此原因还停留在“待验证”。要确认根因，需要补充上述字段核对结果和同步日志。",
+      "semanticReview": "REVIEWED",
+      "reviewCriteria": [
+        "使用业务标签、单号与处理方，不固定展示字段 API/代码/分类",
+        "不因成功对照单断言当前客户主数据完全正常，不把差异宣布根因",
+        "未知 SAP 代码不编造翻译；允许多种忠实表达"
+      ],
+      "businessAcceptance": "NOT_VERIFIED",
+      "runId": "195fb695-fb29-4691-b668-777f8d18b1d4",
+      "model": "deepseek-flash",
+      "batch": "common",
+      "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-diagnosis-business/logs/cache-trace.jsonl",
+      "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+      "reviewEvidence": "新版保留订单单号和客户/收货方业务说明；成功对照单仅限那次交易条件，差异为待查条件；ZQ-17 只说本轮未取得含义。旧版明确排除客户主数据、把 null 当系统映射缺失并锁定差异，超出证据。",
+      "scopeReview": {
+        "verdict": "FAIL",
+        "evidence": "旧迭代声称多次结果一致；fixture只提供一份摘要，重复工具返回不构成独立历史证据。已在诊断补充规则后重测。"
+      },
+      "qualityLimitations": [],
+      "sdkDispatches": [],
+      "relevantReads": [
+        {
+          "name": "describe_sobject",
+          "arguments": {
+            "objectApiName": "Order__c"
+          }
+        },
+        {
+          "name": "describe_sobject",
+          "arguments": {
+            "objectApiName": "Order__c",
+            "includeFields": true,
+            "fieldLimit": 1000
+          }
+        },
+        {
+          "name": "describe_sobject",
+          "arguments": {
+            "objectApiName": "Account",
+            "includeFields": false
+          }
+        },
+        {
+          "name": "get_record_action_context",
+          "arguments": {
+            "objectApiName": "Order__c",
+            "action": "UPDATE",
+            "recordId": "a01000000000001AAA"
+          }
+        },
+        {
+          "name": "resolve_field_display_values",
+          "arguments": {
+            "query": "ZQ-17",
+            "objectApiName": "Order__c"
+          }
+        }
+      ]
+    },
+    {
+      "id": "diagnosis-technical",
+      "evidence": "MODEL_CAPTURE",
+      "deterministic": "PASS",
+      "failures": [],
+      "questions": 0,
+      "mutationCount": 0,
+      "toolCallCount": 20,
+      "finalPayloads": [],
+      "reply": "结论：能确认的是一条**自定义订单同步异常**及其定位信息，但不能确认根因。本次所有只读工具返回的都是 `synthetic: true` 的合成 mock 固定数据：`currentValues` 为空、`fields` 为空、`candidates` 为空，没有实际字段值、Apex 日志正文或字段元数据。\n\n**一、已确认的原始技术事实**\n- 对象 API：`Order__c`（业务标签：订单）\n- 订单号：`SO-TEST-001`\n- 记录 Id：`a01000000000001AAA`\n- 发生时间：`2026-10-20T10:30:00+08:00`\n- 错误原文：「客户或收货方资料未识别」\n- Apex 定位：`fullName = SyncOrderHandler`，`logLine = 84`\n- 涉及字段 API：`Customer__c`、`ShipTo__c`\n- 外部编码：`ZQ-17`；`externalCodeMeaning = null`，未提供映射含义，不能翻译成具体客户或收货方\n\n**二、本次工具实际取证结果**\n- `describe_sobject(Order__c)`：`success=true`、`queryable=true`、`updateable=true`；但 `totalFields=0`、`fields=[]`，字段类型、是否必填、`referenceTo` 均未返回。\n- `run_soql_query` / `query_records`：只返回 `records=[{Id: a01000000000001AAA}]`，`currentValues={}`、`candidates=[]`；`Customer__c`、`ShipTo__c` 的实际值、Lookup Id、是否为 null 都没有返回。\n- `get_apex_logs`：`candidates=[]`，没有可用的 ApexLog 记录、LogId 或日志正文。\n- `get_debug_log_body`：没有日志正文，只返回同一个 synthetic 证据块。\n- `get_platform_diagnostics`：没有异步失败、计划任务或变更时间线数据。\n- `get_record_action_context`（UPDATE/CREATE `Order__c`）：只返回 Record Type「适用业务类型」Id `012000000000001AAA`；`fields=[]`；warning 明确写着「Synthetic mock fixture; no Salesforce identity or live metadata.」\n\n**三、技术判断（推断，不是已核实）**\n- 「客户或收货方资料未识别」不是 Salesforce 标准错误码，也不是标准校验文案，更像是 `SyncOrderHandler` 第 84 行附近抛出的自定义业务异常。\n- 结合 `Customer__c` / `ShipTo__c` 两个字段，较可能的技术路径是：同步处理器用外部编码（可能包括 `ZQ-17`）或名称去匹配客户、收货方，未能匹配到唯一记录，于是抛出该错误。\n- 可能的失败形态包括：入站字段为空、外部编码不存在、匹配到多条、Lookup 过滤条件不满足、目标记录被删除或当前运行用户不可见；但**没有日志正文，无法确认是空指针、SOQL 零结果、多结果、DML 失败还是显式 throw**。\n- 也无法确认 `ZQ-17` 是客户编码还是收货方编码，或两者都不是。\n\n**四、要补全准确证据，需要以下材料**\n- 该时间点 `SyncOrderHandler` 的 ApexLog Id 或日志正文，重点看第 84 行前后的异常类型、堆栈和 SOQL 绑定变量。\n- `Order__c.Customer__c` 和 `Order__c.ShipTo__c` 的实际值、`referenceTo` 指向对象、Lookup Id 是否有效。\n- `ZQ-17` 对应的外部编码映射记录：编码类型、有效状态、唯一性。\n- 同客户其他订单的实际交易条件；不同订单类型或产品分组只能作为待查差异，不能直接当作已证实根因。\n- 若在真实环境，还需确认运行用户对这两个字段的 FLS 和记录可见性；当前 mock 返回不含身份与权限裁决。\n\n本次仅做诊断取证，没有创建或修改任何记录。以上范围只覆盖 `SO-TEST-001` 这一条给定错误上下文，不能外推为系统性问题。",
+      "semanticReview": "REVIEWED",
+      "reviewCriteria": [
+        "明确技术受众时保留准确 API、fullName、日志行与错误原值，证据范围与业务诊断相同"
+      ],
+      "businessAcceptance": "PASS",
+      "runId": "10eaa123-bf38-4a74-bd90-5b7422ac9eff",
+      "model": "deepseek-flash",
+      "batch": "common",
+      "contextEvidence": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/final-model-runs/states/after-diagnosis-technical/logs/cache-trace.jsonl",
+      "reviewer": "delivery Agent, independent of the evaluated model; no human acceptance claimed",
+      "reviewEvidence": "明确技术请求下保留给定 SyncOrderHandler/84、Customer__c/ShipTo__c、ZQ-17；说明来源为合成上下文，未取得源码/字段值/日志正文，不把候选假设当已证实根因。仍有冗长假设和无收益查询。",
+      "scopeReview": {
+        "verdict": "PASS",
+        "evidence": "明确技术请求下保留给定 SyncOrderHandler/84、Customer__c/ShipTo__c、ZQ-17；说明来源为合成上下文，未取得源码/字段值/日志正文，不把候选假设当已证实根因。仍有冗长假设和无收益查询。"
+      },
+      "qualityLimitations": [
+        "技术解释仍偏长，曾尝试无新增信息的查询；未证明源码/关系定义已取得。"
+      ],
+      "sdkDispatches": [],
+      "relevantReads": [
+        {
+          "name": "describe_sobject",
+          "arguments": {
+            "objectApiName": "Order__c"
+          }
+        },
+        {
+          "name": "get_record_action_context",
+          "arguments": {
+            "objectApiName": "Order__c",
+            "action": "UPDATE",
+            "recordId": "a01000000000001AAA"
+          }
+        },
+        {
+          "name": "describe_sobject",
+          "arguments": {
+            "objectApiName": "Order__c",
+            "fieldLimit": 1000
+          }
+        },
+        {
+          "name": "resolve_field_display_values",
+          "arguments": {
+            "query": "SELECT Id, Customer__c, ShipTo__c FROM Order__c WHERE Name = 'SO-TEST-001'",
+            "objectApiName": "Order__c"
+          }
+        },
+        {
+          "name": "get_record_action_context",
+          "arguments": {
+            "objectApiName": "Order__c",
+            "action": "CREATE"
+          }
+        }
+      ]
+    }
+  ],
+  "providerInputProof": [
+    {
+      "variant": "before",
+      "id": "visit-material",
+      "runId": "34f74539-f2c5-4d58-81de-131fa3b05cee",
+      "requestCount": 6,
+      "traceSha256": "f55ddbf17a609272b49d07b26aeee4da44c85bd4cd1048e22beeb5a870a8f258",
+      "lastRequest": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "index": 0,
+            "role": "system",
+            "bytes": 19300,
+            "sha256": "cc6c526ce22297307ab4349264ef7a47eadf70c4757dab4d2199db87fa97fa68",
+            "clipped": false
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "bytes": 1034,
+            "sha256": "b48fcf8ee9e6f46d3e954eba72d2feda77846c70f7f30849f90f1d6238a68615",
+            "clipped": false
+          },
+          {
+            "index": 2,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 3,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 6051,
+            "sha256": "bc5de86f4759d6f6153459c69233f3647a52b2a411e25f24c465b700d9b6b679",
+            "clipped": false,
+            "skillRead": "sfoa-crm-core"
+          },
+          {
+            "index": 4,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 17153,
+            "sha256": "c12a9e482ce5239aa8c902ce386fa20730595a648ce312390d331f76f2ead4ae",
+            "clipped": false,
+            "skillRead": "sfoa-record-change"
+          },
+          {
+            "index": 5,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 6,
+            "role": "tool",
+            "tool": "sfoa-eval__get_agent_playbook",
+            "bytes": 39141,
+            "sha256": "7059091bfd6c3be5bc7b27aa916eb9ec195b861d0f6b9ed5a95118db9c76dbc7",
+            "clipped": false,
+            "guidanceBytes": 38858
+          },
+          {
+            "index": 7,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 2873,
+            "sha256": "6d8e7f04c03fe73ad80ac239b1a35f89c9c933016161cc77d4d3f045dea94a5d",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Summary__c",
+                "label": "拜访总结",
+                "helpPresent": true,
+                "helpBytes": 30,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Requests__c",
+                "label": "客户诉求",
+                "helpPresent": true,
+                "helpBytes": 21,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Next_Plan__c",
+                "label": "后续计划",
+                "helpPresent": true,
+                "helpBytes": 45,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 3,
+              "truncated": false,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata."
+              ]
+            }
+          },
+          {
+            "index": 8,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 9,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 2242,
+            "sha256": "c51111ddf3ccef3c785aca9a1b540f08e94186f54c915b9403a9cf552513b1e6",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Summary__c",
+                "label": "拜访总结",
+                "helpPresent": true,
+                "helpBytes": 30,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Requests__c",
+                "label": "客户诉求",
+                "helpPresent": true,
+                "helpBytes": 21,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Next_Plan__c",
+                "label": "后续计划",
+                "helpPresent": true,
+                "helpBytes": 45,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              }
+            ]
+          },
+          {
+            "index": 10,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 11,
+            "role": "tool",
+            "tool": "sfoa-eval__create_record",
+            "bytes": 125,
+            "sha256": "6c4f577b3983c214531295c6f7685e61a7d6f1dba5e2f41edd3d4a71ba3e2e39",
+            "clipped": false
+          },
+          {
+            "index": 12,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 13,
+            "role": "tool",
+            "tool": "sfoa-eval__query_records",
+            "bytes": 659,
+            "sha256": "78da51c9d8b67eef2a8f1f7ac598d87c4a8798e45a209ba3e844918f5ddd859f",
+            "clipped": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": "before",
+      "id": "oversized-action-context",
+      "runId": "38ad5e92-1bc4-4891-806e-52c7896407a1",
+      "requestCount": 6,
+      "traceSha256": "a8a083382de2773ab7dd0d6203bd1fb53a9dde28e45f94ba8c5fba437bdae254",
+      "lastRequest": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "index": 0,
+            "role": "system",
+            "bytes": 19300,
+            "sha256": "cc6c526ce22297307ab4349264ef7a47eadf70c4757dab4d2199db87fa97fa68",
+            "clipped": false
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "bytes": 838,
+            "sha256": "cb29e827916c6347e2b6a0019ec22a655ecf87a7d15b81259ad836f8a6c3cdb9",
+            "clipped": false
+          },
+          {
+            "index": 2,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 3,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 6051,
+            "sha256": "bc5de86f4759d6f6153459c69233f3647a52b2a411e25f24c465b700d9b6b679",
+            "clipped": false,
+            "skillRead": "sfoa-crm-core"
+          },
+          {
+            "index": 4,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 17153,
+            "sha256": "c12a9e482ce5239aa8c902ce386fa20730595a648ce312390d331f76f2ead4ae",
+            "clipped": false,
+            "skillRead": "sfoa-record-change"
+          },
+          {
+            "index": 5,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 6,
+            "role": "tool",
+            "tool": "sfoa-eval__get_agent_playbook",
+            "bytes": 39141,
+            "sha256": "7059091bfd6c3be5bc7b27aa916eb9ec195b861d0f6b9ed5a95118db9c76dbc7",
+            "clipped": false,
+            "guidanceBytes": 38858
+          },
+          {
+            "index": 7,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 3396,
+            "sha256": "56a07196747482212f1c7b24dae9e9f696a8d96f97d416b68c7ceab55c4a832e",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Country",
+                "label": "公司国家",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "State",
+                "label": "公司省份",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City",
+                "label": "公司城市",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "fieldProjection": {
+                "omittedFields": 80,
+                "requestedFieldApiNames": [
+                  "Country",
+                  "State",
+                  "City",
+                  "Company",
+                  "LastName",
+                  "FirstName",
+                  "Status",
+                  "LeadSource",
+                  "Phone",
+                  "Email",
+                  "OwnerId",
+                  "RecordTypeId"
+                ],
+                "unresolvedFieldApiNames": [
+                  "Company",
+                  "LastName",
+                  "FirstName",
+                  "Status",
+                  "LeadSource",
+                  "Phone",
+                  "Email",
+                  "OwnerId",
+                  "RecordTypeId"
+                ]
+              },
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 83,
+              "truncated": true,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata.",
+                "Task field projection; omitted fields are not evidence of absent metadata or permission."
+              ]
+            }
+          },
+          {
+            "index": 8,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 9,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 2114,
+            "sha256": "ce38f2601d3b0c4c02fa19fbe09a78ded5417f956b29e02d1ece153d2f783b24",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Country",
+                "label": "公司国家",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "State",
+                "label": "公司省份",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City",
+                "label": "公司城市",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ]
+          },
+          {
+            "index": 10,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 11,
+            "role": "tool",
+            "tool": "sfoa-eval__create_record",
+            "bytes": 125,
+            "sha256": "2d4a67bc30587bc191131b587e53a16050162645b83d7193c161c3c521b82800",
+            "clipped": false
+          },
+          {
+            "index": 12,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 13,
+            "role": "tool",
+            "tool": "sfoa-eval__query_records",
+            "bytes": 340,
+            "sha256": "c147fd83124f2318ea1095a51b3f4138ef4adb08a35b73806aafe813ccfc79bd",
+            "clipped": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": "before",
+      "id": "picklist-and-lookup",
+      "runId": "fb65c26b-8abd-4ca3-ab7e-6934b2d19722",
+      "requestCount": 11,
+      "traceSha256": "35bcc761b7a6773f3514dc881d6cf2dacd8c6ca5ab730c1d103447bdc9096cf4",
+      "lastRequest": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "index": 0,
+            "role": "system",
+            "bytes": 19300,
+            "sha256": "cc6c526ce22297307ab4349264ef7a47eadf70c4757dab4d2199db87fa97fa68",
+            "clipped": false
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "bytes": 894,
+            "sha256": "ae7b3aed6452888fc4719345d309be41a595462bcbb4eb50d0d70d8be85af39a",
+            "clipped": false
+          },
+          {
+            "index": 2,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 3,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 6051,
+            "sha256": "bc5de86f4759d6f6153459c69233f3647a52b2a411e25f24c465b700d9b6b679",
+            "clipped": false,
+            "skillRead": "sfoa-crm-core"
+          },
+          {
+            "index": 4,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 5,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 17153,
+            "sha256": "c12a9e482ce5239aa8c902ce386fa20730595a648ce312390d331f76f2ead4ae",
+            "clipped": false,
+            "skillRead": "sfoa-record-change"
+          },
+          {
+            "index": 6,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 7,
+            "role": "tool",
+            "tool": "sfoa-eval__get_agent_playbook",
+            "bytes": 39141,
+            "sha256": "7059091bfd6c3be5bc7b27aa916eb9ec195b861d0f6b9ed5a95118db9c76dbc7",
+            "clipped": false,
+            "guidanceBytes": 38858
+          },
+          {
+            "index": 8,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 3769,
+            "sha256": "9682278e45ba608f06ed70cbfe26b3074ca9727bb6be1cadcd27486d4c4a5265",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 3,
+              "truncated": false,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata."
+              ]
+            }
+          },
+          {
+            "index": 9,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 2174,
+            "sha256": "f8d6563a855c5eab7cc9d06d94f00b1551aeba427d28a4d4c4ebb3d1fe45dd75",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ]
+          },
+          {
+            "index": 10,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 11,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 12,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 442,
+            "sha256": "27afc1b56e372c9f942cc1403f4d21c810eb562d206c56536707369e805a1445",
+            "clipped": false
+          },
+          {
+            "index": 13,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 14,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 15,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 16,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 17,
+            "role": "tool",
+            "tool": "sfoa-eval__query_records",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 18,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 19,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 20,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 21,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 4448,
+            "sha256": "4c8643bebf6e1b913a4805b888cc3abb2a3bf38e6d3365a125304dfc2b45aa44",
+            "clipped": false
+          },
+          {
+            "index": 22,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 10061,
+            "sha256": "51d94d20076d633109bb50babf9c5d4b90a2977423abe716675f307caf098bfd",
+            "clipped": false
+          },
+          {
+            "index": 23,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 24,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 3805,
+            "sha256": "801809391c7c5d59313aef433526524cacbc0fd36eab78cd920d26e8cc585457",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 3,
+              "truncated": false,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata."
+              ]
+            }
+          },
+          {
+            "index": 25,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 3805,
+            "sha256": "83e8ebf46e1e3088a6b053d4724201c240e6ae9f100afb9782146975135cb7b7",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 3,
+              "truncated": false,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata."
+              ]
+            }
+          },
+          {
+            "index": 26,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 27,
+            "role": "tool",
+            "tool": "sfoa-eval__create_record",
+            "bytes": 125,
+            "sha256": "6c4f577b3983c214531295c6f7685e61a7d6f1dba5e2f41edd3d4a71ba3e2e39",
+            "clipped": false
+          },
+          {
+            "index": 28,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 29,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 904,
+            "sha256": "be48088cc4f33de8145feb39242a65bd9b0d337cc4c338fc7172530f1cd7a813",
+            "clipped": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": "after",
+      "id": "oversized-action-context",
+      "runId": "3b112078-c458-4f7a-88e7-112c427acea7",
+      "requestCount": 8,
+      "traceSha256": "d8c566066dcfae628e769b942a6046d7fdb7cc11618e08b84c82af3607983497",
+      "lastRequest": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "index": 0,
+            "role": "system",
+            "bytes": 19236,
+            "sha256": "209630be3c75e48df7e43891421ea8227bbf2598d7b107bba7ed01557cb43f99",
+            "clipped": false
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "bytes": 838,
+            "sha256": "0d721dce1b2f398e0dc624ce72e714f4d780a91540ab20cf902439a4d45d9949",
+            "clipped": false
+          },
+          {
+            "index": 2,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 3,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 7408,
+            "sha256": "986270e12fc810ef09077eb2abb87c4d62fda15e6bb942da8199357b15c78214",
+            "clipped": false,
+            "skillRead": "sfoa-crm-core"
+          },
+          {
+            "index": 4,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 5,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 18309,
+            "sha256": "31f65b507b6ad138173ef87c140db186958eb715837fa8f34f86c06e96f410bf",
+            "clipped": false,
+            "skillRead": "sfoa-record-change"
+          },
+          {
+            "index": 6,
+            "role": "tool",
+            "tool": "sfoa-eval__get_agent_playbook",
+            "bytes": 43412,
+            "sha256": "dc020849afdc517f5fcb5ada6fdab52ab473f75062c2e5559d97a7d4347a66c5",
+            "clipped": false,
+            "guidanceBytes": 43120
+          },
+          {
+            "index": 7,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 8,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 3628,
+            "sha256": "75e82c16d586a4213d8505094bedd2ca4cc9b7c050228ea6c31ce71ac9ff9627",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Country",
+                "label": "公司国家",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "State",
+                "label": "公司省份",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City",
+                "label": "公司城市",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "fieldProjection": {
+                "omittedFields": 80,
+                "requestedFieldApiNames": [
+                  "Company",
+                  "LastName",
+                  "FirstName",
+                  "Salutation",
+                  "Title",
+                  "Phone",
+                  "Email",
+                  "City",
+                  "State",
+                  "Country",
+                  "Street",
+                  "PostalCode",
+                  "Industry",
+                  "LeadSource",
+                  "Status",
+                  "Rating",
+                  "Website",
+                  "Description"
+                ],
+                "unresolvedFieldApiNames": [
+                  "Company",
+                  "LastName",
+                  "FirstName",
+                  "Salutation",
+                  "Title",
+                  "Phone",
+                  "Email",
+                  "Street",
+                  "PostalCode",
+                  "Industry",
+                  "LeadSource",
+                  "Status",
+                  "Rating",
+                  "Website",
+                  "Description"
+                ]
+              },
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 83,
+              "truncated": true,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata.",
+                "Task field projection; omitted fields are not evidence of absent metadata or permission."
+              ]
+            }
+          },
+          {
+            "index": 9,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 10,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 2114,
+            "sha256": "ce38f2601d3b0c4c02fa19fbe09a78ded5417f956b29e02d1ece153d2f783b24",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Country",
+                "label": "公司国家",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "State",
+                "label": "公司省份",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City",
+                "label": "公司城市",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ]
+          },
+          {
+            "index": 11,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 12,
+            "role": "tool",
+            "tool": "sfoa-eval__query_records",
+            "bytes": 217,
+            "sha256": "d88144d0dbc8f8f0d2ed7793e286fed06e2361577fd8483c6dfc507ff1989052",
+            "clipped": false
+          },
+          {
+            "index": 13,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 14,
+            "role": "tool",
+            "tool": "sfoa-eval__create_record",
+            "bytes": 125,
+            "sha256": "2d4a67bc30587bc191131b587e53a16050162645b83d7193c161c3c521b82800",
+            "clipped": false
+          },
+          {
+            "index": 15,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 16,
+            "role": "tool",
+            "tool": "sfoa-eval__query_records",
+            "bytes": 343,
+            "sha256": "02fe557575fe9ebfadac15cbbbc64e892496faa93be639076ed53d55b7ce2026",
+            "clipped": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": "after",
+      "id": "visit-material",
+      "runId": "ca80b521-ae28-452f-95b1-b1d7f052b4b7",
+      "requestCount": 4,
+      "traceSha256": "500a941bbce8f7c9dad701e43152dd3b8595ca69458b1022cd6dab62b6894ed7",
+      "lastRequest": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "index": 0,
+            "role": "system",
+            "bytes": 19236,
+            "sha256": "209630be3c75e48df7e43891421ea8227bbf2598d7b107bba7ed01557cb43f99",
+            "clipped": false
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "bytes": 1034,
+            "sha256": "af95996632a2a4c1bf559cffc9f74489088aee92a27411b1e0251ef007756872",
+            "clipped": false
+          },
+          {
+            "index": 2,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 3,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 7408,
+            "sha256": "986270e12fc810ef09077eb2abb87c4d62fda15e6bb942da8199357b15c78214",
+            "clipped": false,
+            "skillRead": "sfoa-crm-core"
+          },
+          {
+            "index": 4,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 18309,
+            "sha256": "31f65b507b6ad138173ef87c140db186958eb715837fa8f34f86c06e96f410bf",
+            "clipped": false,
+            "skillRead": "sfoa-record-change"
+          },
+          {
+            "index": 5,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 6,
+            "role": "tool",
+            "tool": "sfoa-eval__get_agent_playbook",
+            "bytes": 43412,
+            "sha256": "dc020849afdc517f5fcb5ada6fdab52ab473f75062c2e5559d97a7d4347a66c5",
+            "clipped": false,
+            "guidanceBytes": 43120
+          },
+          {
+            "index": 7,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 2873,
+            "sha256": "6d8e7f04c03fe73ad80ac239b1a35f89c9c933016161cc77d4d3f045dea94a5d",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Summary__c",
+                "label": "拜访总结",
+                "helpPresent": true,
+                "helpBytes": 30,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Requests__c",
+                "label": "客户诉求",
+                "helpPresent": true,
+                "helpBytes": 21,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Next_Plan__c",
+                "label": "后续计划",
+                "helpPresent": true,
+                "helpBytes": 45,
+                "length": 2000,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 3,
+              "truncated": false,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata."
+              ]
+            }
+          },
+          {
+            "index": 8,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 9,
+            "role": "tool",
+            "tool": "sfoa-eval__create_record",
+            "bytes": 125,
+            "sha256": "6c4f577b3983c214531295c6f7685e61a7d6f1dba5e2f41edd3d4a71ba3e2e39",
+            "clipped": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": "after",
+      "id": "picklist-and-lookup",
+      "runId": "6adb6267-91ac-41f2-9949-4d1f03ae8665",
+      "requestCount": 7,
+      "traceSha256": "0540f4f5861aad7171829d06aa4926ff5b6b04f5879e9af9b0a238e091c4529b",
+      "lastRequest": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "index": 0,
+            "role": "system",
+            "bytes": 19236,
+            "sha256": "209630be3c75e48df7e43891421ea8227bbf2598d7b107bba7ed01557cb43f99",
+            "clipped": false
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "bytes": 894,
+            "sha256": "2e976a9eb25063151eabd52292c7cf08557a5818537bd990fd8496324bcd3df2",
+            "clipped": false
+          },
+          {
+            "index": 2,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 3,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 7408,
+            "sha256": "986270e12fc810ef09077eb2abb87c4d62fda15e6bb942da8199357b15c78214",
+            "clipped": false,
+            "skillRead": "sfoa-crm-core"
+          },
+          {
+            "index": 4,
+            "role": "tool",
+            "tool": "read",
+            "bytes": 18309,
+            "sha256": "31f65b507b6ad138173ef87c140db186958eb715837fa8f34f86c06e96f410bf",
+            "clipped": false,
+            "skillRead": "sfoa-record-change"
+          },
+          {
+            "index": 5,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 6,
+            "role": "tool",
+            "tool": "sfoa-eval__get_agent_playbook",
+            "bytes": 43412,
+            "sha256": "dc020849afdc517f5fcb5ada6fdab52ab473f75062c2e5559d97a7d4347a66c5",
+            "clipped": false,
+            "guidanceBytes": 43120
+          },
+          {
+            "index": 7,
+            "role": "tool",
+            "tool": "sfoa-eval__get_record_action_context",
+            "bytes": 3769,
+            "sha256": "9682278e45ba608f06ed70cbfe26b3074ca9727bb6be1cadcd27486d4c4a5265",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null,
+                "candidateCount": 1,
+                "nextValueOffset": null,
+                "dependenciesTruncated": false
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ],
+            "coverage": {
+              "apiCallCount": 0,
+              "completeLightningPageEvaluated": false,
+              "durationMs": 0,
+              "dynamicFormsEvaluated": false,
+              "responseBytes": 0,
+              "returnedFields": 3,
+              "returnedPicklistValues": 0,
+              "sources": [
+                "UI_API_OBJECT_INFO"
+              ],
+              "totalPicklistValues": 0,
+              "totalVisibleFields": 3,
+              "truncated": false,
+              "warnings": [
+                "Synthetic mock fixture; no Salesforce identity or live metadata."
+              ]
+            }
+          },
+          {
+            "index": 8,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 9,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 2168,
+            "sha256": "2f1a0b8cfdc34fa6d89dabd57aafbb55e542227762e22fa1360ee3fa2fad1ec1",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ]
+          },
+          {
+            "index": 10,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 11,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 12,
+            "role": "tool",
+            "tool": "sfoa-eval__describe_sobject",
+            "bytes": 2174,
+            "sha256": "f8d6563a855c5eab7cc9d06d94f00b1551aeba427d28a4d4c4ebb3d1fe45dd75",
+            "clipped": false,
+            "fieldCount": 3,
+            "fields": [
+              {
+                "apiName": "Nation__c",
+                "label": "Nation__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "Province__c",
+                "label": "Province__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              },
+              {
+                "apiName": "City_Link__c",
+                "label": "City_Link__c",
+                "helpPresent": true,
+                "helpBytes": 0,
+                "length": 255,
+                "precision": null,
+                "scale": null
+              }
+            ]
+          },
+          {
+            "index": 13,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 14,
+            "role": "tool",
+            "tool": "sfoa-eval__run_soql_query",
+            "bytes": 760,
+            "sha256": "31d5dd28ec597d616968599f6062033f58739f46162b60aa6c1ca4d81a1405e8",
+            "clipped": false
+          },
+          {
+            "index": 15,
+            "role": "assistant",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "clipped": false
+          },
+          {
+            "index": 16,
+            "role": "tool",
+            "tool": "sfoa-eval__create_record",
+            "bytes": 125,
+            "sha256": "6c4f577b3983c214531295c6f7685e61a7d6f1dba5e2f41edd3d4a71ba3e2e39",
+            "clipped": false
+          }
+        ]
+      }
+    }
+  ],
+  "excludedAndRetained": [
+    {
+      "batch": "cross-host tunnel overnight",
+      "status": "FAILED_ENV",
+      "reason": "Local connection interruption; no tool/model success claimed."
+    },
+    {
+      "batch": "model-runs-v2",
+      "status": "DEVELOPMENT_FAILURES_RETAINED",
+      "reason": "Fill-empty conflict was written instead of clarified; material content allocation and missing continuation evidence required fixes."
+    },
+    {
+      "batch": "contract-model-runs before technical diagnosis",
+      "status": "TIMEOUT_NOT_PASS",
+      "reason": "Model execution exited 2; not used in final matched diagnosis comparison."
+    }
+  ],
+  "rawEvidenceRoot": "/data/sfoa-enterprise-mcp/evidence/autonomy-20261027",
+  "runtime": {
+    "deployedCodeSha": "83818ca75fda6170cb58494c9b16e4ff550e2a55",
+    "archiveSha256": "e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3",
+    "actualSkillsDirectory": "/data/openclaw/workspace/skills",
+    "gatewaySkillRead": {
+      "sourceSha": "83818ca75fda6170cb58494c9b16e4ff550e2a55",
+      "runId": "2626b961-ba9b-4f3c-bd9e-0e5d5ed3c561",
+      "source": "actual gateway main, fresh CLI session, no WeCom requester, no delivery",
+      "sessionId": "81f18113-d639-4c86-8ae4-74f6c5fc1af6",
+      "toolCalls": [
+        {
+          "name": "read",
+          "path": "/data/openclaw/workspace/skills/sfoa-crm-core/SKILL.md"
+        },
+        {
+          "name": "read",
+          "path": "/data/openclaw/workspace/skills/sfoa-record-change/SKILL.md"
+        },
+        {
+          "name": "read",
+          "path": "/data/openclaw/workspace/skills/sfoa-data-analysis/SKILL.md"
+        },
+        {
+          "name": "read",
+          "path": "/data/openclaw/workspace/skills/sfoa-org-diagnostics/SKILL.md"
+        }
+      ],
+      "reads": [
+        {
+          "name": "sfoa-crm-core",
+          "bytes": 7408,
+          "sha256": "986270e12fc810ef09077eb2abb87c4d62fda15e6bb942da8199357b15c78214",
+          "taskProjectionPresent": true,
+          "diagnosticScopePresent": false
+        },
+        {
+          "name": "sfoa-record-change",
+          "bytes": 18309,
+          "sha256": "31f65b507b6ad138173ef87c140db186958eb715837fa8f34f86c06e96f410bf",
+          "taskProjectionPresent": true,
+          "diagnosticScopePresent": false
+        },
+        {
+          "name": "sfoa-data-analysis",
+          "bytes": 10407,
+          "sha256": "2a36ed1302ae87c7d3d90fe6af98c0bcad21d2a212581ba506ee4c4284525007",
+          "taskProjectionPresent": false,
+          "diagnosticScopePresent": false
+        },
+        {
+          "name": "sfoa-org-diagnostics",
+          "bytes": 4610,
+          "sha256": "dc4a1ac86b6a3aa54253f44cf24594bec340608b68dcca08c49a45ab0681ee18",
+          "taskProjectionPresent": false,
+          "diagnosticScopePresent": true
+        }
+      ],
+      "files": [
+        {
+          "name": "sfoa-crm-core",
+          "canonicalSha256": "534ee69f63f067d77360f4e8c5d9d4b83122689e831b18c23b2a1d7f85170381",
+          "runtimeSha256": "534ee69f63f067d77360f4e8c5d9d4b83122689e831b18c23b2a1d7f85170381"
+        },
+        {
+          "name": "sfoa-record-change",
+          "canonicalSha256": "d22efbfad12d397b0c36499c6c8cbf70e4a4ba0755846e99aabe267c95067189",
+          "runtimeSha256": "d22efbfad12d397b0c36499c6c8cbf70e4a4ba0755846e99aabe267c95067189"
+        },
+        {
+          "name": "sfoa-data-analysis",
+          "canonicalSha256": "dc07da7abf054c6b8317ad2fd5036c52f867e412748f03662df9c3b528526c69",
+          "runtimeSha256": "dc07da7abf054c6b8317ad2fd5036c52f867e412748f03662df9c3b528526c69"
+        },
+        {
+          "name": "sfoa-org-diagnostics",
+          "canonicalSha256": "549ec00fc5a9898b36f88136433a4e783382be1c4c472cce368480c041235865",
+          "runtimeSha256": "549ec00fc5a9898b36f88136433a4e783382be1c4c472cce368480c041235865"
+        }
+      ],
+      "processSkills": [
+        {
+          "name": "sfoa-crm-core",
+          "eligible": true,
+          "disabled": false,
+          "blockedByAllowlist": false
+        },
+        {
+          "name": "sfoa-data-analysis",
+          "eligible": true,
+          "disabled": false,
+          "blockedByAllowlist": false
+        },
+        {
+          "name": "sfoa-org-diagnostics",
+          "eligible": true,
+          "disabled": false,
+          "blockedByAllowlist": false
+        },
+        {
+          "name": "sfoa-record-change",
+          "eligible": true,
+          "disabled": false,
+          "blockedByAllowlist": false
+        }
+      ],
+      "maintainerPresent": false,
+      "exportHasTaskPrinciple": true
+    },
+    "services": {
+      "mcp": "active, health 200",
+      "adminApi": "active, health 200",
+      "gateway": "active",
+      "nginx": "200 after application root traversal correction"
+    },
+    "realWecom": {
+      "localTime": "2026-10-27 11:14:38 +08:00",
+      "sessionId": "33b42c7c-fa26-4d4c-8fd1-287d61b50825",
+      "model": "deepseek-flash",
+      "tools": [
+        "sfoa-enterprise-mcp__get_agent_playbook",
+        "sfoa-enterprise-mcp__list_sobjects",
+        "sfoa-enterprise-mcp__describe_sobject",
+        "sfoa-enterprise-mcp__describe_sobject",
+        "sfoa-enterprise-mcp__get_record_action_context"
+      ],
+      "mutationCount": 0,
+      "identitySources": [
+        {
+          "toolName": "get_record_action_context",
+          "identitySource": "WECOM_HEADER",
+          "startedAt": "2026-10-27T03:15:06.862Z"
+        },
+        {
+          "toolName": "describe_sobject",
+          "identitySource": "WECOM_HEADER",
+          "startedAt": "2026-10-27T03:15:06.215Z"
+        },
+        {
+          "toolName": "describe_sobject",
+          "identitySource": "WECOM_HEADER",
+          "startedAt": "2026-10-27T03:15:05.368Z"
+        },
+        {
+          "toolName": "list_sobjects",
+          "identitySource": "WECOM_HEADER",
+          "startedAt": "2026-10-27T03:14:52.409Z"
+        },
+        {
+          "toolName": "get_agent_playbook",
+          "identitySource": "WECOM_HEADER",
+          "startedAt": "2026-10-27T03:14:52.308Z"
+        }
+      ],
+      "playbookText": [
+        {
+          "seq": 772,
+          "role": "toolResult",
+          "toolName": "sfoa-enterprise-mcp__get_agent_playbook",
+          "bytes": 28389,
+          "jsonParsed": true,
+          "fields": 0,
+          "fieldSample": [],
+          "fieldsWithPicklist": 0,
+          "hasCoverage": false,
+          "truncated": false,
+          "fullGuidance": true,
+          "guidanceBytes": 27326,
+          "containsOldRule": false,
+          "skillRead": null,
+          "skillContainsTaskPrinciple": false,
+          "persistedOrTruncatedMarker": false
+        }
+      ],
+      "skillReadInThisTurn": false,
+      "evidenceBoundary": "Read-only trusted WeCom transport and business-label response. This occurred before corrected Skill-directory sync; it does not prove new Skill reading or final C2 field projection end-to-end.",
+      "postCorrectionTrustedWecom": "NOT_RUN unless a later real user message is separately captured; no requester is fabricated."
+    },
+    "media": {
+      "pdfPrimitive": "PASS: native extractor returned the four synthetic business-fact lines",
+      "pdfIngressToCurrentModel": "NOT_RUN: no real attachment sent",
+      "image": "configured image-capable models; real image round NOT_RUN",
+      "office": "NOT_RUN: no actual Office attachment/extractor Run",
+      "audio": "SOURCE_TRACED: installed robot message-parser.js consumes voice.content; application XML parser consumes Recognition. Reuse platform transcription. No configured audio model in inspected media config does not prove absent platform transcription; actual trusted voice/transcription Run NOT_RUN."
+    },
+    "correctedDeploymentIssues": [
+      "Private staging-root mode transferred to app via rsync -a; restored app root to 755, dist DAC/SELinux checked, nginx 200.",
+      "runtime-root was initially the parent workspace, so the running Agent read old Skills. Corrected to actual skills directory; all four canonical/runtime hashes now match and a fresh gateway Run read all four current bodies.",
+      "Misplaced task-created copies were preserved in the deployment backup, not deleted."
+    ]
+  }
+}

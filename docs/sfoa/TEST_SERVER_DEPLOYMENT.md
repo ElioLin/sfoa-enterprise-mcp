@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-10-27 OpenClaw 业务自主处理
+
+本次仅测试服务器，生产未发布；Salesforce 内嵌 OpenClaw 暂停分支未合并。
+基线 `origin/main=12df237f7ab03c4771109813b84f715a29e9e32d`，工作分支
+`codex/openclaw-business-autonomy`。主要源码 `2d7a1f4ea6f00fcc562c128a1e7b383449c38cb3`，
+最终运行代码 `83818ca75fda6170cb58494c9b16e4ff550e2a55`；交付提交另含证据与测试夹具修正。
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 源码归档 | `incoming/autonomy-source-20261027.tar.gz`（2d7a1f4）、`incoming/autonomy-source-c2.tar.gz`（83818ca），来自已提交 tracked LF 字节 |
+| 最终归档 hash | `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`；本地/服务器一致 |
+| 备份 | `/data/sfoa-enterprise-mcp/backups/autonomy-20261027-<完整源码SHA>/`，保留 app 源码/dist、四个业务 Skill、独立 sfoa 导出包、adapter 附件文件、构建/同步记录 |
+| 构建 | Playbook → Context / Data → Server → Admin API / Web；C2 未改 Data 代码，复用 C1 已重建产物；Web 检查 DAC + restorecon |
+| 实际配置 | Gateway 使用 `/data/openclaw/state/openclaw.json`，main workspace `/data/openclaw/workspace`，主模型 `custom-192-168-155-105-3001/deepseek-flash`，thinking=max；OpenClaw 2026.9.5(ec9c1a1)，实际 Gateway Node24.19.0 |
+| Skill 发布 | **`yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills`** 与对应 check；四个 canonical/runtime 正文 hash 一致，进程 eligible=true，maintainer 不存在 |
+| 独立导出 / adapter | `skill:export --output /data/openclaw/exports/sfoa-1.12.0` 后同步既有 workspace sfoa/SKILL.md，保留其 mcp.json；实际插件 `/data/openclaw/plugins/sfoa-wecom-mcp-adapter/src/attachments.js` 同步，未改身份 resolver |
+| 服务 | systemd 重启 MCP / Admin API / Gateway；三者 active，8080/health、8081/admin/api/health 与 nginx9000/ 都 200 |
+| 可信企微请求 | 用户 11:14:38 发送的真实只读消息，5 个 MCP 调用均 WECOM_HEADER、零 DML，返回业务标签；发生于 Skill 目录修正前，不作为新版 Skill 已读证据 |
+| 正确目录后的加载 | 新 Gateway CLI Run `2626b961-ba9b-4f3c-bd9e-0e5d5ed3c561` 实际 read 四份新正文，hash/新规则可核对；无企微 requester，不冒充企微端到端 |
+| 模型/写入评测 | 18 个合成固定样本，原生 OpenClaw 同主模型、实际 Skills/Playbook，真实 generic DML Tool→内存 SDK；三组直接核对实际 Provider HTTP 输入元数据。未写真实 Salesforce 数据 |
+
+两项发布纠正必须保留：首次 `--runtime-root` 错填 workspace 父目录，脚本成功
+不代表模型加载；改用实际 skills 目录后重新核对 hash 和新 Run read。错误位置
+的四份本次生成副本保存在 C2 备份的 `misplaced-business-skills/`，未删除。
+私有暂存目录 700 还曾被 `rsync -a` 带到 app 根目录，nginx 因无法遍历而 500；
+仅恢复 app 根目录 755、dist 读取权限和 SELinux 后验证 200，未放宽配置/密钥权限。
+后续应在同步前固定暂存根目录的可遍历权限，备份目录继续私有。
+
+原始证据留在 `/data/sfoa-enterprise-mcp/evidence/autonomy-20261027/`，私有模型
+配置不导出。PDF 原生提取原语通过，附件→本轮模型、Office、语音转写和修复后
+可信企微完整业务回合按实际缺项标 NOT RUN；不能用文件存在或 CLI 风格代替。
+规则审计、精确分层验收与剩余质量限制见
+[交付报告](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md) 和
+[合成评测证据](evidence/openclaw-business-autonomy-20261027.json)。
+
 ## 部署记录 · ADR-0034 受限控制台账号（BTIT）（2026-10-15）
 
 | 项 | 值 |

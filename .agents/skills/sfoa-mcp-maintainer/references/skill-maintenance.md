@@ -169,6 +169,14 @@ an exact final pretty JSON mirror (including Host managed-field enrichment), and
 native prompt projection caps oversized Tool text. Recover action metadata with
 optional fieldApiNames; retain required fields/controllers and report projection
 coverage. Do not infer full delivery from a persisted transcript preview.
+The runtime-root argument names the actual **skills directory**, for example
+/data/openclaw/workspace/skills, not its parent workspace. Compare canonical and
+runtime SKILL.md hashes as well as a fresh Run read; a successful check against a
+wrong destination does not prove the running Agent loaded the new Skill.
+For archive deployments, keep the application root traversable after rsync -a:
+a private staging directory's mode can otherwise replace the application's mode.
+Retain private backup permissions; verify web dist DAC and SELinux labels plus
+nginx HTTP status after rebuilding. Never chmod configuration/secret trees.
 Native cache trace can itself replace large JSON with a diagnostic redaction
 placeholder. For synthetic isolated evaluation, --observe-provider-input records
 safe metadata from the actual forwarded model HTTP request. It never saves auth
