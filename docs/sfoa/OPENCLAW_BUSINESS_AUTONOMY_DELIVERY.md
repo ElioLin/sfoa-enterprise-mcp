@@ -104,7 +104,7 @@
 
 后续发布复用现有流程：核对当前配置/路径 → `git archive <交付SHA>` 并核 hash → 备份源文件/dist/四 Skill/独立导出包 → 确保暂存根与 app 根可遍历后 rsync（无 --delete）→ 依赖构建、检查 dist DAC/restorecon → `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` / `skill:runtime:check` → 独立 `skill:export` → systemd 按需重启 → hash、skills.status、新会话 read、实际模型工具输入、可信企微行为分层验收。业务只发布四个 Skill；独立导出另同步。
 
-PDF 原生提取原语已在测试机读取合成 PDF，得到全部四行业务事实（PASS）；附件入口→本轮模型→字段全过程未实测。图像能力有已配置模型，但无真实图像回合；Office 未取得完整提取回合。已追踪当前企微插件：机器人 `message-parser.js:162` 消费 `voice.content` 平台转写，应用 XML 入口消费 `Recognition`；不需要把这两条现成文字入口替换成 Salesforce ASR。音频配置未见 audio model，但这不等于平台没有转写。真实语音/转写回合仍 NOT RUN；先发送实际测试语音核对平台正文是否进入当轮，只有纯音频确实没有转写时再配置获准 ASR。缺实际提取结果不能靠 Prompt 宣称已读。通用解析不放入 Salesforce MCP。
+PDF 原生提取原语已在测试机读取合成 PDF，得到全部四行业务事实（PASS）；附件入口→本轮模型→字段全过程未实测。图像能力有已配置模型，但无真实图像回合；Office 未取得完整提取回合。已追踪当前企微插件：机器人 `message-parser.js:162` 消费 `voice.content` 平台转写，应用 XML 入口消费 `Recognition`；不需要把这两条现成文字入口替换成 Salesforce ASR。音频配置当时未见 audio model，但这不等于平台没有转写；该次交付时真实语音/转写回合仍 NOT RUN。2026-10-27 16:15 已在 203 配置本地 SenseVoice ASR（sherpa-onnx，音频不出服务器），真实企微 m4a 回合转写成功并进入模型；详见 [测试部署记录](TEST_SERVER_DEPLOYMENT.md#2026-10-27-1615-本地-sensevoice-asr203)。缺实际提取结果不能靠 Prompt 宣称已读。通用解析不放入 Salesforce MCP。
 
 12:22 回合关闭了“修复后真实企微是否读新 Skill / 是否得到单份字段上下文”的缺口：同一企微会话的新轮次，按用户明确要求 read 两份 Skill，正文完整包含 canonical/runtime 同 hash 的当前内容；这不证明所有自然业务请求都会自动读取 Skill。action context 包含真实帮助文本、长度/精度/小数位、依赖与两个托管字段描述。三次审计为两次 SUCCESS、一次 `MCP_RECORD_TYPE_NOT_AVAILABLE`；两份字段上下文审计完整性为 PARTIAL，不能冒称完整取证链。旧类型被拒后，Agent 无需追问即重新读取当前候选。当前真实回合没有捕获 Provider HTTP body；会话工具结果实证与之前三组隔离 HTTP 输入实证分别保留。
 

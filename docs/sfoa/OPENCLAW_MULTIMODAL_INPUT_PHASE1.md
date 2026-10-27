@@ -2,6 +2,8 @@
 
 2026-09-14 后续变更：Skill Foundation 对照测试后，仅 main 业务 Agent 默认模型覆盖为 `deepseek-flash`，fallback 为 `qwen3-vl`；imageModel / pdfModel / media 配置沿用本阶段。理由、实际 Core 读取证据与真人重测限制见 [SFOA_CRM_CORE_SKILL.md](SFOA_CRM_CORE_SKILL.md)。下面保留 Phase 1 当时的实测配置，不作为最新 main 默认配置。
 
+> 2026-10-27 更新：203 已配置本地 SenseVoice ASR（sherpa-onnx，音频不出服务器），真实企微 m4a 回合转写成功；当前状态见 [测试部署记录](TEST_SERVER_DEPLOYMENT.md#2026-10-27-1615-本地-sensevoice-asr203)。下面保留 Phase 1 当时“语音 BLOCKED”的历史结论。
+
 测试服 `crm-ex-test02` / `192.168.156.203`。
 
 本文回答一个问题：**当前已经接进来的四个模型，到底哪些能力是真的？**

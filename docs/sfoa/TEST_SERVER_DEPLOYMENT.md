@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-27 16:15 本地 SenseVoice ASR（203）
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 背景 | 14:44 用户在企微发送 `10月27日.m4a`（322,840 B，`audio/x-m4a`）作为 **file** 消息；当时 OpenClaw 没有 audio-understanding 模型，核心在用户消息注入 `[Audio attachment not analyzed: no audio-understanding model is configured]`，模型如实回复无法转写。 |
+| 方案 | **本地推理，音频不离开 203**：sherpa-onnx 2.0.1 + SenseVoice small int8 + imageio-ffmpeg 0.6.0（静态 ffmpeg 7.0.2）；不训练、无 GPU、无外部 provider/Key。 |
+| 安装 | `/opt/asr/venv`（Python 3.9 venv，sherpa-onnx / numpy / imageio-ffmpeg）；模型 `/opt/asr/models/sense-voice/model.int8.onnx`（239,233,841 B）+ `tokens.txt`（315,894 B）；模型来自 HF 镜像 `csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17`，其 `LICENSE` 指向 FunASR 许可。 |
+| Wrapper | `/opt/asr/bin/sensevoice-transcribe`：静态 ffmpeg 转 16 kHz 单声道 WAV → sherpa-onnx → stdout 只输出文本；临时目录使用 `TMPDIR`（网关为 `/data/openclaw/temp`）。 |
+| 配置 | `openclaw.json` 的 `tools.media.models` 追加 `{type:"cli", command:"/opt/asr/bin/sensevoice-transcribe", args:["{{AttachmentPath}}"], timeoutSeconds:120, capabilities:["audio"]}`，并设 `tools.media.audio.enabled=true`；原有两条 image 条目保留。改前备份 `openclaw.json.bak-pre-local-asr-20261027-161248`。 |
+| 生效 | 16:12:59 网关日志 `[reload] config hot reload applied (tools.media.models, tools.media.audio)`；`openclaw-gateway` PID 2957576 未变，`NRestarts=0`。 |
+| 本地验证 | 5.59 s 中文样本：1.57 s / 375 MB / CPU 157%；用户 m4a：1.99 s / 444 MB / CPU 170%；`openclaw infer audio transcribe` 返回 `provider: sensevoice-transcribe`；同款 systemd 沙箱 `systemd-run` 运行 `success`（2.0 s）。 |
+| 真实企微验证 | 16:14:57 用户重发同一 m4a（新 msgid，`msgtype=file`，322,840 B）；16:15:00 会话 `transcript_events` seq 801 的用户消息包含 `[Audio]` 与 `Transcript: 这周五下客户要来集团参观展厅，然后时间大概是周五下午一点半会到公司。`；16:15:11 模型基于转写回复。全程未配置/调用外部 ASR provider，音频留在 203。 |
+| 资源 | `/opt/asr` 约 440 MB；推理峰值约 444 MB RSS；203 当时 load ~0.01、可用内存约 12 GB，未影响 MCP / Admin API / Gateway。 |
+| 限制 | SenseVoice small 仍可能有同音字/标点误差（本次“周五下午”转成“周五下”），业务写入前需人工核对；模型许可证以 FunASR 链接为准，生产前需法务确认。 |
+| 回滚 | 恢复 `openclaw.json.bak-pre-local-asr-20261027-161248`（或删除 `tools.media.models` 的 CLI 条目与 `tools.media.audio.enabled`），配置热加载生效；可选删除 `/opt/asr`；无 DB/迁移/服务重启。 |
+| 记录同步 | 本条、交付报告与多模态 Phase 1 说明的更正提交后，按 git blob 的 LF 字节同步到服务器 `app/`。 |
+
 ## 2026-10-27 14:37 LF 重部署（`0a7649e`）
 
 | 项目 | 实际记录 |
