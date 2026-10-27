@@ -127,7 +127,7 @@ export class ExplainFieldAccessMcpTool extends McpTool<InputShape, OutputShape> 
  */
 export function renderExplainFieldAccessText(output: ExplainFieldAccessOutput): string {
   const lines = [
-    `explain_field_access: object=${format(output.objectApiName)} `
+    `explain_field_access: object=${format(output.objectLabel ?? output.objectApiName)} `
       + `fields=${format(output.returnedFieldCount)}/${format(output.requestedFieldCount)} `
       + `truncated=${format(output.truncated)} api=${format(output.api)}`,
   ];
@@ -154,7 +154,7 @@ export function renderExplainFieldAccessText(output: ExplainFieldAccessOutput): 
     lines.push(`Permission sets (${user.permissionSets.length}${user.permissionSetsTruncated ? ', truncated' : ''}):`);
     for (const set of user.permissionSets) {
       lines.push(
-        `  ${set.id} ${format(set.name)} label=${format(set.label)} `
+        `  ${format(set.label ?? set.profileName ?? set.name ?? set.id)} (api=${format(set.name)} id=${set.id}) `
           + `${set.isOwnedByProfile ? `profile=${format(set.profileName)}` : 'standalone'}`,
       );
     }
@@ -180,8 +180,8 @@ export function renderExplainFieldAccessText(output: ExplainFieldAccessOutput): 
 }
 
 function renderField(field: FieldAccessExplanation): readonly string[] {
-  const lines: string[] = [`Field: ${field.fieldApiName}`];
   const describe = field.describeFacts;
+  const lines: string[] = [`Field: ${describe?.label ?? field.fieldApiName}${describe?.label ? ` (${field.fieldApiName})` : ''}`];
   lines.push(describe === null
     ? '  describe: this field was not found on the object.'
     : `  describe (executing identity, not the subject): type=${format(describe.type)} `
@@ -193,7 +193,7 @@ function renderField(field: FieldAccessExplanation): readonly string[] {
   }
   for (const grant of field.grants) {
     lines.push(
-      `    ${grant.parentType} ${format(grant.parentName)} label=${format(grant.parentLabel)} `
+      `    ${grant.parentType} ${format(grant.parentLabel ?? grant.parentName ?? grant.parentId)} (api=${format(grant.parentName)}) `
         + `read=${format(grant.permissionsRead)} edit=${format(grant.permissionsEdit)}`,
     );
   }

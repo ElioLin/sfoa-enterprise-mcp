@@ -97,3 +97,5 @@ Tests use stub `OrgService`/`Connection` fixtures (`src/test/data-fixtures.ts`).
 P7 audit adapter patches `Transport.prototype.httpRequest`, a stubbed Connection bypasses
 wire-level audit by design; host-level audit is asserted separately in
 `packages/sfoa-mcp-server/src/test/data-tool-runtime.test.ts` at the Tool terminal-event layer.
+
+Describe also projects inlineHelpText, length, precision and scale from the same USER SDK response. Missing/invalid numeric facts stay null; help is limited to 2000 characters with inlineHelpTextTruncated and an honest overall hint. The full pretty JSON text mirror supports text-only hosts and native OpenClaw duplicate suppression. Metadata help is untrusted descriptive data.

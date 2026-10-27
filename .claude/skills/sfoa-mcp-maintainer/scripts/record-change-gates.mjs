@@ -121,18 +121,21 @@ export function classifyFieldFact(entry) {
 /**
  * Build the minimal UPDATE patch.
  *
- * Only fields the user asked to change, plus fields the runtime itself proved necessary for this
- * mutation, may enter the patch. Fields that were merely *read* never enter it. An explicit clear
+ * taskFields are Agent-prepared task changes: direct facts, faithful synthesis and verified
+ * related completion. requestedFields remains a compatible explicit-field shorthand.
+ * Merely reading an unrelated field never enters it. An explicit clear
  * is the only way a field is sent as null; omitted fields are simply absent.
  */
 export function buildMinimalPatch({
   requestedFields = [],
+  taskFields = [],
   runtimeRequiredFields = [],
   readFacts = {},
+  currentValues = {},
   explicitClearFields = [],
 } = {}) {
   const clearSet = new Set(explicitClearFields);
-  const requested = new Set(requestedFields);
+  const requested = new Set([...requestedFields, ...taskFields]);
   const runtimeRequired = new Set(runtimeRequiredFields);
   const patch = {};
   const preserved = [];
@@ -147,12 +150,12 @@ export function buildMinimalPatch({
     }
   }
 
-  const intended = [...new Set([...requestedFields, ...runtimeRequiredFields])];
+  const intended = [...new Set([...requestedFields, ...taskFields, ...runtimeRequiredFields])];
   for (const name of intended) {
     const clearRequested = clearSet.has(name);
     const entry = readFacts[name];
     if (clearRequested) {
-      patch[name] = null;
+      if (currentValues[name] !== null) patch[name] = null;
       continue;
     }
     if (!entry || entry.present !== true) {
@@ -164,7 +167,7 @@ export function buildMinimalPatch({
       rejected.push({ field: name, reason: 'NULL_WITHOUT_EXPLICIT_CLEAR' });
       continue;
     }
-    patch[name] = entry.value;
+    if (!(name in currentValues) || !Object.is(currentValues[name], entry.value)) patch[name] = entry.value;
   }
 
   return Object.freeze({
@@ -175,8 +178,8 @@ export function buildMinimalPatch({
 }
 
 /** Assert that a patch contains no field outside the user's intent (plus proven runtime necessity). */
-export function assertMinimalPatch({ patch, intendedFields = [], runtimeRequiredFields = [] }) {
-  const allowed = new Set([...intendedFields, ...runtimeRequiredFields]);
+export function assertMinimalPatch({ patch, intendedFields = [], taskFields = [], runtimeRequiredFields = [] }) {
+  const allowed = new Set([...intendedFields, ...taskFields, ...runtimeRequiredFields]);
   const unexpected = Object.keys(patch).filter((name) => !allowed.has(name));
   return Object.freeze({ minimal: unexpected.length === 0, unexpected: Object.freeze(unexpected) });
 }
@@ -223,6 +226,7 @@ export function evaluateCreateReadiness({
   recordTypeResolved = true,
   fields = [],
   knownValues = {},
+  runtimeSatisfiedFields = [],
   lookupAmbiguity = false,
   picklistNormalized = true,
   managedPolicySatisfied = true,
@@ -248,7 +252,7 @@ export function evaluateCreateReadiness({
       continue;
     }
     const required = apiRequired || effectiveRequired;
-    if (required && !(apiName in knownValues)) blockers.push(`MISSING_REQUIRED:${apiName}`);
+    if (required && !(apiName in knownValues) && !runtimeSatisfiedFields.includes(apiName)) blockers.push(`MISSING_REQUIRED:${apiName}`);
     // `effectiveEditable` is the CREATE Dynamic Forms editability signal. A value the Agent intends
     // to submit must not be submitted through a field that context proves non-editable.
     if (effectiveEditable === false && apiName in knownValues) blockers.push(`FIELD_NOT_EDITABLE:${apiName}`);

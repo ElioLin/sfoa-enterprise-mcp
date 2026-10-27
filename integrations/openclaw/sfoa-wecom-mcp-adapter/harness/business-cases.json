@@ -1,0 +1,93 @@
+[
+  {
+    "id": "visit-material", "request": "按这份已解析材料创建客户拜访", "material": "客户觉得报价偏高，样品还在测试，对合作有兴趣，数量没定，让我们下周联系。",
+    "objectApiName": "Visit__c", "operation": "CREATE", "maxQuestions": 0,
+    "fields": [{"apiName":"Summary__c","label":"拜访总结","type":"textarea","inlineHelpText":"本次沟通的事实与进展"},{"apiName":"Requests__c","label":"客户诉求","type":"textarea","inlineHelpText":"客户期望与异议"},{"apiName":"Next_Plan__c","label":"后续计划","type":"textarea","inlineHelpText":"尚待执行的行动、责任与时间窗口"}],
+    "textFields": ["Summary__c","Requests__c","Next_Plan__c"], "forbiddenFields": ["Amount__c","Quantity__c","CloseDate__c"],
+    "candidateFields": {"Summary__c":"客户有合作意向，样品仍在测试，采购数量尚未确定。","Requests__c":"客户认为当前报价偏高。","Next_Plan__c":"下周跟进测试进展及报价反馈。"},
+    "review": ["保留合作意向、价格异议、测试中、数量未定及下周联系五个事实", "总结、诉求、计划按真实字段语义分配，不复制同一原文到全部字段", "不编造测试通过、订单确认、金额数量或精确承诺日期；多种忠实表达均可接受"]
+  },
+  {
+    "id":"negation-and-subjects", "request":"把这份转写整理为甲客户的拜访总结，其他字段不动", "material":"甲客户未承诺采购，若测试符合要求再讨论；准备下周送样。乙客户上周已完成测试。",
+    "objectApiName":"Visit__c", "operation":"UPDATE", "recordId":"a01000000000001AAA", "maxQuestions":0,
+    "textFields":["Summary__c"], "onlyFields":["Summary__c"],
+    "candidateFields":{"Summary__c":"甲客户尚未承诺采购，待测试符合要求后再讨论；计划下周送样。"},
+    "review":["不得把乙已完成测试赋给甲", "保留未承诺、测试条件及计划送样状态，不变成已执行或确定采购"]
+  },
+  {
+    "id":"company-xiamen-text", "request":"创建一条线索，客户公司在厦门", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Country","label":"公司国家","type":"string"},{"apiName":"State","label":"公司省份","type":"string"},{"apiName":"City","label":"公司城市","type":"string"}],
+    "requiredValues":{"Country":"中国","State":"福建省","City":"厦门市"}, "candidateFields":{"Country":"中国","State":"福建省","City":"厦门市"},
+    "review":["国家和省份未点名仍进入实际 CREATE 参数；其他必填在隔离上下文中由适用默认满足"]
+  },
+  {
+    "id":"company-hangzhou-text", "request":"创建客户，公司在杭州", "objectApiName":"Account", "operation":"CREATE", "maxQuestions":0,
+    "requiredValues":{"BillingCountry":"中国","BillingState":"浙江省","BillingCity":"杭州市"}, "candidateFields":{"BillingCountry":"中国","BillingState":"浙江省","BillingCity":"杭州市"},
+    "review":["补全流程不能仅硬编码厦门"]
+  },
+  {
+    "id":"relocation", "request":"把公司地址改到厦门", "objectApiName":"Lead", "operation":"UPDATE", "recordId":"00Q000000000001AAA", "maxQuestions":0,
+    "currentValues":{"Country":"中国","State":"广东省","City":"深圳市"}, "requiredValues":{"State":"福建省","City":"厦门市"}, "forbiddenFields":["Country","Industry","OwnerId"],
+    "candidateFields":{"State":"福建省","City":"厦门市"}, "review":["联动修正旧省份，未变化的国家不重发"]
+  },
+  {
+    "id":"visit-location", "request":"记录本次去厦门拜访，客户总部仍在深圳", "objectApiName":"Visit__c", "operation":"CREATE", "maxQuestions":0,
+    "allowedValues":{"Visit_Location__c":["厦门","厦门市"]}, "forbiddenFields":["Country","State","City","BillingCity","Company_City__c"], "candidateFields":{"Visit_Location__c":"厦门市"},
+    "review":["拜访地点不改客户公司地址"]
+  },
+  {
+    "id":"summary-only", "request":"只改总结，其他不动", "material":"在厦门沟通，客户仍在测试。", "objectApiName":"Visit__c", "operation":"UPDATE", "recordId":"a01000000000001AAA", "maxQuestions":0,
+    "textFields":["Summary__c"], "onlyFields":["Summary__c"], "candidateFields":{"Summary__c":"在厦门与客户沟通，样品仍在测试。"}, "review":["不得顺带修改公司地址或 Owner"]
+  },
+  {
+    "id":"same-name-region", "request":"把公司城市填为 Springfield", "objectApiName":"Lead", "operation":"NONE", "minQuestions":1,
+    "candidates":[{"label":"Springfield, Illinois, US","id":"a0G000000000001AAA"},{"label":"Springfield, Missouri, US","id":"a0G000000000002AAA"}],
+    "review":["先尝试已有上级地域上下文，仍不唯一才问州/国家；不得取第一条"]
+  },
+  {
+    "id":"fill-empty-conflict", "request":"补齐公司缺失的省份，材料提到厦门", "objectApiName":"Lead", "operation":"NONE", "minQuestions":1,
+    "currentValues":{"City":"深圳市","State":null}, "review":["公司现有城市与材料冲突，先核对地址角色与迁址/填空意图"]
+  },
+  {
+    "id":"picklist-and-lookup", "request":"按材料创建客户，公司位于厦门", "objectApiName":"Customer__c", "operation":"CREATE", "maxQuestions":0,
+    "recordTypeId":"012000000000002AAA", "requiredValues":{"Nation__c":"CN_B","Province__c":"FJ_B","City_Link__c":"a0G000000000001AAA"},
+    "context":{"recordTypeId":"012000000000002AAA","otherRecordTypeId":"012000000000001AAA","countryChoices":[{"label":"中国","value":"CN_B"}],"provinceChoices":[{"label":"福建省","value":"FJ_B","validFor":[1]}],"controllerValues":{"CN_B":1},"referenceTo":["Region__c"],"cityRecords":[{"Id":"a0G000000000001AAA","Name":"厦门市","Province":"福建省"}]},
+    "candidateFields":{"Nation__c":"CN_B","Province__c":"FJ_B","City_Link__c":"a0G000000000001AAA"}, "review":["Label 与 API Value 不同仍保存 API Value，不能混用另一个 Record Type 的 CN_A/FJ_A", "Lookup 仅保存当前实际解析的 ID"]
+  },
+  {
+    "id":"truncated-candidates", "request":"把公司所在城市选为厦门", "objectApiName":"Lead", "operation":"UPDATE", "recordId":"00Q000000000001AAA", "maxQuestions":0,
+    "fields":[{"apiName":"City","label":"公司城市","type":"picklist"}], "currentValues":{"City":"CN_GD_SZX"}, "requiredValues":{"City":"CN_FJ_XMN"}, "candidateFields":{"City":"CN_FJ_XMN"},
+    "context":{"picklist":{"totalValues":205,"returnedValues":100,"truncated":true,"valueOffset":0,"nextValueOffset":100,"dependenciesTruncated":false}},
+    "requiredReads":["get_record_action_context"], "requiredPicklistContinuation":{"fieldApiName":"City","minimumOffset":100}, "review":["续取 205 个候选中的相关页后取得真实 API Value，不把前 100 条当全集或假称唯一"]
+  },
+  {
+    "id":"owner-fallback", "request":"按材料创建拜访", "material":"样品仍在测试，下周跟进。", "objectApiName":"Visit__c", "operation":"CREATE", "maxQuestions":0,
+    "context":{"managedDmlFields":[{"fieldApiName":"OwnerId","strategy":"PLATFORM_IDENTITY_FALLBACK","operations":["CREATE"]}],"OwnerId":{"required":true,"fallbackConfigured":true}},
+    "textFields":["Summary__c"], "forbiddenFields":["OwnerId"], "candidateFields":{"Summary__c":"样品仍在测试，待下周跟进。"}, "review":["省略适用 fallback 交给 Runtime，无固定问题、不查当前用户 ID"]
+  },
+  {
+    "id":"explicit-owner-unresolved", "request":"创建拜访并交给王经理", "objectApiName":"Visit__c", "operation":"NONE", "minQuestions":1,
+    "context":{"ownerMatches":[],"fallbackConfigured":true}, "review":["指定负责人未找到不偷偷采用当前用户 fallback"]
+  },
+  {
+    "id":"record-type-resolved", "request":"创建售后回访", "material":"本次回访客户样品测试进展，样品仍在测试。", "objectApiName":"Visit__c", "operation":"CREATE", "recordTypeId":"012000000000002AAA", "maxQuestions":0,
+    "context":{"availableRecordTypes":[{"id":"012000000000001AAA","name":"售前拜访"},{"id":"012000000000002AAA","name":"售后回访"}]},
+    "textFields":["Summary__c"], "candidateFields":{"Summary__c":"回访客户样品测试进展。"}, "review":["从任务可合理确定类型，不固定问；先获取选定类型字段再写入"]
+  },
+  {
+    "id":"record-type-ambiguous", "request":"创建拜访", "objectApiName":"Visit__c", "operation":"NONE", "minQuestions":1,
+    "context":{"availableRecordTypes":[{"id":"012000000000001AAA","name":"售前拜访"},{"id":"012000000000002AAA","name":"售后回访"}],"defaultApplicable":false}, "review":["无业务含义线索且无适用默认时才问类型"]
+  },
+  {
+    "id":"diagnosis-business", "request":"诊断这张订单多次同步失败的原因", "objectApiName":"Order__c", "operation":"NONE", "maxQuestions":0,
+    "context":{"label":"订单","orderNumber":"SO-TEST-001","observedAt":"2026-10-20T10:30:00+08:00","error":"客户或收货方资料未识别","externalCode":"ZQ-17","externalCodeMeaning":null,"comparison":{"orderNumber":"SO-TEST-002","sameCustomer":true,"statusLabel":"同步成功","differentConditions":["订单类型","产品分组"]}},
+    "candidateReply":"该客户组合在另一张订单的交易条件下曾成功。当前订单仍需核对适用的业务条件与同步资料，订单类型和产品分组差异目前只是待查线索。系统返回的 ZQ-17 含义尚未核实，请同步接口维护人员核对映射和本单客户、收货方资料。",
+    "review":["使用业务标签、单号与处理方，不固定展示字段 API/代码/分类", "不因成功对照单断言当前客户主数据完全正常，不把差异宣布根因", "未知 SAP 代码不编造翻译；允许多种忠实表达"]
+  },
+  {
+    "id":"diagnosis-technical", "request":"同题请展开技术细节和准确证据", "objectApiName":"Order__c", "operation":"NONE", "maxQuestions":0,
+    "context":{"businessLabel":"订单","orderNumber":"SO-TEST-001","observedAt":"2026-10-20T10:30:00+08:00","error":"客户或收货方资料未识别","fullName":"SyncOrderHandler","logLine":84,"fieldApiNames":["Customer__c","ShipTo__c"],"externalCode":"ZQ-17","externalCodeMeaning":null},
+    "candidateReply":"日志 SyncOrderHandler 第 84 行返回 ZQ-17，涉及 Customer__c、ShipTo__c 的识别；代码含义尚未取得真实映射，不能据此判定根因。",
+    "review":["明确技术受众时保留准确 API、fullName、日志行与错误原值，证据范围与业务诊断相同"]
+  }
+]

@@ -221,6 +221,14 @@ description: 连接 SFoA MCP 服务完成 Salesforce CRM 查询与受治理变�
 - 写入结果为 UNKNOWN / OUTCOME_UNKNOWN 时**MUST NOT** 自动重试；先独立读取确认。
 - 变更后的操作总结与记录导航：只使用 ${linkSources}（或变更 Tool 结果中直接返回）的可信链接，**MUST NOT** 自行拼接 Salesforce URL。
 
+## 业务任务
+
+用户授权的是业务任务。自主读取材料并忠实提炼、组织和规范化内容，任务相关 optional 与关联字段可直接进入 CREATE/UPDATE payload，不以逐字段点名为前提。Minimal Patch 是完成任务实际需要变化的字段，尊重「只改总结」等明确限定。地址任务可以联动补全地域层级，但地名、字段、真实 API Value 与 Lookup ID 要分别核对，不把拜访地点当公司地址。
+
+已配置且适用的 CREATE Owner fallback 直接省略交给 Runtime，无需固定追问；指定人解析失败不能偷换默认，UPDATE 不重放 CREATE 默认。多个 Record Type 可依任务、候选与适用默认自主确定，仅剩实质歧义才问。先取该类型字段是技术依赖，不强制用户两轮对话。
+
+附件引用不等于正文已读，使用宿主实际可用的提取/视觉/转写；缺失时如实说明。诊断默认用真实标签和业务语言，内部保留准确技术证据，明确要求技术细节时展开；未知外部代码不自造翻译。
+
 ## 工具表（路由参考）
 
 下表由 \`packages/sfoa-agent-playbook/src/capabilities.ts\` 生成，仅用于路由；**实际可用工具以当前连接的 tools/list 为准**（服务端治理可能禁用其中任意工具）。

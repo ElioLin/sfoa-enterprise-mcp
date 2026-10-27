@@ -10,7 +10,7 @@
 | --- | --- |
 | 1 match | 有真实证据得到唯一 Salesforce ID → 可以写入 |
 | 0 match | **MUST NOT** 猜。`CHANGE_READY=false`，如实告知没有找到匹配记录 |
-| multiple match | **MUST NOT** 选第一条。**MUST** 让用户澄清；`CHANGE_READY=false` 直到唯一 |
+| multiple match | 先用已有主体、地域层级和业务事实收窄；仍无法唯一解析才澄清；CHANGE_READY=false 直到唯一 |
 
 绝对禁止：
 
@@ -24,7 +24,7 @@
 
 如果 DML 阶段被 Salesforce Lookup Filter 拒绝，按 FAILED 处理并如实报告；**MUST NOT** 自行寻找其他候选自动重试。Salesforce 的 FLS / Sharing / Lookup Filter 是最终裁决。
 
-server-managed lookup 见 [managed-lookups.md](managed-lookups.md)：严格 managed 字段不询问也不提交；`PLATFORM_IDENTITY_FALLBACK` 字段在用户显式指定时才由 Agent 解析。
+server-managed lookup 见 [managed-lookups.md](managed-lookups.md)：严格 managed 字段不询问也不提交；`PLATFORM_IDENTITY_FALLBACK` 按任务和可靠业务事实处理，未指定且适用 CREATE fallback 时省略。
 
 ## Picklist
 
@@ -36,7 +36,9 @@ API Value = CUSTOMER
 → payload 写 CUSTOMER
 ```
 
-不能直接写中文 Label，除非当前真实 Salesforce API Value 本身就是中文。解析必须通过实时 Metadata / Runtime resolution（当前 Action Context 的 `picklist.values[]` 或 `resolve_field_display_values`）。**MUST NOT** 硬编码 Label → API Value 映射。
+不能直接写中文 Label，除非当前真实 Salesforce API Value 本身就是中文。解析必须通过实时 Metadata / Runtime resolution（当前 Record Type Action Context 的 picklist.values[] 与依赖事实）。resolve_field_display_values 只做 value → label 展示，不是中文地名 → API Value 或地域层级解析器。**MUST NOT** 硬编码 Label → API Value 映射。
+
+候选截断可复用同一 object/action/Record Type，以返回的 nextValueOffset 放入 picklistValueOffsets（字段 API → 偏移）续取并合并。末页自身仍不代表全集；dependenciesTruncated=true 不可假称控制依赖完整。
 
 Action Context 的 picklist 结构：`controllerName`、`controllerValues`、`values[{ label, value, default, validFor }]`、`totalValues`、`returnedValues`、`truncated`。
 
@@ -57,7 +59,7 @@ Controller 值本身还没确定时，先确定 Controller —— 这和 Dynamic
 
 ### 展示与写入的分工
 
-面向用户的回答使用 Label；SOQL 过滤、DML payload、Tool evidence 与 Audit 使用原始 API Value。只有用户明确要求 API Value 或技术诊断时才展示 raw value。
+面向用户的回答使用 Label；SOQL 过滤、DML payload、Tool evidence 与 Audit 使用原始 API Value。只有用户明确要求 API Value 或明确要求技术细节时才展示 raw value。
 
 ## UPDATE 场景的补充
 
@@ -85,4 +87,6 @@ Dependent Picklist 在 UPDATE 中确认 controller 的方式是：记录当前�
 - Dependent Picklist 的 controller 尚未确定
 - 提交字段的 `referenceTo` 与用户指定的对象不一致
 - UPDATE 中提交了当前证据证明不可更新的字段（`fieldUpdateable=false` 或 `layoutEditableForUpdate=false`）
-- UPDATE 中提交了用户并未要求修改的 Lookup / Picklist 字段
+- 提交任务外或无可靠依据的 Lookup / Picklist；未逐字段点名本身不是阻塞
+
+缺口按任务必要性处理：计划提交且影响任务完成的关联值、指定对象或其合法性未解时阻塞相应写入。低价值可选补全若无可靠依据且不影响任务完成，可省略并说明有意义的缺口，不为每个空白反复追问；已有可靠依据且适用的相关信息应进入实际 payload。显式指定但未解析的负责人不能偷偷改用 fallback。

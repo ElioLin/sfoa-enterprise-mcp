@@ -10,7 +10,7 @@ UNKNOWN / OUTCOME_UNKNOWN / post-dispatch timeout 的写入不能自动重试。
 
 ## Guidelines / Heuristics
 
-复杂变更优先读取当前 `get_agent_playbook` 与相关 `get_record_action_context`，根据返回的当前事实准备输入。不要从对象名称、旧 Prompt 或常识猜必填字段、Record Type、Lookup、Picklist、默认值或 Dynamic Forms 行为。已有授权不会补齐缺失的字段事实。
+复杂变更优先读取当前 `get_agent_playbook` 与相关 `get_record_action_context`，根据返回的当前事实准备输入。不要从对象名称、旧 Prompt 或常识猜必填字段、Record Type、Lookup、Picklist、默认值或 Dynamic Forms 行为。已有授权允许自主取证、忠实提炼与可靠关联；字段/API/ID/选项和权限仍来自真实上下文。Minimal Patch 是完成任务实际需要的变化，不是逐字段点名清单。
 
 Core 不定义 Required Field / Dependency / READY Gate 的完整算法。当前 CREATE / UPDATE 仍使用真实 Playbook 和 Action Context；专门的就绪判断由 `sfoa-record-change` 承载（覆盖 CREATE 与 UPDATE 的就绪判断、单条与批量变更、以及写入结果核对）。两者联合生效时以该专业 Skill 的 readiness gate 为准，Core 不重复其细节，也不因它存在而放宽本文的变更边界。
 

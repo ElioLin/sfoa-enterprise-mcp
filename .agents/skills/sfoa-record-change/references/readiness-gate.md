@@ -26,7 +26,7 @@ Evidence-Based Mutation Readiness
 | --- | --- |
 | Intent 未确定 | 用户意图不是明确的创建 / 新增 / 发起申请 |
 | Object 未确定 | 目标对象不是当前 Runtime / Salesforce 可证明的对象 |
-| Record Type 未确定 | `availableRecordTypes` 多个且用户未唯一指定，或 `recordTypeSelectionRequired=true` |
+| Record Type 未确定 | 任务、真实候选及适用默认仍不能合理确定类型，或选定类型后尚未取得该类型字段 |
 | Effective Context 未充分解析 | 缺少本次 mutation 需要的字段、必填、可写、依赖事实 |
 | 用户显式事实未纳入 | Prompt 已给出的事实还没有进入 draft 或 payload |
 | Critical Dynamic Dependency 未稳定 | 见 [dynamic-forms.md](dynamic-forms.md) |
@@ -36,7 +36,7 @@ Evidence-Based Mutation Readiness
 | Picklist 未归一 | 还没有解析成当前 Record Type 的真实 API Value |
 | Managed 字段规则未满足 | 见 [managed-lookups.md](managed-lookups.md) |
 | Evidence 不足或被截断 | 见 [dynamic-forms.md](dynamic-forms.md) 的 Evidence Completeness |
-| Mutation Intent 与最终 payload 不一致 | payload 扩大了用户要求的范围 |
+| Mutation Intent 与最终 payload 不一致 | payload 超出业务任务或违反用户明确限定 |
 | 用户已显式指定但解析失败 | 例如显式 Owner / Lookup 0 match、multiple match |
 
 ## UPDATE 的 blocking conditions
@@ -45,10 +45,10 @@ Evidence-Based Mutation Readiness
 | --- | --- |
 | Intent 不是明确的 UPDATE | 用户意图未确定或实为其他操作 |
 | Object 未确定 | 目标对象不可由当前 Runtime / Salesforce 证明 |
-| Target 未解析 | 0 match，或单条意图下 multiple match 未澄清。见 [update-readiness.md](update-readiness.md) |
+| Target 未解析 | 0 match，或单条意图下 multiple match 仍未唯一解析。见 [update-readiness.md](update-readiness.md) |
 | Target Population 范围未证明完整 | 查询有界却要宣称「全部已更新」 |
-| Mutation scope 不明确 | 不知道用户到底要改哪些字段 |
-| Patch 含非意图字段 | 出现用户没要求且 Runtime 未证明必要的字段 |
+| Mutation scope 不明确 | 业务任务含义仍有实质歧义 |
+| Patch 含非意图字段 | 出现任务外、无可靠依据或违反明确范围的字段 |
 | 字段不可更新 | 当前证据显示 `fieldUpdateable=false` 或 `layoutEditableForUpdate=false`，而用户要求修改它 |
 | 值与字段类型不符 | 提交值不是当前字段类型的合法 Salesforce 值 |
 | Lookup 歧义未解决 | 0 match 或 multiple match |
@@ -57,7 +57,7 @@ Evidence-Based Mutation Readiness
 | Managed 字段规则未满足 | 要求修改严格 managed 字段，或显式 Owner 解析失败 |
 | Record Type 意图未解析 | 用户要求变更但候选 / 许可未确认 |
 | Evidence 不足或被截断 | 关键的 UPDATE context 事实缺失 |
-| Mutation Intent 与最终 Patch 不一致 | Patch 超出用户要求的范围 |
+| Mutation Intent 与最终 Patch 不一致 | Patch 超出业务任务或违反用户明确限定 |
 
 `CREATE required` 与 `UPDATE missing required` **不是同一个 blocking condition**。记录已存在时，创建期必填缺口不构成 UPDATE 阻塞。
 
@@ -70,7 +70,7 @@ Evidence-Based Mutation Readiness
 - 只因为 `resolutionStatus=RESOLVED` 之外存在与本次 mutation 无关的 UNKNOWN。
 - 只因为 optional 字段为空。Optional 不是必填。
 - 只因为字段是严格 managed。严格 managed 由 Runtime 负责，不是 Agent 的缺口。
-- 只因为存在 Salesforce default。默认值解决「值从哪来」，不解决「Record Type 是否等于用户业务意图」，也不构成 UPDATE 时把 CREATE default 重新套用的理由。
+- 只因为多个 Record Type、optional 字段未被点名或值来自忠实提炼/可靠关联；这些不是追问理由。适用 CREATE fallback 可直接省略交由 Runtime，UPDATE 不重放默认。
 - 只因为 UPDATE 没有携带 CREATE 的完整表单。UPDATE 的 scope 由用户意图决定。
 
 ## 每条记录独立判断

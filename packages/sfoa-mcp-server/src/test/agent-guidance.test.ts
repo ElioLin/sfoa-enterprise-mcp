@@ -126,6 +126,9 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
     assert.equal(asRecord(fallback.structuredContent).workflow, 'CREATE');
     assert.match(String(asRecord(fallback.structuredContent).guidance), /## CREATE —/u);
     assert.match(String(asRecord(fallback.structuredContent).guidance), /MCP_DML_OUTCOME_UNKNOWN/u);
+    const textOnly = JSON.parse(toolResultText(fallback)) as { guidance: string };
+    assert.equal(textOnly.guidance, asRecord(fallback.structuredContent).guidance, 'text-only hosts receive the complete workflow rather than a summary pointer');
+    assert.equal(toolResultText(fallback), JSON.stringify(fallback.structuredContent, null, 2), 'native OpenClaw may deduplicate the exact SDK mirror');
     assert.equal(connectionFactory.apiRequests.length, 0, 'the Playbook fallback must not call Salesforce APIs');
     assert.equal(connectionFactory.creations.length, 0, 'get_agent_playbook must not create a Connection');
 

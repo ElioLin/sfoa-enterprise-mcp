@@ -4,6 +4,8 @@ import { DescribeSobjectExecutor } from '../describe-sobject-executor.js';
 import { DataRuntimeError } from '../errors.js';
 import { DATA_MAX_RESPONSE_BYTES } from '../response-budget.js';
 import { DESCRIBE_SOBJECT_MAX_PICKLIST_VALUES } from '../schemas.js';
+import { describeSobjectOutputSchema } from '../schemas.js';
+import { DescribeSobjectMcpTool } from '../tools/describe-sobject.js';
 import {
   childRelationship,
   createFixture,
@@ -13,6 +15,32 @@ import {
 } from './data-fixtures.js';
 
 const DEFAULT_FIELD_LIMIT = 200;
+
+test('Describe projects real help and constraints into both result surfaces with missing and truncated facts explicit', async () => {
+  const fixture = createFixture({ handler: () => accountDescribe({ fields: [
+    fieldEntry('Summary__c', { label: '拜访总结', inlineHelpText: '事实、进度与异议', length: 3000 }),
+    fieldEntry('Amount__c', { type: 'currency', precision: 18, scale: 2 }),
+    fieldEntry('Missing__c'),
+    fieldEntry('LongHelp__c', { inlineHelpText: '文'.repeat(2001) }),
+  ] }) });
+  const result = await new DescribeSobjectMcpTool(new DescribeSobjectExecutor(fixture.orgService)).exec({ objectApiName: 'Account' });
+  const output = describeSobjectOutputSchema.parse(result.structuredContent);
+  assert.equal(output.fields?.[0]?.inlineHelpText, '事实、进度与异议');
+  assert.equal(output.fields?.[0]?.length, 3000);
+  assert.equal(output.fields?.[1]?.precision, 18);
+  assert.equal(output.fields?.[1]?.scale, 2);
+  assert.equal(output.fields?.[2]?.length, null);
+  assert.equal(output.fields?.[2]?.inlineHelpText, null);
+  assert.equal(output.fields?.[3]?.inlineHelpTextTruncated, true);
+  assert.equal(output.fields?.[3]?.inlineHelpText?.length, 2000);
+  assert.equal(output.truncated, true);
+  assert.match(output.hint ?? '', /inlineHelpText/u);
+  assert.equal(fixture.calls.length, 1, 'reuse the one Describe, no per-field calls');
+  const text = result.content.find(block => block.type === 'text');
+  assert.ok(text?.type === 'text');
+  assert.deepEqual(JSON.parse(text.text), output);
+  assert.equal(text.text, JSON.stringify(result.structuredContent, null, 2));
+});
 
 function accountDescribe(overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   return describePayload('Account', {

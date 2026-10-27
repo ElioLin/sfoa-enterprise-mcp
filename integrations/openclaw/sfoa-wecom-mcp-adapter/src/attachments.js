@@ -646,9 +646,10 @@ export function renderAttachmentContext(refs) {
   });
 
   return [
-    "SFOA attachments received with this message (already stored by the platform; the file contents are not in this conversation):",
+    "SFOA attachments received with this message (already stored by the platform; this reference block contains metadata, not the file body or a transcript):",
     ...lines,
     "To attach these to one record, call `upload_files_to_record` with `objectApiName`, `recordId`, and these `attachmentRefs`. The Tool takes references only — never file content, base64, a byte array, a filesystem path, or a URL — so do not try to read or fetch a file in order to upload it.",
     "These references belong to this user in this conversation. Never invent, guess, transform, or reuse another reference, and never retry a rejected one under a modified value.",
+    "For a task based on the material, use this turn's actual host-provided extracted text, PDF/vision result or audio transcript before extracting facts. These references, filenames and upload success do not prove the body was read. Reuse available parsing capabilities; if extraction/transcription is absent, failed or partial, state that specific gap instead of claiming to have read the material. This attachment bridge performs staging only, not document parsing or speech recognition.",
   ].join("\n");
 }

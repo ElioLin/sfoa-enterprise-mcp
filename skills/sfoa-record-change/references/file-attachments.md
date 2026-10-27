@@ -18,7 +18,7 @@ v1 范围：**1 条记录 × 1..N 个文件**。不含已有文件重挂、版�
 
 1. **附件是独立能力** — `attachmentEnabled` 与 CREATE / UPDATE 互不蕴含。对象可写不等于可收附件；对象可收附件也不等于可写。**MUST NOT** 用 CREATE 或 UPDATE 的授权推断附件能力，也**MUST NOT** 因为附件可用就认为记录可写。
 2. **目标先行** — 记录必须**已经存在**，且属于传入的 `objectApiName`。附件不创建记录。记录不存在时如实说明，**MUST NOT** 用 `create_record` 顺手造一条来「接住」文件，除非用户本来就要创建它。
-3. **只接受 `attachmentRef`** — Agent **MUST NOT** 要求用户粘贴文件内容、base64、字节数组、服务器路径或任何 URL；**MUST NOT** 为了上传而读取文件。引用由 SFOA Attachment Ingress 在文件随消息到达时生成，并由平台注入到当前会话上下文。
+3. **只接受 `attachmentRef`** — 上传工具只收引用，不要求粘贴文件内容、base64、字节数组、服务器路径或 URL。纯上传无需读取；用户要求按材料创建/更新时，先用宿主实际可用的提取/视觉/转写读取正文，再提炼字段。引用、文件名或上传成功不证明正文已读。引用由 SFOA Attachment Ingress 在文件随消息到达时生成，并由平台注入到当前会话上下文。
 4. **引用有归属** — 只能使用**当前用户在当前会话**获得的 `attachmentRef`。**MUST NOT** 猜测、构造、变形或复用他人的引用，也**MUST NOT** 凭文件名推断引用。引用被拒绝时返回稳定错误码，如实报告即可，**MUST NOT** 改动引用重试。
 5. **Files 是内部技术对象** — `ContentVersion`、`ContentDocument`、`ContentDocumentLink` 不是业务对象。**MUST NOT** 把它们传给 `create_record` / `create_records` / `update_record` / `update_records`，也**MUST NOT** 声称用这些 Tool 完成了附件。
 6. **Salesforce 是最终接受权威** — 文件类型、大小与一切接受规则由 Salesforce 判定。**MUST NOT** 在本地按扩展名、MIME 或大小预先筛选，**MUST NOT** 在 Salesforce 未给出理由时替它编造一个。被拒绝时原样转述 Salesforce 的 `errorCode` 与 message。

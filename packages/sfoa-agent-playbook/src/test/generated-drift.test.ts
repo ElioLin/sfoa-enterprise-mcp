@@ -20,8 +20,8 @@ describe('generated Agent artifact drift guard', () => {
         const content = readFileSync(resolve(root, file), 'utf8');
         assert.match(content, new RegExp(AGENT_PLAYBOOK_VERSION.replace(/\./gu, '\\.'), 'u'));
         assert.match(content, /PLATFORM_IDENTITY_FALLBACK/u);
-        assert.match(content, /ask once/u);
-        assert.match(content, /optional and absent/u);
+        assert.match(content, /by omission|omit it and let Runtime/u);
+        assert.doesNotMatch(content, /required and absent means ask once/u);
         assert.doesNotMatch(content, /Omit every field marked/u);
       }
       appendFileSync(resolve(root, 'docs/agent/DIFY_AGENT_INSTRUCTION.md'), '\nmanual drift\n', 'utf8');

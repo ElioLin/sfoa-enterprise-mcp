@@ -160,7 +160,7 @@ export class ScopedFieldAccessExplainer implements FieldAccessExplainer {
             grants,
             profileBaselineReadable,
             permissionSetsTruncated: assigned.truncated,
-            fieldMissingFromDescribe: describeFacts !== null && !describeFacts.has(fieldApiName),
+            fieldMissingFromDescribe: describeFacts !== null && !describeFacts.fields.has(fieldApiName),
           }),
         });
       });
@@ -202,11 +202,11 @@ export class ScopedFieldAccessExplainer implements FieldAccessExplainer {
         const explanations: FieldAccessExplanation[] = kept.map((entry, index) => ({
           fieldApiName: entry.fieldApiName,
           describeFacts: entry.describeFacts === null ? null : {
-            type: entry.describeFacts.get(entry.fieldApiName)?.type ?? null,
-            label: entry.describeFacts.get(entry.fieldApiName)?.label ?? null,
-            createable: entry.describeFacts.get(entry.fieldApiName)?.createable ?? null,
-            updateable: entry.describeFacts.get(entry.fieldApiName)?.updateable ?? null,
-            accessible: entry.describeFacts.get(entry.fieldApiName)?.accessible ?? null,
+            type: entry.describeFacts.fields.get(entry.fieldApiName)?.type ?? null,
+            label: entry.describeFacts.fields.get(entry.fieldApiName)?.label ?? null,
+            createable: entry.describeFacts.fields.get(entry.fieldApiName)?.createable ?? null,
+            updateable: entry.describeFacts.fields.get(entry.fieldApiName)?.updateable ?? null,
+            accessible: entry.describeFacts.fields.get(entry.fieldApiName)?.accessible ?? null,
             executionIdentityView: true,
           },
           grants: entry.facts.grants.map((grant) => ({
@@ -231,6 +231,7 @@ export class ScopedFieldAccessExplainer implements FieldAccessExplainer {
           executionRole: 'DIAGNOSTIC',
           api: 'STANDARD',
           objectApiName,
+          objectLabel: describeFacts?.objectLabel ?? null,
           requestedFieldCount: fieldApiNames.length,
           returnedFieldCount: kept.length,
           userContext,
@@ -441,7 +442,10 @@ type DescribeFieldFacts = Readonly<{
   accessible: boolean | null;
 }>;
 
-type DescribeFacts = ReadonlyMap<string, DescribeFieldFacts>;
+type DescribeFacts = Readonly<{
+  objectLabel: string | null;
+  fields: ReadonlyMap<string, DescribeFieldFacts>;
+}>;
 
 /**
  * The caller's object's field definitions — and **nothing else about it**.
@@ -460,6 +464,7 @@ async function readDescribeFacts(
 ): Promise<DescribeFacts | null> {
   try {
     const described = (await connection.sobject(objectApiName).describe()) as unknown as {
+      label?: unknown;
       fields?: readonly Record<string, unknown>[];
     };
     const facts = new Map<string, DescribeFieldFacts>();
@@ -478,7 +483,7 @@ async function readDescribeFacts(
         accessible: readFlag(match.accessible),
       }));
     }
-    return facts;
+    return Object.freeze({ objectLabel: asString(described.label), fields: facts });
   } catch {
     return null;
   }

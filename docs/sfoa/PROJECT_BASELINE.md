@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.2.0`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts |
+| Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.12.0`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts |
 | Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. P6-DML-01 adds one constrained managed-field child table. P7-01 compatibly evolves the Audit master and adds ordered Event/API and bounded Payload Evidence children. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions, except the default-off, maintainer-authorized Buntu validation raw-token troubleshooting evidence defined by ADR-0016. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
@@ -99,6 +99,22 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 - Build, test, lint, and integration results must be rerun after material implementation changes.
 
 ## Current phase
+
+2026-10-26: **OpenClaw business-task autonomy, source delivery** is based on fetched
+origin/main 12df237f7ab03c4771109813b84f715a29e9e32d, branch
+codex/openclaw-business-autonomy. Salesforce-embedded OpenClaw remains paused
+and is not a prerequisite. Canonical four business Skills and Playbook 1.12.0 allow
+faithful material synthesis and reliable related completion in Agent-prepared
+CREATE/UPDATE payloads. Minimal Patch is actual task changes, rather than a list
+of fields spoken by the user. Applicable configured CREATE Owner fallback is used
+by omission without mandatory clarification. Record Type selection remains a Tool
+dependency, not a forced user dialog. UI API/Describe field semantics, Picklist
+continuation, label-first permission text and full text fallback improve evidence
+delivery without changing DML/identity authority. Runtime rollout and actual
+model/WeCom acceptance are NOT RUN; see [delivery](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md).
+This current contract supersedes the historical interaction restrictions below;
+historical test/deployment evidence is retained as historical evidence.
+
 
 2026-10-15: ADR-0034 gives the Console more than one account without giving it a user-management
 module. `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers plaintext accounts beside the existing

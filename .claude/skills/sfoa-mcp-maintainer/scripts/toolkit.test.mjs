@@ -3,6 +3,7 @@ import { cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/pr
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import './task-autonomy.test.mjs';
 import { fileURLToPath } from 'node:url';
 import { AuditTraceNotFoundError, reconstructTrace, requireAuditRows } from './audit-trace.mjs';
 import { assertReadOnlySql } from './shared/db.mjs';
@@ -64,12 +65,12 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['CHANGE_READY Gate', '不是 Tool、不是 DB 状态、不是 Token'],
   ['Context != Ready', '调用过 `get_record_action_context` **只**证明已获取上下文'],
   ['Context != Ready', '据此认为表单已检查完成'],
-  ['Record Type Gate', '无法唯一判断时 **MUST** 询问'],
-  ['Record Type Gate', '静默替用户选择业务 Record Type'],
+  ['Record Type Gate', '仍有实质业务歧义才问'],
+  ['Record Type Gate', '不强制两轮用户对话'],
   ['Required Checklist', '进入 Missing Required Checklist 并询问'],
   ['Required Checklist', '`apiRequired=true` 与 UI 可见性无关'],
-  ['PENDING', '未知就先询问依赖'],
-  ['PENDING', '看见 PENDING 就忽略并直接 CREATE'],
+  ['PENDING', '优先复用材料'],
+  ['PENDING', '不要忽略影响本次提交的未决依赖'],
   ['UNKNOWN', '`UNKNOWN` 不等于 `PENDING`'],
   ['UNKNOWN', '把 UNKNOWN 推断成任何一种可见状态'],
   ['Critical Dependency', 'Critical Dynamic Dependency'],
@@ -77,13 +78,13 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['HIDDEN', '`visibilityState=HIDDEN` 的字段 **MUST NOT** 询问'],
   ['Refinement Limit', '`refinementLimitReached`'],
   ['Refinement Limit', '并如实说明当前页面条件无法充分解析'],
-  ['Initial Facts', '无故重复询问'],
-  ['Initial Facts', '转成当前 Schema 可证明的字段'],
+  ['Initial Facts', '已知信息不重复问'],
+  ['Initial Facts', '当前真实字段的 draft/Patch'],
   ['Defaults', 'Flow / Trigger 保存后才可能补的值'],
   ['Managed Field', '`PLATFORM_IDENTITY`、`AI_CREATED_MARKER`'],
   ['Managed Field', '由 Runtime 负责'],
-  ['Owner Fallback', '省略该字段交由 Runtime fallback'],
-  ['Owner Fallback', '自行查询并写入 Salesforce User ID'],
+  ['Owner Fallback', '省略字段交给 Runtime'],
+  ['Owner Fallback', '不自己查询当前用户 ID'],
   ['Explicit Wins', '偷偷改用 platform fallback'],
   ['Lookup Ambiguity', '模型生成 ID'],
   ['Lookup Ambiguity', '自动寻找其他候选重试'],
@@ -94,23 +95,23 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['Batch Readiness', 'A / B 已经产生 Salesforce 副作用'],
   ['Unknown Outcome', '`MCP_DML_OUTCOME_UNKNOWN` **MUST NOT** 自动重复 CREATE'],
   ['Partial Success', '整批重发'],
-  ['Mutation Intent', '为了「补全」而写入'],
+  ['Mutation Intent', '包括任务相关 optional 与关联字段'],
   ['No Hardcoding', '硬编码 Salesforce Required Fields'],
   ['No Hardcoding', '公司字段业务规则'],
   ['Salesforce Authority', 'Validation Rule、FLS、Sharing、Lookup Filter、Flow、Trigger'],
   // Skill-02B additions: UPDATE must not be collapsed into CREATE, and the batch/unknown limbs are
   // now part of the entry point rather than deferred to a later phase.
   ['UPDATE != CREATE', '**UPDATE != CREATE**'],
-  ['UPDATE != CREATE', '把一条最小 UPDATE 展开成完整 CREATE 表单'],
+  ['UPDATE != CREATE', '不要把局部 UPDATE 展开成完整 CREATE 表单'],
   ['Target before Patch', '`TARGET_RESOLVED`'],
-  ['Minimal Patch', '只包含用户真正要求改变的字段'],
+  ['Minimal Patch', '完成本次业务任务实际需要改变的字段'],
   ['Read Facts != Mutation Intent', 'Read Facts != Mutation Intent'],
   ['Omitted != null', '`Omitted != null`'],
   ['CREATE Required != UPDATE Required', 'CREATE Required != UPDATE Required'],
   ['No CREATE default reapplication', '无 CREATE 默认重放'],
-  ['No CREATE Owner fallback injection', 'UPDATE Owner 不做 fallback 注入'],
+  ['No CREATE Owner fallback injection', 'UPDATE Owner 不重放 fallback'],
   ['No guessed identifiers', '不得猜测标识值'],
-  ['No automatic Record Type change', 'Record Type 不静默变更'],
+  ['No automatic Record Type change', 'Record Type 与任务一致'],
   ['Per-record Batch Readiness', 'Batch 独立就绪'],
   ['No retry of successful subset', 'Batch 不得重放成功项'],
   ['Current State != Transaction Outcome', 'Current State != Transaction Outcome'],
@@ -230,7 +231,7 @@ test('dynamic forms reference keeps the four states distinct and gates refinemen
 
 test('managed lookup reference separates strict managed, marker and user-overridable fallback', async () => {
   const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'managed-lookups.md'), 'utf8');
-  for (const marker of ['`PLATFORM_IDENTITY`', '`AI_CREATED_MARKER`', '`PLATFORM_IDENTITY_FALLBACK`',
+  for (const marker of ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK',
     'MCP_DML_MANAGED_LOOKUP_NOT_FOUND', 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS', 'MCP_DML_MANAGED_LOOKUP_FAILED',
     'omit field', '大小写不敏感', 'MCP_DML_INPUT_INVALID', 'CREATE 专用']) {
     assert.ok(reference.includes(marker), `managed-lookups.md is missing: ${marker}`);
@@ -251,8 +252,8 @@ test('create readiness reference keeps initial facts, record type gate and the U
     assert.ok(reference.includes(marker), `create-readiness.md is missing: ${marker}`);
   }
   // A Salesforce default must never replace a real business Record Type choice.
-  assert.ok(reference.includes('默认值不是用户业务意图的替代品'),
-    'create-readiness.md must deny silently accepting the default Record Type');
+  assert.ok(reference.includes('适用默认可以结合任务支持类型选择'),
+    'create-readiness.md must allow applicable defaults without overriding explicit intent');
   // The Agent-side fact ledger must stay a reasoning doctrine, not a new runtime enum.
   assert.ok(reference.includes('仅为 reasoning doctrine'),
     'create-readiness.md must mark the fact ledger as reasoning doctrine only');

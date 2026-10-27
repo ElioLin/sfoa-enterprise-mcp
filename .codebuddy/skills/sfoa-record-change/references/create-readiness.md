@@ -12,7 +12,7 @@
 | `action` | 必需，`CREATE` |
 | `recordTypeId` | 可选；显式给出时必须属于当前候选 |
 | `recordId` | CREATE 禁止 |
-| `draftFields` | CREATE 专用，可选；已知 Prompt 值，用于条件可见性；missing 与 `null` / `false` / `0` / 空串不同 |
+| `draftFields` | CREATE 专用，可选；任务草稿值（提示、已读材料、可靠关联），用于条件可见性；missing 与 `null` / `false` / `0` / 空串不同 |
 | `refinement` | CREATE 专用，可选；初始 0，最大 3 |
 
 `draftFields` 与 `refinement` 是 CREATE 专用。UPDATE 不允许照搬这套机制。`recordTypeSelectionRequired=true` 时 Create Defaults / Picklist 相关事实还没有加载。
@@ -25,7 +25,7 @@ CREATE 输出的关键字段：`recordType`、`availableRecordTypes`、`recordTy
 
 ## Initial Fact Ledger
 
-先从用户自然语言中抽取**已经明确提供**的业务事实：对象线索、Record Type 语义、日期、客户、负责人、来源、计划交谈事项、参与人、状态、业务字段值、Lookup 语义、Picklist label。
+先实际读取用户指定材料，再从自然语言、正文、转写及适用上下文抽取、忠实提炼并核验关联业务事实：对象线索、Record Type 语义、日期、客户、负责人、来源、计划交谈事项、参与人、状态、业务字段值、Lookup 语义、Picklist label。
 
 把这些事实转成**当前 Salesforce Schema / Metadata 可证明的字段**后写入 draft。**MUST NOT** 硬编码字段映射；字段名必须来自当前 Action Context / ObjectInfo 证据。
 
@@ -33,7 +33,8 @@ Agent 侧的事实来源分类（**仅为 reasoning doctrine，不是 Runtime en
 
 | 来源 | 含义 |
 | --- | --- |
-| `USER_EXPLICIT` | 用户在 Prompt 中明确给出，或用户在澄清中确认 |
+| `USER_EXPLICIT` | Runtime 的历史兼容标签：Agent 传入的 draftFields；不是逐字输入、正文已读或事实已核验的证明 |
+| 材料提炼 / 可靠关联 | Agent 工作摘要可区分原事实、提炼与关联推导；不是新增 Runtime enum |
 | `SALESFORCE_CREATE_DEFAULT` | 当前 Action Context 的 Create Defaults 证明的默认值 |
 | `RECORD_TYPE_DEFAULT` | 当前 Record Type 证据证明的默认值 |
 | `CURRENT_USER_FACT` | 当前 USER 事实（例如 `$User.*`），由 Runtime 读取证明 |
@@ -43,7 +44,7 @@ Agent 侧的事实来源分类（**仅为 reasoning doctrine，不是 Runtime en
 
 Runtime 自身的 `InitialFact.source` 枚举是 `USER_EXPLICIT`、`SALESFORCE_CREATE_DEFAULT`、`CURRENT_USER_FACT`、`TRUSTED_RUNTIME_DEFAULT`、`UNRESOLVED`。`RECORD_TYPE_DEFAULT` 与 `MANAGED_RUNTIME_DEFAULT` 只是 Agent 侧的概念；若当前代码没有对应的 Runtime 枚举，**MUST NOT** 声称 Runtime 产生了它。
 
-优先级：`USER_EXPLICIT` > 有实时证据的 Salesforce / Record Type / Runtime default > 无来源。用户已明确提供的事实不得无故重复询问。保留 `false` / `0` / `null` / 未提供之间的差异。
+draftFields 在可见性计算中覆盖默认值，这是草稿优先级而非事实可信度排名；材料事实与实际字段映射由 Agent 核对。明确任务输入、忠实提炼与可靠关联均可纳入草稿；冲突先核查时效、主体与上下文，关键冲突未解才问。保留 `false` / `0` / `null` / 未提供之间的差异。
 
 ## Record Type Hard Gate
 
@@ -51,11 +52,11 @@ Runtime 自身的 `InitialFact.source` 枚举是 `USER_EXPLICIT`、`SALESFORCE_C
 
 1. **唯一候选** — `availableRecordTypes` 只有一个合法候选时直接采用，不需要额外提问。非 Master 类型按当前 Playbook 要求把解析出的 `recordType.id` 作为 `recordTypeId` 传入，不要省略后落到别的 Salesforce 默认。
 2. **用户明确指定且唯一映射** — 用户业务语言能唯一映射到当前实时候选时，使用该 Record Type。
-3. **多个候选且无法唯一判断** — **MUST** 询问，`CHANGE_READY=false`。先给出当前真实候选，等用户选择后再用同一 `recordTypeId` 重新获取 Context。
+3. **多个候选** — 用任务、候选标签/描述与适用默认自主确定，再用同一 recordTypeId 取该类型字段；技术两阶段不要求用户两轮对话。仍有实质业务歧义时才询问并保持 CHANGE_READY=false。
 4. **Master** — 当前候选集在存在可用非 Master 类型时已经排除 Master。不要把它加回来，也不要在这个情况下选择它。只有当 Master 是唯一可用类型时才保留并使用它，且不需要询问。
 5. **没有可用候选** — 停止并告知用户该记录当前无法创建；**MUST NOT** 在不可用或猜测的 Record Type 下创建。
 
-**默认值不是用户业务意图的替代品。** 存在 Salesforce default Record Type 不构成在多个真实业务候选之间静默替用户选择的理由。
+适用默认可以结合任务支持类型选择，不能覆盖明确相反要求或掩盖业务歧义。
 
 **MUST NOT** 在 Skill 中写死 Record Type ID、DeveloperName 或公司特定 Record Type；必须从 Runtime / Salesforce 实时发现。
 
@@ -66,8 +67,8 @@ Runtime 自身的 `InitialFact.source` 枚举是 `USER_EXPLICIT`、`SALESFORCE_C
 必须满足的判定：
 
 ```text
-VISIBLE + effectiveRequired=true + 当前没有显式值 + 没有可信默认值满足
-→ 一定进入 Missing Required Checklist
+VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠实提炼与可靠关联） + 没有可信默认值满足
+→ 先用已有材料、上下文与可用读取解决，仍缺关键事实时进入 Missing Required Checklist
 ```
 
 `apiRequired=true` 与 UI 可见性无关：即使字段在 UI 上 HIDDEN，API 必填语义仍然存在。
@@ -96,7 +97,7 @@ Default 必须有实时 Runtime / Salesforce evidence。`defaultValueTruncated=t
 
 不要机械追求「整次 CREATE 只能问一次」。正确语义是：**当当前 Dynamic Forms dependency layer 已经稳定时，一次性合并询问这一层真正缺失的字段。**
 
-示例（抽象，不绑定具体公司对象与字段名）：字段 A 处于 `PENDING`，`dependsOn` 返回字段 B，而字段 B 未知。第一次只应该询问字段 B。用户回答后写入 draft 并 refinement，字段 A 可能变成 VISIBLE + Required，此时再询问字段 A。这是正确行为。
+示例（抽象，不绑定具体公司对象与字段名）：字段 A 处于 `PENDING`，`dependsOn` 返回字段 B，而字段 B 未知。先从材料、已有上下文或可用读取解决字段 B，仍缺关键事实才询问。用户回答后写入 draft 并 refinement，字段 A 可能变成 VISIBLE + Required，此时再询问字段 A。这是正确行为。
 
 **MUST NOT** 为了「只问一次」提前猜测后续字段。**MUST NOT** 把具体字段 API 名写进本 Skill；`dependsOn` 与 draft 的字段名一律来自当前 Action Context。
 

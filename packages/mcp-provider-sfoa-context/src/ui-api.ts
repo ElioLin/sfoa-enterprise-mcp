@@ -25,6 +25,10 @@ export const objectFieldSchema = z
     apiName: z.string(),
     label: z.string(),
     dataType: z.string(),
+    inlineHelpText: z.string().nullable().optional(),
+    length: z.number().int().nonnegative().nullable().optional(),
+    precision: z.number().int().nonnegative().nullable().optional(),
+    scale: z.number().int().nonnegative().nullable().optional(),
     required: z.boolean(),
     createable: z.boolean(),
     updateable: z.boolean(),
@@ -126,6 +130,18 @@ export const picklistCollectionSchema = z
     picklistFieldValues: z.record(picklistFieldSchema),
   })
   .passthrough();
+
+/** Field help is untrusted descriptive data, never identity or permission instructions. */
+export function fieldSemanticFacts(field: z.infer<typeof objectFieldSchema>) {
+  const help = field.inlineHelpText ?? null;
+  return {
+    inlineHelpText: help === null ? null : help.slice(0, 2000),
+    inlineHelpTextTruncated: help !== null && help.length > 2000,
+    length: field.length ?? null,
+    precision: field.precision ?? null,
+    scale: field.scale ?? null,
+  };
+}
 
 export type ObjectInfo = z.infer<typeof objectInfoSchema>;
 export type Layout = z.infer<typeof layoutSchema>;

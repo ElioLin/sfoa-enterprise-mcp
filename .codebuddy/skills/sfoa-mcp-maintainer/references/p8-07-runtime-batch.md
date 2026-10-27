@@ -125,3 +125,19 @@ A/B USER routes; it does not copy or modify MySQL policy. It creates two test ro
 per USER, verifies one collection request per CREATE/UPDATE, then cleans up only
 proven test-owned IDs through the existing validator cleanup pattern. Missing
 policy/fixtures are BLOCKED, never grounds for bypassing governance.
+
+## Current task semantics (2026-10-26)
+
+Playbook 1.12.0 and the four canonical business Skills permit task-relevant faithful
+material synthesis and reliable related completion in the actual Agent draft/Patch.
+Minimal Patch means actual task changes, not field-by-field naming. CREATE fallback
+is used by omission when configured/applicable; no mandatory question. Ordinary
+UPDATE does not replay CREATE defaults. Strict managed and identity rules remain.
+
+create-initial-state.ts tags incoming draftFields as USER_EXPLICIT for historical
+visibility/provenance compatibility. It does not verify literal authorship, material
+reading or business truth. The external enum stays unchanged. Do not cite that tag
+as proof of source quality. UI API/Describe field help and constraints are descriptive
+facts; effective Dynamic Forms preserves them. Existing action context supports
+Picklist continuation with explicit offsets/dependency truncation; display-value
+resolution remains value-to-label, not a geography parser.

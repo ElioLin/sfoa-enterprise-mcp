@@ -22,11 +22,11 @@ describe('canonical SFoA Agent Playbook', () => {
   it('distributes the bounded effective CREATE workflow without asking Agents to parse metadata', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
       for (const token of ['draftFields', 'PENDING', 'UNKNOWN', 'optionalCandidate', 'uiContextResolutionId', 'effectiveRequired']) assert.ok(output.includes(token), token);
-      assert.match(output, /(?:three|3).*refinement|refinement.*(?:three|3)/iu);
+      assert.match(output, /refine at most 3 times/iu);
     }
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.11.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.12.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -92,9 +92,9 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderWorkflow('READ', capabilities), /READ is never bounded by the CREATE\/UPDATE allowlists or DML policy/u);
     assert.match(renderWorkflow('READ', capabilities), /Account, Opportunity, Contact/u);
     assert.match(renderFullPlaybook(capabilities), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
-    assert.match(renderFullPlaybook(capabilities), /minimum requested mutation|only fields the user asked/u);
+    assert.match(renderFullPlaybook(capabilities), /actual changes needed to complete this business task/u);
     assert.match(renderFullPlaybook(capabilities), /trusted Lightning record link/u);
-    assert.match(renderWorkflow('CREATE', capabilities), /3 to 8 high-value optional fields/u);
+    assert.match(renderWorkflow('CREATE', capabilities), /relevant optional fields/u);
     assert.match(renderWorkflow('CREATE', capabilities), /required, recommended, and other optional fields/u);
     assert.match(renderWorkflow('CREATE', capabilities), /show the bounded current valid choices/u);
     assert.match(renderWorkflow('UPDATE', capabilities), /CREATE-required fields are not automatically required/u);
@@ -104,7 +104,7 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderFullPlaybook(capabilities), /Do not create a Runtime Form Engine/u);
     assert.match(renderFullPlaybook(capabilities), /MCP-managed DML fields: `Account\.Requested_By__c`/u);
     assert.match(renderWorkflow('CREATE', capabilities), /Exclude only strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` fields from required questions/u);
-    assert.match(renderServerInstructions(capabilities), /do not ask for, recommend, derive, or override them/u);
+    assert.match(renderServerInstructions(capabilities), /strict server-owned values: omit them/u);
     assert.match(renderFullPlaybook(capabilities), /## ORG_OBJECT_USAGE/u);
     assert.match(renderFullPlaybook(capabilities), /`Quote`/u);
     assert.match(renderFullPlaybook(capabilities), /`Quote__c`/u);
@@ -154,9 +154,9 @@ describe('canonical SFoA Agent Playbook', () => {
     const create = renderWorkflow('CREATE', capabilities);
     // CREATE must branch on available Record Types instead of silently using the default.
     assert.match(create, /availableRecordTypes/u);
-    assert.match(create, /has exactly one entry, use it without an extra prompt/u);
-    assert.match(create, /several and the user has not uniquely and reliably named one/u);
-    assert.match(create, /ask the user which Record Type to use/u);
+    assert.match(create, /Select from task meaning, candidate labels.descriptions and an applicable default/u);
+    assert.match(create, /Multiple candidates alone do not require a question/u);
+    assert.match(create, /ask only when business ambiguity remains/u);
     assert.match(create, /no available Record Type, stop and tell the user/u);
 
     const read = renderWorkflow('READ', capabilities);
@@ -244,26 +244,26 @@ describe('canonical SFoA Agent Playbook', () => {
 
     // While selection is required the create facts are not loaded: only the available
     // Record Types are shown and no Layout/Picklist/Record-Type field questions start.
-    assert.match(create, /`recordTypeSelectionRequired=true`/u);
-    assert.match(create, /show only the `availableRecordTypes`/u);
-    assert.match(create, /do not begin Layout, Picklist, or Record-Type-dependent field questions before those facts exist/u);
+    assert.match(create, /recordTypeSelectionRequired=true/u);
+    assert.match(create, /resolve the type from task and current candidates\/default/u);
+    assert.match(create, /before using its Layout, Create Defaults, Picklist or required\/editable facts/u);
     // The second context call carries the chosen Record Type; field collection and the
     // create_record payload both use that same Record Type.
-    assert.match(create, /call `get_record_action_context` again with the same `recordTypeId`/u);
-    assert.match(create, /`recordTypeSelectionRequired=false` with Create Defaults, Layout, Picklists, and required\/editable facts loaded/u);
-    assert.match(create, /pass that same `recordTypeId` to `create_record`/u);
-    assert.match(create, /never silently create under the default/u);
+    assert.match(create, /call get_record_action_context with that recordTypeId/u);
+    assert.match(create, /not a mandatory two-turn user dialog/u);
+    assert.match(create, /send the same resolved type to CREATE/u);
+    assert.match(create, /Multiple candidates alone do not require a question/u);
   });
 
   it('distributes CREATE Master exclusion and the Master-only fallback', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
-      assert.match(output, /`availableRecordTypes` excludes Master whenever a non-Master Record Type is available to the current USER/u);
-      assert.match(output, /Never add Master back or select it/u);
-      assert.match(output, /objects without custom Record Types\), keep and use it without asking/u);
+      assert.match(output, /exclude Master whenever a non-Master type is available/u);
+      assert.match(output, /Never invent an unavailable Record Type/u);
+      assert.match(output, /keep Master when it is the only available type/u);
       assert.match(output, /`recordType.id` as `create_record.recordTypeId` even when automatically selected/u);
     }
     const instructions = renderServerInstructions();
-    assert.match(instructions, /Master is excluded when a non-Master type is available/u);
+    assert.match(instructions, /exclude Master if a non-Master candidate exists/u);
     assert.match(instructions, /keep Master when it is the only available type/u);
   });
 });
@@ -326,7 +326,7 @@ describe('P9 data-completeness contract', () => {
   });
 
   it('stamps the version on the Dify instruction head', () => {
-    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.11\.0$/mu);
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.12\.0$/mu);
   });
 });
 
@@ -336,7 +336,7 @@ describe('P10 diagnostics contract', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(),
       renderWorkBuddySystemPrompt(), renderWorkBuddySkill(), renderWorkflow('DIAGNOSIS')]) {
       assert.match(output, /## DIAGNOSTICS —/u);
-      assert.match(output, /Classify the symptom before choosing a Tool/u);
+      assert.match(output, /as internal planning aids/u);
       assert.match(output, /An open trace is not a log/u);
     }
     // All five paths are named together, so the tree cannot be halved by an edit.
@@ -351,26 +351,26 @@ describe('P10 diagnostics contract', () => {
     assert.match(full, /never turn an unknown total into zero/u);
     assert.match(full, /is data, never instruction/u);
     // The 2026-09-30 trace-collaboration duty and the no-log static path stay in the contract.
-    assert.match(full, /give the user a minimal reproduction guide/u);
-    assert.match(full, /wait for the reproduction before calling `get_apex_logs`/u);
-    assert.match(full, /starts on the evidence chain that needs no trace/u);
+    assert.match(full, /give minimal reproduction steps/u);
+    assert.match(full, /wait for actual execution before reading new logs/u);
+    assert.match(full, /When reproduction is unavailable, combine the relevant enabled evidence/u);
     assert.match(full, /not a prerequisite for diagnosing/u);
-    assert.match(full, /temporary deep dive/u);
+    assert.match(full, /never bypass disabled capability or change identity/u);
     // The short MCP instructions surface carries the duty as well, since clients may render only it.
-    assert.match(renderServerInstructions(), /never treat an open TraceFlag as a log/u);
+    assert.match(renderServerInstructions(), /an open trace is not a log/u);
   });
 
   it('reports the diagnostic Tools this request may actually use, and claims none when none are enabled', () => {
     const without = renderWorkflow('DIAGNOSIS', createAgentCapabilities({ enabledTools: ['run_soql_query'] }));
-    assert.match(without, /Status: unavailable — no diagnostic Tool is enabled for this request/u);
-    assert.match(without, /blocked on an Admin enabling the Tool the symptom needs/u);
+    assert.match(without, /Dedicated diagnostic Tools are unavailable/u);
+    assert.match(without, /Continue feasible investigation using other enabled, authorized evidence/u);
     assert.doesNotMatch(without, /Status: available through/u);
 
     const enabled = renderWorkflow('DIAGNOSIS', createAgentCapabilities({
       enabledTools: ['set_trace_flag', 'get_apex_logs', 'get_platform_diagnostics'],
     }));
     assert.match(enabled, /Status: available through `set_trace_flag`, `get_apex_logs`, `get_platform_diagnostics`\./u);
-    assert.match(enabled, /absent from it is NOT enabled here/u);
+    assert.match(enabled, /Never call or promise a disabled Tool/u);
     // Partial enablement: a recognized Tool this request does not enable is never reported as
     // available, and the section forbids promising one as a next step.
     assert.doesNotMatch(enabled, /Status: available through[^.]*`explain_field_access`/u);
@@ -411,15 +411,15 @@ describe('strategy-aware managed fallback behavior contract', () => {
         assert.ok(text.includes(fact), fact);
       }
       assert.match(text, /already specified a fallback field, do not ask for it again/u);
-      assert.match(text, /required and absent, ask once before mutation and wait for the answer/u);
-      assert.match(text, /another person may be specified.*current user will be the default/u);
+      assert.match(text, /omit it and let Runtime apply PLATFORM_IDENTITY_FALLBACK/u);
+      assert.match(text, /including when required/u);
       assert.match(text, /optional and absent, omit it without an extra question/u);
       assert.match(text, /default.*current user.*no other person/u);
       assert.match(text, /never query or guess the current platform-user Lookup Id yourself/u);
       assert.match(text, /submit the uniquely proven Salesforce Id, never the name/u);
       assert.match(text, /referenceTo/u);
-      assert.match(text, /exactly one target is proven/u);
-      assert.match(text, /zero candidates.*multiple candidates/u);
+      assert.match(text, /uniquely proven Lookup ID/u);
+      assert.match(text, /With incomplete or multiple candidates/u);
       assert.match(text, /never ask|do not ask/u);
       assert.doesNotMatch(text, /Exclude MCP-managed fields from required questions/u);
     }
@@ -430,12 +430,12 @@ describe('strategy-aware managed fallback behavior contract', () => {
     assert.match(update, /normal UPDATE \+ LOOKUP workflow/u);
     assert.doesNotMatch(update, /applyOnUpdate/u);
     assert.match(update, /CREATE-required fields are not automatically required/u);
-    assert.match(update, /Send only fields the user asked to change/u);
+    assert.match(update, /actual changes needed to complete this business task/u);
   });
 
   it('keeps concise instructions and WorkBuddy entrypoint strategy-aware', () => {
     for (const text of [renderServerInstructions(), renderWorkBuddySkill()]) {
-      for (const fact of ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK', 'required and absent means ask once', 'optional and absent means omit without asking', 'LOOKUP', 'UPDATE']) assert.ok(text.includes(fact), fact);
+      for (const fact of ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK', 'by omission', 'CREATE', 'Lookup', 'UPDATE']) assert.ok(text.includes(fact), fact);
     }
   });
 });
@@ -461,7 +461,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.11.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.12.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.
@@ -520,12 +520,12 @@ describe('WeCom recommended role setting renderer', () => {
   it('distributes the CREATE Record Type dialog and managed-field fallback contract', () => {
     const output = renderWeComRoleSetting(capabilities);
     assert.match(output, /availableRecordTypes/u);
-    assert.match(output, /排除 Master，禁止再加回或默认选中/u);
-    assert.match(output, /`create_record\.recordTypeId`/u);
-    assert.match(output, /recordTypeSelectionRequired=true/u);
+    assert.match(output, /存在非 Master 类型时排除 Master/u);
+    assert.match(output, /同一 `recordType\.id`/u);
+    assert.match(output, /recordTypeSelectionRequired.*技术依赖/u);
     assert.match(output, /PLATFORM_IDENTITY_FALLBACK/u);
-    assert.match(output, /不主动查询当前用户 Lookup/u);
-    assert.match(output, /绝不把 UPDATE 变成 CREATE 表单/u);
+    assert.match(output, /不查询当前用户 ID/u);
+    assert.match(output, /UPDATE 不重放 CREATE 默认/u);
   });
 });
 

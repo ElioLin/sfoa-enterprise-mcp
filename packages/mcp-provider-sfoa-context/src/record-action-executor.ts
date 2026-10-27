@@ -13,6 +13,7 @@ import {
   listAvailableRecordTypes,
   listCreateRecordTypes,
   objectInfoSchema,
+  fieldSemanticFacts,
   picklistCollectionSchema,
   picklistFieldSchema,
   recordTypeInfoSchema,
@@ -329,6 +330,14 @@ function buildOutput(
   }
 
   const orderedNames: string[] = [];
+  // Re-read existing UI API candidates, with requested pages first so wide earlier
+  // Picklists cannot starve a later geography field's continuation budget.
+  for (const name of Object.keys(input.picklistValueOffsets ?? {})) {
+    if (!resolved.picklists.picklistFieldValues[name]) throw unsupported(`No Picklist context is available for ${name}.`);
+    addNames(orderedNames, [name]);
+    const controller = objectInfo.fields[name]?.controllerName;
+    if (controller) addNames(orderedNames, [controller]);
+  }
   addNames(orderedNames, requiredNames);
   addNames(
     orderedNames,
@@ -363,7 +372,7 @@ function buildOutput(
     const boundedDefault = boundDefaultValue(defaultEntry?.value);
     const picklistSource = resolved.picklists.picklistFieldValues[name];
     const picklist = picklistSource
-      ? boundPicklist(field.controllerName ?? null, picklistSource, remainingPicklistValues)
+      ? boundPicklist(field.controllerName ?? null, picklistSource, remainingPicklistValues, input.picklistValueOffsets?.[name] ?? 0)
       : undefined;
     if (picklist) {
       totalPicklistValues += picklist.totalValues;
@@ -375,6 +384,7 @@ function buildOutput(
       apiName: field.apiName,
       label: field.label,
       dataType: field.dataType,
+      ...fieldSemanticFacts(field),
       apiRequired: field.required,
       layoutMember: layout !== undefined,
       layoutRequired: layout?.required ?? false,
@@ -392,12 +402,13 @@ function buildOutput(
     };
   });
 
-  const truncated = fieldsTruncated || picklistsTruncated || fields.some((field) => field.defaultValueTruncated);
+  const truncated = fieldsTruncated || picklistsTruncated || fields.some((field) => field.defaultValueTruncated || field.inlineHelpTextTruncated);
   const warnings = [
     'Coverage is the effective Salesforce Page Layout/UI API action context, not a complete Dynamic Forms or Lightning component-visibility evaluation.',
   ];
+  if (fields.some((field) => field.inlineHelpTextTruncated)) warnings.push('Field help was limited to 2000 characters per field; inlineHelpTextTruncated identifies affected descriptions.');
   if (fieldsTruncated) warnings.push('Non-required fields were truncated; API-required fields were retained.');
-  if (picklistsTruncated) warnings.push('Picklist values or dependency indexes were truncated; do not guess omitted values.');
+  if (picklistsTruncated) warnings.push('Picklist candidates or dependency indexes are incomplete. Continue the same Record Type with picklistValueOffsets from nextValueOffset; combine pages. dependenciesTruncated requires further relevant evidence, not guessed uniqueness.');
   if (fields.some((field) => field.defaultValueTruncated)) {
     warnings.push('One or more non-scalar or oversized Salesforce default values were omitted explicitly.');
   }
@@ -406,6 +417,7 @@ function buildOutput(
     success: true,
     executionRole: 'USER',
     objectApiName: objectInfo.apiName,
+    objectLabel: objectInfo.label,
     action: input.action,
     ...(input.recordId ? { recordId: input.recordId } : {}),
     ...(input.action === 'CREATE' ? {
@@ -476,6 +488,7 @@ function buildCreateSelectionOutput(
       apiName: field.apiName,
       label: field.label,
       dataType: field.dataType,
+      ...fieldSemanticFacts(field),
       apiRequired: field.required,
       layoutMember: false,
       layoutRequired: false,
@@ -495,12 +508,14 @@ function buildCreateSelectionOutput(
   const warnings = [
     'Multiple Record Types are available and none was selected. Only Object Info facts are returned; no Page Layout, Create Defaults, or Picklist values were fetched for any Record Type. Choose one available Record Type and call again with recordTypeId to load its full CREATE context.',
   ];
+  if (fields.some((field) => field.inlineHelpTextTruncated)) warnings.push('Field help was limited to 2000 characters per field; inlineHelpTextTruncated identifies affected descriptions.');
   if (fieldsTruncated) warnings.push('Non-required fields were truncated; API-required fields were retained.');
 
   return {
     success: true,
     executionRole: 'USER',
     objectApiName: objectInfo.apiName,
+    objectLabel: objectInfo.label,
     action: input.action,
     availableRecordTypes: availableRecordTypes.map(toRecordTypeDescriptor),
     recordTypeSelectionRequired: true,
@@ -514,7 +529,7 @@ function buildCreateSelectionOutput(
       returnedFields: fields.length,
       totalPicklistValues: 0,
       returnedPicklistValues: 0,
-      truncated: fieldsTruncated,
+      truncated: fieldsTruncated || fields.some((field) => field.inlineHelpTextTruncated),
       dynamicFormsEvaluated: false,
       completeLightningPageEvaluated: false,
       warnings,
@@ -543,6 +558,7 @@ export function boundPicklist(
   controllerName: string | null,
   source: z.infer<typeof picklistFieldSchema>,
   globalRemaining: number,
+  valueOffset = 0,
 ): {
   controllerName: string | null;
   controllerValues: Record<string, number>;
@@ -550,18 +566,21 @@ export function boundPicklist(
   totalValues: number;
   returnedValues: number;
   truncated: boolean;
+  valueOffset: number;
+  nextValueOffset: number | null;
+  dependenciesTruncated: boolean;
 } {
   const controllerEntries = Object.entries(source.controllerValues).sort(([left], [right]) => compareText(left, right));
   const controllerValues = Object.fromEntries(controllerEntries.slice(0, MAX_CONTROLLER_VALUES_PER_FIELD));
   const allowed = Math.max(0, Math.min(MAX_PICKLIST_VALUES_PER_FIELD, globalRemaining));
-  const values = source.values.slice(0, allowed).map((entry) => ({
+  const values = source.values.slice(valueOffset, valueOffset + allowed).map((entry) => ({
     label: entry.label,
     value: entry.value,
     default: source.defaultValue?.value === entry.value,
     validFor: entry.validFor.slice(0, MAX_VALID_FOR_PER_VALUE),
   }));
   const dependencyTruncated = source.values
-    .slice(0, allowed)
+    .slice(valueOffset, valueOffset + allowed)
     .some((entry) => entry.validFor.length > MAX_VALID_FOR_PER_VALUE);
   return {
     controllerName,
@@ -569,6 +588,9 @@ export function boundPicklist(
     values,
     totalValues: source.values.length,
     returnedValues: values.length,
+    valueOffset,
+    nextValueOffset: values.length > 0 && valueOffset + values.length < source.values.length ? valueOffset + values.length : null,
+    dependenciesTruncated: controllerEntries.length > MAX_CONTROLLER_VALUES_PER_FIELD || dependencyTruncated,
     truncated:
       source.values.length > values.length ||
       controllerEntries.length > MAX_CONTROLLER_VALUES_PER_FIELD ||

@@ -7,7 +7,7 @@
 ```text
 Do we know exactly what record to change,
 exactly what the user intends to change,
-and only those fields?
+and the actual changes needed to complete that business task?
 ```
 
 ## 当前 UPDATE contract（以代码为准，不要凭记忆）
@@ -59,10 +59,10 @@ UPDATE **必须**先回答「到底改哪一条 Salesforce Record」。可接受
 | --- | --- |
 | 0 match | `CHANGE_READY=false`。**MUST NOT** 猜测，**MUST NOT** 用创建新记录替代 UPDATE |
 | 1 match（唯一证据） | `TARGET_RESOLVED`，可以继续准备 Patch |
-| multiple match 且意图是单条 UPDATE | **MUST** clarification，`CHANGE_READY=false`。**MUST NOT** 选第一条、最新一条或名字最像的一条 |
+| multiple match 且意图是单条 UPDATE | 先按已有主体和业务事实补查收窄，仍不唯一才 clarification，CHANGE_READY=false。**MUST NOT** 选第一条、最新一条或名字最像的一条 |
 | 用户明确说「所有符合条件的记录」 | 目标是 Target Population，走 [batch-mutations.md](batch-mutations.md)，不适用单条澄清 |
 
-业务 Key 不唯一是常态，不是例外。同一个客户名、同一个主题在真实 org 里重复很常见；这正是必须澄清而不是猜的理由。
+业务 Key 不唯一是常态，不是例外。同一个客户名、同一个主题在真实 org 里重复很常见；先利用已有事实收窄，仍无法唯一确定才问，不能随机猜。
 
 ### Target Population 的完整性
 
@@ -78,7 +78,7 @@ UPDATE **必须**先回答「到底改哪一条 Salesforce Record」。可接受
 
 **Minimal Patch** 是 UPDATE 的第二个 Gate。
 
-确定用户**真正要求改变**的字段集合。
+确定完成用户业务任务实际需要变化的字段集合。用户限定「只改总结」时遵守限定；地址迁移任务可联动地域层级。
 
 ```text
 Mutation Intent（用户要改什么）
@@ -88,9 +88,9 @@ Read Facts（查询返回了什么）
 
 判定规则：
 
-- 用户明确点名的字段 → 进入 Patch。
+- 直接提供、忠实提炼、可靠关联推导且任务相关的字段 → 纳入草稿，实际有变化的进入 Patch。
 - 用户没有提到、只是被查询顺带返回的字段 → **不进入** Patch。**MUST NOT** 「查到什么就 update 什么」。
-- 某个字段之所以进入 Patch，只有当「用户要求」或「当前 Runtime 明确要求的最小必要结构」成立。后者必须有实时证据，**MUST NOT** 用 CREATE 侧的必填清单凑。
+- Minimal Patch 以业务任务为范围，允许关联字段补全，不以逐字段点名为前提。只提交实际变化，不重放 CREATE 默认或为字段数量最少而遗漏任务信息。
 
 用户已明确提供的事实 **MUST NOT** 重复询问。用户说「把拜访日期改到下周三」时，目标与要改的字段都已经明确，直接进入预备，不需要再次确认。
 
@@ -150,16 +150,16 @@ CREATE Required  !=  UPDATE Missing Required
 
 **MUST NOT** 把 CREATE default 重新应用到 UPDATE。UPDATE 的 Action Context 不返回 defaults，这本身就是 Runtime 的表达：没有可套用的 Create Default。
 
-特别地，`PLATFORM_IDENTITY_FALLBACK` 是 **CREATE 专用**的 omission 行为。UPDATE 时用户没有要求修改 Owner，**MUST NOT** 重新注入当前用户或任何值。详见 [managed-lookups.md](managed-lookups.md)。
+特别地，`PLATFORM_IDENTITY_FALLBACK` 是 **CREATE 专用**的 omission 行为。UPDATE 的业务任务未涉及责任变更时保留原值，不重放 CREATE fallback；任务涉及且有可靠事实时按真实 Lookup 解析。详见 [managed-lookups.md](managed-lookups.md)。
 
 ## Owner / Managed Lookup
 
 | 情况 | 处理 |
 | --- | --- |
-| 用户没要求改 Owner | 不动该字段。**MUST NOT** 注入、**MUST NOT** 默认、**MUST NOT** 询问 |
-| 用户明确要求改 Owner | 走 LOOKUP 流程：解析 → 候选 → 唯一匹配 → 验证 Lookup Filter → 写 Salesforce ID |
+| 无关 UPDATE 未涉及责任变更 | 不动该字段，不注入 CREATE fallback，不额外询问 |
+| 业务任务涉及责任变更且有依据 | 走 LOOKUP 流程：解析 → 候选 → 唯一匹配 → 验证 Lookup Filter → 写 Salesforce ID |
 | 0 match | block，`CHANGE_READY=false` |
-| multiple match | clarification，`CHANGE_READY=false` |
+| multiple match | 先补证收窄，仍不唯一才 clarification，CHANGE_READY=false |
 | 显式 Owner 解析失败 | **MUST NOT** 自动 fallback 到当前用户或任何其他候选 |
 
 严格 managed 字段（`PLATFORM_IDENTITY`、`AI_CREATED_MARKER`）在 UPDATE 中同样**不可修改、不可覆盖、不可自行生成值**。即使用户要求，也按当前 Tool Governance / Runtime policy 返回真实限制。
@@ -171,7 +171,7 @@ CREATE Required  !=  UPDATE Missing Required
 ```text
 0 match        → block
 1 match        → 使用已证明的 Salesforce ID
-multiple match → clarification
+multiple match → 先补证收窄，仍不唯一才 clarification
 ```
 
 提交后若被 Lookup Filter 拒绝，按 FAILED 处理并如实报告，**MUST NOT** 自动换一个候选重试。
@@ -199,7 +199,7 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 
 **MUST NOT** 重新执行 CREATE 的 Record Type selection，**MUST NOT** 自动写入 Record Type 字段。
 
-用户明确要求变更 Record Type 时（例如「把这条申请改成客户来访」）：
+业务任务明确涉及 Record Type 变化时（例如「把这条申请改成客户来访」）：
 
 1. 解析当前允许的 Record Type 候选。
 2. 唯一解析用户目标；歧义时澄清。
@@ -226,10 +226,10 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 | --- | --- |
 | Intent 不是明确的 UPDATE | 用户意图未确定或实为其他操作 |
 | Object 未确定 | 目标对象不可由当前 Runtime / Salesforce 证明 |
-| Target 未解析 | 0 match，或单条意图下 multiple match 未澄清 |
+| Target 未解析 | 0 match，或单条意图下 multiple match 仍未唯一解析 |
 | Target Population 范围未证明完整 | 查询有界且缺少完整证据，却要宣称全部已更新 |
-| Mutation scope 不明确 | 不知道用户到底要改哪些字段 |
-| Patch 含非意图字段 | 出现用户没要求且 Runtime 未证明必要的字段 |
+| Mutation scope 不明确 | 业务任务含义仍有实质歧义，已有材料与工具无法解决 |
+| Patch 含非意图字段 | 出现业务任务以外、无可靠依据或违反用户明确范围的字段 |
 | 字段不可更新 | 当前证据显示 `fieldUpdateable=false` 或 `layoutEditableForUpdate=false` 且用户要求修改它 |
 | 值与字段类型不符 | 提交值无法作为当前字段类型的合法 Salesforce 值 |
 | Lookup 歧义未解决 | 0 match 或 multiple match |
@@ -238,7 +238,7 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 | Managed 字段规则未满足 | 要求修改严格 managed 字段，或显式 Owner 解析失败 |
 | Record Type 意图未解析 | 用户要求变更但候选 / 许可未确认 |
 | 证据不足或被截断 | 关键的 UPDATE context 事实缺失 |
-| Mutation Intent 与最终 Patch 不一致 | Patch 超出用户要求的范围 |
+| Mutation Intent 与最终 Patch 不一致 | Patch 超出业务任务或违反用户明确限定 |
 
 全部为 false 时才 `CHANGE_READY=true`，此时才允许 `update_record` / `update_records`。
 
@@ -261,7 +261,7 @@ UPDATE 与 CREATE 共用 `CHANGE_READY` 这一个逻辑概念，**MUST NOT** 为
 
 正确行为必须同时满足：
 
-1. 复用会话证据解析出**唯一**目标记录；若上下文出现两条候选，**MUST** 澄清。
+1. 复用会话证据解析出**唯一**目标记录；若上下文出现两条候选，先补证收窄，仍不唯一才澄清。
 2. 只把日期类字段放入 Patch。
 3. **MUST NOT** 重新索要客户、来源、计划交谈事项或 Owner。
 4. **MUST NOT** 因为日期字段在创建时是必填就重新追问其他创建期必填字段。

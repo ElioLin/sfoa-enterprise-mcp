@@ -188,4 +188,4 @@ Batch 3 NOT SENT
 - `UNKNOWN` **MUST** 明确表述为未知，并说明已停止写入。
 - 保留稳定的错误码与必要的纠正信息。
 - 成功时返回可用的显示字段、可信记录链接（来自 `get_record_links`，不要编造 URL）与实际写入的关键值。
-- 正常业务回答中把 Record Id、RecordTypeId、Lookup Id 等技术值留在内部，除非用户明确要求或需要技术诊断。
+- 正常业务回答中把 Record Id、RecordTypeId、Lookup Id 等技术值留在内部；用户明确要求技术细节时准确展开。单号、客户编码等具有本次业务意义的标识正常保留，诊断任务本身不改变默认业务受众。

@@ -7,7 +7,7 @@ import { UI_PARSER_VERSION, UI_RESOLVER_VERSION, UI_SNAPSHOT_TTL_MS, uiSnapshotS
 import { evaluateVisibility, combineVisibility, type VisibilityFacts } from './visibility.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
 import { boundDefaultValue, boundPicklist, MAX_OUTPUT_BYTES, type ResolvedActionFacts } from './record-action-executor.js';
-import { sameSalesforceId, type ObjectInfo } from './ui-api.js';
+import { fieldSemanticFacts, sameSalesforceId, type ObjectInfo } from './ui-api.js';
 import { ContextRuntimeError } from './errors.js';
 import { createInitialState, resolveUserFacts, userDependencies, boundedRead, type InitialFact } from './create-initial-state.js';
 
@@ -124,7 +124,7 @@ export class EffectiveRecordUiContextResolver {
           draftFields: initial.record, initialFacts: initial.facts,
           fieldTypes: Object.fromEntries(Object.values(objectInfo.fields).map((field) => [field.apiName, field.dataType])),
           user: initial.user, formFactor: ui.formFactor,
-        }, this.options.managedFields ?? []);
+        }, this.options.managedFields ?? [], input.picklistValueOffsets ?? {});
         ui.coverage = computed.partial ? 'PARTIAL' : 'COMPLETE';
         Object.assign(evidence, computed.evidence);
         if (mode === 'ENFORCE' && ['DYNAMIC_FORMS', 'MIXED'].includes(ui.formSource)) {
@@ -207,13 +207,14 @@ export function validateDraft(draft: Readonly<Record<string, unknown>>, objectIn
   return result;
 }
 
-function effectiveFields(page: UiPage, info: ObjectInfo, facts: ResolvedActionFacts, visibility: VisibilityFacts, managedFields: readonly string[]) {
+function effectiveFields(page: UiPage, info: ObjectInfo, facts: ResolvedActionFacts, visibility: VisibilityFacts, managedFields: readonly string[], picklistOffsets: Readonly<Record<string, number>>) {
   const instances = page.fields.map((instance) => {
     const decisions = instance.rules.map(({ rule, scope }) => evaluateVisibility(rule, visibility, scope));
     return { instance, decisions, state: combineVisibility(decisions.map((decision) => decision.state), 'AND') };
   });
   const names = [...new Set([...page.fields.map((field) => field.apiName), ...Object.values(info.fields).filter((field) => field.required).map((field) => field.apiName)])]
-    .filter((name) => Object.hasOwn(info.fields, name));
+    .filter((name) => Object.hasOwn(info.fields, name))
+    .sort((left, right) => Number(Object.hasOwn(picklistOffsets, right)) - Number(Object.hasOwn(picklistOffsets, left)));
   if (names.length > 200) throw new Error('EFFECTIVE_FIELD_BOUND');
   let remaining = 500;
   let totalPicklistValues = 0;
@@ -232,12 +233,14 @@ function effectiveFields(page: UiPage, info: ObjectInfo, facts: ResolvedActionFa
     const editable = writable && (field.required || visible.some(({ instance }) => !instance.readOnly));
     const first = visible[0]?.instance ?? occurrences[0]?.instance;
     const source = facts.picklists.picklistFieldValues[name];
-    const picklist = source ? boundPicklist(field.controllerName ?? null, source, remaining) : undefined;
+    const picklist = source ? boundPicklist(field.controllerName ?? null, source, remaining, picklistOffsets[name] ?? 0) : undefined;
     if (picklist) { remaining -= picklist.returnedValues; totalPicklistValues += picklist.totalValues; truncated ||= picklist.truncated; }
     const defaultValue = boundDefaultValue(facts.defaults[name]?.value);
-    truncated ||= defaultValue.truncated;
+    const semantics = fieldSemanticFacts(field);
+    truncated ||= defaultValue.truncated || semantics.inlineHelpTextTruncated;
     return {
       apiName: name, label: field.label, dataType: field.dataType, apiRequired: field.required,
+      ...semantics,
       layoutMember: false, layoutRequired: false, fieldCreateable: field.createable, fieldUpdateable: field.updateable,
       layoutEditableForCreate: null, layoutEditableForUpdate: null,
       defaultValue: defaultValue.value, defaultValueTruncated: defaultValue.truncated,

@@ -16,6 +16,15 @@ test('CREATE initial precedence tracks explicit/null/false/zero and trusted defa
   assert.equal(state.record.Optional__c, null); assert.equal(state.record.AfterSave__c, undefined);
   assert.equal(state.facts.find((fact) => fact.path === 'Record.Org__c')?.source, 'SALESFORCE_CREATE_DEFAULT');
 });
+
+test('USER_EXPLICIT remains the compatibility source for Agent-prepared drafts including related facts', () => {
+  const state = createInitialState({}, { Province__c: '福建省', Summary__c: '样品仍在测试' }, []);
+  assert.equal(state.record.Province__c, '福建省');
+  assert.equal(state.facts.find(fact => fact.path === 'Record.Province__c')?.source, 'USER_EXPLICIT');
+  assert.equal(state.facts.find(fact => fact.path === 'Record.Summary__c')?.trustedForVisibility, true);
+  // This path carries scalar visibility input, not a material parser or authorization proof.
+  assert.equal('provenance' in state.facts[0]!, false);
+});
 test('metadata-driven USER facts read only needed fields and inaccessible/oversized/timed-out values remain UNKNOWN', async () => {
   const userId = '005000000000001AAA'; const urls: string[] = [];
   const connection = { getApiVersion: () => '67.0', request: async ({ url }: { url: string }) => {

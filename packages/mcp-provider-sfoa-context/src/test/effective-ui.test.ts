@@ -10,6 +10,17 @@ import { collectUiSnapshot } from '../ui-snapshot-refresh.js';
 import { initialFact } from '../create-initial-state.js';
 import type { UiSnapshot } from '../effective-ui-contracts.js';
 
+test('ENFORCE retains real field semantics when replacing legacy fields with Dynamic Forms', async () => {
+  const fixture = runtimeFixture('ENFORCE');
+  Object.assign(fixture.fields.Name!, { inlineHelpText: '沟通事实与未完成事项', length: 800, precision: 0, scale: 0 });
+  const output = await fixture.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE' });
+  assert.equal(output.coverage?.dynamicFormsEvaluated, true);
+  assert.equal(output.objectLabel, 'Sample');
+  assert.equal(output.fields?.find(field => field.apiName === 'Name')?.inlineHelpText, '沟通事实与未完成事项');
+  assert.equal(output.fields?.find(field => field.apiName === 'Name')?.length, 800);
+  assert.ok(recordActionContextOutputSchema.safeParse(output).success);
+});
+
 test('structural parser retains ancestry, sections, repeated instances and desktop ignores mobile detail', () => {
   const raw = fixturePage();
   const page = parseFlexiPage(raw, 'Sample__c');

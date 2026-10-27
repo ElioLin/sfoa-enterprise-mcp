@@ -4,7 +4,9 @@ import { ContextRuntimeError } from './errors.js';
 
 export function contextSuccessToolResult(output: Readonly<Record<string, unknown>>): CallToolResult {
   return {
-    content: [{ type: 'text', text: JSON.stringify(output) }],
+    // Full text fallback; also the exact SDK mirror recognized by OpenClaw's
+    // native MCP projection, avoiding duplicate compact + structured context.
+    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
     structuredContent: output,
   };
 }

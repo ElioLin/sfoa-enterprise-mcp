@@ -22,6 +22,8 @@ export function createInitialState(defaults: Readonly<Record<string, { value?: u
   for (const [name, entry] of Object.entries(defaults)) if (entry.value !== undefined) {
     selected.set(`Record.${name}`, initialFact(`Record.${name}`, entry.value, 'SALESFORCE_CREATE_DEFAULT'));
   }
+  // USER_EXPLICIT is a compatibility tag for Agent draft/visibility input, not proof
+  // of literal authorship, material reading/verification or business authorization.
   for (const [name, value] of Object.entries(explicit)) selected.set(`Record.${name}`, initialFact(`Record.${name}`, value, 'USER_EXPLICIT'));
   for (const fact of user) selected.set(fact.path, fact);
   const facts = [...selected.values()];

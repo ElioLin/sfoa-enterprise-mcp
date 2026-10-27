@@ -1,3 +1,8 @@
+Current guidance is **1.12.0**: task-scoped synthesis/related completion, configured
+CREATE fallback without a fixed question, context-based Record Type selection and
+business-first diagnosis. DIAGNOSIS includes LOOKUP/PICKLIST display rules and uses
+the individually enabled evidence capabilities. Older versions below are history.
+
 # `@sfoa/agent-playbook`
 
 Pure TypeScript canonical Salesforce Agent operating contract for SFoA P6-Agent-01.

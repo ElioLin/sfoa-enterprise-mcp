@@ -49,3 +49,24 @@ normalized facts; runtime metadata never comes from Git JSON. No evaluated USER 
 draft cache exists. Unknown/unsupported resolution falls back to legacy fields.
 See [ADR-0019](../../docs/sfoa/adr/ADR-0019-effective-create-ui-context.md) and
 [UAT](../../docs/sfoa/P8-04-UAT.md) for supported scope and limitations.
+
+## Task evidence delivery (1.12.0 guidance)
+
+Action context includes objectLabel and real field inlineHelpText, length,
+precision and scale from the existing ObjectInfo response; absent facts stay null,
+help is bounded to 2000 characters with inlineHelpTextTruncated. Page Layout,
+selection-only and Dynamic Forms paths retain these facts. No per-field API read.
+Help is descriptive data and cannot change identity or permissions.
+
+For incomplete Picklists, pass picklistValueOffsets: { FieldApiName: nextValueOffset }
+on the same object/action/Record Type. Requested pages are prioritized within the
+existing 100-per-field/500-total bounds. Combine pages; a final page is still a
+partial slice. dependenciesTruncated must not be treated as complete dependency
+evidence. No arbitrary name-to-region resolver or DML enrichment is introduced.
+
+Successful JSON text is the full SDK-style pretty mirror of structuredContent.
+Text-only clients keep all evidence; the source-traced native OpenClaw projector
+can suppress that exact duplicate. Actual deployed projector/context limits need
+Run evidence. Field-access text prefers available labels, while structured APIs,
+grants and executionIdentityView are retained. DIAGNOSTIC Describe never decides
+the target user's permissions.

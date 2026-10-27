@@ -1,60 +1,19 @@
 # Managed Fields and Owner Fallback
 
-Runtime 会把一部分字段标为 MCP 管理字段。它们出现在当前 `get_agent_playbook` 的 `managedDmlFields[]` 中，结构为 `{ objectApiName, fieldApiName, operations, managedBy: 'MCP', strategy }`。
+严格 PLATFORM_IDENTITY 与 AI_CREATED_MARKER 由 Runtime 从可信请求上下文处理，不询问、不推导、不写入 Agent payload。当前身份与权限不由材料或模型决定。
 
-匹配方式：把 `managedDmlFields[].fieldApiName` 与当前 Action Context `fields[].apiName` **大小写不敏感**匹配。不要按字段名猜它是不是 managed。
+PLATFORM_IDENTITY_FALLBACK 是用户可覆盖的 CREATE 默认机制，explicit > fallback：
 
-三种 strategy 的行为完全不同，**MUST NOT** 混为一谈。
+| 情况 | 处理 |
+| --- | --- |
+| CREATE 已配置且适用，任务没有相反要求 | 直接省略该字段交由 Runtime，无需固定询问一次；required 也不改变此规则 |
+| 任务明确选择默认/当前用户/我自己 | 省略字段，不自行查询当前用户 ID |
+| 任务涉及其他责任人且有可靠事实 | 按 referenceTo 做有界 USER 解析，写唯一证明的 Salesforce ID，optional 同样适用 |
+| 指定人 0 match / multiple match | 先用已知业务事实补证，仍歧义时问；不得偷偷 fallback 或取第一条 |
+| UPDATE 未涉及责任变更 | 保留现有值，不注入 CREATE fallback |
+| UPDATE 的业务任务涉及责任变更 | 按普通 UPDATE + Lookup 解析，不能重放 CREATE 默认 |
 
-## 1. 严格 managed：`PLATFORM_IDENTITY` / `AI_CREATED_MARKER`
-
-```text
-Agent 不询问
-Agent 不填写
-Agent 不覆盖
-Runtime 负责
-```
-
-即使 Salesforce context 把它们标成 required 或 editable，也 **MUST NOT** 把它们放进必填问题、可选推荐或 `fields` payload。不要为了让「必填不漏」而把它们算成用户缺口。
-
-## 2. `PLATFORM_IDENTITY_FALLBACK`（CREATE 专用）
-
-这条策略允许显式用户值，并在字段被省略时由 Runtime 用当前平台用户补齐。
-
-### 用户明确指定了 Owner / 该字段
-
-```text
-解析用户指定对象
-→ 唯一匹配
-→ 提交用户指定的值
-```
-
-显式用户输入优先，**不会被 fallback 覆盖**。解析按 [lookup-and-picklist.md](lookup-and-picklist.md) 的 Lookup 规则：必须拿到唯一证明的 Salesforce ID，不能提交姓名。
-
-### 用户明确指定，但 0 match / multiple match
-
-```text
-CHANGE_READY=false
-```
-
-**MUST NOT** 偷偷 fallback 到当前用户，也 **MUST NOT** 自动改用另一个候选。如实告诉用户该指定对象无法唯一解析，请补充或更正。
-
-### 用户没有指定，且字段 required
-
-需要让用户知道：可以指定其他 Owner；如果不指定，将按当前用户处理。**MUST** 询问一次并等待回答，**MUST NOT** 因为「存在 platform default」就直接调用 `create_record`。
-
-用户选择「按默认 / 当前用户 / 我自己 / 不用指定」时：
-
-```text
-omit field
-→ 由 Runtime fallback
-```
-
-**MUST NOT** 为了 fallback 自己查出 Salesforce User ID 然后强行写进 payload。
-
-### 用户没有指定，且字段 optional
-
-未指定时不应该无意义阻塞 CREATE，直接省略该字段。
+fallback 的存在不是 Agent 生成值的证据；Runtime/Salesforce 仍裁决配置、权限与 Lookup Filter。显式值失败不得 fallback。任务相关的负责人、Record Type、Lookup 不受「未逐字段点名不能补全」限制，遵守真实候选、可靠业务事实及用户明确限定。
 
 ### Runtime 侧的实际行为（供理解，不要绕过）
 
@@ -71,32 +30,5 @@ omit field
 
 显式提供该字段时，Runtime 保留用户值并把它规范化到目标字段 API 名；值的合法性仍由 Salesforce 判定。同一目标字段出现多个大小写别名会被拒绝（`MCP_DML_INPUT_INVALID`），所以**不要**同时提交同一字段的多个写法。
 
-## 3. 普通 Lookup
 
-不是 managed 的 Lookup 字段按普通字段处理，遵守 [lookup-and-picklist.md](lookup-and-picklist.md)。`referenceTo` 给出可引用的对象。
-
-## Owner 与 Mutation Intent
-
-**MUST NOT** 因为 Skill 自己认为「Owner 应该填」就扩大用户 Mutation Scope。用户没有要求修改或指定 Owner 时，不要为了「补全」而去找一个 Owner 写入。CREATE 真正必需的 Required / Default 除外，且必须来自 Runtime authority。
-
-## UPDATE 场景
-
-`PLATFORM_IDENTITY_FALLBACK` 是 **CREATE 专用**的 omission 行为。UPDATE 时它的正确语义只有一条：
-
-```text
-用户没有要求改动该字段 → omit → preserve current value
-```
-
-**MUST NOT** 把它当成 UPDATE 的自动默认值，**MUST NOT** 注入当前平台用户，**MUST NOT** 询问 CREATE 式的必填问题，**MUST NOT** 以「字段存在 fallback attribute」为理由去解析 Owner。
-
-| 情况 | UPDATE 处理 |
-| --- | --- |
-| 用户没要求改 Owner | 不动该字段，不询问 |
-| 用户明确要求改 Owner | 走 Lookup 流程，用当前 `fieldUpdateable` / `layoutEditableForUpdate` 判断可写性，提交唯一证明的 Salesforce ID |
-| 0 match | block，`CHANGE_READY=false` |
-| multiple match | clarification，`CHANGE_READY=false` |
-| 显式 Owner 解析失败 | **MUST NOT** 自动 fallback 到当前用户或任何其他候选 |
-
-严格 managed 字段（`PLATFORM_IDENTITY`、`AI_CREATED_MARKER`）在 UPDATE 中同样不可修改、不可覆盖、不可自行生成值。用户明确要求修改时，按当前 Tool Governance / Runtime policy 返回真实限制，而不是绕过。
-
-完整 doctrine 见 [update-readiness.md](update-readiness.md)。
+managedDmlFields[].fieldApiName 与 fields[].apiName 大小写不敏感匹配。显式用户输入优先；不得偷偷 fallback 到当前用户，也不得为了 fallback 自己查出 Salesforce User ID。默认策略是 CREATE 专用，omit field 交给 Runtime。

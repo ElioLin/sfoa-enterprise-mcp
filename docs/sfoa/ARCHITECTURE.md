@@ -536,6 +536,19 @@ The actual dx-core audit found 13 Tools and nine GA Tools. `run_soql_query` and 
 
 ### Record action facts
 
+Current task contract (2026-10-26, Playbook 1.12.0): the Agent reads materials,
+faithfully organizes their content and maps reliable related facts to real fields
+before DML. No MCP-side LLM, geography database, approval state or hidden DML
+enrichment is added. UI API and Describe project available inlineHelpText,
+length/precision/scale; missing values stay null and oversized help is explicitly
+marked. Dynamic Forms retains the same semantics. picklistValueOffsets continues
+existing action-context candidates by field and same Record Type, retaining raw
+API values, dependency indexes and incomplete-evidence facts. Field-access labels
+reuse the already-read DIAGNOSTIC Describe, whose permission flags never decide
+the subject USER conclusion. Full Tool text mirrors structured content, including
+the Playbook, for text-only hosts and native host deduplication.
+
+
 The live SFoA API 67.0 audit verified REST UI API Object Info, Create/Edit Layout, Create Defaults, and record-type Picklist Values for both USER routes. GraphQL `recordLayouts` also worked, but is not required because REST covers the complete P4 fact set through one public surface.
 
 CREATE resolves the USER default record type unless an explicit currently available type is supplied. UPDATE obtains the record's real record type and rejects an explicit mismatch. Output keeps these facts separate:

@@ -1,3 +1,5 @@
+> Historical evidence: interaction rules requiring an Owner question, explicit user selection for every multi-Record-Type case, or a fixed optional-field count are superseded by [the 2026-10-26 task contract](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md). Existing observations and gate results below remain historical evidence, not current instructions.
+
 # Skill-02 Integrated Human UAT（CREATE + UPDATE + Batch）
 
 > 适用对象：业务侧真人 UAT 执行者。

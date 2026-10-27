@@ -255,7 +255,9 @@ function registerPlaybookTool(server: McpServer, options: RegisterAgentGuidanceO
         workflow: selected,
       });
       return {
-        content: [{ type: 'text', text: `SFoA Agent Playbook ${AGENT_PLAYBOOK_VERSION} (${selected}) returned in structuredContent.guidance.` }],
+        // Text-only hosts receive full guidance too. Native MCP hosts can
+        // recognize this exact SDK-style mirror and project the result once.
+        content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }],
         structuredContent,
       };
     }),

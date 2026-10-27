@@ -140,3 +140,26 @@ earlier assumption was stricter than reality):
 Confirm either way with `openclaw skills list --agent <agent> --json` and compare
 `modelVisible` against the intended allowlist. Record the deployment, backup path,
 SHA-256 comparison and `modelVisible` result in the phase report.
+
+## 2026-10-26 runtime verification boundary
+
+Resolve the actual running configuration/workspace first; the historical
+/data/openclaw/workspace/skills path above is a clue, not current proof. The
+canonical business suite is exactly sfoa-crm-core, sfoa-record-change,
+sfoa-data-analysis and sfoa-org-diagnostics. Never deploy this maintainer Skill or
+its test oracle to a business Agent. record-change-gates.mjs and
+task-autonomy.test.mjs are test models only and never enter Runtime.
+
+Use agent:sync/check for all generated Playbook surfaces and skill:sync/check for
+the development-client copies. skill:runtime:sync does not update the independent
+sfoa export package: regenerate skill:export separately if that package is used.
+Text-only Playbook results carry full guidance. Context/data success text uses the
+SDK-style JSON mirror; inspect the deployed native MCP projector and final model
+request before claiming deduplication/no truncation in a live Run.
+
+The OpenClaw adapter's attachmentRef block is staging metadata, not body reading.
+Check actual host document extraction, PDF/vision and audio transcription results;
+do not infer these from attachment presence. The integration harness README
+describes safe config projection, a 17-case corpus, loopback mock DML and review of
+actual model captures. Offline fixture success is never actual model or trusted
+WeCom end-to-end acceptance.

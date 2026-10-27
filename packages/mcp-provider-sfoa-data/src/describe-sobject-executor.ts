@@ -49,8 +49,10 @@ export class DescribeSobjectExecutor {
         const fieldsTruncated = includeFields && returnedFields < allFields.length;
         const childrenTruncated = children.length < allChildren.length;
         const picklistTruncatedFields = kept.filter((field) => field.picklistValuesTruncated).length;
-        const truncated = fieldsTruncated || childrenTruncated || picklistTruncatedFields > 0;
+        const helpTruncated = kept.some((field) => field.inlineHelpTextTruncated);
+        const truncated = fieldsTruncated || childrenTruncated || picklistTruncatedFields > 0 || helpTruncated;
         const notes: string[] = [];
+        if (helpTruncated) notes.push('inlineHelpText was limited to 2000 characters per field; see inlineHelpTextTruncated');
         if (fieldsTruncated) {
           notes.push(`${allFields.length} fields are declared and ${returnedFields} are returned (fieldLimit=${fieldLimit})`);
         }
@@ -133,6 +135,11 @@ export function readFields(value: unknown): FieldDescriptor[] {
       apiName,
       label: readString(readField(entry, 'label')) ?? apiName,
       type: readIdentifier(readField(entry, 'type')) ?? 'unknown',
+      inlineHelpText: readString(readField(entry, 'inlineHelpText'))?.slice(0, 2000) ?? null,
+      inlineHelpTextTruncated: (readString(readField(entry, 'inlineHelpText'))?.length ?? 0) > 2000,
+      length: readConstraint(readField(entry, 'length')),
+      precision: readConstraint(readField(entry, 'precision')),
+      scale: readConstraint(readField(entry, 'scale')),
       nillable: readBoolean(readField(entry, 'nillable')),
       createable: readBoolean(readField(entry, 'createable')),
       updateable: readBoolean(readField(entry, 'updateable')),
@@ -186,6 +193,10 @@ function readPicklistValues(
     }));
   }
   return Object.freeze(values);
+}
+
+function readConstraint(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 function readActiveFlag(value: unknown): boolean {

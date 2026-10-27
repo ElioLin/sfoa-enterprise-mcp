@@ -6,7 +6,7 @@ import { sanitizeText } from './sanitize.js';
 
 export function dataSuccessToolResult(output: Readonly<Record<string, unknown>>): CallToolResult {
   return {
-    content: [{ type: 'text', text: JSON.stringify(output) }],
+    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
     structuredContent: output,
   };
 }

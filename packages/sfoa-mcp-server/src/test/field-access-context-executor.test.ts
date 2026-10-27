@@ -1084,7 +1084,7 @@ test('the answer is permission facts only, and no input could carry a record eve
     // parse that happens to pass. Every key below is a permission fact, the subject it is about, or a
     // statement about the reading of one — and none of them has a place to put a field value.
     assert.deepEqual(Object.keys(output).sort(), [
-      'api', 'executionRole', 'fields', 'hint', 'objectApiName', 'recordTypeContext',
+      'api', 'executionRole', 'fields', 'hint', 'objectApiName', 'objectLabel', 'recordTypeContext',
       'requestedFieldCount', 'returnedFieldCount', 'success', 'truncated', 'userContext',
     ]);
     const field = fieldOf(output, 0);

@@ -4,12 +4,84 @@ import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 import { ContextRuntimeError } from '../errors.js';
 import { RecordActionContextExecutor } from '../record-action-executor.js';
+import { recordActionContextOutputSchema } from '../schemas.js';
+import { RecordActionContextMcpTool } from '../tools/record-action-context.js';
 
 const DEFAULT_RECORD_TYPE = '012000000000001AAA';
 const AVAILABLE_RECORD_TYPE = '012000000000002AAA';
 const UNAVAILABLE_RECORD_TYPE = '012000000000003AAA';
 const RECORD_ID = '00Q000000000001AAA';
 const MASTER_RECORD_TYPE = '012000000000000AAA';
+
+test('field semantics survive selection, ready context and text-only Tool consumption without extra reads', async () => {
+  for (const selected of [false, true]) {
+    const fixture = createFixture({ extraFields: {
+      Name: field('Name', '拜访总结', { inlineHelpText: '沟通事实与进展，保留否定与未完成状态。', length: 1200, precision: 0, scale: 0 }),
+      Missing__c: field('Missing__c', '未配置帮助'),
+    } });
+    const tool = new RecordActionContextMcpTool(fixture.executor);
+    const result = await tool.exec({ objectApiName: 'Lead', action: 'CREATE', ...(selected ? { recordTypeId: DEFAULT_RECORD_TYPE } : {}) });
+    const output = recordActionContextOutputSchema.parse(result.structuredContent);
+    const outputField = output.fields?.find(entry => entry.apiName === 'Name');
+    assert.equal(output.objectLabel, 'Lead');
+    assert.equal(outputField?.inlineHelpText, '沟通事实与进展，保留否定与未完成状态。');
+    assert.equal(outputField?.length, 1200);
+    assert.equal(outputField?.precision, 0);
+    assert.equal(outputField?.scale, 0);
+    const missing = output.fields?.find(entry => entry.apiName === 'Missing__c');
+    assert.equal(missing?.inlineHelpText, null);
+    assert.equal(missing?.length, null);
+    assert.equal(fixture.urls.length, selected ? 3 : 1);
+    const text = result.content.find(block => block.type === 'text');
+    assert.ok(text?.type === 'text');
+    assert.deepEqual(JSON.parse(text.text), result.structuredContent, 'text-only hosts receive every field semantic and truncation fact');
+    assert.equal(text.text, JSON.stringify(result.structuredContent, null, 2), 'native OpenClaw recognizes the SDK mirror instead of duplicating it');
+  }
+});
+
+test('oversized help has explicit truncation, while absent constraints remain unknown', async () => {
+  const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE], extraFields: {
+    Name: field('Name', '总结', { inlineHelpText: '资'.repeat(2100), length: null }),
+  } });
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  assert.equal(output.fields?.find(entry => entry.apiName === 'Name')?.inlineHelpText?.length, 2000);
+  assert.equal(output.fields?.find(entry => entry.apiName === 'Name')?.inlineHelpTextTruncated, true);
+  assert.equal(output.fields?.find(entry => entry.apiName === 'Name')?.length, null);
+  assert.equal(output.coverage?.truncated, true);
+  assert.ok(recordActionContextOutputSchema.safeParse(output).success);
+});
+
+test('truncated Picklist candidates can be continued without losing dependency indexes or the Record Type', async () => {
+  const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE], picklistValues: Array.from({ length: 205 }, (_, i) => ({
+    label: i === 180 ? '厦门市' : `地区 ${i}`, value: `region-${i}`, validFor: [i % 2],
+  })) });
+  const first = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  const firstValues = first.fields?.find(entry => entry.apiName === 'Status__c')?.picklist;
+  assert.equal(firstValues?.nextValueOffset, 100);
+  assert.equal(firstValues?.truncated, true);
+  const second = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE', recordTypeId: DEFAULT_RECORD_TYPE,
+    picklistValueOffsets: { Status__c: firstValues?.nextValueOffset ?? 0 } });
+  const values = second.fields?.find(entry => entry.apiName === 'Status__c')?.picklist;
+  assert.equal(values?.valueOffset, 100);
+  assert.equal(values?.nextValueOffset, 200);
+  assert.equal(values?.dependenciesTruncated, false);
+  assert.deepEqual(values?.values.find(entry => entry.label === '厦门市'), { label: '厦门市', value: 'region-180', default: false, validFor: [0] });
+  const last = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE', recordTypeId: DEFAULT_RECORD_TYPE,
+    picklistValueOffsets: { Status__c: values?.nextValueOffset ?? 0 } });
+  const tail = last.fields?.find(entry => entry.apiName === 'Status__c')?.picklist;
+  assert.equal(tail?.nextValueOffset, null);
+  assert.equal(tail?.returnedValues, 5);
+  assert.equal(tail?.truncated, true, 'the last page alone does not become an exhaustive candidate list');
+  assert.ok(recordActionContextOutputSchema.safeParse(last).success);
+  assert.ok(fixture.urls.filter(url => url.includes('/picklist-values/')).every(url => url.includes(DEFAULT_RECORD_TYPE)));
+});
+
+test('invalid Picklist continuation input is rejected before request connection use', async () => {
+  const fixture = createFixture();
+  const result = await new RecordActionContextMcpTool(fixture.executor).exec({ objectApiName: 'Lead', action: 'CREATE', picklistValueOffsets: { Status__c: -1 } });
+  assert.equal(result.isError, true);
+  assert.deepEqual(fixture.urls, []);
+});
 
 test('CREATE resolves the single available Record Type and preserves required/editable/default/picklist facts', async () => {
   const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });

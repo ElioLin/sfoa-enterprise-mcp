@@ -23,9 +23,12 @@ export const recordActionContextInputObjectSchema = z.object({
     action: z.enum(['CREATE', 'UPDATE']).describe('Record action whose current USER context is required.'),
     recordTypeId: salesforceIdSchema.optional().describe('Optional currently available Salesforce Record Type ID.'),
     recordId: salesforceIdSchema.optional().describe('Required for UPDATE; forbidden for CREATE.'),
+    picklistValueOffsets: z.record(objectApiNameSchema, z.number().int().min(0).max(100_000))
+      .refine((value) => Object.keys(value).length <= 25, 'at most 25 Picklist pages per context')
+      .optional().describe('Continue truncated Picklist candidates for the same object/action/Record Type. Field API name to exact nextValueOffset returned by context; no identity or value inference. Requested fields are prioritized within the existing response budget.'),
     draftFields: z.record(objectApiNameSchema, z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]))
       .refine((value) => Object.keys(value).length <= 200 && JSON.stringify(value).length <= 32768, 'draftFields exceeds its bound')
-      .optional().describe('CREATE only: known prompt values for conditional visibility; missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
+      .optional().describe('CREATE only: task draft values for conditional visibility, including faithful extraction and verified related values; USER_EXPLICIT is a draft-source tag, not proof of authorship or verification; missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
     refinement: z.number().int().min(0).max(3).optional().describe('CREATE only: Dynamic Context refinement number, 0 initially, at most 3. Stop asking for refinements at 3.'),
   }).strict();
 
@@ -188,6 +191,9 @@ const picklistContextSchema = z
     totalValues: z.number().int().nonnegative(),
     returnedValues: z.number().int().nonnegative(),
     truncated: z.boolean(),
+    valueOffset: z.number().int().nonnegative().optional(),
+    nextValueOffset: z.number().int().nonnegative().nullable().optional(),
+    dependenciesTruncated: z.boolean().optional(),
   })
   .strict();
 
@@ -196,6 +202,11 @@ const recordFieldContextSchema = z
     apiName: z.string(),
     label: z.string(),
     dataType: z.string(),
+    inlineHelpText: z.string().nullable().optional(),
+    length: z.number().int().nonnegative().nullable().optional(),
+    precision: z.number().int().nonnegative().nullable().optional(),
+    scale: z.number().int().nonnegative().nullable().optional(),
+    inlineHelpTextTruncated: z.boolean().optional(),
     apiRequired: z.boolean(),
     layoutMember: z.boolean(),
     layoutRequired: z.boolean(),
@@ -236,6 +247,7 @@ export const recordActionContextOutputSchema = z
     ...contextFailureFields,
     executionRole: z.literal('USER').optional(),
     objectApiName: z.string().optional(),
+    objectLabel: z.string().optional(),
     action: z.enum(['CREATE', 'UPDATE']).optional(),
     recordId: z.string().optional(),
     recordType: recordTypeDescriptorSchema.optional(),
@@ -1126,6 +1138,7 @@ export const explainFieldAccessOutputSchema = z
     /** The standard API, not Tooling: every permission table read here is a standard-API query. */
     api: z.literal('STANDARD').optional(),
     objectApiName: z.string().optional(),
+    objectLabel: z.string().nullable().optional(),
     requestedFieldCount: z.number().int().nonnegative().optional(),
     returnedFieldCount: z.number().int().nonnegative().optional(),
     /**

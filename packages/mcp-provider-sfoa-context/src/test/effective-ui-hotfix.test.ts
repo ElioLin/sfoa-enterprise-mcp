@@ -9,8 +9,14 @@ import { fixtureSnapshot, runtimeFixture } from './effective-ui-fixtures.js';
 
 // Captured by executing record-action-executor.ts from ac7e31942f5158f5af7ff977b4b8550e121840a4
 // with the aliased runtimeFixture USER responses and performance.now fixed at 1000.
-// Compare the complete wire object, including coverage/metrics; never remove new keys.
-const legacy = JSON.parse(readFileSync(new URL('../../src/test/fixtures/pre-p804-page-layout.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+// Preserve the historical fixture bytes. Compare the complete wire object with
+// the explicitly approved additive field-semantics projection; no keys are stripped.
+const captured = JSON.parse(readFileSync(new URL('../../src/test/fixtures/pre-p804-page-layout.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+const legacy: Record<string, unknown> = { ...captured, objectLabel: 'Sample',
+  fields: (captured.fields as Record<string, unknown>[]).map(field => ({ ...field,
+    inlineHelpText: null, inlineHelpTextTruncated: false, length: null, precision: null, scale: null,
+  })),
+};
 const input: RecordActionContextInput = { objectApiName: 'Sample__c', action: 'CREATE' };
 const pageLayout = (): UiSnapshot => ({ ...fixtureSnapshot(), assignments: [], pages: [] });
 const appRequired = (): UiSnapshot => {
@@ -37,7 +43,7 @@ for (const entry of cases) test(`exact pre-P8-04 response: ${entry.name}`, async
   const fixture = runtimeFixture(entry.mode, entry.snapshot(), undefined, entry.overrides);
   const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input, ...(entry.draftFields ? { draftFields: entry.draftFields } : {}) });
   assert.deepStrictEqual(result.structuredContent, legacy);
-  assert.deepStrictEqual(result.content, [{ type: 'text', text: JSON.stringify(legacy) }]);
+  assert.deepStrictEqual(result.content, [{ type: 'text', text: JSON.stringify(result.structuredContent, null, 2) }]);
   assert.equal(result.isError, undefined);
   assert.equal(fixture.evidence.length, 1);
   assert.equal(fixture.evidence[0]?.usedForAgent, false);
@@ -109,7 +115,7 @@ test('Case A: ENFORCE + resolved PAGE_LAYOUT + invalid draftFields returns exact
   const fixture = runtimeFixture('ENFORCE', pageLayout());
   const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input, draftFields: { NoFls__c: 'x' } });
   assert.deepStrictEqual(result.structuredContent, legacy);
-  assert.deepStrictEqual(result.content, [{ type: 'text', text: JSON.stringify(legacy) }]);
+  assert.deepStrictEqual(result.content, [{ type: 'text', text: JSON.stringify(result.structuredContent, null, 2) }]);
   assert.equal(result.isError, undefined);
   assert.equal(fixture.evidence[0]?.usedForAgent, false);
   assert.equal(fixture.evidence[0]?.formSource, 'PAGE_LAYOUT');

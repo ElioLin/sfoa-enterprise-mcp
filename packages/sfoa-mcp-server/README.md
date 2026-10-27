@@ -65,3 +65,5 @@ Copy `.env.example` to the ignored `.env.local`, set a strong `MCP_CLIENT_TOKEN`
 Run `validate:upstream` after every Salesforce upstream sync. Any difference returns `UPSTREAM_REVIEW_REQUIRED`; changes affecting an enabled remote Tool also fail production startup with `MCP_UPSTREAM_TOOL_CONTRACT_DRIFT`. New Tools and fields are never automatically classified or exposed.
 
 Managed DML fields distinguish strict platform identity / AI marker from user-overridable platform Lookup fallback. See [managed field contract](../../docs/sfoa/P6_DML_01_MANAGED_FIELDS.md) for strategy priority and CREATE/UPDATE interaction.
+
+Playbook 1.12.0 supersedes the historical field-by-field interaction rules above. get_agent_playbook returns its full structured result as the SDK-style text mirror, including guidance; text-only consumers no longer receive only a summary pointer. ScopedFieldAccessExplainer reuses the existing Describe for objectLabel without adding an API call or using DIAGNOSTIC flags as USER authorization. See docs/sfoa/OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md for exact validation boundaries.

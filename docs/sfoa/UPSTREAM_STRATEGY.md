@@ -194,3 +194,5 @@ These findings keep the repository-wide lint Gate red but do not justify a broad
 P8-06 changes zero official Salesforce implementation files and no SDK/dependency
 pins. Discovery reuses public Providers, Tool configs and MCP SDK composition.
 The root README SFoA-preface update is covered by the existing README matrix row.
+
+2026-10-26 business-autonomy delivery changes only SFoA-owned Skills, Playbook, context/data Providers, host composition, adapter attachment guidance and tests/docs. The root CHANGELOG update is covered by its existing matrix row. No official Salesforce implementation, dependency, lockfile, Provider API or OpenClaw Core source is modified. Native OpenClaw consumption is source-traced separately from actual deployment verification.

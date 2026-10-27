@@ -1,3 +1,5 @@
+> Historical evidence: interaction rules requiring an Owner question, explicit user selection for every multi-Record-Type case, or a fixed optional-field count are superseded by [the 2026-10-26 task contract](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md). Existing observations and gate results below remain historical evidence, not current instructions.
+
 # Skill-02A `sfoa-record-change` 交付报告
 
 Report ID: SFOA-OPENCLAW-SKILL-02A · 2026-09-14

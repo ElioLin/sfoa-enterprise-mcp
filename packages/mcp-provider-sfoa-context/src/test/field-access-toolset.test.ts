@@ -763,6 +763,23 @@ function outputFixture(
   };
 }
 
+test('field access text prefers real labels and retains APIs only as evidence, with honest missing-label fallback', () => {
+  const field = explanation('Price_Objection__c', false, false);
+  field.describeFacts = { label: '价格异议', type: 'string', createable: true, updateable: true, accessible: true, executionIdentityView: true };
+  field.grants = [{ parentType: 'PERMISSION_SET', parentId: STANDALONE_SET.id, parentName: 'SFOA_Field_Editor', parentLabel: '销售资料编辑', permissionsRead: true, permissionsEdit: false }];
+  const output = outputFixture({ objectLabel: '客户拜访', fields: [field] });
+  const text = renderExplainFieldAccessText(output);
+  assert.match(text, /object=客户拜访/u);
+  assert.match(text, /Field: 价格异议 \(Price_Objection__c\)/u);
+  assert.match(text, /PERMISSION_SET 销售资料编辑/u);
+  assert.match(text, /visible=not granted editable=not granted/u, 'DIAGNOSTIC Describe cannot turn the subject denial into a grant');
+  assert.equal(output.fields?.[0]?.fieldApiName, 'Price_Objection__c');
+  assert.equal(output.fields?.[0]?.describeFacts?.executionIdentityView, true);
+  const fallback = renderExplainFieldAccessText(outputFixture({ fields: [explanation('Unlabelled__c', 'INDETERMINATE', 'INDETERMINATE')] }));
+  assert.match(fallback, /Field: Unlabelled__c/u);
+  assert.match(fallback, /INDETERMINATE/u);
+});
+
 /** Every key name anywhere in a parsed payload, so the privacy assertion is not defeated by nesting. */
 function collectKeys(value: unknown, found = new Set<string>()): Set<string> {
   if (Array.isArray(value)) {

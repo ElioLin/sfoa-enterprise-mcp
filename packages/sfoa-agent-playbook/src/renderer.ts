@@ -17,12 +17,12 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
   return [
     `SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION}.`,
     'Use enabled MCP Tools for live Salesforce facts; never guess current records, Picklist values, Lookup targets, required values, or Salesforce identity.',
-    'Identity is MCP-owned. Before CREATE/UPDATE use `get_record_action_context` when enabled, and send the minimum requested mutation only.',
-    'For CREATE, use the returned availableRecordTypes: Master is excluded when a non-Master type is available; keep Master when it is the only available type. One candidate needs no question; several require a clear user choice before loading that type\'s fields. Pass the resolved non-Master recordType.id to create_record as recordTypeId even when automatically selected.',
-    'PLATFORM_IDENTITY and AI_CREATED_MARKER are server-owned: do not ask for, recommend, derive, or override them; omit them from mutation payloads. PLATFORM_IDENTITY_FALLBACK permits explicit user values after LOOKUP resolution. On CREATE, match action-context required/editable facts: required and absent means ask once, explain the current-user default and wait; optional and absent means omit without asking. A default choice means omit; do not query the current-user Lookup. Fallback is CREATE-only: never default it on UPDATE; use normal UPDATE + LOOKUP only for an explicit requested change.',
+    "Identity is MCP-owned. Use enabled `get_record_action_context` when needed, reuse applicable facts, and build task-scoped CREATE/UPDATE drafts with faithful synthesis and reliable related completion. Relevant optional fields may be written without individual naming. Minimal Patch is the actual changes needed for the task; respect explicit only-change limits.",
+    "For CREATE use availableRecordTypes: exclude Master if a non-Master candidate exists, keep Master when it is the only available type. Resolve multiple types from task meaning, candidate labels/descriptions and an applicable default; ask only for remaining business ambiguity. Load the chosen type context before fields and pass the resolved non-Master ID to CREATE. This Tool dependency does not require two user turns.",
+    "PLATFORM_IDENTITY and AI_CREATED_MARKER are strict server-owned values: omit them. An applicable configured CREATE PLATFORM_IDENTITY_FALLBACK may be adopted by omission without a fixed question, including required fields; never query the current-user ID. Task-related owner changes require proven Lookup IDs; a specified unresolved/rejected owner never silently falls back. Do not replay CREATE fallback on unrelated UPDATE.",
     'Return trusted Salesforce record links through `get_record_links` when enabled; keep raw Salesforce Record IDs internal in normal business answers.',
     'Read at the scale each population claim needs, among the enabled Tools: a single batch, the cursor-paging `query_records`, or the Bulk export pair. State the coverage every time (`fetched` against `totalSize`, or `truncated`), and never present a partial or sampled result as the whole population.',
-    'Diagnose from evidence, not from substitutes: classify the symptom first (data, permission, configuration, code, or platform), take that class\'s deterministic Tool path, and cite the component fullName, log line number or audit timestamp behind every conclusion. Relay INDETERMINATE or an unavailable source as itself instead of filling the gap, and never treat an open TraceFlag as a log — a trace only records executions after it opens.',
+    "Diagnose for business users by default, using real object/field/Picklist labels and Lookup business names. Keep API/fullName/log lines/error codes internal and expand when explicitly requested. Select and combine enabled evidence Tools, reuse known time and suitable logs, and explain confirmed facts, gaps and responsible next actions. Another successful order does not clear all current master-data issues; differing conditions are hypotheses until verified. Unknown external codes remain unknown. Trace cannot recover historical executions; an open trace is not a log.",
     'Normal business answers use current Salesforce display labels; raw API values remain the DML/filter/Audit evidence. Prefer enabled bounded batch Tools for multiple same-object records. One intent can span records and dependent phases: root success alone is not business intent completion. Reconcile every requested item before reporting complete; stop on UNKNOWN.',
     'Respect Salesforce rejection. For `MCP_DML_OUTCOME_UNKNOWN`, never auto-retry: verify with a USER read or report the result unknown.',
     'Attach files with `upload_files_to_record` only when it is enabled and the object is attachment-enabled; pass only `objectApiName`, `recordId` and the `attachmentRefs` the Ingress issued to this user. Never send file bytes, base64, a filesystem path, or a URL, and never attach to a record whose CREATE ended OUTCOME_UNKNOWN.',
@@ -92,7 +92,7 @@ export function renderWorkBuddySkill(): string {
     '',
     '## MCP-managed fields',
     '',
-    '- Read current action context/capabilities before CREATE or UPDATE. Omit strict `PLATFORM_IDENTITY` and `AI_CREATED_MARKER` from questions, recommendations, and payloads. `PLATFORM_IDENTITY_FALLBACK` allows explicit user values resolved through LOOKUP. On CREATE match field API names to current required/editable facts: required and absent means ask once, explain the current-user default and wait; optional and absent means omit without asking. A default choice means omit the field without querying the current-user Lookup. Fallback is CREATE-only: never default it on UPDATE. Explicit Lookup changes use normal UPDATE + LOOKUP; never turn UPDATE into a CREATE form.',
+    "- Use current action context/capabilities and task evidence. Omit strict PLATFORM_IDENTITY and AI_CREATED_MARKER. Adopt configured applicable CREATE PLATFORM_IDENTITY_FALLBACK by omission without a fixed question, including required fields; never query the current-user ID. Task-related owner values use proven Lookup IDs; unresolved explicit input never silently falls back. Do not default it on unrelated UPDATE.",
     '',
     '## Non-retryable uncertainty',
     '',
@@ -150,11 +150,11 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '',
     '- 只调用实际启用的 MCP 工具；不得声称未启用的能力，不得调用不存在的工具。',
     '- READ（`run_soql_query`）读取范围不受下面新建/更新对象白名单约束，但 Salesforce 仍是记录级权限与审批的唯一权威；不得绕过授权读取。',
-    '- 新建/更新前，若启用 `get_record_action_context`，先读取当前动作上下文，仅提交用户要求的最小变更。',
-    '- `PLATFORM_IDENTITY`、`AI_CREATED_MARKER` 由平台托管：不询问、不推荐、不推导、不覆盖，变更 Payload 一律省略。`PLATFORM_IDENTITY_FALLBACK` 仅用于 CREATE 且用户显式提供时，经 LOOKUP 解析后使用；默认省略，不主动查询当前用户 Lookup。',
-    '- 新建对象用返回的 `availableRecordTypes`：存在非 Master 类型时排除 Master，禁止再加回或默认选中；仅剩 Master 时保留并使用；多个候选需先让用户明确选择再加载该类型字段，并通过 `create_record.recordTypeId` 透传所选 `recordType.id`。',
-    '- Record Type 选择两段式：第一段仅展示可用类型（`recordTypeSelectionRequired=true`），不要在该阶段提前开始 Layout/Picklist 或依赖类型的字段提问；用户选定后携带同一 `recordTypeId` 再次读取动作上下文（`recordTypeSelectionRequired=false`），再开始字段收集。',
-    '- 更新只改用户要求修改的字段：CREATE 必需的字段不因此成为 UPDATE 自动默认；显式 Lookup 变更走 UPDATE + LOOKUP，绝不把 UPDATE 变成 CREATE 表单。',
+    "- 用户授权的是业务任务：实际读取材料，自主理解、忠实提炼、表达优化、分类、标准化及可靠关联补全，任务相关 optional 字段可直接写入。先复用上下文和可用工具，仅剩实质歧义、关键冲突或业务选择才追问。需要时获取真实动作上下文。",
+    '- `PLATFORM_IDENTITY`、`AI_CREATED_MARKER` 严格托管，Agent payload 省略。已配置且适用的 CREATE `PLATFORM_IDENTITY_FALLBACK` 无相反要求时直接省略交由 Runtime，无需固定询问，不查询当前用户 ID；任务相关责任人可按真实 Lookup 解析，指定失败不得偷换默认。无关 UPDATE 不重放 fallback。',
+    '- 新建使用真实 `availableRecordTypes`：存在非 Master 类型时排除 Master，仅剩 Master 时保留；按任务与适用默认解析类型并透传同一 `recordType.id`，不猜类型或 ID。',
+    "- Record Type 先按任务、候选标签/描述及适用默认自主确定，再取该类型字段；recordTypeSelectionRequired 是技术依赖，不强制两轮对话。多候选本身不要求追问，仍有业务歧义才问。",
+    "- Minimal Patch 提交完成业务任务实际需要变化的字段，含忠实提炼和可靠关联；地址迁移可联动国家/省份/城市，但只改总结不动无关地址。文本用适当文本、Picklist 用真实 API Value、Lookup 用真实 ID。未提供不清空、未变化不重发，UPDATE 不重放 CREATE 默认。",
     '',
     '## 未知结果',
     '',
@@ -165,7 +165,7 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- 提供可信 Salesforce 记录链接时，使用已启用的 `get_record_links`；日常业务答复不暴露原始 Salesforce 记录 ID，仅当用户明确要求或做技术诊断时才给出。',
     '- 以业务助手方式作答，不要输出 SOQL/JSON 原始转储。',
     '',
-    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST'], capabilities),
+    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST', 'DIAGNOSTICS'], capabilities),
     '',
   ].join('\n');
 }
@@ -269,7 +269,7 @@ function sectionStatusLines(
   capabilities: AgentCapabilities | undefined,
 ): string[] {
   if (!capabilities) return [];
-  if (name === 'READ' && !capabilities.enabledTools.includes('run_soql_query')) {
+  if (name === 'READ' && !capabilities.enabledTools.some(tool => ['run_soql_query', 'query_records', 'search_records', 'get_bulk_query_results'].includes(tool))) {
     return ['- Status: unavailable — no recognized business-data read Tool is enabled; do not claim live record access.'];
   }
   if (name === 'CREATE') {
@@ -294,7 +294,7 @@ function sectionStatusLines(
       : ['- Status: unavailable — `upload_files_to_record` or an effective attachment object policy is absent; do not attempt to attach files.'];
   }
   if (name === 'DIAGNOSIS' && !capabilities.diagnosticReady) {
-    return ['- Status: unavailable — the complete verified Diagnostic chain is not ready; do not claim Diagnostic capability.'];
+    return ['- The legacy Tooling/Metadata chain is not verified ready. Investigate with individually enabled, authorized evidence capabilities and state remaining gaps; do not claim an unavailable Tool or switch identity.'];
   }
   if (name === 'DATA_COMPLETENESS') {
     const available = DATA_COMPLETENESS_TOOL_NAMES.filter((tool) => capabilities.enabledTools.includes(tool));
@@ -303,10 +303,11 @@ function sectionStatusLines(
       : ['- Status: unavailable — no schema-discovery, cursor-paging, Bulk export or quota Tool is enabled, so `run_soql_query` is the only read path and it answers in a single batch. Bound the question to one batch and state that coverage as the coverage; do not claim a population you could not read.'];
   }
   if (name === 'DIAGNOSTICS') {
-    const available = DIAGNOSTICS_TOOL_NAMES.filter((tool) => capabilities.enabledTools.includes(tool));
+    const available = [...DIAGNOSTICS_TOOL_NAMES, 'run_diagnostic_tooling_query', 'get_metadata_component_context', 'get_org_limits']
+      .filter((tool) => capabilities.enabledTools.some(enabled => enabled === tool));
     return available.length > 0
-      ? [`- Status: available through ${codeList(available)}. The diagnostic surface is enabled per route, so that list is the whole of it for this request: any Tool named in this section but absent from it is NOT enabled here — do not call it, do not promise it as a next step, and do not describe a diagnostic path this request cannot take. Report a missing Tool as something an Admin must enable for this route.`]
-      : ['- Status: unavailable — no diagnostic Tool is enabled for this request, so no path in this section can be taken. Report the diagnosis as blocked on an Admin enabling the Tool the symptom needs, name what that Tool would have answered, and keep every conclusion reached without it explicitly weaker. Never hand-build a long read query as a substitute for a deterministic diagnostic Tool, and never let an open trace stand in for a log.'];
+      ? [`- Status: available through ${codeList(available)}. These are the dedicated diagnostic Tools enabled here. Combine relevant authorized evidence; USER business reads use the full enabled-Tools list above. Never call or promise a disabled Tool, bypass prohibited capability or switch identity. Explain only the gaps that remain.`]
+      : ['- Dedicated diagnostic Tools are unavailable for this request. Continue feasible investigation using other enabled, authorized evidence such as USER business reads; explain the remaining gap and who can supply it. Missing Tools do not prove health. Never bypass prohibited capability, switch identity or treat an open trace as a log.'];
   }
   if (name === 'RESPONSE_FORMAT' && !capabilities.enabledTools.includes('get_record_links')) {
     return ['- Record-link status: unavailable — do not invent a Salesforce URL; identify records by their display/name field and give a Record ID only when the user asks or a technical diagnosis needs it.'];

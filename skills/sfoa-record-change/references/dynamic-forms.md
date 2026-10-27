@@ -27,8 +27,8 @@ CREATE 输出里的 `uiContext` 与 `coverage.dynamicFormsEvaluated` 才能说�
 field.visibilityState == PENDING && dependsOn == [...]
 ```
 
-- `dependsOn` 对应的事实**已经在用户 Prompt 中知道** → 自动写入 `draftFields`，带同一 `recordTypeId` 执行下一次 refinement，不要询问用户第二次。
-- `dependsOn` 对应的事实**还不知道** → 询问依赖字段本身，不要询问依赖它的那个字段。
+- `dependsOn` 对应的事实**已从提示、实际已读材料、上下文或可靠关联中确定** → 自动写入 `draftFields`，带同一 `recordTypeId` 执行下一次 refinement，不要询问用户第二次。
+- `dependsOn` 对应的事实**还不知道** → 先利用已有信息与可用读取补证，仍缺关键事实才问依赖字段，不先问依赖它的字段。
 - 用户回答后 → 更新 draft → refinement → 重新获取 Effective Context → 重新判断。
 
 ```text
@@ -107,7 +107,7 @@ truncated / omitted / response incomplete / required evidence unavailable
 
 则：
 
-- **MUST NOT** 宣称所有 Required Fields 已完成验证。
+- 若截断影响本次必填、提交字段合法性、唯一性或适用依赖，**MUST NOT** 宣称相关 Required Fields 已完成验证。
 - **MUST NOT** 把 `CHANGE_READY=true` 建立在明显截断的关键证据之上。
 - 应指出被截断的证据范围，并只对已覆盖部分下结论。
 
@@ -115,10 +115,10 @@ truncated / omitted / response incomplete / required evidence unavailable
 
 | 概念 | 含义 | 处理 |
 | --- | --- | --- |
-| Evidence Delivery Incomplete | Tool result 被截断 / 省略，Agent 看不到完整事实 | 不能宣称验证完成；必要时缩小范围重取 |
+| Evidence Delivery Incomplete | Tool result 被截断 / 省略，Agent 看不到完整事实 | 不能将片段说成全集；影响本次相关字段验证时补取证据 |
 | Runtime Coverage Partial | Runtime 明确返回 `coverage=PARTIAL`，因为存在 PENDING / UNKNOWN 或 Picklist 截断 | 结合 Critical Dependency 判断是否阻塞 |
 
-`coverage=PARTIAL` 本身不是永久阻塞；`coverage.truncated=true`、`defaultValueTruncated=true`、`picklist.truncated=true` 或 Tool 层截断标记表示关键证据不完整，必须按上面处理。
+`coverage=PARTIAL` 本身不是永久阻塞；`coverage.truncated=true`、`defaultValueTruncated=true`、`picklist.truncated=true` 或 Tool 层截断标记需要结合本次任务判断。影响本次必填、提交字段合法性、唯一性或适用依赖时补足相关证据；无关 optional 字段或已覆盖选择之外的候选被截断，不自动阻塞任务，也不能因此宣称全集完整。
 
 ## 询问节奏
 
