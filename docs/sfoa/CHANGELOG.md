@@ -2,6 +2,18 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-10-27 — OpenClaw business-task autonomy
+
+Playbook 1.12.0 and the four business Skills accept faithful material synthesis
+and verified related fields in Agent-prepared payloads. Required CREATE Owner
+fallback has no ritual question; Record Type selection can use task context.
+Existing UI API/Describe supplies help/constraints, bounded Picklist continuation
+and task field projection. Host text mirrors retain final structured facts;
+diagnosis uses real labels and bounded conclusions. Identity, governance, managed
+fields and DML outcome contracts stay effective. Test-server evidence and the rule
+audit are in [delivery](OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md); mock DML is distinct
+from trusted WeCom or live Salesforce write acceptance.
+
 ## 2026-10-15 — Scoped Console accounts: the console stops having exactly one principal
 
 The Console authenticated one account and that account saw everything. ADR-0034 adds

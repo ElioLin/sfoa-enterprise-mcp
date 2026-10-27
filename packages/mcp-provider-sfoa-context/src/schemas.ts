@@ -23,6 +23,8 @@ export const recordActionContextInputObjectSchema = z.object({
     action: z.enum(['CREATE', 'UPDATE']).describe('Record action whose current USER context is required.'),
     recordTypeId: salesforceIdSchema.optional().describe('Optional currently available Salesforce Record Type ID.'),
     recordId: salesforceIdSchema.optional().describe('Required for UPDATE; forbidden for CREATE.'),
+    fieldApiNames: z.array(objectApiNameSchema).min(1).max(50).optional()
+      .describe('Optional task field projection to recover oversized client context. Keeps required/conditional fields and known controlling dependencies; coverage reports omitted and unresolved fields. Metadata only, never permission or mutation scope.'),
     picklistValueOffsets: z.record(objectApiNameSchema, z.number().int().min(0).max(100_000))
       .refine((value) => Object.keys(value).length <= 25, 'at most 25 Picklist pages per context')
       .optional().describe('Continue truncated Picklist candidates for the same object/action/Record Type. Field API name to exact nextValueOffset returned by context; no identity or value inference. Requested fields are prioritized within the existing response budget.'),
@@ -264,6 +266,11 @@ export const recordActionContextOutputSchema = z
         responseBytes: z.number().int().nonnegative(),
         totalVisibleFields: z.number().int().nonnegative(),
         returnedFields: z.number().int().nonnegative(),
+        fieldProjection: z.object({
+          requestedFieldApiNames: z.array(z.string()),
+          omittedFields: z.number().int().nonnegative(),
+          unresolvedFieldApiNames: z.array(z.string()),
+        }).strict().optional(),
         totalPicklistValues: z.number().int().nonnegative(),
         returnedPicklistValues: z.number().int().nonnegative(),
         truncated: z.boolean(),

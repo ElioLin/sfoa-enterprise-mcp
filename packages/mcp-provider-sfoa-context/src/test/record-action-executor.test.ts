@@ -83,6 +83,48 @@ test('invalid Picklist continuation input is rejected before request connection 
   assert.deepEqual(fixture.urls, []);
 });
 
+test('task projection bounds context without dropping required fields, controllers or unresolved-name evidence', async () => {
+  for (const action of ['CREATE', 'UPDATE'] as const) {
+    const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE], extraFields: {
+      Unrelated__c: field('Unrelated__c', '无关资料', { inlineHelpText: '资'.repeat(2000) }),
+    } });
+    const input = { objectApiName: 'Lead', action, ...(action === 'UPDATE' ? { recordId: RECORD_ID } : {}) };
+    const full = await fixture.executor.execute(input);
+    const before = fixture.urls.length;
+    const result = await new RecordActionContextMcpTool(fixture.executor).exec({ ...input,
+      fieldApiNames: ['Status__c', 'Missing__c'] });
+    const projected = recordActionContextOutputSchema.parse(result.structuredContent);
+    const names = projected.fields?.map(entry => entry.apiName) ?? [];
+    for (const name of ['Name', 'Required__c', 'Status__c', 'Controller__c']) assert.ok(names.includes(name), name);
+    assert.equal(names.includes('Unrelated__c'), false);
+    assert.equal(projected.coverage?.totalVisibleFields, full.coverage?.totalVisibleFields);
+    assert.equal(projected.coverage?.returnedFields, names.length);
+    assert.deepEqual(projected.coverage?.fieldProjection?.unresolvedFieldApiNames, ['Missing__c']);
+    assert.equal(projected.coverage?.fieldProjection?.omittedFields, (full.fields?.length ?? 0) - names.length);
+    assert.equal(projected.coverage?.truncated, true);
+    assert.equal(fixture.urls.length - before, before, 'projection adds no API requests');
+    assert.ok(JSON.stringify(result).length < JSON.stringify({ structuredContent: full, content: [{ type: 'text', text: JSON.stringify(full, null, 2) }] }).length);
+  }
+});
+
+test('task projection retains conditional/effective fields and transitive record dependencies after evaluation', async () => {
+  const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
+  const full = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  const base = full.fields?.find(entry => entry.apiName === 'Controller__c');
+  assert.ok(base);
+  const executor = { execute: async () => ({ ...full, fields: [
+    { ...base, apiName: 'Target__c', dependsOn: ['Record.Condition__c'] },
+    { ...base, apiName: 'Condition__c', dependsOn: ['Record.Flag__c'] },
+    { ...base, apiName: 'Flag__c' },
+    { ...base, apiName: 'Pending__c', conditionalRequired: true },
+    { ...base, apiName: 'RequiredNow__c', effectiveRequired: true },
+    { ...base, apiName: 'Unrelated__c' },
+  ] }) } as unknown as RecordActionContextExecutor;
+  const result = await new RecordActionContextMcpTool(executor).exec({ objectApiName: 'Lead', action: 'CREATE', fieldApiNames: ['Target__c'] });
+  assert.deepEqual(recordActionContextOutputSchema.parse(result.structuredContent).fields?.map(entry => entry.apiName),
+    ['Target__c', 'Condition__c', 'Flag__c', 'Pending__c', 'RequiredNow__c']);
+});
+
 test('CREATE resolves the single available Record Type and preserves required/editable/default/picklist facts', async () => {
   const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
   const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });

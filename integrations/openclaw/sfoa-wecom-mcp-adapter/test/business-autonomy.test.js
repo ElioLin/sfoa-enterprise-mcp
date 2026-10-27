@@ -7,6 +7,8 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { businessCases, evaluateCapture, prepareEvaluation, serveFixture } from '../harness/business-autonomy.mjs';
 import { projectOpenClawConfig } from '../harness/inspect-openclaw.mjs';
+import { observeProviderInput } from '../harness/provider-input-observer.mjs';
+import { createServer } from 'node:http';
 
 test('runtime configuration projection reports model, allowlist and paths without credentials or prompt contents', () => {
   const output = projectOpenClawConfig({ agents: { defaults: { model: { primary: 'configured-model', fallbacks: ['configured-fallback'] }, workspace: '/isolated/workspace' },
@@ -20,9 +22,10 @@ test('runtime configuration projection reports model, allowlist and paths withou
 });
 
 test('fixed business corpus validates fixture payloads without claiming model or semantic acceptance', () => {
-  assert.equal(businessCases.length, 17);
+  assert.equal(businessCases.length, 18);
   for (const fixture of businessCases) {
     const toolCalls = (fixture.requiredReads ?? []).map(name => ({ name, arguments: fixture.requiredPicklistContinuation ? { picklistValueOffsets: { [fixture.requiredPicklistContinuation.fieldApiName]: fixture.requiredPicklistContinuation.minimumOffset } } : {} }));
+    if (fixture.requiredFieldProjection) toolCalls.push({ name: 'get_record_action_context', arguments: { fieldApiNames: fixture.requiredFieldProjection } });
     if (fixture.operation !== 'NONE') toolCalls.push({ name: fixture.operation === 'CREATE' ? 'create_record' : 'update_record', arguments: {
       objectApiName: fixture.objectApiName, fields: fixture.candidateFields,
       ...(fixture.recordId ? { recordId: fixture.recordId } : {}), ...(fixture.recordTypeId ? { recordTypeId: fixture.recordTypeId } : {}),
@@ -33,6 +36,36 @@ test('fixed business corpus validates fixture payloads without claiming model or
     assert.equal(result.businessAcceptance, 'NOT_VERIFIED');
     assert.equal(result.semanticReview, 'REQUIRED');
   }
+});
+
+test('provider observer projects actual forwarded input without persisting credentials or prompt bodies', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'sfoa-provider-observer-'));
+  const input = { model: 'synthetic-model', messages: [{ role: 'user', content: 'SYNTHETIC_PRIVATE_INPUT' },
+    { role: 'assistant', tool_calls: [{ id: 'call-1', function: { name: 'sfoa-eval__get_record_action_context' } }] },
+    { role: 'tool', tool_call_id: 'call-1', content: 'structuredContent:\n' + JSON.stringify({ fields: [
+      { apiName: 'City', label: '公司城市', inlineHelpText: '公司地址', length: 255, precision: null, scale: null },
+    ], coverage: { truncated: false } }) }] };
+  let received;
+  const upstream = createServer(async (request, response) => {
+    const chunks = []; for await (const chunk of request) chunks.push(chunk);
+    received = { body: JSON.parse(Buffer.concat(chunks)), authorization: request.headers.authorization, path: request.url };
+    response.writeHead(200, { 'content-type': 'application/json' }); response.end('{"ok":true}');
+  });
+  await new Promise(done => upstream.listen(0, '127.0.0.1', done));
+  const trace = resolve(directory, 'provider-input.jsonl');
+  const observer = await observeProviderInput({ providers: { synthetic: { baseUrl: `http://127.0.0.1:${upstream.address().port}/v1` } } }, 'synthetic/synthetic-model', trace);
+  try {
+    const result = await fetch(observer.models.providers.synthetic.baseUrl + '/chat/completions', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer SYNTHETIC_PRIVATE_TOKEN' }, body: JSON.stringify(input),
+    });
+    assert.deepEqual(await result.json(), { ok: true });
+    assert.deepEqual(received, { body: input, authorization: 'Bearer SYNTHETIC_PRIVATE_TOKEN', path: '/v1/chat/completions' });
+    const persisted = await readFile(trace, 'utf8');
+    assert.doesNotMatch(persisted, /SYNTHETIC_PRIVATE/);
+    const projected = JSON.parse(persisted).messages[2];
+    assert.equal(projected.tool, 'sfoa-eval__get_record_action_context');
+    assert.deepEqual(projected.fields[0], { apiName: 'City', label: '公司城市', helpPresent: true, helpBytes: 12, length: 255, precision: null, scale: null });
+  } finally { await observer.close(); upstream.closeAllConnections(); await new Promise(done => upstream.close(done)); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('the evaluator rejects missing related payload, incorrect API/Lookup values, scope growth and fabricated quantities', () => {

@@ -169,7 +169,8 @@ export class RecordActionContextExecutor {
 
     // 3) Multiple available Record Types and no explicit choice: do NOT silently
     //    fetch create-defaults for a default/guessed type. Return selection-required
-    //    so the Agent asks the user, then calls back with an explicit recordTypeId.
+    //    so the Agent selects from task/context (asking only if ambiguous), then
+    //    calls back with an explicit recordTypeId.
     if (availableRecordTypes.length > 1) {
       return { kind: 'select' };
     }

@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir, copyFile, access } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { businessCases, prepareEvaluation, serveFixture } from './business-autonomy.mjs';
 import { projectOpenClawConfig } from './inspect-openclaw.mjs';
+import { observeProviderInput } from './provider-input-observer.mjs';
 
 const args = process.argv.slice(2);
 const value = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
@@ -45,8 +46,12 @@ async function worker() {
     await mkdir(state, { recursive: true, mode: 0o700 });
     const mock = await serveFixture({ caseId: fixture.id, sourceRoot: variant === 'before' ? before : after,
       tracePath: join(state, 'tools.jsonl') });
+    const primary = (typeof main.model === 'string' ? main.model : main.model?.primary)
+      ?? (typeof actual.agents.defaults.model === 'string' ? actual.agents.defaults.model : actual.agents.defaults.model.primary);
+    const observer = args.includes('--observe-provider-input')
+      ? await observeProviderInput(actual.models, primary, join(state, 'provider-input.jsonl')) : undefined;
     try {
-      const cfg = { models: actual.models, auth: actual.auth,
+      const cfg = { models: observer?.models ?? actual.models, auth: actual.auth,
         agents: { ...actual.agents, defaults: { ...actual.agents.defaults, workspace: workspaces[variant], model: main.model ?? actual.agents.defaults.model, skipBootstrap: true },
           entries: { main: { ...main, workspace: workspaces[variant], skills: names, tools: { allow: ['read', 'sfoa-eval__*'], fs: { workspaceOnly: true } } } } },
         skills: { entries: Object.fromEntries(names.map(name => [name, { enabled: true }])) },
@@ -75,11 +80,11 @@ async function worker() {
       await writeFile(join(state, 'sdk-dispatches.json'), JSON.stringify(mock.dispatches, null, 2));
       let result; try { result = JSON.parse(stdout); } catch { result = { status: 'INVALID_RESULT' }; }
       captures[variant].push({ id: fixture.id, origin: 'OPENCLAW_RUN', runId: result.sessionId ?? '', model: result.model ?? '',
-        contextEvidence: join(state, 'logs/cache-trace.jsonl'), toolCalls: mock.calls, sdkDispatches: mock.dispatches,
+        contextEvidence: join(state, observer ? 'provider-input.jsonl' : 'logs/cache-trace.jsonl'), toolCalls: mock.calls, sdkDispatches: mock.dispatches,
         reply: result.final ?? '', executionStatus: result.status, exitCode: code,
         transcriptReview: { questionCount: null, criteria: fixture.review.map(criterion => ({ criterion, verdict: 'NOT_REVIEWED', evidence: '' })) } });
       console.log(JSON.stringify({ done: id, code, status: result.status, model: result.model, toolCalls: mock.calls.length, mutations: mock.dispatches.length }));
-    } finally { await mock.close(); }
+    } finally { await observer?.close(); await mock.close(); }
   }
 }
 const concurrency = Math.max(1, Math.min(3, Number(value('--concurrency') ?? 2)));

@@ -423,12 +423,23 @@ function enrichManagedDmlFields(
       managedBy: 'MCP' as const,
       strategy: MANAGED_DML_FIELD_SAFE_STRATEGIES[rule.strategy],
     }));
+  const structuredContent = {
+    ...result.structuredContent,
+    managedDmlFields: Object.freeze(managedDmlFields),
+  };
+  // Keep the host's final JSON mirror in sync after enrichment. Native OpenClaw
+  // suppresses only an exact mirror; stale provider JSON duplicates the context.
+  const previousMirrors = new Set([
+    JSON.stringify(result.structuredContent),
+    JSON.stringify(result.structuredContent, null, 2),
+  ]);
   return {
     ...result,
-    structuredContent: {
-      ...result.structuredContent,
-      managedDmlFields: Object.freeze(managedDmlFields),
-    },
+    content: [
+      { type: 'text', text: JSON.stringify(structuredContent, null, 2) },
+      ...result.content.filter((block) => block.type !== 'text' || !previousMirrors.has(block.text)),
+    ],
+    structuredContent,
   };
 }
 

@@ -33,6 +33,9 @@ test('host enriches case-insensitive object/action managed field facts: ' + obje
 
   assert.ok(Object.hasOwn(facade.getConfig().outputSchema ?? {}, 'managedDmlFields'));
   const result = await facade.execute({ objectApiName, action: 'UPDATE', recordId: '00Q000000000001AAA' }, extra());
+  assert.equal(result.content.length, 1, 'host enrichment must not retain a stale JSON mirror');
+  assert.equal(result.content[0]?.type, 'text');
+  if (result.content[0]?.type === 'text') assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
   const managed = result.structuredContent?.managedDmlFields;
   assert.deepEqual(managed, [{
     objectApiName: 'Order__c',
@@ -42,6 +45,8 @@ test('host enriches case-insensitive object/action managed field facts: ' + obje
     strategy: 'PLATFORM_IDENTITY',
   }]);
   const created = await facade.execute({ objectApiName, action: 'CREATE' }, extra());
+  assert.equal(created.content.length, 1);
+  if (created.content[0]?.type === 'text') assert.deepEqual(JSON.parse(created.content[0].text), created.structuredContent);
   const createManaged = created.structuredContent?.managedDmlFields;
   assert.ok(Array.isArray(createManaged));
   assert.deepEqual(createManaged.map((field: { strategy: string }) => field.strategy).sort(),
@@ -102,7 +107,8 @@ const emptySchema = z.object({});class ActionContextTool extends McpTool<typeof 
     return { description: 'test action context', inputSchema: emptySchema.shape, outputSchema: emptySchema.shape };
   }
   public async exec(): Promise<CallToolResult> {
-    return { content: [{ type: 'text', text: 'context' }], structuredContent: { success: true, fields: [] } };
+    const structuredContent = { success: true, fields: [{ apiName: 'City__c', label: '公司城市', inlineHelpText: '公司所在地城市', length: 255 }] };
+    return { content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }], structuredContent };
   }
 }
 

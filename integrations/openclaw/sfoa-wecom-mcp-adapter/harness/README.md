@@ -2,7 +2,7 @@
 
 这些是开发验收工具，不随四个业务 Skill 发布，不进入 MCP 生产请求路径。使用合成材料和 loopback mock DML，不访问 Salesforce，不伪造企微 requester，也不把 CLI 回合算成企微端到端。
 
-`business-cases.json` 包含 17 个固定样本与人工审阅标准：材料/转写、否定与主体、厦门/杭州地域、迁址、拜访地点、限定只改总结、同名/冲突/截断、不同 API 值/Record Type/Lookup、Owner fallback、类型选择、业务/技术诊断。`candidateFields` / `candidateReply` 是手写 fixture，不是真实模型输出，也不会进入 Agent 输入包。
+`business-cases.json` 包含 18 个固定样本与语义复核标准：材料/转写、否定与主体、厦门/杭州地域、迁址、拜访地点、限定只改总结、同名/冲突/截断、不同 API 值/Record Type/Lookup、Owner fallback、类型选择、业务/技术诊断，以及过大字段上下文的任务投影。`candidateFields` / `candidateReply` 是手写 fixture，不是真实模型输出，也不会进入 Agent 输入包。
 
 在仓库根目录构建 Provider 和 Playbook 后执行：
 
@@ -34,7 +34,9 @@ Linux 测试服务器可用 `run-openclaw.mjs` 自动完成这一步：
 node integrations/openclaw/sfoa-wecom-mcp-adapter/harness/run-openclaw.mjs --config <actual-openclaw.json> --output <new-evidence-dir> --before-source <baseline-archive-root> --after-source <current-checkout> --concurrency 2
 ```
 
-该脚本复用 main 的模型、thinking 和工作区人格文件，在独立目录保留四个业务 Skill，通过原生 OpenClaw `agent exec` 消费 loopback MCP。仅开放 read 和 mock MCP，禁用 channel/plugin 与真实 MCP，不发送企微消息。每例独立状态，SDK 写入终点始终是内存 stub；同时保留模型结果、工具参数、SDK dispatch 和原生 cache trace（最终输入的证据）。配置副本含运行凭据，仅以 0600 保存在服务器 `config.private.json`，不得下载、打包或提交。只导出 captures、工具/SDK 结果和已脱敏 trace。实际 CLI mock 评测与可信 requester 的企微端到端仍是不同验收层。可以用 `--cases id1,id2` 缩小范围；已有证据目录不会被覆盖。
+该脚本复用 main 的模型、thinking 和工作区人格文件，在独立目录保留四个业务 Skill，通过原生 OpenClaw `agent exec` 消费 loopback MCP。仅开放 read 和 mock MCP，禁用 channel/plugin 与真实 MCP，不发送企微消息。每例独立状态，SDK 写入终点始终是内存 stub；同时保留模型结果、工具参数、SDK dispatch 和原生 cache trace。配置副本含运行凭据，仅以 0600 保存在服务器 `config.private.json`，不得下载、打包或提交。只导出 captures、工具/SDK 结果和已脱敏 trace。实际 CLI mock 评测与可信 requester 的企微端到端仍是不同验收层。可以用 `--cases id1,id2` 缩小范围；已有证据目录不会被覆盖。
+
+原生 cache trace 自身会把大 JSON 脱敏为 `[Oversized diagnostic JSON redacted]`，不能凭这个占位符证明模型已收到字段或候选。需要验证最终模型输入时加 `--observe-provider-input`：仅在隔离合成评测中使用 loopback 转发到实际主模型原配置地址，原样传递请求，记录消息 hash、工具名、字段标签/帮助长度/约束/候选数量/截断与 guidance 长度，不保存授权头、凭据、原始用户正文或人格提示。没有修改真实 main 配置、真实 MCP 或 requester。该元数据来自实际发往模型的 HTTP body，不从服务器 JSON 或模型自述推定。
 
 将真实 Run 的 `runId`、实际模型、上下文证据位置、Tool trace、回复填入生成的 `capture-template.json`。问题次数由实际转录审阅记录，不能使用模型自报次数。按每个样本的 review 标准检查关键事实无编造、无主体错配、无错字段，并评价覆盖、提炼、合理补全与追问；多种正确表达都接受。每条语义审阅须有具体证据，不能用固定措辞或模型置信度判定。
 

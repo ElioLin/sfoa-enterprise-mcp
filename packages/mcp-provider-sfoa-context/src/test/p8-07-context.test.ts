@@ -5,6 +5,7 @@ import type { OrgService } from '@salesforce/mcp-provider-api';
 import { createInitialState, initialFact, resolveUserFacts, userDependencies } from '../create-initial-state.js';
 import { evaluateVisibility } from '../visibility.js';
 import { PresentationRelationshipExecutor, displayValuesInputSchema } from '../presentation-relationship.js';
+import { PresentationRelationshipMcpTool } from '../tools/presentation-relationship.js';
 import { fixtureSnapshot, runtimeFixture, rule, RT } from './effective-ui-fixtures.js';
 
 test('CREATE initial precedence tracks explicit/null/false/zero and trusted defaults without Flow guesses', () => {
@@ -73,8 +74,14 @@ function org(connection: Connection): OrgService {
 
 test('unavailable object metadata preserves raw display rows with explicit unresolved status', async () => {
   const connection = { getApiVersion: () => '67.0', request: async () => { throw new Error('FLS unavailable'); } } as unknown as Connection;
-  const result = await new PresentationRelationshipExecutor(org(connection)).display({ objectApiName: 'Root__c',
+  const tool = new PresentationRelationshipMcpTool(new PresentationRelationshipExecutor(org(connection)), 'DISPLAY');
+  const output = await tool.exec({ objectApiName: 'Root__c',
     values: [{ fieldApiName: 'Status__c', rawValue: 'COMPLETED' }] });
+  assert.equal(output.content.length, 1);
+  assert.equal(output.content[0]?.type, 'text');
+  if (output.content[0]?.type === 'text') assert.equal(output.content[0].text, JSON.stringify(output.structuredContent, null, 2),
+    'native OpenClaw recognizes the exact final structured-content mirror');
+  const result = output.structuredContent as Awaited<ReturnType<PresentationRelationshipExecutor['display']>>;
   assert.equal(result.results[0]?.displayValue, 'COMPLETED');
   assert.equal(result.results[0]?.resolutionStatus, 'UNRESOLVED'); assert.equal(result.apiCallCount, 1);
 });

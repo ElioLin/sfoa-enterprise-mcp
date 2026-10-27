@@ -24,7 +24,7 @@ export class PresentationRelationshipMcpTool extends McpTool<z.ZodRawShape, z.Zo
     try {
       const output = this.kind === 'DISPLAY' ? await this.executor.display(displayValuesInputSchema.parse(input))
         : await this.executor.relationships(relationshipInputSchema.parse(input));
-      return { content: [{ type: 'text', text: JSON.stringify(output) }], structuredContent: output };
+      return { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }], structuredContent: output };
     } catch {
       return { isError: true, content: [{ type: 'text', text: 'MCP_CONTEXT_READ_FAILED: validate input and current USER metadata access; no mutation was performed.' }] };
     }

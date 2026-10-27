@@ -5,7 +5,8 @@
 - UI API/Describe field help and constraints reach both text and structured outputs, including Dynamic Forms. Existing action context can continue truncated Picklist candidates without a new geography service. Field-access text prefers real labels and retains raw evidence.
 - Diagnostic guidance defaults to business language, reuses logs/time and composes authorized evidence. A successful comparison order does not clear all current master-data issues or prove transaction-condition differences are the cause.
 - Full Playbook reaches text-only clients; standard JSON mirrors avoid duplication in the source-traced native OpenClaw MCP projector. Attachment staging explicitly does not prove parsing/transcription.
-- Add synthetic payload/diagnosis cases, loopback mock DML and capture review. Deployment/model/WeCom acceptance is separate and NOT RUN in this checkout. See [delivery report](docs/sfoa/OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md).
+- Recover client-truncated action context with optional task field projection; retain required/conditional fields and controllers. Refresh the final JSON mirror after Host enrichment so native OpenClaw does not duplicate stale Provider text.
+- Add 18 synthetic payload/diagnosis cases, loopback mock DML and actual provider-input metadata observation. Test-server deployment, native same-model evaluation and trusted WeCom read-only acceptance are recorded separately from live write/media acceptance. See [delivery report](docs/sfoa/OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md).
 
 # The Console gets a second account that cannot see everything — modules, a default-deny endpoint table, and an actor on the audit trail (2026-10-15)
 

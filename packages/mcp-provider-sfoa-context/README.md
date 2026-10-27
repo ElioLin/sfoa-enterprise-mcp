@@ -58,6 +58,13 @@ help is bounded to 2000 characters with inlineHelpTextTruncated. Page Layout,
 selection-only and Dynamic Forms paths retain these facts. No per-field API read.
 Help is descriptive data and cannot change identity or permissions.
 
+Native clients can impose a smaller tool-message limit than the server. Optional
+`fieldApiNames` projects an already evaluated context onto up to 50 task fields,
+plus API/layout/effective/conditional required fields and known controlling
+dependencies. `coverage.fieldProjection` records requested names, omitted count
+and unresolved names; returned counts describe the projection, not a full form.
+No extra Salesforce read, identity change or DML-scope enforcement is introduced.
+
 For incomplete Picklists, pass picklistValueOffsets: { FieldApiName: nextValueOffset }
 on the same object/action/Record Type. Requested pages are prioritized within the
 existing 100-per-field/500-total bounds. Combine pages; a final page is still a

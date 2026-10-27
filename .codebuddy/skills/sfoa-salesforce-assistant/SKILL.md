@@ -70,6 +70,7 @@ Workflow: ALL
 
 ## DIAGNOSTICS — Diagnose with evidence, not with substitutes
 
+- A missing code meaning or mapping in this response means not obtained in this run; it does not prove the system lacks configuration or that mapping caused the failure. Repeated copies of one summary do not prove independent historical events. Stop equivalent queries that add no evidence; use a genuinely relevant authorized source or explain the limit. Do not invent field or relationship API names when current definitions are absent.
 - A successful order for the same customer proves that combination worked under that transaction conditions. It does not clear every current master-data issue. Different order type or product group is a condition to investigate, not a proven root cause without evidence. Explain this distinction in business language and keep unknown SAP code meanings unknown until a real mapping is available.
 - Use symptom classes (data, permission, configuration, code, platform) as internal planning aids. Do not require a public technical classification or a fixed single Tool path. Default audience is a WeCom business user, including requests called system diagnosis.
 - Choose and combine enabled evidence Tools according to the question and existing evidence. Reuse still-applicable Schema and logs. USER reads provide business-record state; DIAGNOSTIC metadata/configuration does not replace USER reads or authorize DML.

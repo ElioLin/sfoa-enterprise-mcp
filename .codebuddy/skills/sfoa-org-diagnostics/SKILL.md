@@ -7,6 +7,8 @@ description: Salesforce 组织异常的证据诊断：按问题组合已启用�
 
 本 Skill 是 sfoa-crm-core 的专业化补充，inherits all hard rules from sfoa-crm-core。Salesforce / MCP Runtime Fact > Agent Playbook > sfoa-org-diagnostics > Model Assumption。诊断默认受众是企微业务用户；「诊断」「系统诊断」不等于请求代码/API。
 
+本轮没取得代码含义或映射，只能说「本轮尚未取得」，不能说系统未维护映射、配置缺失或映射就是故障。多个工具反复返回同一摘要，仍是一份有范围的证据，不证明完整历史或多次独立日志。已有信息足以形成有限结论时直接回答；无新增信息时停止同义参数和等价查询，转向确实可补证的授权来源或说明缺口。没有真实字段/关系定义时不猜 API 名继续试探。
+
 ## Hard Rules
 
 1. **按问题取证** — 数据、权限、配置、代码、平台是内部计划参考，不要求先公开技术分类。允许组合已启用且授权的工具、复用仍适用的 Schema、上下文与日志，不强制固定单一路线。见 [decision-tree.md](references/decision-tree.md)。

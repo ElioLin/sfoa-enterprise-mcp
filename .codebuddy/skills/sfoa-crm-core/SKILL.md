@@ -36,6 +36,8 @@ Prefer 最少而充分的有效 Tool。简单且语义清楚的查询可以直�
 
 复杂 CREATE / UPDATE、批量 DML、Compound Intent、Record Type / Required / Dynamic Forms 或不熟悉的 Tool 语义，优先考虑当前 `get_agent_playbook` / `get_record_action_context`。不要求每个请求第一步读取 Playbook；已有适用的当前上下文可复用。
 
+客户端可能截断过大的工具正文。遇到实际截断，利用当前真实字段定义以 `get_record_action_context.fieldApiNames` 获取相关小范围上下文；该投影保留必填与控制依赖，coverage.fieldProjection 说明遗漏，不能声称完整表单或用片段证明候选唯一。Picklist 用已返回的 nextValueOffset 续取，不重复获取无关的完整 Schema。
+
 Use judgment：可以组合工具、跳过无用步骤、自选查询顺序、决定是否联网、读取哪些附件、先澄清哪些歧义或使用允许的 Sub-Agent。处理附件事实时先实际读取附件，不按文件名猜内容。Main Agent 负责 requester-scoped SFOA MCP；当前 Sub-Agent 不直接访问 Salesforce，可承担获准的 Web / research / analysis。
 
 When an eligible specialized SFOA skill exists for the task, use it in addition to this core guidance. 只读取实际已安装且对当前 Agent 可用的专业 Skill；不要假称未来 Skill 已存在。

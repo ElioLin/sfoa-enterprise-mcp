@@ -1,5 +1,13 @@
 [
   {
+    "id":"oversized-action-context", "request":"创建一条线索，客户公司在厦门。工具正文过长时自行取得相关字段上下文，不需要逐字段问我。",
+    "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Country","label":"公司国家","type":"string"},{"apiName":"State","label":"公司省份","type":"string"},{"apiName":"City","label":"公司城市","type":"string"}],
+    "context":{"oversizedFields":80}, "requiredValues":{"Country":"中国","State":"福建省","City":"厦门市"},
+    "requiredFieldProjection":["Country","State","City"], "candidateFields":{"Country":"中国","State":"福建省","City":"厦门市"},
+    "review":["任务字段投影到达实际工具调用；最终模型输入保留字段标签和约束，真实 SDK 收到国家省市，无无关字段"]
+  },
+  {
     "id": "visit-material", "request": "按这份已解析材料创建客户拜访", "material": "客户觉得报价偏高，样品还在测试，对合作有兴趣，数量没定，让我们下周联系。",
     "objectApiName": "Visit__c", "operation": "CREATE", "maxQuestions": 0,
     "fields": [{"apiName":"Summary__c","label":"拜访总结","type":"textarea","inlineHelpText":"本次沟通的事实与进展"},{"apiName":"Requests__c","label":"客户诉求","type":"textarea","inlineHelpText":"客户期望与异议"},{"apiName":"Next_Plan__c","label":"后续计划","type":"textarea","inlineHelpText":"尚待执行的行动、责任与时间窗口"}],
@@ -17,7 +25,7 @@
   {
     "id":"company-xiamen-text", "request":"创建一条线索，客户公司在厦门", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
     "fields":[{"apiName":"Country","label":"公司国家","type":"string"},{"apiName":"State","label":"公司省份","type":"string"},{"apiName":"City","label":"公司城市","type":"string"}],
-    "requiredValues":{"Country":"中国","State":"福建省","City":"厦门市"}, "candidateFields":{"Country":"中国","State":"福建省","City":"厦门市"},
+    "requiredValues":{"Country":"中国","State":"福建省"}, "allowedValues":{"City":["厦门","厦门市"]}, "candidateFields":{"Country":"中国","State":"福建省","City":"厦门市"},
     "review":["国家和省份未点名仍进入实际 CREATE 参数；其他必填在隔离上下文中由适用默认满足"]
   },
   {

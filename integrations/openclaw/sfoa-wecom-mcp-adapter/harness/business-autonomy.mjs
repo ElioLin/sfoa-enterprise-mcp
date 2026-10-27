@@ -40,6 +40,8 @@ export function evaluateCapture(fixture, capture) {
   for (const name of fixture.requiredReads ?? []) if (!calls.some(call => call.name === name)) failures.push(`missing evidence continuation ${name}`);
   if (fixture.requiredPicklistContinuation && !calls.some(call => call.name === 'get_record_action_context' &&
     call.arguments?.picklistValueOffsets?.[fixture.requiredPicklistContinuation.fieldApiName] >= fixture.requiredPicklistContinuation.minimumOffset)) failures.push('missing actual Picklist continuation page');
+  if (fixture.requiredFieldProjection && !calls.some(call => call.name === 'get_record_action_context' &&
+    fixture.requiredFieldProjection.every(name => call.arguments?.fieldApiNames?.includes(name)))) failures.push('missing actual task context projection');
   // Questions are annotated from the actual transcript, never the model's own claimed count.
   const questions = capture.transcriptReview?.questionCount;
   if (typeof questions !== 'number') failures.push('question count not reviewed from transcript');
@@ -102,6 +104,7 @@ export async function serveFixture({ caseId, sourceRoot = root, tracePath, port 
   const { z } = require('zod');
   const dml = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-dml/dist/index.js')).href);
   const contextProvider = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-context/dist/index.js')).href);
+  const { PresentationRelationshipMcpTool } = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-context/dist/tools/presentation-relationship.js')).href);
   const dataProvider = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-data/dist/index.js')).href);
   const generated = await readFile(resolve(sourceRoot, 'docs/agent/DIFY_AGENT_INSTRUCTION.md'), 'utf8');
   const heading = generated.indexOf('# SFoA Salesforce Agent Playbook');
@@ -134,13 +137,18 @@ export async function serveFixture({ caseId, sourceRoot = root, tracePath, port 
     const server = new McpServer({ name: 'sfoa-business-eval-mock', version: '1.0.0' }, { instructions: guidance });
     const actionConfig = new contextProvider.RecordActionContextMcpTool({}).getConfig();
     const configs = [new contextProvider.GetApexLogsMcpTool({}), new contextProvider.GetDebugLogBodyMcpTool({}),
-      new contextProvider.GetPlatformDiagnosticsMcpTool({}), new dataProvider.QueryRecordsMcpTool({})];
+      new contextProvider.GetPlatformDiagnosticsMcpTool({}), new dataProvider.QueryRecordsMcpTool({}),
+      new PresentationRelationshipMcpTool({}, 'DISPLAY')];
     const readConfigs = new Map(configs.map(tool => [tool.getName(), tool.getConfig()]));
     readConfigs.set('get_record_action_context', actionConfig);
     const read = (name, inputSchema, fn) => {
       const actual = readConfigs.get(name);
       return server.registerTool(name, { inputSchema: actual?.inputSchema ?? inputSchema,
-        ...(actual ? { description: actual.description } : {}), annotations: { readOnlyHint: true } }, async args => { await log(name, args); return json(await fn(args)); });
+        ...(actual ? { description: actual.description } : {}), annotations: { readOnlyHint: true } }, async args => {
+          await log(name, args);
+          if (name === 'get_record_action_context') return new contextProvider.RecordActionContextMcpTool({ execute: () => fn(args) }).exec(args);
+          return json(await fn(args));
+        });
     };
     read('get_agent_playbook', { workflow: z.enum(['CORE','READ','CREATE','UPDATE','DIAGNOSIS','ALL']).optional() }, () => ({ guidance, managedDmlFields: fixture.context?.managedDmlFields ?? [], truncated: false }));
     read('get_record_action_context', { objectApiName: z.string(), action: z.enum(['CREATE', 'UPDATE']), recordId: z.string().optional(), recordTypeId: z.string().optional(),
@@ -149,13 +157,15 @@ export async function serveFixture({ caseId, sourceRoot = root, tracePath, port 
       const types = context.availableRecordTypes ?? [{ id: fixture.recordTypeId ?? '012000000000001AAA', name: '适用业务类型', available: true }];
       const descriptors = types.map(type => ({ id: type.id, name: type.name, available: true, defaultForUser: types.length === 1 }));
       const selected = args.recordTypeId ? descriptors.find(type => type.id === args.recordTypeId) : descriptors.length === 1 ? descriptors[0] : undefined;
-      const fields = names.map(name => {
+      const metadataNames = [...names, ...Array.from({ length: context.oversizedFields ?? 0 }, (_, index) => `Extra${index}__c`)];
+      const fields = metadataNames.map(name => {
         const source = fixture.fields?.find(field => field.apiName === name);
         const allOptions = name === 'Nation__c' ? context.countryChoices : name === 'Province__c' ? context.provinceChoices : name === 'City' ? cityChoices : undefined;
         const offset = args.picklistValueOffsets?.[name] ?? 0;
         const options = allOptions?.slice(offset, offset + 100);
         return { apiName: name, label: source?.label ?? name, dataType: options ? 'Picklist' : source?.type === 'textarea' ? 'TextArea' : name === 'City_Link__c' ? 'Reference' : 'String',
-          inlineHelpText: source?.inlineHelpText ?? null, length: source?.type === 'textarea' ? 2000 : 255, precision: null, scale: null,
+          inlineHelpText: name.startsWith('Extra') ? '与本次任务无关的合成字段帮助。'.repeat(100) : source?.inlineHelpText ?? null,
+          length: source?.type === 'textarea' ? 2000 : 255, precision: null, scale: null,
           apiRequired: false, layoutMember: true, layoutRequired: false, fieldCreateable: true, fieldUpdateable: true,
           layoutEditableForCreate: true, layoutEditableForUpdate: true, defaultValue: null, defaultValueTruncated: false,
           section: null, layoutOrder: null, relationshipName: null, referenceTo: name === 'City_Link__c' ? context.referenceTo ?? [] : [],
@@ -171,7 +181,15 @@ export async function serveFixture({ caseId, sourceRoot = root, tracePath, port 
           returnedFields: fields.length, totalPicklistValues: 0, returnedPicklistValues: 0, truncated: context.picklist?.truncated ?? false,
           dynamicFormsEvaluated: false, completeLightningPageEvaluated: false, warnings: ['Synthetic mock fixture; no Salesforce identity or live metadata.'] } });
     });
-    for (const name of ['run_soql_query', 'query_records', 'get_apex_logs', 'get_debug_log_body', 'get_platform_diagnostics', 'resolve_field_display_values']) {
+    read('resolve_field_display_values', {}, args => ({ objectApiName: args.objectApiName, truncated: false, apiCallCount: 0,
+      results: args.values.map((item, index) => {
+        const choices = item.fieldApiName === 'Nation__c' ? fixture.context?.countryChoices
+          : item.fieldApiName === 'Province__c' ? fixture.context?.provinceChoices : item.fieldApiName === 'City' ? cityChoices : [];
+        const label = choices?.find(choice => choice.value === item.rawValue)?.label;
+        return { index, ...item, recordTypeId: item.recordTypeId ?? null, displayValue: label ?? item.rawValue,
+          resolutionStatus: label ? 'RESOLVED' : 'UNRESOLVED' };
+      }) }));
+    for (const name of ['run_soql_query', 'query_records', 'get_apex_logs', 'get_debug_log_body', 'get_platform_diagnostics']) {
       read(name, { query: z.string().optional(), objectApiName: z.string().optional(), logId: z.string().optional() }, args => ({ synthetic: true,
         evidence: fixture.context ?? {}, currentValues: fixture.currentValues ?? {}, records: /\bFROM\s+User\b/iu.test(args.query ?? args.soql ?? '') && fixture.context?.ownerMatches ? fixture.context.ownerMatches : [{ Id: recordId, ...stored }], candidates: fixture.candidates ?? [], material: fixture.material ?? null }));
     }

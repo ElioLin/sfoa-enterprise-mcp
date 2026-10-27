@@ -160,6 +160,16 @@ request before claiming deduplication/no truncation in a live Run.
 The OpenClaw adapter's attachmentRef block is staging metadata, not body reading.
 Check actual host document extraction, PDF/vision and audio transcription results;
 do not infer these from attachment presence. The integration harness README
-describes safe config projection, a 17-case corpus, loopback mock DML and review of
+describes safe config projection, an 18-case corpus, loopback mock DML and review of
 actual model captures. Offline fixture success is never actual model or trusted
 WeCom end-to-end acceptance.
+
+2026-10-27 test-server tracing found two distinct limits: native MCP removes only
+an exact final pretty JSON mirror (including Host managed-field enrichment), and
+native prompt projection caps oversized Tool text. Recover action metadata with
+optional fieldApiNames; retain required fields/controllers and report projection
+coverage. Do not infer full delivery from a persisted transcript preview.
+Native cache trace can itself replace large JSON with a diagnostic redaction
+placeholder. For synthetic isolated evaluation, --observe-provider-input records
+safe metadata from the actual forwarded model HTTP request. It never saves auth
+headers or prompt bodies and must not be applied to production conversations.
