@@ -10,6 +10,7 @@ describe('copyTextToClipboard clipboard resilience', () => {
     else delete (navigator as { clipboard?: unknown }).clipboard;
     if (nativeExec) Object.defineProperty(document, 'execCommand', nativeExec);
     else delete (document as { execCommand?: unknown }).execCommand;
+    document.body.removeAttribute('tabindex');
     document.body.replaceChildren();
     vi.restoreAllMocks();
   });
@@ -57,5 +58,48 @@ describe('copyTextToClipboard clipboard resilience', () => {
 
     await expect(copyTextToClipboard('delta')).rejects.toThrow();
     expect(exec).toHaveBeenCalledWith('copy');
+  });
+
+  it('moves the scratch textarea inside a focus trap instead of copying nothing', async () => {
+    // Ant Design Drawer/Modal run a focus trap (rc-util useLockFocus): focusing
+    // anything outside the panel is undone immediately. With the textarea left
+    // in <body>, execCommand('copy') then reports true while copying nothing.
+    delete (navigator as { clipboard?: unknown }).clipboard;
+    const panel = document.createElement('div');
+    const trapButton = document.createElement('button');
+    panel.appendChild(trapButton);
+    document.body.appendChild(panel);
+    trapButton.focus();
+    const keepFocusInside = (): void => {
+      if (!panel.contains(document.activeElement)) trapButton.focus();
+    };
+    window.addEventListener('focusin', keepFocusInside);
+    const exec = vi.fn(() => {
+      const focused = document.activeElement;
+      return focused instanceof HTMLTextAreaElement
+        && panel.contains(focused)
+        && focused.value === 'epsilon';
+    });
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: exec, writable: true });
+
+    await expect(copyTextToClipboard('epsilon')).resolves.toBeUndefined();
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect(panel.querySelector('textarea')).toBeNull();
+    window.removeEventListener('focusin', keepFocusInside);
+  });
+
+  it('never reports success when focus cannot be kept on the scratch textarea', async () => {
+    delete (navigator as { clipboard?: unknown }).clipboard;
+    const stealToBody = (): void => {
+      document.body.tabIndex = -1;
+      document.body.focus();
+    };
+    window.addEventListener('focusin', stealToBody);
+    const exec = vi.fn(() => true);
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: exec, writable: true });
+
+    await expect(copyTextToClipboard('zeta')).rejects.toThrow();
+    expect(exec).not.toHaveBeenCalled();
+    window.removeEventListener('focusin', stealToBody);
   });
 });

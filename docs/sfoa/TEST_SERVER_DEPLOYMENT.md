@@ -78,6 +78,25 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 单独保留，包含失败/恢复、覆盖边界与回复质量限制；没有 requester、Salesforce
 用户名、默认 Owner ID、凭据或真实业务记录。
 
+## 部署记录 · Admin 复制按钮 focus-trap 修复（admin-web 单文件补丁，2026-10-29）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | 修复「用户身份路由 → 接入配置」Drawer 内复制按钮**假成功**：纯 HTTP 下 `navigator.clipboard` 不存在，回退路径把临时 textarea 追加到 `<body>`，antd v6 Drawer 的 focus trap（`@rc-component/util` `useLockFocus`）立即把焦点抢回面板并清空选区，`execCommand('copy')` 仍返回 `true`，于是提示「已复制」而剪贴板未变。修复后检测焦点被抢即把 textarea 移入抢焦点元素的容器重试，且焦点没保住时不执行 `execCommand`、调用方显示「复制失败」。改动 `packages/sfoa-admin-web/src/clipboard.ts` + `src/test/clipboard.test.ts` |
+| 服务器基线 | 部署前服务器 `src/clipboard.ts` 与本地 `HEAD` **字节一致**（sha256 `bfc98765…`），测试文件同（`295a8800…`），因此是外科式替换，不携带本分支其它差异 |
+| 上传 | `scp` 两个文件到 `/tmp`；本地与服务器 sha256 一致：`clipboard.ts` `c7f56b26…`、`clipboard.test.ts`（LF 归一）`5c7bb0ea…` |
+| 备份 | `backup/admin-web-dist-pre-clipboard-fix-20261029-110334.tar.gz`（509,234 B，旧 `dist`）；`backup/clipboard.ts.pre-20261029-110334`、`backup/clipboard.test.ts.pre-20261029-110334` |
+| 构建 | `cd app && yarn workspace @sfoa/admin-web build`（tsc + vite，6.83 s，全 OK）。新产物 `dist/assets/clipboard-BmDQtlNG.js`（2,046 B）、`dist/assets/index-DEVRE_9D.js`；旧 `clipboard-BeZCxXV3.js` 已被清掉 |
+| 服务 | **未重启任何服务**：本轮只有 admin-web 静态资源变化，`sfoa-mcp-server` / `sfoa-admin-api` 源码与 `dist` 均未改动 |
+| SELinux | `restorecon -Rv dist` 后 `dist/index.html` 为 `unconfined_u:object_r:httpd_sys_content_t:s0` |
+| 验收（服务器侧） | 经 nginx `127.0.0.1:9000`：`/login` 200、`/assets/index-DEVRE_9D.js` 200、`/assets/clipboard-BmDQtlNG.js` 200 且含 `Copy was rejected by the browser`；`/assets/IdentityRoutesPage-xJUX2OS0.js` 含「复制失败」；`/admin/api/ready` 200。部署产物的 `clipboard` chunk 内可直接读到重试循环与 `document.activeElement===textarea` 守卫 |
+| 浏览器验证 | 本机 Chromium 打域名 `http://crmmcptest.runner-corp.com.cn:9000/login`：200、标题「SFoA 控制平面」、登录表单 2 输入 / 1 按钮、**0 控制台错误 / 0 失败请求**，加载的正是新包 `index-DEVRE_9D.js` |
+| 回滚 | 停无 → 解回 `backup/admin-web-dist-pre-clipboard-fix-20261029-110334.tar.gz` 覆盖 `dist` → 还原两个 `.pre-20261029-110334` 源文件 → `restorecon -Rv dist`（如需回到旧行为可只做前半步） |
+| 未做 | 带登录态的点选 UAT（需要控制台口令，未在部署脚本中接触）。人工验证方式：登录 → 用户身份路由 → 打开任一有凭证路由的「接入配置」→ 点「复制 Token」→ 在输入框粘贴，内容应与 Token 一致 |
+
+> 验证坑（本轮新增）：SPA 的 `try_files $uri $uri/ /index.html` 会让**已删除的旧 asset 路径也返回 200**（内容其实是 index.html）。
+> 判断「旧包是否还在」必须看磁盘文件或校验响应正文，不能用 HTTP 状态码；本次即用 `grep Copy was rejected by the browser` 与 chunk 正文确认新包生效。
+
 ## 部署记录 · ADR-0034 受限控制台账号（BTIT）（2026-10-15）
 
 | 项 | 值 |
