@@ -4,6 +4,26 @@
 
 ---
 
+## 部署记录 · Admin 复制按钮 focus-trap 修复（admin-web 单文件补丁，2026-10-30）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | 与测试服同一修复（提交 `952b18e` 的 `packages/sfoa-admin-web/src/clipboard.ts` + `src/test/clipboard.test.ts`）：纯 HTTP 下 `navigator.clipboard` 不存在，回退路径把临时 textarea 追加到 `<body>`，antd v6 Drawer/Modal 的 focus trap 立即把焦点抢回面板并清空选区，`execCommand('copy')` 仍返回 `true` → 提示「已复制」而剪贴板未变。修复后检测焦点被抢即把 textarea 移入抢焦点元素的容器重试，焦点保不住时不执行 `execCommand`（显示失败） |
+| 基线 | 部署前生产 `src/clipboard.ts` 与提交前 `HEAD` **字节一致**（sha256 `bfc98765…`），测试文件同（`295a8800…`）→ 外科式替换，不携带其它差异 |
+| 上传 | `scp` 到生产会挂起（§13 坑 #12）→ 用 `ssh 'cat >'` 传 `/tmp`；两端 sha256 一致：`clipboard.ts` `c7f56b26…`、`clipboard.test.ts`（LF 归一）`5c7bb0ea…` |
+| 备份 | `backup/admin-web-dist-pre-clipboard-fix-20261030-094230.tar.gz`（509,233 B，旧 `dist`）；`backup/clipboard.ts.pre-20261030-094230`、`backup/clipboard.test.ts.pre-20261030-094230` |
+| 构建 | `cd app && yarn workspace @sfoa/admin-web build`（tsc + vite，5.06 s，全 OK）。产物 `dist/assets/clipboard-BmDQtlNG.js`（2,046 B）、`dist/assets/index-DEVRE_9D.js`，与测试服**同名同哈希** |
+| 服务 | **未重启任何服务**：`sfoa-mcp-server` PID 1169256 / `ActiveEnterTimestamp 2026-10-27 17:02:28`、`sfoa-admin-api` PID 1169271 / `17:02:33` 全程未变；`nginx` 未 reload |
+| SELinux | `chown -R root:root dist` + `restorecon -Rv dist` → `dist/index.html` 为 `unconfined_u:object_r:httpd_sys_content_t:s0` |
+| 验收（服务器侧） | `/` 200；`/assets/index-DEVRE_9D.js` 200；`/admin/api/ready` 200；`/health` 200；`GET /mcp`（`Host: 192.168.155.207`）**405**；`POST /mcp` 空体 **401**（鉴权门正常）；`clipboard-BmDQtlNG.js` 含 `Copy was rejected by the browser` |
+| 浏览器验证 | 本机 Chromium 打 `http://192.168.155.207/login`：200、标题「SFoA 控制平面」、登录表单 2 输入 / 1 按钮、**0 控制台错误 / 0 失败请求**，加载新包 `index-DEVRE_9D.js` |
+| 回滚 | 解回 `backup/admin-web-dist-pre-clipboard-fix-20261030-094230.tar.gz` 覆盖 `dist` → 还原两个 `.pre-20261030-094230` 源文件 → `restorecon -Rv dist`。无需停/重启任何服务 |
+| 未做 | 带登录态的复制点选 UAT（需要控制台口令）。人工验证：登录 → 用户身份路由 → 任一有凭证路由「接入配置」→ 复制 Token → 粘贴比对 |
+
+> 验证坑：生产 `GET /mcp` 若用 `Host: 127.0.0.1` 会返回 **403**（Host 白名单），必须带生产 Host 才得到预期的 405；`POST /mcp` 空体 401 才证明鉴权门正常。
+
+---
+
 ## 部署记录 · ADR-0034 受限控制台账号（BTIT）+ 迁移 015（2026-10-15）
 
 | 项 | 值 |
