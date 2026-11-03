@@ -10,6 +10,7 @@
 - `success=false` 或 Tool 报错 → 没有成功证据；如实报告 `errorCode`、`message` 与 `salesforceErrors`，不要把失败说成完成。
 - `MCP_DML_OBJECT_NOT_ALLOWED` / `MCP_DML_OPERATION_NOT_ALLOWED` / 输入校验错误表示**尚未 dispatch**，没有 Salesforce 副作用。这属于治理结果，**MUST NOT** 用其他通道、角色或工具绕过。
 - `MCP_DML_OUTCOME_UNKNOWN` 或请求发出后超时 / 传输中断 → 提交状态不可证明。
+- `FIELD_CUSTOM_VALIDATION_EXCEPTION`（例如“请填写来访厂别”）表示某个业务必填事实缺失。先向用户询问该业务值；**MUST NOT** 在多个候选值中自行选择或把字段补成猜测值。修复后按原始 mutation intent 重新准备并执行。
 
 ## 批量 `create_records` / `update_records`
 

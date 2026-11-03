@@ -38,6 +38,68 @@ const MAX_CONTROLLER_VALUES_PER_FIELD = 200;
 const MAX_VALID_FOR_PER_VALUE = 200;
 const MAX_DEFAULT_VALUE_BYTES = 4_096;
 export const MAX_OUTPUT_BYTES = 524_288;
+type OutputField = NonNullable<RecordActionContextOutput['fields']>[number];
+type RequirednessSource = NonNullable<NonNullable<RecordActionContextOutput['coverage']>['requirednessSource']>;
+
+/**
+ * Additive required-field projection. The source is decided by the resolved action form
+ * (Dynamic Forms/MIXED vs Page Layout) and never by asking a caller to choose a global mode.
+ */
+export function buildRequiredChecklist(
+  fields: readonly OutputField[] | undefined,
+  requirednessSource: RequirednessSource,
+  action: 'CREATE' | 'UPDATE',
+): NonNullable<RecordActionContextOutput['requiredChecklist']> {
+  const checklist: NonNullable<RecordActionContextOutput['requiredChecklist']> = [];
+  if (!fields) return checklist;
+  for (const field of fields) {
+    const writable = action === 'CREATE'
+      ? field.fieldCreateable === true && field.layoutEditableForCreate !== false
+      : field.fieldUpdateable === true && field.layoutEditableForUpdate !== false;
+    if (requirednessSource === 'EFFECTIVE_REQUIRED') {
+      if (field.effectiveRequired !== true) continue;
+      const source: Array<'API' | 'PAGE_LAYOUT' | 'DYNAMIC_FORM'> =
+        field.requiredSource ?? (field.apiRequired ? ['API'] : []);
+      checklist.push({
+        apiName: field.apiName,
+        label: field.label,
+        source,
+        ...(field.visibilityState ? { visibilityState: field.visibilityState } : {}),
+        effectiveRequired: true,
+        layoutRequired: field.layoutRequired,
+        writable,
+      });
+      continue;
+    }
+    if (requirednessSource === 'UNRESOLVED') {
+      if (!field.apiRequired) continue;
+      checklist.push({
+        apiName: field.apiName,
+        label: field.label,
+        source: ['API'],
+        ...(field.visibilityState ? { visibilityState: field.visibilityState } : {}),
+        effectiveRequired: true,
+        layoutRequired: field.layoutRequired,
+        writable,
+      });
+      continue;
+    }
+    if (!field.apiRequired && !field.layoutRequired) continue;
+    const source: Array<'API' | 'PAGE_LAYOUT' | 'DYNAMIC_FORM'> = [];
+    if (field.apiRequired) source.push('API');
+    if (field.layoutRequired) source.push('PAGE_LAYOUT');
+    checklist.push({
+      apiName: field.apiName,
+      label: field.label,
+      source,
+      ...(field.visibilityState ? { visibilityState: field.visibilityState } : {}),
+      effectiveRequired: field.apiRequired || field.layoutRequired,
+      layoutRequired: field.layoutRequired,
+      writable,
+    });
+  }
+  return checklist;
+}
 
 type BoundedDefault = Readonly<{ value: unknown | null; truncated: boolean }>;
 
@@ -404,8 +466,13 @@ function buildOutput(
   });
 
   const truncated = fieldsTruncated || picklistsTruncated || fields.some((field) => field.defaultValueTruncated || field.inlineHelpTextTruncated);
+  const requirednessSource = 'PAGE_LAYOUT_REQUIRED' as const;
+  const requiredChecklist = input.includeRequiredness ? buildRequiredChecklist(fields, requirednessSource, input.action) : undefined;
   const warnings = [
     'Coverage is the effective Salesforce Page Layout/UI API action context, not a complete Dynamic Forms or Lightning component-visibility evaluation.',
+    ...(input.includeRequiredness
+      ? ['Requiredness source is PAGE_LAYOUT_REQUIRED: this action\'s Record Type page layout is authoritative for this USER.']
+      : []),
   ];
   if (fields.some((field) => field.inlineHelpTextTruncated)) warnings.push('Field help was limited to 2000 characters per field; inlineHelpTextTruncated identifies affected descriptions.');
   if (fieldsTruncated) warnings.push('Non-required fields were truncated; API-required fields were retained.');
@@ -432,6 +499,7 @@ function buildOutput(
       available: resolved.recordType.available,
     },
     fields,
+    ...(requiredChecklist ? { requiredChecklist } : {}),
     coverage: {
       sources: [...resolved.sources],
       apiCallCount: metrics.apiCallCount,
@@ -443,6 +511,7 @@ function buildOutput(
       returnedPicklistValues,
       truncated,
       dynamicFormsEvaluated: false,
+      ...(input.includeRequiredness ? { requirednessSource } : {}),
       completeLightningPageEvaluated: false,
       warnings,
     },
@@ -511,7 +580,10 @@ function buildCreateSelectionOutput(
   ];
   if (fields.some((field) => field.inlineHelpTextTruncated)) warnings.push('Field help was limited to 2000 characters per field; inlineHelpTextTruncated identifies affected descriptions.');
   if (fieldsTruncated) warnings.push('Non-required fields were truncated; API-required fields were retained.');
+  if (input.includeRequiredness) warnings.push('Requiredness source is UNRESOLVED until a Record Type is selected; the checklist currently contains API-required fields only.');
 
+  const requirednessSource = 'UNRESOLVED' as const;
+  const requiredChecklist = input.includeRequiredness ? buildRequiredChecklist(fields, requirednessSource, input.action) : undefined;
   return {
     success: true,
     executionRole: 'USER',
@@ -521,6 +593,7 @@ function buildCreateSelectionOutput(
     availableRecordTypes: availableRecordTypes.map(toRecordTypeDescriptor),
     recordTypeSelectionRequired: true,
     fields,
+    ...(requiredChecklist ? { requiredChecklist } : {}),
     coverage: {
       sources: ['UI_API_OBJECT_INFO'],
       apiCallCount: metrics.apiCallCount,
@@ -532,6 +605,7 @@ function buildCreateSelectionOutput(
       returnedPicklistValues: 0,
       truncated: fieldsTruncated || fields.some((field) => field.inlineHelpTextTruncated),
       dynamicFormsEvaluated: false,
+      ...(input.includeRequiredness ? { requirednessSource } : {}),
       completeLightningPageEvaluated: false,
       warnings,
     },

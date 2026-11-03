@@ -163,23 +163,24 @@ export async function serveFixture({ caseId, sourceRoot = root, tracePath, port 
         const allOptions = name === 'Nation__c' ? context.countryChoices : name === 'Province__c' ? context.provinceChoices : name === 'City' ? cityChoices : undefined;
         const offset = args.picklistValueOffsets?.[name] ?? 0;
         const options = allOptions?.slice(offset, offset + 100);
-        return { apiName: name, label: source?.label ?? name, dataType: options ? 'Picklist' : source?.type === 'textarea' ? 'TextArea' : name === 'City_Link__c' ? 'Reference' : 'String',
+        return { apiName: name, label: source?.label ?? name, dataType: options ? 'Picklist' : source?.type === 'textarea' ? 'TextArea' : source?.type === 'reference' || name === 'City_Link__c' ? 'Reference' : 'String',
           inlineHelpText: name.startsWith('Extra') ? '与本次任务无关的合成字段帮助。'.repeat(100) : source?.inlineHelpText ?? null,
           length: source?.type === 'textarea' ? 2000 : 255, precision: null, scale: null,
           apiRequired: false, layoutMember: true, layoutRequired: false, fieldCreateable: true, fieldUpdateable: true,
           layoutEditableForCreate: true, layoutEditableForUpdate: true, defaultValue: null, defaultValueTruncated: false,
-          section: null, layoutOrder: null, relationshipName: null, referenceTo: name === 'City_Link__c' ? context.referenceTo ?? [] : [],
+          section: null, layoutOrder: null, relationshipName: null, referenceTo: context.referenceToByField?.[name] ?? (name === 'City_Link__c' ? context.referenceTo ?? [] : []),
           ...(options && selected ? { picklist: { controllerName: name === 'Province__c' ? 'Nation__c' : null,
             controllerValues: name === 'Province__c' ? context.controllerValues ?? {} : {}, values: options.map(option => ({ ...option, default: false, validFor: option.validFor ?? [] })),
             totalValues: allOptions.length, returnedValues: options.length, truncated: allOptions.length > options.length,
             valueOffset: offset, nextValueOffset: offset + options.length < allOptions.length ? offset + options.length : null, dependenciesTruncated: false } } : {}) };
       });
-      return contextProvider.recordActionContextOutputSchema.parse({ success: true, executionRole: 'USER', objectApiName: fixture.objectApiName,
+      const parsed = contextProvider.recordActionContextOutputSchema.parse({ success: true, executionRole: 'USER', objectApiName: fixture.objectApiName,
         objectLabel: context.label ?? fixture.objectApiName, action: args.action, ...(args.recordId ? { recordId: args.recordId } : {}), fields,
         availableRecordTypes: descriptors, recordTypeSelectionRequired: !selected, ...(selected ? { recordType: selected } : {}),
         coverage: { sources: ['UI_API_OBJECT_INFO'], apiCallCount: 0, durationMs: 0, responseBytes: 0, totalVisibleFields: fields.length,
           returnedFields: fields.length, totalPicklistValues: 0, returnedPicklistValues: 0, truncated: context.picklist?.truncated ?? false,
           dynamicFormsEvaluated: false, completeLightningPageEvaluated: false, warnings: ['Synthetic mock fixture; no Salesforce identity or live metadata.'] } });
+      return { ...parsed, managedDmlFields: context.managedDmlFields ?? [] };
     });
     read('resolve_field_display_values', {}, args => ({ objectApiName: args.objectApiName, truncated: false, apiCallCount: 0,
       results: args.values.map((item, index) => {
@@ -190,8 +191,12 @@ export async function serveFixture({ caseId, sourceRoot = root, tracePath, port 
           resolutionStatus: label ? 'RESOLVED' : 'UNRESOLVED' };
       }) }));
     for (const name of ['run_soql_query', 'query_records', 'get_apex_logs', 'get_debug_log_body', 'get_platform_diagnostics']) {
-      read(name, { query: z.string().optional(), objectApiName: z.string().optional(), logId: z.string().optional() }, args => ({ synthetic: true,
-        evidence: fixture.context ?? {}, currentValues: fixture.currentValues ?? {}, records: /\bFROM\s+User\b/iu.test(args.query ?? args.soql ?? '') && fixture.context?.ownerMatches ? fixture.context.ownerMatches : [{ Id: recordId, ...stored }], candidates: fixture.candidates ?? [], material: fixture.material ?? null }));
+      read(name, { query: z.string().optional(), objectApiName: z.string().optional(), logId: z.string().optional() }, args => {
+        const ownerObject = String(fixture.context?.ownerLookupObject ?? 'User').replace(/[^A-Za-z0-9_]/gu, '') || 'User';
+        const ownerQuery = new RegExp(`\\bFROM\\s+${ownerObject}\\b`, 'iu').test(args.query ?? args.soql ?? '');
+        return { synthetic: true,
+          evidence: fixture.context ?? {}, currentValues: fixture.currentValues ?? {}, records: ownerQuery && fixture.context?.ownerMatches ? fixture.context.ownerMatches : [{ Id: recordId, ...stored }], candidates: fixture.candidates ?? [], material: fixture.material ?? null };
+      });
     }
     for (const tool of [new dataProvider.DescribeSobjectMcpTool(new dataProvider.DescribeSobjectExecutor(org)), new dml.CreateRecordMcpTool(executor), new dml.UpdateRecordMcpTool(executor)]) {
       const cfg = tool.getConfig();

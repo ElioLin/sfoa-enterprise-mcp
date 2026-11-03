@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 import { ContextRuntimeError } from '../errors.js';
-import { RecordActionContextExecutor } from '../record-action-executor.js';
+import { RecordActionContextExecutor, buildRequiredChecklist } from '../record-action-executor.js';
 import { recordActionContextOutputSchema } from '../schemas.js';
 import { RecordActionContextMcpTool } from '../tools/record-action-context.js';
 
@@ -101,6 +101,11 @@ test('task projection bounds context without dropping required fields, controlle
     assert.equal(projected.coverage?.returnedFields, names.length);
     assert.deepEqual(projected.coverage?.fieldProjection?.unresolvedFieldApiNames, ['Missing__c']);
     assert.equal(projected.coverage?.fieldProjection?.omittedFields, (full.fields?.length ?? 0) - names.length);
+    const omittedCatalog = projected.coverage?.fieldProjection?.omittedFieldCatalog ?? [];
+    assert.ok(omittedCatalog.some((item) => item.apiName === 'Unrelated__c' && item.label === '无关资料' && item.dataType === 'String'),
+      'omitted fields carry a bounded label/type catalog so the Agent can see what the projection hid');
+    assert.equal(omittedCatalog.length <= 100, true);
+    assert.equal(omittedCatalog.some((item) => 'picklist' in item), false, 'the catalog is metadata only');
     assert.equal(projected.coverage?.truncated, true);
     assert.equal(fixture.urls.length - before, before, 'projection adds no API requests');
     assert.ok(JSON.stringify(result).length < JSON.stringify({ structuredContent: full, content: [{ type: 'text', text: JSON.stringify(full, null, 2) }] }).length);
@@ -172,6 +177,52 @@ test('CREATE resolves the single available Record Type and preserves required/ed
   });
   assert.equal(status?.relationshipName, null);
   assert.deepEqual(status?.referenceTo, []);
+});
+
+test('includeRequiredness projects the Page Layout checklist without changing the default response', async () => {
+  const fixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE', includeRequiredness: true });
+  assert.equal(output.coverage?.requirednessSource, 'PAGE_LAYOUT_REQUIRED');
+  const checklist = Object.fromEntries((output.requiredChecklist ?? []).map((item) => [item.apiName, item]));
+  assert.deepEqual(checklist.Required__c?.source, ['API']);
+  assert.deepEqual(checklist.Name?.source, ['PAGE_LAYOUT']);
+  assert.equal(checklist.Name?.layoutRequired, true);
+  assert.equal(checklist.Name?.writable, true);
+  assert.equal(checklist.Required__c?.effectiveRequired, true);
+  assert.equal(checklist.Required__c?.writable, true);
+  assert.ok(recordActionContextOutputSchema.safeParse(output).success);
+
+  const legacyFixture = createFixture({ availableRecordTypeIds: [DEFAULT_RECORD_TYPE] });
+  const legacy = await legacyFixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE' });
+  assert.equal(legacy.requiredChecklist, undefined);
+  assert.equal(legacy.coverage?.requirednessSource, undefined);
+});
+
+test('includeRequiredness on an unresolved CREATE selection lists only API-required fields', async () => {
+  const fixture = createFixture();
+  const output = await fixture.executor.execute({ objectApiName: 'Lead', action: 'CREATE', includeRequiredness: true });
+  assert.equal(output.recordTypeSelectionRequired, true);
+  assert.equal(output.coverage?.requirednessSource, 'UNRESOLVED');
+  assert.deepEqual(output.requiredChecklist?.map((item) => item.apiName), ['Required__c']);
+  assert.deepEqual(output.requiredChecklist?.[0]?.source, ['API']);
+});
+
+test('a layout-only required field is excluded from Dynamic Forms requiredness but kept for Page Layout', () => {
+  const field = {
+    apiName: 'Visit_Route__c', label: 'Visit Route', dataType: 'String',
+    apiRequired: false, layoutMember: true, layoutRequired: true,
+    fieldCreateable: true, fieldUpdateable: true,
+    layoutEditableForCreate: true, layoutEditableForUpdate: true,
+    defaultValue: null, defaultValueTruncated: false, section: 'Visit', layoutOrder: 1,
+    relationshipName: null, referenceTo: [], effectiveRequired: false,
+    visibilityState: 'VISIBLE' as const,
+  };
+  assert.deepEqual(buildRequiredChecklist([field], 'EFFECTIVE_REQUIRED', 'CREATE'), []);
+  const pageLayout = buildRequiredChecklist([field], 'PAGE_LAYOUT_REQUIRED', 'CREATE');
+  assert.deepEqual(pageLayout.map((item) => item.apiName), ['Visit_Route__c']);
+  assert.deepEqual(pageLayout[0]?.source, ['PAGE_LAYOUT']);
+  assert.equal(pageLayout[0]?.layoutRequired, true);
+  assert.equal(pageLayout[0]?.writable, true);
 });
 
 test('CREATE accepts an explicit available Record Type among several and denies an unavailable one', async () => {

@@ -97,5 +97,51 @@
     "context":{"businessLabel":"订单","orderNumber":"SO-TEST-001","observedAt":"2026-10-20T10:30:00+08:00","error":"客户或收货方资料未识别","fullName":"SyncOrderHandler","logLine":84,"fieldApiNames":["Customer__c","ShipTo__c"],"externalCode":"ZQ-17","externalCodeMeaning":null},
     "candidateReply":"日志 SyncOrderHandler 第 84 行返回 ZQ-17，涉及 Customer__c、ShipTo__c 的识别；代码含义尚未取得真实映射，不能据此判定根因。",
     "review":["明确技术受众时保留准确 API、fullName、日志行与错误原值，证据范围与业务诊断相同"]
+  },
+  {
+    "id":"phone-explicit-fields", "request":"创建一条线索：公司：复古家居有限公司，姓名陆风，职位：总经理，手机 13800138000，电话 0592-8888888", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Phone","label":"电话","type":"string"},{"apiName":"MobilePhone","label":"手机","type":"string"}],
+    "requiredValues":{"MobilePhone":"13800138000","Phone":"0592-8888888"},
+    "candidateFields":{"MobilePhone":"13800138000","Phone":"0592-8888888"},
+    "review":["手机按手机字段、座机按电话字段，不混写"]
+  },
+  {
+    "id":"phone-generic-mobile", "request":"创建一条线索：公司：复古家居有限公司，姓名陆风，联系电话 13800138000", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Phone","label":"电话","type":"string"},{"apiName":"MobilePhone","label":"手机","type":"string"}],
+    "requiredValues":{"MobilePhone":"13800138000"}, "forbiddenFields":["Phone"],
+    "candidateFields":{"MobilePhone":"13800138000"},
+    "review":["未显式说手机或电话时，按中国大陆手机格式写入手机字段，不写电话字段"]
+  },
+  {
+    "id":"phone-generic-landline", "request":"创建一条线索：公司：复古家居有限公司，姓名陆风，联系电话 0592-8888888", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Phone","label":"电话","type":"string"},{"apiName":"MobilePhone","label":"手机","type":"string"}],
+    "requiredValues":{"Phone":"0592-8888888"}, "forbiddenFields":["MobilePhone"],
+    "candidateFields":{"Phone":"0592-8888888"},
+    "review":["未显式说手机或电话时，按中国大陆座机格式写入电话字段，不写手机字段"]
+  },
+  {
+    "id":"phone-invalid-warn", "request":"创建一条线索：公司：复古家居有限公司，姓名陆风，手机 123456789096", "objectApiName":"Lead", "operation":"NONE", "minQuestions":1,
+    "fields":[{"apiName":"Phone","label":"电话","type":"string"},{"apiName":"MobilePhone","label":"手机","type":"string"}],
+    "candidateFields":{},
+    "review":["手机号 123456789096 为 12 位，不符合中国大陆 11 位手机规则；插入前提示并询问，不先写入"]
+  },
+  {
+    "id":"phone-area-code-geography", "request":"创建一条线索：公司：复古家居有限公司，姓名陆风，电话 0592-8888888", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Country","label":"公司国家","type":"string"},{"apiName":"State","label":"公司省份","type":"string"},{"apiName":"City","label":"公司城市","type":"string"},{"apiName":"Phone","label":"电话","type":"string"}],
+    "requiredValues":{"Country":"中国","State":"福建省","City":"厦门市","Phone":"0592-8888888"},
+    "candidateFields":{"Country":"中国","State":"福建省","City":"厦门市","Phone":"0592-8888888"},
+    "review":["座机区号 0592 判断出厦门市时，同时补出福建省和中国；不能只填城市不填省份"]
+  },
+  {
+    "id":"explicit-owner-managed-lookup", "request":"创建一条线索：公司：军军定制有限公司，姓名：林经理，以郑燕军的名义新建", "objectApiName":"Lead", "operation":"CREATE", "maxQuestions":0,
+    "fields":[{"apiName":"Company","label":"公司","type":"string"},{"apiName":"LastName","label":"姓","type":"string"},{"apiName":"Lead_Owner__c","label":"线索归属人","type":"reference"}],
+    "context":{"managedDmlFields":[{"fieldApiName":"Lead_Owner__c","strategy":"PLATFORM_USER_LOOKUP_FALLBACK","operations":["CREATE"]}],
+      "referenceToByField":{"Lead_Owner__c":["Contact"]},
+      "ownerLookupObject":"Contact",
+      "ownerMatches":[{"Id":"003C5000004wEeRIAU","Name":"郑燕军","Employee_Number__c":"32822","System_User__c":"005C8000003yKxtIAE"}]},
+    "candidateFields":{"Company":"军军定制有限公司","LastName":"林经理","Lead_Owner__c":"003C5000004wEeRIAU"},
+    "forbiddenFields":["OwnerId"],
+    "requiredReads":["get_record_action_context"],
+    "review":["按 action context 的 referenceTo 在 Contact 上解析郑燕军，写入 Lead_Owner__c；不得改用 OwnerId 或默认查 User"]
   }
 ]

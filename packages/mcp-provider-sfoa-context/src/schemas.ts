@@ -32,6 +32,7 @@ export const recordActionContextInputObjectSchema = z.object({
       .refine((value) => Object.keys(value).length <= 200 && JSON.stringify(value).length <= 32768, 'draftFields exceeds its bound')
       .optional().describe('CREATE only: task draft values for conditional visibility, including faithful extraction and verified related values; USER_EXPLICIT is a draft-source tag, not proof of authorship or verification; missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
     refinement: z.number().int().min(0).max(3).optional().describe('CREATE only: Dynamic Context refinement number, 0 initially, at most 3. Stop asking for refinements at 3.'),
+    includeRequiredness: z.boolean().optional().describe('Opt in to the additive coverage.requirednessSource and requiredChecklist projection. Default false preserves the legacy response. The projection never changes visibility, permissions or DML scope.'),
   }).strict();
 
 export const recordActionContextInputSchema = recordActionContextInputObjectSchema.superRefine((input, context) => {
@@ -176,6 +177,22 @@ const diagnosticFailureFields = {
   prerequisite: z.string().max(128).optional(),
 };
 
+const requiredSourceSchema = z.enum(['API', 'PAGE_LAYOUT', 'DYNAMIC_FORM']);
+const requirednessSourceSchema = z.enum([
+  'EFFECTIVE_REQUIRED', 'PAGE_LAYOUT_REQUIRED', 'PAGE_LAYOUT_FALLBACK', 'UNRESOLVED',
+]);
+const requiredChecklistItemSchema = z
+  .object({
+    apiName: z.string(),
+    label: z.string(),
+    source: z.array(requiredSourceSchema),
+    visibilityState: visibilityStateSchema.optional(),
+    effectiveRequired: z.boolean(),
+    layoutRequired: z.boolean(),
+    writable: z.boolean(),
+  })
+  .strict();
+
 const picklistValueSchema = z
   .object({
     label: z.string(),
@@ -224,7 +241,7 @@ const recordFieldContextSchema = z
     referenceTo: z.array(z.string()),
     picklist: picklistContextSchema.optional(),
     visibilityState: visibilityStateSchema.optional(),
-    requiredSource: z.array(z.enum(['API', 'PAGE_LAYOUT', 'DYNAMIC_FORM'])).optional(),
+    requiredSource: z.array(requiredSourceSchema).optional(),
     effectiveRequired: z.boolean().optional(),
     effectiveEditable: z.boolean().optional(),
     optionalCandidate: z.boolean().optional(),
@@ -232,6 +249,18 @@ const recordFieldContextSchema = z
     dependsOn: z.array(z.string()).optional(),
     sectionOrder: z.number().int().nonnegative().optional(),
     column: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+const fieldCatalogItemSchema = z
+  .object({
+    apiName: z.string(),
+    label: z.string(),
+    dataType: z.string(),
+    section: z.string().nullable(),
+    apiRequired: z.boolean(),
+    layoutRequired: z.boolean(),
+    effectiveRequired: z.boolean().optional(),
   })
   .strict();
 
@@ -258,6 +287,7 @@ export const recordActionContextOutputSchema = z
     uiContext: uiContextSchema.optional(),
     uiContextResolutionId: z.string().uuid().optional(),
     fields: z.array(recordFieldContextSchema).optional(),
+    requiredChecklist: z.array(requiredChecklistItemSchema).optional(),
     coverage: z
       .object({
         sources: z.array(z.enum(['UI_API_OBJECT_INFO', 'UI_API_LAYOUT', 'UI_API_CREATE_DEFAULTS', 'UI_API_RECORD', 'UI_API_PICKLIST_VALUES_BY_RECORD_TYPE'])),
@@ -269,12 +299,14 @@ export const recordActionContextOutputSchema = z
         fieldProjection: z.object({
           requestedFieldApiNames: z.array(z.string()),
           omittedFields: z.number().int().nonnegative(),
+          omittedFieldCatalog: z.array(fieldCatalogItemSchema).max(100).optional(),
           unresolvedFieldApiNames: z.array(z.string()),
         }).strict().optional(),
         totalPicklistValues: z.number().int().nonnegative(),
         returnedPicklistValues: z.number().int().nonnegative(),
         truncated: z.boolean(),
         dynamicFormsEvaluated: z.boolean(),
+        requirednessSource: requirednessSourceSchema.optional(),
         completeLightningPageEvaluated: z.literal(false),
         warnings: z.array(z.string()),
       })

@@ -64,6 +64,19 @@ plus API/layout/effective/conditional required fields and known controlling
 dependencies. `coverage.fieldProjection` records requested names, omitted count
 and unresolved names; returned counts describe the projection, not a full form.
 No extra Salesforce read, identity change or DML-scope enforcement is introduced.
+When projection omits fields, `coverage.fieldProjection.omittedFieldCatalog`
+returns up to 100 omitted `apiName`/`label`/`dataType`/`section`/required-flag
+entries (metadata only, never Picklist values) so an omitted task-relevant field
+is still discoverable.
+
+Optional `includeRequiredness=true` adds `coverage.requirednessSource` and a
+bounded `requiredChecklist` without changing the default legacy response. The
+source follows the current USER's resolved active Lightning page for the action
+and Record Type: `EFFECTIVE_REQUIRED` for Dynamic Forms/MIXED (checklist from
+`effectiveRequired`/`requiredSource`), `PAGE_LAYOUT_REQUIRED` for a pure Page
+Layout action (checklist from `apiRequired`/`layoutRequired`), and
+`PAGE_LAYOUT_FALLBACK` when dynamic resolution falls back. The projection is
+additive and never changes permissions, visibility or DML scope.
 
 For incomplete Picklists, pass picklistValueOffsets: { FieldApiName: nextValueOffset }
 on the same object/action/Record Type. Requested pages are prioritized within the

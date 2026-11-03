@@ -266,6 +266,117 @@ export function evaluateCreateReadiness({
   return Object.freeze({ changeReady: blockers.length === 0, action: 'CREATE', blockers: Object.freeze(blockers) });
 }
 
+// ---------------------------------------------------------------------------
+// CREATE duplicate check
+// ---------------------------------------------------------------------------
+
+/** Evidence state of the bounded duplicate read. */
+export const DUPLICATE_CHECK_STATUS = Object.freeze({
+  NOT_RUN: 'NOT_RUN',
+  COMPLETE: 'COMPLETE',
+  INCOMPLETE: 'INCOMPLETE',
+});
+
+/**
+ * Strength of a duplicate signal. A name-only match is a weak signal: the same name does not prove
+ * the same business entity. Phone, mobile, email, tax/identity numbers and external IDs are strong.
+ */
+export const DUPLICATE_MATCH_STRENGTH = Object.freeze({
+  STRONG: 'STRONG',
+  NAME: 'NAME',
+});
+
+/** The user's answer after being told about a match or an incomplete check. */
+export const DUPLICATE_USER_DECISION = Object.freeze({
+  NONE: 'NONE',
+  PROCEED: 'PROCEED',
+  UPDATE_EXISTING: 'UPDATE_EXISTING',
+  CANCEL: 'CANCEL',
+});
+
+/**
+ * Evaluate the CREATE duplicate-check gate.
+ *
+ * `identityValues` are only the values that will be written directly to the new record and came
+ * from the user, read materials or trusted context; the Agent normalizes them before calling.
+ * `matches` are what the bounded read returned, each carrying the matched field and its strength.
+ * A complete check with no match proceeds; a match, an incomplete check or a not-run check blocks
+ * until the user decides. The model never picks an existing record and never turns a match into an
+ * UPDATE on its own.
+ */
+export function evaluateCreateDuplicateGate({
+  identityValues = [],
+  matches = [],
+  checkStatus = DUPLICATE_CHECK_STATUS.NOT_RUN,
+  userDecision = DUPLICATE_USER_DECISION.NONE,
+} = {}) {
+  const supplied = identityValues.filter((entry) => entry
+    && typeof entry.field === 'string' && entry.field.length > 0
+    && entry.value !== undefined && entry.value !== null && entry.value !== '');
+  const returned = Object.freeze([...matches]);
+  if (supplied.length === 0) {
+    return Object.freeze({ allowed: true, reason: 'NO_IDENTITY_VALUE', strongMatch: false, matches: returned });
+  }
+  const strongMatch = matches.some((match) => match?.strength === DUPLICATE_MATCH_STRENGTH.STRONG);
+  const decided = Object.freeze({ strongMatch, matches: returned });
+
+  if (userDecision === DUPLICATE_USER_DECISION.CANCEL) {
+    return Object.freeze({ allowed: false, reason: 'USER_CANCELLED', ...decided });
+  }
+  if (userDecision === DUPLICATE_USER_DECISION.UPDATE_EXISTING) {
+    return Object.freeze({ allowed: false, reason: 'USER_CHOSE_UPDATE', ...decided });
+  }
+  if (checkStatus !== DUPLICATE_CHECK_STATUS.COMPLETE) {
+    if (userDecision === DUPLICATE_USER_DECISION.PROCEED) {
+      return Object.freeze({ allowed: true, reason: 'USER_CONFIRMED_DESPITE_INCOMPLETE_CHECK', ...decided });
+    }
+    return Object.freeze({
+      allowed: false,
+      reason: checkStatus === DUPLICATE_CHECK_STATUS.NOT_RUN ? 'DUPLICATE_CHECK_NOT_RUN' : 'DUPLICATE_CHECK_INCOMPLETE',
+      ...decided,
+    });
+  }
+  if (matches.length === 0) {
+    return Object.freeze({ allowed: true, reason: 'NO_MATCH_OBSERVED', strongMatch: false, matches: returned });
+  }
+  if (userDecision === DUPLICATE_USER_DECISION.PROCEED) {
+    return Object.freeze({ allowed: true, reason: 'USER_CONFIRMED_PROCEED', ...decided });
+  }
+  return Object.freeze({
+    allowed: false,
+    reason: strongMatch ? 'STRONG_DUPLICATE_CONFIRMATION_REQUIRED' : 'SAME_NAME_CONFIRMATION_REQUIRED',
+    ...decided,
+  });
+}
+
+/**
+ * Identity values that occur more than once inside one planned CREATE batch.
+ *
+ * Values must already be normalized by the Agent; the caller passes only identity fields worth
+ * checking. Different fields never collide even when their values are identical.
+ */
+export function findDuplicateIdentityValues(records = []) {
+  const seen = new Map();
+  const duplicates = [];
+  for (const record of records) {
+    const entries = Array.isArray(record?.identityValues) ? record.identityValues : [];
+    for (const entry of entries) {
+      if (!entry || typeof entry.field !== 'string' || entry.field.length === 0) continue;
+      if (entry.value === undefined || entry.value === null || entry.value === '') continue;
+      const key = `${entry.field}\u0000${String(entry.value)}`;
+      if (seen.has(key)) {
+        const first = seen.get(key);
+        if (!duplicates.some((duplicate) => duplicate.field === first.field && duplicate.value === first.value)) {
+          duplicates.push(Object.freeze({ field: first.field, value: first.value }));
+        }
+        continue;
+      }
+      seen.set(key, entry);
+    }
+  }
+  return Object.freeze(duplicates);
+}
+
 /**
  * UPDATE readiness: "do we know exactly what record to change, exactly what the user intends to
  * change, and only those fields?"

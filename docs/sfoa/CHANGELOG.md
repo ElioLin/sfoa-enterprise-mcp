@@ -2,6 +2,47 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-03 — CREATE duplicate check for sensitive identity fields
+
+`sfoa-record-change` now requires a bounded pre-CREATE duplicate read for values the user supplied that will be written directly onto the new record: name, phone, mobile, email, tax/identity numbers and business external IDs. Descriptive, process, default and managed fields are not checked; a value used only to resolve a Lookup is not treated as the new record's identity key. A strong-key match or a name match is reported before DML with the matched field and record, and the user chooses continue-create, update-existing or cancel; `0 rows` only means not visible in the current sharing/permission scope. An incomplete check is not reported as "no duplicate", batch CREATE also checks in-batch identity values, and Salesforce Duplicate Rules remain authoritative. The executable gate model and tests cover no identity value, no match, strong vs name matches, user decisions and incomplete evidence.
+
+## 2026-11-03 — P0 follow-up: explicit managed owner resolution and geography hierarchy
+
+The Playbook and `sfoa-record-change` now require an explicit owner/attribution
+request to fetch `get_record_action_context`, read the managed field descriptor's
+`referenceTo` to identify the lookup target object (not assume `User`), resolve X
+there with bounded USER reads, and submit the proven Salesforce Id in the managed
+field; `OwnerId` is never a substitute. They also require a landline area code,
+explicit address, or known company location that determines the city to infer and
+write the matching province and country together when writable and not contradicted;
+mobile numbers do not encode geography. Harness fixtures cover `0592` →
+厦门市/福建省 and 郑燕军 → `Lead_Owner__c` with `OwnerId` forbidden.
+
+## 2026-11-02 — P0 Agent field inference: requiredness source and projection catalog
+
+`get_record_action_context` adds an opt-in `includeRequiredness=true` projection:
+`coverage.requirednessSource` is `EFFECTIVE_REQUIRED` when the current USER's
+active Lightning page resolves to Dynamic Forms/MIXED, `PAGE_LAYOUT_REQUIRED` for
+a pure Page Layout action, `PAGE_LAYOUT_FALLBACK` when dynamic resolution falls
+back, and `UNRESOLVED` before a Record Type is selected. `requiredChecklist`
+lists the fields for that source; the default response remains the legacy one.
+Field projection also returns up to 100 omitted `apiName`/`label`/`dataType`/
+`section`/required-flag entries in `coverage.fieldProjection.omittedFieldCatalog`
+(metadata only) so a projected response cannot hide a task-relevant field.
+
+The Playbook and `sfoa-record-change` require an explicit fact-to-field ledger,
+forbid storing a mapped structured fact only in Description, require checking the
+omitted catalog before concluding a field is absent, and require asking for a
+validation-rule-required business value instead of silently choosing one. They
+also classify contact numbers by current field label and mainland China format:
+explicit 手机/移动电话 or 11-digit `1[3-9]` (optional +86) → MobilePhone;
+电话/座机/area-code → Phone; invalid or ambiguous values are asked before DML,
+and truncation, padding, duplicate field writes and silent field switching are
+forbidden. Tests cover Dynamic Forms vs Page Layout requiredness (including a
+layout-only `Visit_Route__c`), fallback, the omitted-field catalog, and
+phone/mobile fixtures (explicit, generic, invalid). OpenClaw live UAT for the
+2026-11-02 morning cases remains pending.
+
 ## 2026-10-27 — OpenClaw business-task autonomy
 
 Playbook 1.12.0 and the four business Skills accept faithful material synthesis

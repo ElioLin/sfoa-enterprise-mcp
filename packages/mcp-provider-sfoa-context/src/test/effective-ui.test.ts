@@ -195,6 +195,39 @@ test('ENFORCE computes hidden/required/pending/unknown and FLS/managed intersect
   assert.match(JSON.stringify(fixture.evidence), /"value":"Partner","source":"USER_EXPLICIT"/u);
 });
 
+test('requirednessSource follows the resolved active page and the projected checklist matches it', async () => {
+  const dynamic = runtimeFixture('ENFORCE');
+  const df = await dynamic.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE', includeRequiredness: true });
+  assert.equal(df.coverage?.requirednessSource, 'EFFECTIVE_REQUIRED');
+  const dfChecklist = Object.fromEntries((df.requiredChecklist ?? []).map((item) => [item.apiName, item]));
+  assert.deepEqual(dfChecklist.Name?.source, ['DYNAMIC_FORM']);
+  assert.deepEqual(dfChecklist.ApiRequired__c?.source, ['API']);
+  assert.equal(dfChecklist.Name?.writable, true);
+  assert.equal(dfChecklist.ApiRequired__c?.writable, true);
+  assert.equal(dfChecklist.Discount__c, undefined, 'a conditional field is not required until its visibility resolves VISIBLE');
+
+  const withDraft = await dynamic.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE',
+    draftFields: { Type__c: 'Partner' }, refinement: 1, includeRequiredness: true });
+  assert.ok(withDraft.requiredChecklist?.some((item) => item.apiName === 'Discount__c' && item.source.includes('DYNAMIC_FORM')));
+
+  const pageLayoutSnapshot = { ...fixtureSnapshot(), assignments: [], pages: [] };
+  const pageLayout = runtimeFixture('ENFORCE', pageLayoutSnapshot);
+  const pl = await pageLayout.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE', includeRequiredness: true });
+  assert.equal(pl.coverage?.requirednessSource, 'PAGE_LAYOUT_REQUIRED');
+  const plChecklist = Object.fromEntries((pl.requiredChecklist ?? []).map((item) => [item.apiName, item]));
+  assert.deepEqual(plChecklist.Name?.source, ['PAGE_LAYOUT']);
+  assert.deepEqual(plChecklist.ApiRequired__c?.source, ['API']);
+
+  const fallback = runtimeFixture('ENFORCE', null);
+  const fb = await fallback.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE', includeRequiredness: true });
+  assert.equal(fb.coverage?.requirednessSource, 'PAGE_LAYOUT_FALLBACK');
+  assert.ok(fb.requiredChecklist?.some((item) => item.apiName === 'ApiRequired__c'));
+
+  const legacy = await runtimeFixture('ENFORCE').executor.execute({ objectApiName: 'Sample__c', action: 'CREATE' });
+  assert.equal(legacy.requiredChecklist, undefined);
+  assert.equal(legacy.coverage?.requirednessSource, undefined);
+});
+
 test('snapshot absence and parse failure fall back while valid Page Layout remains byte-equivalent in fields', async () => {
   for (const snapshot of [null, { ...fixtureSnapshot(), parserVersion: 'invalid' } as unknown as UiSnapshot]) {
     const fixture = runtimeFixture('ENFORCE', snapshot);

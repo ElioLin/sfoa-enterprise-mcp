@@ -25,6 +25,30 @@ describe('canonical SFoA Agent Playbook', () => {
       assert.match(output, /refine at most 3 times/iu);
     }
   });
+  it('states the resolved requiredness source instead of choosing a global Layout or Dynamic Forms mode', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
+      for (const token of ['requirednessSource', 'EFFECTIVE_REQUIRED', 'PAGE_LAYOUT_REQUIRED', 'PAGE_LAYOUT_FALLBACK', 'includeRequiredness', 'MIXED', 'omittedFieldCatalog', 'NO_LEGAL_VALUE', 'writable=false']) assert.ok(output.includes(token), token);
+      assert.match(output, /Never fetch a layout by name/iu);
+      assert.match(output, /validation-rule error/iu);
+      assert.match(output, /Never store a mapped structured fact only in Description/iu);
+    }
+  });
+  it('classifies mobile and phone fields with mainland China rules before DML', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
+      for (const token of ['MobilePhone', 'Phone', '+86', '11 digits', 'ask before DML', 'never silently truncate', 'landline area code', 'province and country together']) assert.ok(output.includes(token), token);
+      assert.match(output, /mainland China mobile pattern/iu);
+      assert.match(output, /never write the city alone/iu);
+      assert.match(output, /Mobile numbers do not encode geography/iu);
+    }
+    assert.match(renderWorkflow('UPDATE'), /deduplicated against that new value/iu);
+    assert.match(renderWorkflow('UPDATE'), /0-row query/iu);
+  });
+  it('maps a requested owner to the configured managed owner field instead of OwnerId', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
+      for (const token of ['managedDmlFields', 'PLATFORM_USER_LOOKUP_FALLBACK', 'get_record_action_context', 'referenceTo', 'do not assume User', 'never substitute OwnerId', 'cannot be specified']) assert.ok(output.includes(token), token);
+    }
+    assert.match(renderWorkBuddySkill(), /action-context referenceTo target object.*never substitute OwnerId/iu);
+  });
   it('has the accepted semantic version and all required sections', () => {
     assert.equal(AGENT_PLAYBOOK_VERSION, '1.12.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
@@ -467,6 +491,13 @@ describe('WeCom recommended role setting renderer', () => {
     // Secret / host-token semantics from other channels must never appear.
     for (const token of ['CURRENT_USER_TOKEN', 'USER_BOUND_TOKEN', 'BUNTU_TOKEN', 'validate-token', 'TEST_ONLY_SECRET', 'Bearer <']) {
       assert.equal(output.includes(token), false, token);
+    }
+  });
+
+  it('states explicit owner resolution and geography hierarchy rules', () => {
+    const output = renderWeComRoleSetting(capabilities);
+    for (const token of ['get_record_action_context', 'referenceTo', '不要默认按 `User` 解析', '不得改用 `OwnerId`', '省份', '不得只填城市', '手机号本身不含地域']) {
+      assert.ok(output.includes(token), token);
     }
   });
 

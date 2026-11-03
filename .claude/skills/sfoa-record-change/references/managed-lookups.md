@@ -15,6 +15,14 @@ PLATFORM_IDENTITY_FALLBACK 是用户可覆盖的 CREATE 默认机制，explicit 
 
 fallback 的存在不是 Agent 生成值的证据；Runtime/Salesforce 仍裁决配置、权限与 Lookup Filter。显式值失败不得 fallback。任务相关的负责人、Record Type、Lookup 不受「未逐字段点名不能补全」限制，遵守真实候选、可靠业务事实及用户明确限定。
 
+### 用户说「以 X 的账号创建 / 归属给 X」
+
+- **MUST NOT** 切换认证身份；这是 owner/attribution 业务字段，不是登录身份。
+- 先看当前 `managedDmlFields` 与字段 label：若存在可用户指定的归属 Managed 字段（例如 `PLATFORM_USER_LOOKUP_FALLBACK`），**MUST** 先调用 `get_record_action_context`，读取该托管字段对应字段描述中的 `referenceTo` 确定目标对象（**MUST NOT** 默认按 `User` 解析），再在该对象上按姓名/工号等业务字段解析 X 的唯一 Salesforce ID，并写入该字段。若 action context 不可用、字段描述缺失或 `referenceTo` 为空，**MUST** 先问，不得猜。
+- **MUST NOT** 改用 `OwnerId` 或其他非托管字段代替已配置的归属 Managed 字段。
+- 若没有可用户指定的归属字段，或策略是 strict `PLATFORM_IDENTITY`，**MUST** 明确告知用户无法指定归属人/身份，只能按当前认证身份执行（获得用户确认后）。
+- 目标对象重名时先问是哪一条；指定值失败不得 fallback。
+
 ### Runtime 侧的实际行为（供理解，不要绕过）
 
 省略该字段时，Runtime 用**平台用户 ID**（不是 Salesforce User ID）执行一次有界查询：`lookupObjectApiName` 上 `lookupMatchFieldApiName = 平台用户 ID`，`LIMIT 2`。结果是：

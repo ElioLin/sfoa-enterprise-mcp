@@ -4,6 +4,72 @@
 
 ---
 
+## 2026-11-03 CREATE 敏感身份字段查重 Skill 发布（203）
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 变更 | `sfoa-record-change` 新增 Hard Rule 42：CREATE 前对名称 / 电话 / 手机 / 邮箱 / 证件号 / 外部 ID 等敏感身份字段做有界查重；强键或名称命中先告知用户并由用户选择继续新建 / 改为更新 / 取消，0 行不证明全库唯一；新增 `references/duplicate-check.md`，并接入 `create-readiness.md`、`readiness-gate.md`、`phone-and-mobile.md`；维护侧增加可执行 gate + 测试 |
+| 变更性质 | 仅 Skill 正文 / 引用与维护侧测试；无 MCP / Admin / OpenClaw 运行时源码变化、无迁移、无配置变化 |
+| 归档 | `sfoa-skill-create-dedup-20261103-160107.tar.gz`（43,477 B，sha256 `4c3fbceff72753b4a0d355503cd1b165547c6d0358087a4a3b732ad5ba1a0781`，LF 归一，13 文件） |
+| 备份 | runtime：`/data/openclaw/backups/20261103-160107-skill-create-dedup/sfoa-record-change/`（12 文件旧版）；app：`/data/sfoa-enterprise-mcp/backup/sfoa-app-skill-record-change-pre-20261103-160107.tar.gz`（38,661 B） |
+| 落盘 | 解到 `/data/sfoa-enterprise-mcp/staging-skill-create-dedup-20261103-160107`，`rsync -a` 覆盖 `app/skills/sfoa-record-change`；未删除任何文件；app 与 staging 文件集一致 |
+| 字节验证 | 未改动引用（batch-mutations / dynamic-forms / file-attachments / lookup-and-picklist / managed-lookups / material-and-related-fields / outcome-reconciliation / update-readiness）sha256 与服务器旧版逐一相同；变更文件为 `SKILL.md` `04182a…`、`create-readiness.md` `23fea8…`、`readiness-gate.md` `84aeaf…`、`phone-and-mobile.md` `1916fa…`、新增 `duplicate-check.md` `803aad…` |
+| Runtime Copy | `yarn skill:runtime:sync --canonical skills/sfoa-record-change --runtime-root /data/openclaw/workspace/skills` → 13 文件；`runtime:check` `ok:true` / `drift:[]`；runtime `SKILL.md` sha256 `04182a…` |
+| OpenClaw | `openclaw skills check --agent main`：`sfoa-record-change` 可见；`openclaw gateway call skills.status --json`：`eligible=true`、`modelVisible=true`；Gateway PID 2996434 未重启（正文变更按既有语义热读取） |
+| 服务 | `sfoa-mcp-server` / `sfoa-admin-api` / `openclaw-gateway` / `nginx` 均 active；未重建、未重启 |
+| 权限 | 发布后 app / runtime Skill 目录 755、文件 644（避免归档带入 666） |
+| 回滚 | 恢复 runtime：`cp -a /data/openclaw/backups/20261103-160107-skill-create-dedup/sfoa-record-change /data/openclaw/workspace/skills/`；恢复 app：解回 app 备份 tar；无需重启服务 |
+| 未做 | 未做真人企微 CREATE 重复提示 UAT；维护侧 gate / 测试仅在本仓库，未同步到服务器 app；未部署 Playbook / Dify / WorkBuddy 指令文档（本次只更新 OpenClaw Skill） |
+
+---
+
+## 2026-11-03 OpenClaw `ask_user` 全局关闭（203）
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 背景 | 11-02 的企微回答桥在真人 UAT 中 `question.resolve` 报 `missing scope: operator.questions`；回复落回 `Chat task queued` 造成二次提问，`ask_user` 卡住会话 10 分钟（`question.waitAnswer 599994ms`）。 |
+| 变更 | `openclaw config set tools.deny '["ask_user"]' --strict-json`，全局 deny；`tools` 前缀为 `hot` 重载，`openclaw-gateway` PID 2996434 未重启，无企微断连。 |
+| 验证 | `openclaw config get tools.deny` = `["ask_user"]`；隔离会话探针回复 `ASK_USER_UNAVAILABLE`；`openclaw-gateway`/`sfoa-mcp-server`/`sfoa-admin-api`/`nginx` 均 active。 |
+| 备份 | `/data/openclaw/backups/20261103-111225-askuser-deny/openclaw.json`。 |
+| 保留 | 企微回答桥补丁保留但休眠；未改 `AGENTS.md`；以后要用从 `tools.deny` 移除，并给桥补 `{ scopes: ['operator.questions'] }`。 |
+| 未做 | 真人企微“缺字段→正文追问”UAT。 |
+
+## 2026-11-03 P0 归属人解析 + 电话区号省份推断（203）
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 变更 | Playbook/`sfoa-record-change`：显式“以 X 的名义/归属 X”必须先取 `get_record_action_context`，按托管字段的 `referenceTo` 确定目标对象（不默认 `User`），解析 X 的唯一 ID 写入托管字段，禁止用 `OwnerId` 代替；座机区号/明确地址/公司所在地确定城市时同时推断省份/国家，手机号不推断地域。 |
+| 部署 | 备份 `/data/sfoa-enterprise-mcp/backup/p0-owner-geo-20261103-114254/`；替换 app 的 `packages/sfoa-agent-playbook/dist`；`skill:runtime:sync` 同步 `sfoa-record-change`（12 文件）；`systemctl restart sfoa-mcp-server` 后 PID 3002025（最终版本）、`/health` 200；`openclaw mcp reload` 已执行。 |
+| 验证 | `dist/definition.js` 含 `landline area code`/`do not assume User`；`dist/renderer.js` 含 `不得只填城市`/`referenceTo`；runtime `phone-and-mobile.md` 含 `手机号本身不含地域`；四服务 active。 |
+| 未做 | 真人企微“以郑燕军的名义新建→`Lead_Owner__c`（预期 Contact `003C5000004wEeRIAU`）”与“0592→福建省/厦门市”UAT。 |
+
+## 2026-11-02（下午）WeCom ask_user 回答桥 + 归属人意图
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 背景 | OpenClaw `ask_user` 在企微只发送文本回退；企微回复 `1` 被当作新聊天任务排队（日志 `Chat task queued`），没有进入 `question.resolve`，随后被当成新消息再次触发问题。 |
+| 补丁位置 | `/data/openclaw/state/npm/projects/wecom-wecom-openclaw-plugin-18f843d908__openclaw-generation__g-8f3a4349afa261a8/node_modules/@wecom/wecom-openclaw-plugin/dist/src/`：新增 `question-bridge.js`（sha256 `7807d603…`），并改 `monitor.js`（`dfb905d4…` → `9eee0f92…`）。备份 `backup/p0-field-inference-20261102-114641/wecom-monitor.js.pre-question-bridge`。 |
+| 桥逻辑 | 从 outbound `channelData.askUser` 记住 `questionId`/`optionValues`（按 accountId+chatId，TTL 15 min）；inbound 文本先匹配 `1..N` 或选项 label，命中则调用 `getWeComRuntime().gateway.request("question.resolve", { id, answers:{answers:{[questionId]:[value]}}, resolvedBy })`，不再入 chat 队列；已 terminal 的迟到数字回复丢弃，避免二次提问。离线测试 `1` → `question.resolve` 参数正确。 |
+| 补丁生效 | `systemctl restart openclaw-gateway`：PID 2996434，16 plugins 加载，企微 WebSocket `Authentication successful`；`mcp reload` 已执行。补丁属于第三方插件本地修改，**插件重装/升级会丢失**，复发先核对 `monitor.js` sha256 与 `question-bridge.js` 是否存在。 |
+| 归属人意图规则 | Playbook + `sfoa-record-change` 增加：用户说“以 X 的账号/归属 X”时不切换认证身份；若 `managedDmlFields` 有可用户指定的归属字段（如 `PLATFORM_USER_LOOKUP_FALLBACK`），把 X 解析为目标 Lookup 唯一 ID 并写入该字段，**不得改用 `OwnerId`**；没有可指定字段/严格 `PLATFORM_IDENTITY` 时明确告知只能按当前身份执行。 |
+| 部署 | 工作树归档 sha256 `30e1abeb…`；重建 agent-playbook/context/mcp-server；`sfoa-mcp-server` PID 2997098，`/health` 200；runtime `sfoa-record-change` 已同步（`managed-lookups.md` 含 OwnerId 规则），`skills.status` eligible/modelVisible true。 |
+| 未做 | 真人企微提问→回复 `1` 的端到端 UAT；归属人字段实际解析（陈俊杰 4 条同名 Contact 需先消歧）；插件补丁未纳入仓库。 |
+
+## 2026-11-02 P0 字段推断与手机/电话规则（203）
+
+| 项目 | 实际记录 |
+| --- | --- |
+| 部署内容 | `feature/p0-agent-field-inference` 工作树（基于 `769ec8d`，未提交）：`get_record_action_context` 的 `includeRequiredness`/`requirednessSource`/`requiredChecklist`/`writable`/`omittedFieldCatalog`；Playbook 与 `sfoa-record-change` 的 Requiredness Source、Explicit Fact Coverage、手机/电话中国大陆规则；无 DB 迁移 |
+| 服务器基线 | 部署前 10 个受影响源文件与 `769ec8d` git blob 的 sha256 全部一致（LF）；服务器源码未含未预期改动 |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/p0-field-inference-20261102-114641/`：`app-source-affected.tar.gz`（context/playbook 源码 + 三个包 dist + canonical record-change Skill）与 `openclaw-runtime-sfoa-record-change.tar.gz` |
+| 归档/落盘 | 本机 LF 归一化后 `p0-deploy-20261102035357.tar.gz`（370,100 B，sha256 `f09ed02d…`）；staging 81 文件 `sha256sum -c` 全 OK、CR=0；`rsync -a` 覆盖 `app/`，`sha256sum -c` 81 OK / 0 FAILED |
+| 构建 | `@sfoa/agent-playbook` → `@sfoa/mcp-provider-sfoa-context` → `@sfoa/mcp-server` 全部成功；dist 含 `includeRequiredness`/`requirednessSource`/`requiredChecklist`/`omittedFieldCatalog`/`writable`，Playbook dist 含 `mainland China mobile pattern`/`writable=false` |
+| 服务 | `systemctl restart sfoa-mcp-server`：PID 2987553，`NRestarts=0`，`/health` 200；`sfoa-admin-api` 未重启，`/admin/api/ready` 200；`nginx`/`openclaw-gateway` active |
+| Skill 发布 | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills`；`sfoa-record-change` 12 文件、`phone-and-mobile.md` sha256 `ba556062…`，`skill:runtime:check` drift []；`openclaw gateway call skills.status` 显示 `eligible=true`/`modelVisible=true`；执行 `openclaw mcp reload` |
+| 活体验证 | 以 60245 调用 `tools/list`（29 tools）确认 `includeRequiredness` 在 schema；Lead/FRN CREATE 返回 `PAGE_LAYOUT_REQUIRED`（35 项，其中 21 writable / 14 非 writable）；`Account_Visit__c` 客户来访 CREATE 返回 `EFFECTIVE_REQUIRED`/`DYNAMIC_FORMS`（18 项），`Visit_Route__c` 不在创建必填清单；均只读 |
+| 回滚 | `systemctl stop sfoa-mcp-server` → 解回备份 source/dist → 按上述顺序重建 → 恢复 runtime Skill 目录 → `systemctl start sfoa-mcp-server`；无 DB 变更 |
+| 未做 | 真人企微 UAT（用户进行）；本轮分支未 commit/push；Playbook 版本仍为 1.12.0 |
+
 ## 2026-10-27 16:15 本地 SenseVoice ASR（203）
 
 | 项目 | 实际记录 |

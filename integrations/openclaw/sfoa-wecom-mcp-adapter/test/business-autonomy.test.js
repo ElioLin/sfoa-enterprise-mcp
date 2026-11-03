@@ -22,7 +22,7 @@ test('runtime configuration projection reports model, allowlist and paths withou
 });
 
 test('fixed business corpus validates fixture payloads without claiming model or semantic acceptance', () => {
-  assert.equal(businessCases.length, 18);
+  assert.equal(businessCases.length, 24);
   for (const fixture of businessCases) {
     const toolCalls = (fixture.requiredReads ?? []).map(name => ({ name, arguments: fixture.requiredPicklistContinuation ? { picklistValueOffsets: { [fixture.requiredPicklistContinuation.fieldApiName]: fixture.requiredPicklistContinuation.minimumOffset } } : {} }));
     if (fixture.requiredFieldProjection) toolCalls.push({ name: 'get_record_action_context', arguments: { fieldApiNames: fixture.requiredFieldProjection } });
@@ -108,7 +108,7 @@ test('Agent-prepared related fields reach the real CREATE/UPDATE Tool and mock S
   const require = createRequire(resolve(root, 'packages/sfoa-mcp-server/package.json'));
   const { Client } = await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href);
   const { StreamableHTTPClientTransport } = await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href);
-  for (const id of ['company-xiamen-text', 'company-hangzhou-text', 'relocation', 'visit-location', 'summary-only', 'picklist-and-lookup']) {
+  for (const id of ['company-xiamen-text', 'company-hangzhou-text', 'relocation', 'visit-location', 'summary-only', 'picklist-and-lookup', 'explicit-owner-managed-lookup']) {
     const fixture = businessCases.find(item => item.id === id);
     const mock = await serveFixture({ caseId: id });
     const client = new Client({ name: 'sfoa-offline-fixture', version: '1.0.0' });

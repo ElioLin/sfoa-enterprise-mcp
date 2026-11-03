@@ -18,12 +18,13 @@ import {
 } from './export-agent-skill.mjs';
 import {
   BATCH_RECORD_LIMIT, BATCH_STATUS, FIELD_FACT, RECORD_STATUS, TARGET_RESOLUTION,
+  DUPLICATE_CHECK_STATUS, DUPLICATE_MATCH_STRENGTH, DUPLICATE_USER_DECISION,
   assertMinimalPatch, buildMinimalPatch, canonicalRecordIdentity, classifyFieldFact,
-  dispatchSequentialBatches, evaluateBatchReadiness, evaluateCreateReadiness, evaluateOwnerIntent,
-  evaluateRecordTypeIntent, evaluateUpdateReadiness, findDuplicateUpdateTargets, groupByObject,
-  planMutationBatches, reconcileUnknown, resolvePicklistValue, resolveUpdateTarget,
-  retryEligibility, selectRetrySubset, shouldStopSubsequentBatches, summariseBatchOutcome,
-  unknownOutcomePolicy,
+  dispatchSequentialBatches, evaluateBatchReadiness, evaluateCreateDuplicateGate, evaluateCreateReadiness,
+  evaluateOwnerIntent, evaluateRecordTypeIntent, evaluateUpdateReadiness, findDuplicateIdentityValues,
+  findDuplicateUpdateTargets, groupByObject, planMutationBatches, reconcileUnknown, resolvePicklistValue,
+  resolveUpdateTarget, retryEligibility, selectRetrySubset, shouldStopSubsequentBatches,
+  summariseBatchOutcome, unknownOutcomePolicy,
 } from './record-change-gates.mjs';
 
 const canonicalDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -115,6 +116,11 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['Per-record Batch Readiness', 'Batch 独立就绪'],
   ['No retry of successful subset', 'Batch 不得重放成功项'],
   ['Current State != Transaction Outcome', 'Current State != Transaction Outcome'],
+  // CREATE dedupe is a user-facing warning gate, not a runtime uniqueness engine.
+  ['CREATE Duplicate Check', '每次 CREATE 前'],
+  ['CREATE Duplicate Check', '敏感身份字段'],
+  ['CREATE Duplicate Check', '**MUST NOT** 静默创建'],
+  ['CREATE Duplicate Check', '0 行只证明'],
 ]);
 
 // The ordinary OpenClaw business Agent sees exactly these Skills. `sfoa-mcp-maintainer` is a
@@ -196,7 +202,7 @@ test('record change entry retains its readiness hard-boundary content contract',
   }
   // Every declared reference must stay reachable, so the routing list cannot silently drop one.
   for (const name of ['readiness-gate', 'create-readiness', 'update-readiness', 'dynamic-forms',
-    'managed-lookups', 'lookup-and-picklist', 'batch-mutations', 'outcome-reconciliation']) {
+    'managed-lookups', 'lookup-and-picklist', 'duplicate-check', 'batch-mutations', 'outcome-reconciliation']) {
     assert.ok(body.includes(`(references/${name}.md)`), `SKILL.md must route to references/${name}.md`);
   }
 });
@@ -233,7 +239,8 @@ test('managed lookup reference separates strict managed, marker and user-overrid
   const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'managed-lookups.md'), 'utf8');
   for (const marker of ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK',
     'MCP_DML_MANAGED_LOOKUP_NOT_FOUND', 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS', 'MCP_DML_MANAGED_LOOKUP_FAILED',
-    'omit field', '大小写不敏感', 'MCP_DML_INPUT_INVALID', 'CREATE 专用']) {
+    'omit field', '大小写不敏感', 'MCP_DML_INPUT_INVALID', 'CREATE 专用',
+    'OwnerId', 'referenceTo', '无法指定', 'PLATFORM_USER_LOOKUP_FALLBACK']) {
     assert.ok(reference.includes(marker), `managed-lookups.md is missing: ${marker}`);
   }
   // Explicit user values must survive, and an explicit failure must never silently fall back.
@@ -267,6 +274,37 @@ test('lookup and picklist reference covers every match count and the Label/API V
     assert.ok(reference.includes(marker), `lookup-and-picklist.md is missing: ${marker}`);
   }
   assert.ok(reference.includes('先解决 Controller'), 'lookup-and-picklist.md must resolve the controller first');
+});
+
+test('phone and mobile reference covers mainland China classification and pre-DML warning', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'phone-and-mobile.md'), 'utf8');
+  for (const marker of ['MobilePhone', 'Phone', '+86', '1[3-9]', '0\\d{2,3}', '11 位', '10 位', '12 位',
+    '区号', '插入前', 'MUST NOT', '截断', '补位', '静默换字段', '同一号码', '省份', '城市',
+    '手机号本身不含地域', '不得只填城市']) {
+    assert.ok(reference.includes(marker), `phone-and-mobile.md is missing: ${marker}`);
+  }
+  assert.ok(reference.includes('用户只说「电话 / 联系电话」或未指定'), 'the generic phone label must follow the value format');
+});
+
+test('duplicate check reference covers identity fields, bounded evidence and the user decision', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'duplicate-check.md'), 'utf8');
+  for (const marker of ['名称', '电话', '手机', '邮箱', '统一社会信用代码', '外部 ID',
+    '不是每个字段', '备注', '描述', '日期', '金额', '默认值', '`query_records`', 'LIMIT',
+    '强身份键', '同名', '疑似重复', '继续新建', '改为更新', '取消',
+    '0 行', '共享', '权限', '批内重复', 'MUST NOT** 静默', 'Duplicate Rules']) {
+    assert.ok(reference.includes(marker), `duplicate-check.md is missing: ${marker}`);
+  }
+  assert.ok(reference.includes('不证明全库唯一'), 'duplicate-check.md must bound the 0-row claim');
+});
+
+test('managed lookup reference resolves explicit owners on the action-context referenceTo target', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'managed-lookups.md'), 'utf8');
+  for (const marker of ['get_record_action_context', 'referenceTo', '默认按 `User`', 'OwnerId',
+    '唯一 Salesforce ID', '不得 fallback']) {
+    assert.ok(reference.includes(marker), `managed-lookups.md is missing: ${marker}`);
+  }
+  assert.ok(reference.includes('**MUST NOT** 默认按 `User` 解析'),
+    'managed-lookups.md must reject assuming the lookup target is User');
 });
 
 test('outcome reconciliation reference forbids replaying UNKNOWN and resubmitting a partial batch', async () => {
@@ -329,7 +367,8 @@ test('record change Skill never hardcodes Salesforce truth', async () => {
   const directory = path.join(projectRoot, 'skills', 'sfoa-record-change');
   for (const relativePath of ['SKILL.md', 'references/readiness-gate.md', 'references/create-readiness.md',
     'references/update-readiness.md', 'references/dynamic-forms.md', 'references/managed-lookups.md',
-    'references/lookup-and-picklist.md', 'references/batch-mutations.md', 'references/outcome-reconciliation.md']) {
+    'references/lookup-and-picklist.md', 'references/duplicate-check.md', 'references/batch-mutations.md',
+    'references/outcome-reconciliation.md']) {
     const text = await readFile(path.join(directory, relativePath), 'utf8');
     // A quoted 15/18-character token that contains a digit is a Salesforce ID literal. Ordinary
     // API field names such as `fieldCreateable` contain no digits and must not be flagged.
@@ -1200,6 +1239,73 @@ test('CREATE regression — record type, managed fallback, lookup and picklist s
   assert.ok(evaluateCreateReadiness({ picklistNormalized: false }).blockers.includes('PICKLIST_NOT_NORMALIZED'));
   assert.ok(evaluateCreateReadiness({ evidenceComplete: false }).blockers.includes('EVIDENCE_INCOMPLETE'));
   assert.equal(evaluateCreateReadiness({}).changeReady, true);
+});
+
+test('CREATE duplicate gate — identity keys block on matches and incomplete evidence until the user decides', () => {
+  const phone = [{ field: 'Phone', value: '13800138000' }];
+  const strongMatch = [{ field: 'Phone', strength: DUPLICATE_MATCH_STRENGTH.STRONG, recordId: 'aaaaaaaaaaaaaaa' }];
+  const nameMatch = [{ field: 'Name', strength: DUPLICATE_MATCH_STRENGTH.NAME, recordId: 'aaaaaaaaaaaaaab' }];
+
+  // No identity value means there is nothing to compare; it is not a failed check.
+  assert.equal(evaluateCreateDuplicateGate({}).reason, 'NO_IDENTITY_VALUE');
+  assert.equal(evaluateCreateDuplicateGate({ identityValues: [{ field: 'Phone', value: '' }] }).allowed, true);
+
+  // A complete read with no match proceeds.
+  const clean = evaluateCreateDuplicateGate({ identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE });
+  assert.equal(clean.allowed, true);
+  assert.equal(clean.reason, 'NO_MATCH_OBSERVED');
+
+  // Strong and name-only matches both require the user; only the reason differs.
+  const strong = evaluateCreateDuplicateGate({ identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE, matches: strongMatch });
+  assert.equal(strong.allowed, false);
+  assert.equal(strong.reason, 'STRONG_DUPLICATE_CONFIRMATION_REQUIRED');
+  assert.equal(strong.strongMatch, true);
+  const nameOnly = evaluateCreateDuplicateGate({
+    identityValues: [{ field: 'Name', value: 'Example' }],
+    checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE,
+    matches: nameMatch,
+  });
+  assert.equal(nameOnly.allowed, false);
+  assert.equal(nameOnly.reason, 'SAME_NAME_CONFIRMATION_REQUIRED');
+  assert.equal(nameOnly.strongMatch, false);
+
+  // The user, not the model, decides whether to create, update or cancel.
+  assert.equal(evaluateCreateDuplicateGate({
+    identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE, matches: strongMatch,
+    userDecision: DUPLICATE_USER_DECISION.PROCEED,
+  }).allowed, true);
+  assert.equal(evaluateCreateDuplicateGate({
+    identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE, matches: strongMatch,
+    userDecision: DUPLICATE_USER_DECISION.UPDATE_EXISTING,
+  }).reason, 'USER_CHOSE_UPDATE');
+  assert.equal(evaluateCreateDuplicateGate({
+    identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE, matches: strongMatch,
+    userDecision: DUPLICATE_USER_DECISION.CANCEL,
+  }).reason, 'USER_CANCELLED');
+
+  // A failed or not-run query is not a pass; the user may still accept the risk after being told.
+  for (const status of [DUPLICATE_CHECK_STATUS.NOT_RUN, DUPLICATE_CHECK_STATUS.INCOMPLETE]) {
+    const incomplete = evaluateCreateDuplicateGate({ identityValues: phone, checkStatus: status });
+    assert.equal(incomplete.allowed, false);
+    assert.equal(incomplete.reason, status === DUPLICATE_CHECK_STATUS.NOT_RUN ? 'DUPLICATE_CHECK_NOT_RUN' : 'DUPLICATE_CHECK_INCOMPLETE');
+    assert.equal(evaluateCreateDuplicateGate({
+      identityValues: phone, checkStatus: status, userDecision: DUPLICATE_USER_DECISION.PROCEED,
+    }).allowed, true);
+  }
+});
+
+test('CREATE duplicate gate — a batch checks duplicate identity values inside the plan', () => {
+  const duplicates = findDuplicateIdentityValues([
+    { identityValues: [{ field: 'MobilePhone', value: '13800138000' }] },
+    { identityValues: [{ field: 'Phone', value: '13800138000' }] },
+    { identityValues: [{ field: 'MobilePhone', value: '13800138000' }] },
+    { identityValues: [{ field: 'MobilePhone', value: '' }] },
+  ]);
+  // Different fields are different keys; the same field with the same value is a batch duplicate.
+  assert.deepEqual(duplicates, [{ field: 'MobilePhone', value: '13800138000' }]);
+  assert.deepEqual(findDuplicateIdentityValues([
+    { identityValues: [{ field: 'MobilePhone', value: '13800138000' }] },
+  ]), []);
 });
 
 test('CREATE regression — the 02A entry-point contract survived the 02B rewrite', async () => {

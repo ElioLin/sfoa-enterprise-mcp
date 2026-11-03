@@ -35,6 +35,8 @@ Evidence-Based Mutation Readiness
 | Lookup 歧义未解决 | 0 match 或 multiple match，见 [lookup-and-picklist.md](lookup-and-picklist.md) |
 | Picklist 未归一 | 还没有解析成当前 Record Type 的真实 API Value |
 | Managed 字段规则未满足 | 见 [managed-lookups.md](managed-lookups.md) |
+| 查重未完成 | CREATE 的敏感身份字段尚未查重，或查重因工具 / 权限 / 共享范围无法完成且用户未决定是否继续 |
+| 疑似重复未确认 | 强身份键命中，或名称命中；用户尚未选择继续新建 / 改为更新 / 取消 |
 | Evidence 不足或被截断 | 见 [dynamic-forms.md](dynamic-forms.md) 的 Evidence Completeness |
 | Mutation Intent 与最终 payload 不一致 | payload 超出业务任务或违反用户明确限定 |
 | 用户已显式指定但解析失败 | 例如显式 Owner / Lookup 0 match、multiple match |
@@ -69,6 +71,7 @@ Evidence-Based Mutation Readiness
 - 只因为 Runtime `coverage=PARTIAL`。`coverage` 描述解析范围，不等于本次 mutation 不可行；要看 Critical Dependency 是否受影响。
 - 只因为 `resolutionStatus=RESOLVED` 之外存在与本次 mutation 无关的 UNKNOWN。
 - 只因为 optional 字段为空。Optional 不是必填。
+- 只因为查重 0 行。0 行只说明当前可见 / 查询范围内未发现，不证明全局唯一；它不阻塞 CREATE，但也不得被表述为「没有重复」。
 - 只因为字段是严格 managed。严格 managed 由 Runtime 负责，不是 Agent 的缺口。
 - 只因为多个 Record Type、optional 字段未被点名或值来自忠实提炼/可靠关联；这些不是追问理由。适用 CREATE fallback 可直接省略交由 Runtime，UPDATE 不重放默认。
 - 只因为 UPDATE 没有携带 CREATE 的完整表单。UPDATE 的 scope 由用户意图决定。

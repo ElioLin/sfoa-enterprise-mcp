@@ -60,6 +60,11 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 
 36. **不硬编码** — **MUST NOT** 硬编码 Salesforce Required Fields、Record Type ID / DeveloperName、Picklist API Value、Lookup ID、Record ID、Owner ID 或公司字段业务规则；一切从当前 Runtime / Salesforce 实时发现。
 37. **Salesforce 最终权威** — 尊重 Validation Rule、FLS、Sharing、Lookup Filter、Flow、Trigger、CRUD 与 Native Permission 的最终裁决。Skill 与 Playbook 都不能提升权限。
+38. **Requiredness Source 按当前用户/记录类型/动作解析** — **MUST** 先按当前认证用户的 profile、当前 Record Type、当前 action（CREATE 或 UPDATE）解析 active Lightning page；Tool 支持时传 `includeRequiredness=true`。`DYNAMIC_FORMS`/`MIXED` 使用 `effectiveRequired`/`requiredSource`；纯 `PAGE_LAYOUT`/Default/Standard 使用当前 action 的 Record Type 页面布局 `apiRequired || layoutRequired`；`PAGE_LAYOUT_FALLBACK` 按页面布局处理并明确说明 fallback 限制。**MUST NOT** 按布局名称取 XML、**MUST NOT** 用 UPDATE 布局判断 CREATE、**MUST NOT** 在 Dynamic Forms 已求值时把 layout-only `layoutRequired` 当成有效必填。验证规则报错属于缺失必填事实，应询问业务值，不得自行选值。`requiredChecklist` 中 `writable=false` 的系统/只读/当前 action 不可编辑字段不得追问。
+39. **Explicit Fact Coverage** — 提示词、已读材料与可信关联中的每个明确业务事实，**MUST** 先映射到当前 Record Type 的可写字段（按 label、section、inlineHelpText、类型与依赖），或明确标记 `NO_FIELD` / `NO_LEGAL_VALUE` / `LOOKUP_UNRESOLVED`。使用 `fieldApiNames` 投影后，**MUST** 检查 `coverage.fieldProjection.omittedFieldCatalog`；被省略字段不代表不存在，label/section 命中明确事实时必须补取。**MUST NOT** 把已能映射到结构化字段的事实只写进 Description；当前类型没有合法 Picklist 值时，换候选类型或集中追问一次，不得静默降级。
+40. **Phone / Mobile 分类与中国大陆校验** — 手机号与电话必须按当前字段 label/API 与值的格式分类：明确「手机/移动电话」或匹配 `^1[3-9]\d{9}$`（可带 `+86`）→ 手机字段；明确「座机/固定电话/办公电话」或匹配区号 `0\d{2,3}` + 7-8 位本地号码 → 电话字段。用户只说「电话/联系电话」时按值分类。格式无效、位数不符（如 10/12 位）、含字母、或显式标签与格式冲突时，**MUST NOT** 先写入；插入前向用户提示并确认。**MUST NOT** 截断、补位、编造数字、把同一号码写入两个字段或静默换字段。由座机区号、明确地址或公司所在地等可靠证据判断出城市时，**MUST** 同时推断并写入对应省份/国家（当前字段可写且不与现有值冲突），不得只填城市不填省份；手机号本身不含地域，**MUST NOT** 据此推断；区号或地名不确定时先问。详见 [phone-and-mobile.md](references/phone-and-mobile.md)。
+41. **指定归属人意图** — 用户说「以 X 的账号/名义创建」「归属给 X」时，**MUST NOT** 切换认证身份。先看当前 `managedDmlFields` 与字段 label：若配置了可用户指定的归属人/归属 Managed 字段（如 `PLATFORM_USER_LOOKUP_FALLBACK`），**MUST** 先调用 `get_record_action_context` 获取该对象/动作的字段描述，读取该托管字段对应字段的 `referenceTo` 确定目标对象（**MUST NOT** 默认按 `User` 解析），再在该目标对象上按姓名/工号等业务字段做有界查询，把唯一 Salesforce ID 写入该托管字段；**MUST NOT** 改用 `OwnerId` 或其他非托管字段代替。若 action context 不可用、字段描述缺失或 `referenceTo` 为空，**MUST** 先问，不得猜。若没有可用户指定的归属字段，或策略是 strict `PLATFORM_IDENTITY`，**MUST** 明确告知用户无法指定归属人/身份，只能按当前认证身份执行（获得用户确认后）。目标对象存在重名时先问哪一条，不得取第一条或猜 ID。详见 [managed-lookups.md](references/managed-lookups.md)。
+42. **CREATE 查重（敏感身份字段）** — 每次 CREATE 前，**MUST** 先从用户提示、已读材料和可信上下文中取出将直接写入目标对象的敏感身份值（名称、电话、手机、邮箱、证件号 / 统一社会信用代码 / 税号、外部 ID / 编号等，以当前 Action Context 的真实 label / API / 类型为准），按当前字段做有界只读查重；**MUST NOT** 对备注、描述、日期、金额、阶段、地址、Owner 等非身份字段或默认值 / managed 值做例行查重。强身份键（电话 / 手机 / 邮箱等）精确命中，或名称命中时，**MUST** 在写入前告知用户命中的记录与匹配字段，并由用户选择继续新建、改为更新已有记录或取消；**MUST NOT** 静默创建、自动合并、自动切换 UPDATE 或隐瞒命中。查重未执行、失败或被当前共享 / 权限范围限制时，**MUST** 说明证据范围并取得用户决定，**MUST NOT** 宣称「没有重复」；0 行只证明当前可见 / 查询范围内未发现，不证明全库唯一。`create_records` 还要检查批内重复。详见 [duplicate-check.md](references/duplicate-check.md)。
 
 ## CREATE 与 UPDATE 的关键差异
 
@@ -73,6 +78,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 | 默认值 | Create Defaults 可用 | UPDATE 不返回 defaults；omission = preserve |
 | Record Type | 需要解析并选择 | 沿用记录当前 Record Type，不静默变更 |
 | Owner fallback | CREATE 时按策略可用 | 不重放 CREATE fallback；任务相关的责任变更按可靠事实解析 |
+| 查重 | 写入前对名称 / 电话 / 手机 / 邮箱等身份键做有界查重；命中先由用户决定 | 已有记录不例行查重；引入新的手机 / 电话 / 邮箱值时提示（见 [phone-and-mobile.md](references/phone-and-mobile.md)） |
 | 批量语义 | 新建多条 | 每条可有**不同** Patch，不得互相复制字段 |
 
 UPDATE 的 Dynamic Forms 预计算当前 **不可用**：Runtime 无法给出变更后 hypothetical 的 UI 状态。**MUST** 承认这一能力边界，由 Salesforce Validation / Flow / Trigger / Lookup Filter / DML Runtime 作为最终 authority，**MUST NOT** 用模型猜测补齐。
@@ -83,7 +89,8 @@ UPDATE 的 Dynamic Forms 预计算当前 **不可用**：Runtime 无法给出变
 CREATE:
 Intent 明确 + Object 明确 + Record Type 已解析 + Effective Context 足以判断
 + Required Checklist 为空 + 提交字段可 create + Lookup 唯一 + Picklist 已归一
-+ Managed 策略满足 + 证据完整 + Patch 与意图一致
++ Managed 策略满足 + 敏感身份字段查重已完成（无疑似重复或用户已确认继续）
++ 证据完整 + Patch 与意图一致
 
 UPDATE:
 Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
@@ -120,6 +127,8 @@ Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
 - Dynamic Forms 四态、PENDING、UNKNOWN、refinement、证据完整性：[dynamic-forms.md](references/dynamic-forms.md)
 - Managed 字段与 Owner fallback：[managed-lookups.md](references/managed-lookups.md)
 - Lookup 与 Picklist 解析：[lookup-and-picklist.md](references/lookup-and-picklist.md)
+- Phone / Mobile 分类与中国大陆校验：[phone-and-mobile.md](references/phone-and-mobile.md)
+- CREATE 敏感身份字段查重：[duplicate-check.md](references/duplicate-check.md)
 - 批量变更：分组、上限、分批、allOrNone、逐条就绪：[batch-mutations.md](references/batch-mutations.md)
 - 附件上传：`upload_files_to_record`、attachmentRef 归属、逐文件结果：[file-attachments.md](references/file-attachments.md)
 - 写入结果、PARTIAL_SUCCESS、UNKNOWN 与核对：[outcome-reconciliation.md](references/outcome-reconciliation.md)

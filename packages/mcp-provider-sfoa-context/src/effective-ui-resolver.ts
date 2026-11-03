@@ -6,7 +6,7 @@ import { UI_PARSER_VERSION, UI_RESOLVER_VERSION, UI_SNAPSHOT_TTL_MS, uiSnapshotS
   type EffectiveUiOptions, type UiContext, type UiSnapshotRecord, type UiPage } from './effective-ui-contracts.js';
 import { evaluateVisibility, combineVisibility, type VisibilityFacts } from './visibility.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
-import { boundDefaultValue, boundPicklist, MAX_OUTPUT_BYTES, type ResolvedActionFacts } from './record-action-executor.js';
+import { boundDefaultValue, boundPicklist, buildRequiredChecklist, MAX_OUTPUT_BYTES, type ResolvedActionFacts } from './record-action-executor.js';
 import { fieldSemanticFacts, sameSalesforceId, type ObjectInfo } from './ui-api.js';
 import { ContextRuntimeError } from './errors.js';
 import { createInitialState, resolveUserFacts, userDependencies, boundedRead, type InitialFact } from './create-initial-state.js';
@@ -128,13 +128,18 @@ export class EffectiveRecordUiContextResolver {
         ui.coverage = computed.partial ? 'PARTIAL' : 'COMPLETE';
         Object.assign(evidence, computed.evidence);
         if (mode === 'ENFORCE' && ['DYNAMIC_FORMS', 'MIXED'].includes(ui.formSource)) {
-          result = { ...baseline, fields: computed.fields, uiContext: ui, uiContextResolutionId: resolutionId,
+          result = { ...baseline,
+            ...(input.includeRequiredness
+              ? { requiredChecklist: buildRequiredChecklist(computed.fields, 'EFFECTIVE_REQUIRED', input.action) }
+              : {}),
+            fields: computed.fields, uiContext: ui, uiContextResolutionId: resolutionId,
             coverage: baseline.coverage ? { ...baseline.coverage, dynamicFormsEvaluated: true,
+              ...(input.includeRequiredness ? { requirednessSource: 'EFFECTIVE_REQUIRED' } : {}),
               totalVisibleFields: computed.fields.filter((field) => field.visibilityState === 'VISIBLE').length,
               returnedFields: computed.fields.length, totalPicklistValues: computed.totalPicklistValues,
               returnedPicklistValues: computed.returnedPicklistValues,
               truncated: computed.truncated, warnings: [
-                'Effective CREATE context uses supported Dynamic Forms rules and current USER ObjectInfo. Salesforce remains the final write authority.',
+                `Effective CREATE context uses supported Dynamic Forms rules and current USER ObjectInfo.${input.includeRequiredness ? ' Requiredness source is EFFECTIVE_REQUIRED.' : ''} Salesforce remains the final write authority.`,
                 ...(computed.partial ? ['Some visibility is PENDING or UNKNOWN; do not guess.'] : []),
                 ...(computed.truncated ? ['Picklist/default evidence was truncated; do not guess omitted values.'] : []),
                 ...(evidence.snapshotWarning ? ['SNAPSHOT_STALE: using the last valid configuration; Admin refresh is recommended.'] : []),
@@ -153,7 +158,16 @@ export class EffectiveRecordUiContextResolver {
         Object.assign(evidence, ui); audit(); throw error;
       }
     }
-    if (ui.fallbackUsed) { result = baseline; evidence.usedForAgent = false; }
+    if (ui.fallbackUsed) {
+      const fallbackReason = ui.fallbackReason ?? 'UNRESOLVED';
+      result = input.includeRequiredness
+        ? { ...baseline, requiredChecklist: buildRequiredChecklist(baseline.fields, 'PAGE_LAYOUT_FALLBACK', input.action),
+          coverage: baseline.coverage ? { ...baseline.coverage, requirednessSource: 'PAGE_LAYOUT_FALLBACK',
+            warnings: [...baseline.coverage.warnings,
+              `Dynamic Forms resolution fell back to PAGE_LAYOUT (${fallbackReason}); requiredness source is PAGE_LAYOUT_FALLBACK.`] } : undefined }
+        : baseline;
+      evidence.usedForAgent = false;
+    }
     Object.assign(evidence, ui, { dynamicResolutionStatus: ui.resolutionStatus, fallbackTo: ui.fallbackUsed ? 'PAGE_LAYOUT' : null });
     audit();
     return result;

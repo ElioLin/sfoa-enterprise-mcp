@@ -33,7 +33,7 @@ describe('canonical capability-aware Dify Agent instruction generator', () => {
     expect(instruction).toContain('Status: available for `Account`, `Lead`');
     expect(instruction).toContain('Status: available for `Contact`');
     expect(instruction).toContain('get_record_action_context');
-    expect(instruction).toContain('only fields the user asked to change');
+    expect(instruction).toContain('Respect an explicit only-change-this-field limit');
   });
 
   it('does not treat a policy as executable when its matching mutation Tool is disabled', () => {
@@ -64,7 +64,7 @@ describe('canonical capability-aware Dify Agent instruction generator', () => {
     expect(generateDifyAgentInstruction(ready)).not.toContain('complete verified Diagnostic chain is not ready');
     expect(deriveDifyInstructionFacts(unverified).diagnosticEnabledButUnverified).toBe(true);
     expect(deriveDifyInstructionFacts(unverified).availableTools).not.toContain('run_diagnostic_tooling_query');
-    expect(generateDifyAgentInstruction(unverified)).toContain('Diagnostic chain is not ready');
+    expect(generateDifyAgentInstruction(unverified)).toContain('The legacy Tooling/Metadata chain is not verified ready');
   });
 
   it('includes the mandatory unknown-outcome, Salesforce rejection, link, and Dynamic Forms boundaries', () => {
@@ -79,7 +79,7 @@ describe('canonical capability-aware Dify Agent instruction generator', () => {
     expect(instruction).toContain('Dynamic Forms evidence: `NOT_AVAILABLE`');
     expect(instruction).toContain('Never change identity or bypass a rule');
     expect(instruction).toContain('required, recommended, and other optional fields');
-    expect(instruction).toContain('3 to 8 high-value optional fields');
+    expect(instruction).toContain('Do not impose a number of optional recommendations');
     expect(instruction).toContain('show the bounded current valid choices');
     expect(instruction).toContain('confirm the controlling value first');
     expect(instruction).toContain('Resolve ambiguous Lookups');
@@ -143,8 +143,8 @@ describe('canonical WeCom recommended role setting generator', () => {
     expect(role).toContain('新建：可用 — 对象范围 `Lead`。');
     expect(role).toContain('更新：可用 — 对象范围 `Contact`。');
     expect(role).toContain('get_record_action_context');
-    expect(role).toContain('create_record.recordTypeId');
-    expect(role).toContain('仅剩 Master 时保留并使用');
+    expect(role).toContain('recordType.id');
+    expect(role).toContain('仅剩 Master 时保留');
     expect(role).toContain('PLATFORM_IDENTITY_FALLBACK');
   });
 });
@@ -217,6 +217,6 @@ it('Admin preview retains distinct safe strategies without mapping details', () 
   expect(capabilities.managedDmlFields.map((field) => field.strategy)).toEqual(['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK']);
   const instruction = generateDifyAgentInstruction(input);
   expect(instruction).toContain('PLATFORM_IDENTITY_FALLBACK');
-  expect(instruction).toContain('required and absent, ask once');
+  expect(instruction).toContain('Do not ask once and wait as a ritual');
   expect(instruction).not.toMatch(/private-mapping-remark|Platform_User_Id__c|lookupObjectApiName/);
 });

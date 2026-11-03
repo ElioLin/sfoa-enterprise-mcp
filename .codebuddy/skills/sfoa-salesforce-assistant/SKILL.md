@@ -100,7 +100,7 @@ Workflow: ALL
 
 ## MCP-managed fields
 
-- Use current action context/capabilities and task evidence. Omit strict PLATFORM_IDENTITY and AI_CREATED_MARKER. Adopt configured applicable CREATE PLATFORM_IDENTITY_FALLBACK by omission without a fixed question, including required fields; never query the current-user ID. Task-related owner values use proven Lookup IDs; unresolved explicit input never silently falls back. Do not default it on unrelated UPDATE.
+- Use current action context/capabilities and task evidence. Omit strict PLATFORM_IDENTITY and AI_CREATED_MARKER. Adopt configured applicable CREATE PLATFORM_IDENTITY_FALLBACK by omission without a fixed question, including required fields; never query the current-user ID. For an explicit owner/attribution request, read the managed field's action-context referenceTo target object (do not assume User), resolve X there with bounded USER reads, and submit the proven Id; never substitute OwnerId. Unresolved explicit input never silently falls back. Do not default it on unrelated UPDATE.
 
 ## Non-retryable uncertainty
 
