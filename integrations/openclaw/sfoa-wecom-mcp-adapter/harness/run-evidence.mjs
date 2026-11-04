@@ -34,12 +34,14 @@ export function normalizeTurnResult(parsed) {
   const failure = body.meta?.aborted ? 'aborted'
     : parsed.error || body.error || body.meta?.error || (Array.isArray(body.payloads) && body.payloads.some(item => item?.isError === true)) ? 'error'
       : parsed.partial || body.partial || body.meta?.partial ? 'partial'
-        : body.meta?.replayInvalid ? 'INVALID_RESULT'
-          : reasons.some(value => !['stop', 'end_turn', 'stop_sequence'].includes(value)) ? 'INCOMPLETE_RESULT' : undefined;
+        : reasons.some(value => !['stop', 'end_turn', 'stop_sequence'].includes(value)) ? 'INCOMPLETE_RESULT' : undefined;
   return { runId: parsed.runId ?? body.runId ?? body.meta?.runId ?? agent?.runId ?? agent?.terminalReceipt?.runId ?? 'NOT_AVAILABLE',
     sessionId: parsed.sessionId ?? body.sessionId ?? agent?.sessionId ?? 'NOT_AVAILABLE',
     model: parsed.model ?? body.model ?? (agent?.model ? [agent.provider, agent.model].filter(Boolean).join('/') : ''),
     reply: parsed.final ?? body.final ?? (Array.isArray(body.payloads) ? body.payloads.map(item => item?.text ?? '').filter(Boolean).join('\n') : ''),
+    // OpenClaw also sets replayInvalid after potential tool side effects. It is
+    // replay safety evidence, not by itself a failure of the completed attempt.
+    replayInvalid: body.meta?.replayInvalid ?? null,
     executionStatus: failure ?? status ?? (agent && Array.isArray(body.payloads) ? 'ok' : 'INVALID_RESULT'),
     usage: agent?.usage ?? body.usage ?? null, durationMs: body.meta?.durationMs ?? body.durationMs ?? null };
 }

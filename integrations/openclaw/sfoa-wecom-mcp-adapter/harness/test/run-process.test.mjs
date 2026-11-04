@@ -33,6 +33,25 @@ test('terminal receipt is a real run ID; explicit failure and incomplete output 
   assert.equal(normalizeTurnResult({ status: 'ok', result: { ...finalResult(), status: 'error' } }).executionStatus, 'error');
 });
 
+test('replayInvalid preserves replay safety facts without rejecting a completed tool attempt', () => {
+  const result = finalResult();
+  result.meta.replayInvalid = true;
+  assert.equal(normalizeTurnResult(result).replayInvalid, true);
+  assert.equal(normalizeTurnResult(result).executionStatus, 'ok');
+  assert.deepEqual(completedAgentResult(JSON.stringify(result)), result);
+  for (const bad of [
+    { ...result, status: 'error' },
+    { ...result, partial: true },
+    { ...result, meta: { ...result.meta, aborted: true } },
+    { ...result, meta: { ...result.meta, error: { kind: 'incomplete_turn' } } },
+    { ...result, meta: { ...result.meta, completion: { finishReason: 'length' } } },
+  ]) {
+    assert.equal(completedAgentResult(JSON.stringify(bad)), undefined);
+    assert.equal(isSuccessfulTurn({ ...normalizeTurnResult(bad), exitCode: 0 }), false);
+  }
+  assert.equal(isSuccessfulTurn({ ...normalizeTurnResult(result), exitCode: 1 }), false);
+});
+
 test('a complete final JSON with a held timer is preserved; only this child is stopped', { timeout: 10_000 }, async () => {
   const sibling = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true });
   await once(sibling, 'spawn');

@@ -73,3 +73,5 @@ node integrations/openclaw/sfoa-wecom-mcp-adapter/harness/material-workflows.mjs
 ```
 
 报告保留每个重复的结果与波动；六条核心路径各至少 3 次、每次实际同一 session 全轮成功、参数/归档断言通过、原始文本读取与语义复核完成，才报告本层 `coreRepeatedCoverage=PASS`。`realSalesforce`、`wecom`、`pdfImageAudio` 始终另列 `NOT_TESTED`，附件 backend 始终 `SIMULATED`。不要打包或下载 `config.private.json`；其他模型/会话原始输出亦须脱敏后才导出。
+
+OpenClaw 2026.9.5 的 `meta.replayInvalid` 也会因成功工具的潜在副作用置为 true，表达不能安全重放，而非当前执行失败。逐轮原样保留该标记；错误、aborted、partial、不完整结束和非零退出仍单独拒绝。该分类不授权重放真实任务，也不把工具或业务失败改为成功。
