@@ -84,7 +84,7 @@ VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠
 
 ## Requiredness Source（当前 USER + Record Type + action）
 
-必填口径不是全局开关，必须先解析当前认证用户、当前 Record Type、当前 action 的 active Lightning page：
+必填口径按当前 USER、Record Type 与 action 的真实可用事实解析。CREATE effective resolver 可解析 active Lightning page；UPDATE 不具备完整 Edit Dynamic Forms。requiredChecklist 表示定义，不等于缺值问题清单；先比较材料、草案、原始 defaults 与 managed。
 
 - `DYNAMIC_FORMS` / `MIXED`：使用 action context 的 `effectiveRequired` / `requiredSource`；**MUST NOT** 把 page-layout-only 的 `layoutRequired` 当成有效必填。
 - `PAGE_LAYOUT` / Default / Standard：使用当前 action 的 Record Type 页面布局 `apiRequired || layoutRequired`；CREATE 用 CREATE 的 action context，UPDATE 用 UPDATE 的 action context。
@@ -92,7 +92,7 @@ VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠
 - **MUST NOT** 按布局名称取 XML，**MUST NOT** 用 UPDATE 布局判断 CREATE。
 - `includeRequiredness=true` 时优先使用 `requiredChecklist`；未提供时按上述来源使用 `effectiveRequired` 或 `apiRequired/layoutRequired`。
 - `requiredChecklist` 中 `writable=false` 的字段是系统/只读/当前 action 不可编辑字段，**MUST NOT** 向用户追问；只在它阻塞任务时说明限制。
-- Validation Rule 导致 DML 报错（如 `FIELD_CUSTOM_VALIDATION_EXCEPTION`）属于缺失必填事实：先询问业务值，不得自行选择。
+- Validation Rule 导致 DML 报错（如 `FIELD_CUSTOM_VALIDATION_EXCEPTION`）需要按真实错误区分字段、跨字段或业务规则；不一律归为缺必填，不无限补问/重试。
 
 ## Explicit Fact Coverage
 
@@ -111,31 +111,14 @@ fact → target field (label/section/inlineHelpText/type/dependency)
 
 ## Phone / Mobile
 
-- 手机与电话按 [phone-and-mobile.md](phone-and-mobile.md) 分类与校验：手机匹配 `^1[3-9]\d{9}$`（可带 `+86`）；电话匹配区号 `0\d{2,3}` + 7-8 位本地号码（可带分机）。
+- 手机与电话按 [phone-and-mobile.md](phone-and-mobile.md) 按适用国家地区分类；仅中国大陆手机匹配 `^1[3-9]\d{9}$`（可带 `+86`）；电话匹配区号 `0\d{2,3}` + 7-8 位本地号码（可带分机）。
 - 用户只说「电话/联系电话」时按值的格式判断字段；显式标签与格式冲突时先问。
 - 无效、位数不符或歧义时，插入前提示并确认；**MUST NOT** 截断、补位、编造数字、把同一号码写入两个字段或静默换字段。
-- 座机区号、明确地址或公司所在地能确定城市时，按 [phone-and-mobile.md](phone-and-mobile.md) 同时推断并写入对应的省份/国家；不得只填城市；手机号本身不含地域，**MUST NOT** 据此推断。
+- 明确公司地址或已核实公司所在地能确定城市时，按 [phone-and-mobile.md](phone-and-mobile.md) 同时推断并写入对应的省份/国家；不得只填城市；手机号本身不含地域，**MUST NOT** 据此推断。
 
-## 敏感身份字段查重
+## 适用查重
 
-在 Required Checklist 与字段 draft 稳定后、调用 `create_record` / `create_records` 前，按 [duplicate-check.md](duplicate-check.md) 做一次有界查重。**不是每个字段都要查**：只查将直接写入目标对象、且来自用户提示 / 已读材料 / 可信上下文的身份键。
-
-| 要查 | 不查 |
-| --- | --- |
-| 名称、电话、手机、邮箱、证件号 / 统一社会信用代码 / 税号、外部 ID / 编号（业务上确为唯一键时） | 备注、描述、日期、金额、阶段、地址、Picklist、Owner、普通 Lookup；默认值 / managed 值；仅用于解析 Lookup 的值 |
-
-```text
-身份值 → 当前 Action Context 字段（label / API / 类型）
-→ 归一化 → 有界只读查询（优先 query_records，小 maxRows）
-→ 0 行 / 强键命中 / 仅同名命中 / 查重不完整
-```
-
-- 0 行只说明当前身份、共享与权限范围内未发现，**MUST NOT** 宣称「没有重复」或全库唯一。
-- 强身份键精确命中，或名称命中：写入前告知用户命中记录与匹配字段，由用户选择继续新建 / 改为更新 / 取消；用户决定前 `CHANGE_READY=false`。
-- 仅同名命中不得自动判定重复，也不得静默忽略；由用户确认。
-- 查重失败、字段不可查或工具不可用：说明证据范围并取得用户决定，**MUST NOT** 把未完成的查重说成已通过。
-- `create_records` 还要检查本次计划内的批内重复。
-- Salesforce Duplicate Rules 仍是最终裁决；DML 被拦截时按 `FAILED` 处理，不得绕过。
+按 [duplicate-check.md](duplicate-check.md) 用真实业务身份/事件键做有界 USER 查询，复用仍适用证据。同名、共享电话和模糊命中是候选，不直接证明同一记录；历史拜访不阻止新事件。先补证收窄，实质同记录冲突或独立业务选择才集中问，已有决定不重复。无键、查询失败或截断如实说明覆盖，不统一禁止写入；0 行不证明全库唯一。批内重复按事件语义判断，不静默 CREATE 转 UPDATE。
 
 ## Defaults
 

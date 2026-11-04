@@ -1,3 +1,11 @@
+# Agent materials, continuity and attachment outcomes (2026-11-04)
+
+- Host task materials retain actual source/reading/original coverage across turns with requester/session isolation; Office basic reading stays in a thin host adapter.
+- Playbook 1.13.0 and canonical Skills map relevant optional facts, separate planned/applied events, narrow duplicate checks to business identity and event meaning, preserve international numbers, and offer original archiving once without blocking record saves.
+- Optional CREATE value assessment defaults off, reuses current facts without additional Salesforce requests, and preserves null/false/zero/absence and managed-policy provenance. It is not a DML gate.
+- Attachment attempt states and migration 017 protect concurrent dispatch, distinguish recoverable explicit rejection from UNKNOWN, preserve individual outcomes on timeout, and clean retained bytes without erasing unknown outcomes.
+- Existing query, direct/singular/batch/compound DML, attachment, diagnostic, identity, governance and managed-field capabilities remain. Actual validation/deployment status is tracked in [the delivery record](docs/sfoa/AGENT_MATERIAL_WORKFLOWS_DELIVERY.md); no production acceptance is implied.
+
 # Business-task autonomy, material quality, related fields and business diagnosis (2026-10-26)
 
 - Canonical Skills and Playbook 1.12.0 authorize task-relevant faithful synthesis and related completion in actual CREATE/UPDATE drafts. Minimal Patch means actual task changes; explicit narrow scope, strict managed fields, Salesforce authority and UNKNOWN/partial-success contracts remain.

@@ -1,7 +1,8 @@
-Current guidance is **1.12.0**: task-scoped synthesis/related completion, configured
-CREATE fallback without a fixed question, context-based Record Type selection and
-business-first diagnosis. DIAGNOSIS includes LOOKUP/PICKLIST display rules and uses
-the individually enabled evidence capabilities. Older versions below are history.
+Current guidance is **1.13.0**: accumulated material evidence and task continuity,
+relevant optional-field synthesis, applicable business/event duplicate checks,
+API-required versus page-required facts, and optional original-file archiving.
+It preserves direct DML, country-aware phone interpretation, minimal UPDATE patches,
+and business-first diagnosis. Older versions below are history.
 
 # `@sfoa/agent-playbook`
 

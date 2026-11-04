@@ -15,7 +15,7 @@ CREATE 输出里的 `uiContext` 与 `coverage.dynamicFormsEvaluated` 才能说�
 | 状态 | 含义 | 允许的动作 |
 | --- | --- | --- |
 | `VISIBLE` | 当前规则判定为可见 | 可以询问、可以推荐、可以提交 |
-| `HIDDEN` | 当前规则判定为隐藏 | **MUST NOT** 询问、**MUST NOT** 推荐 |
+| `HIDDEN` | 当前规则判定为隐藏 | 仅页面要求不询问、不推荐；API-required 仍独立必需 |
 | `PENDING` | 存在当前已知的 dependency，但依赖值还不在 draft 中 | **MUST** 继续解析或询问依赖 |
 | `UNKNOWN` | 当前 Runtime 无法判定 | **MUST NOT** 猜测成 VISIBLE 或 HIDDEN |
 

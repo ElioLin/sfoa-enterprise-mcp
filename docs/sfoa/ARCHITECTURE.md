@@ -6,6 +6,13 @@ Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
 ## System boundary
 
+The bounded host task-material context, optional pure CREATE assessment and
+attachment attempt states are specified in
+[ADR-0035](adr/ADR-0035-agent-material-workflows.md). They preserve existing MCP
+authorization and direct calls: host state is not a write credential, material
+reading is not file-upload consent, UI context is not a new FLS rule, and unknown
+attachment attempts cannot be replayed by changing references.
+
 The OpenClaw Skill Foundation adds advisory business-agent guidance above the
 existing MCP contract, with canonical sources in `skills/*` and independently
 deployed runtime copies. It does not register Tools, resolve identity, evaluate

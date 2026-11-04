@@ -94,6 +94,8 @@ Read Facts（查询返回了什么）
 
 用户已明确提供的事实 **MUST NOT** 重复询问。用户说「把拜访日期改到下周三」时，目标与要改的字段都已经明确，直接进入预备，不需要再次确认。
 
+复用本任务仍适用的 USER 读取证据；只有当前值确实影响修改、关联补全或差异判断时才有界读取相关字段。Patch 属性存在时采用该值（包括 null/false/0）；否则保留已知当前值。未返回字段是未知，不是空值。Record Type 改变后重新取得适用事实，不拿旧类型评估新类型。
+
 ## Gate 3 — Field 是否允许提交
 
 UPDATE 的核心 editable 证据是 `fieldUpdateable` 与 `layoutEditableForUpdate`。
@@ -108,7 +110,7 @@ UPDATE 的核心 editable 证据是 `fieldUpdateable` 与 `layoutEditableForUpda
 
 关于 UI editability 与 DML authority 的关系：当前 Runtime 的定位是 **UI context 是有效的可编辑性证据，Salesforce 仍是最终写入权威**。两者不是同一件事，也**不是**「UI 不可编辑就一定不能写」的单向规则：
 
-- 证据明确显示字段不可更新时，**MUST NOT** 提交。
+- Salesforce 字段级证据 `fieldUpdateable=false` 时不提交；页面 `layoutEditableForUpdate=false` 单独不能证明 API 拒写，也不新建 DML 门禁。
 - 当页面布局与字段级权限出现分歧、或证据不足以判断时，**MUST** 如实说明证据状态，并以当前 Tool Contract / Salesforce 裁决为准，**MUST NOT** 自行发明一条「UI 优先」或「DML 优先」的规则。
 - **MUST NOT** 建立一个 Skill 侧的权限引擎来重算可写性。
 
@@ -230,7 +232,7 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 | Target Population 范围未证明完整 | 查询有界且缺少完整证据，却要宣称全部已更新 |
 | Mutation scope 不明确 | 业务任务含义仍有实质歧义，已有材料与工具无法解决 |
 | Patch 含非意图字段 | 出现业务任务以外、无可靠依据或违反用户明确范围的字段 |
-| 字段不可更新 | 当前证据显示 `fieldUpdateable=false` 或 `layoutEditableForUpdate=false` 且用户要求修改它 |
+| 字段不可更新 | 当前证据显示 `fieldUpdateable=false` 且用户要求修改它 |
 | 值与字段类型不符 | 提交值无法作为当前字段类型的合法 Salesforce 值 |
 | Lookup 歧义未解决 | 0 match 或 multiple match |
 | Picklist 未归一 | 未解析成当前 Record Type 的真实 API Value |

@@ -14,8 +14,8 @@
 
 | 批次 | 范围 | 当前状态 | 提交 |
 | --- | --- | --- | --- |
-| 1 | 宿主真实读取、覆盖、任务材料连续性 | 实现冻结，Adapter 90/90 PASS | 本提交 |
-| 2 | 业务理解、字段映射、适用查重、指导分发 | 实施中 | 待提交 |
+| 1 | 宿主真实读取、覆盖、任务材料连续性 | 实现冻结，Adapter 90/90 PASS | `1762f87` |
+| 2 | 业务理解、字段映射、适用查重、指导分发 | Playbook 46/46、Skill 80/80 PASS | 本提交 |
 | 2 可选增强 | CREATE includeValueAssessment，默认关闭，纯事实计算 | 实施中，独立提交 | 待提交 |
 | 3 | 附件状态、明确失败恢复、并发与未知结果保护 | 实施中 | 待提交 |
 | 4 | 客户端分发、部署、真实模型/材料/渠道与回归 | 环境基线已读取 | 待提交 |
@@ -23,6 +23,7 @@
 ## 已取得证据
 
 - 批次 1：DOCX/XLSX/CSV 真实本地文件读取、覆盖状态、材料累积、请求者/会话隔离和任务恢复；完整 Adapter 回归 90/90 PASS（`.temp/agent-material-workflows/adapter-batch1-final.log`）。图片/PDF/音频的宿主原生读取在没有执行证据时保持 UNKNOWN，不把暂存成功当成读取成功。
+- 批次 2：Playbook 1.13.0 收敛材料任务、选填字段、国家/区号语境、API 必填、适用查重、最小 UPDATE 及可选归档指导。Playbook 46/46、Skill toolkit 80/80 PASS；canonical Skill sync/check/validate PASS，生成副本无漂移。日志分别为 `batch2-playbook-final.log`、`skill-test-final.log`、`skill-check-final.log`、`skill-validate-final.log`（`.temp/agent-material-workflows/`）。
 
 - 本地 `yarn ai:snapshot`、`yarn ai:doctor`：PASS；Node 24.13.0 / Yarn 1.22.22 / MySQL 8.0.30。业务服务本地未启动。
 - 真实数据库 ledger 已存在 `016_crm_openclaw_chat`，本分支未包含该迁移；保留既有表与迁移，新增迁移避开编号，不重置共享库。

@@ -171,6 +171,12 @@ Generated build output and local dependencies are ignored and are not modificati
 
 ## Merge-risk target
 
+2026-11-04 material workflows change only SFoA-owned Adapter, Provider/composition,
+Control Plane migration, guidance and tests. The CHANGELOG preface records the
+delivery; omitting it would leave the required project history stale. No official
+Salesforce runtime or SDK, root dependency, lockfile or CI changes are required.
+Merge risk remains LOW and localized to the existing changelog preface exception.
+
 P8-04 HOTFIX01 changes only SFoA context/host/Admin code and regression fixtures.
 The root `CHANGELOG.md` update is covered by its existing modification-matrix row;
 no official runtime source, manifest, dependency or lockfile changes are needed.

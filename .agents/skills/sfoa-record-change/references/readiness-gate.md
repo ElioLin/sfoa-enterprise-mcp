@@ -35,7 +35,7 @@ Evidence-Based Mutation Readiness
 | Lookup 歧义未解决 | 0 match 或 multiple match，见 [lookup-and-picklist.md](lookup-and-picklist.md) |
 | Picklist 未归一 | 还没有解析成当前 Record Type 的真实 API Value |
 | Managed 字段规则未满足 | 见 [managed-lookups.md](managed-lookups.md) |
-| 查重未完成 | CREATE 的敏感身份字段尚未查重，或查重因工具 / 权限 / 共享范围无法完成且用户未决定是否继续 |
+| 实质同记录歧义 | 适用查重证据指向同一业务记录，已有材料无法消解且用户尚未决定继续新建/更新/取消 |
 | 疑似重复未确认 | 强身份键命中，或名称命中；用户尚未选择继续新建 / 改为更新 / 取消 |
 | Evidence 不足或被截断 | 见 [dynamic-forms.md](dynamic-forms.md) 的 Evidence Completeness |
 | Mutation Intent 与最终 payload 不一致 | payload 超出业务任务或违反用户明确限定 |
@@ -51,7 +51,7 @@ Evidence-Based Mutation Readiness
 | Target Population 范围未证明完整 | 查询有界却要宣称「全部已更新」 |
 | Mutation scope 不明确 | 业务任务含义仍有实质歧义 |
 | Patch 含非意图字段 | 出现任务外、无可靠依据或违反明确范围的字段 |
-| 字段不可更新 | 当前证据显示 `fieldUpdateable=false` 或 `layoutEditableForUpdate=false`，而用户要求修改它 |
+| 字段不可更新 | 当前证据显示 `fieldUpdateable=false`，而用户要求修改它 |
 | 值与字段类型不符 | 提交值不是当前字段类型的合法 Salesforce 值 |
 | Lookup 歧义未解决 | 0 match 或 multiple match |
 | Picklist 未归一 | 未解析成当前 Record Type 的真实 API Value |

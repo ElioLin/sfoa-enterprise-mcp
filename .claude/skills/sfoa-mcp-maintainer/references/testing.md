@@ -2,6 +2,18 @@
 
 Select gates from the changed boundary and record actual output. Never claim an unrun or credential-blocked gate passed.
 
+Material workflows additionally require actual Adapter hooks, original Office
+files, requester/session/task isolation, coverage and expiry tests, plus real
+attachment repository CAS/cleanup and timeout dispatcher tests. An optional
+CREATE assessment must keep omitted/false output and Salesforce call counts
+unchanged; true reuses facts and preserves null/false/0/absence and strict/fallback
+managed differences. The maintainer readiness oracle is development-only: page
+read-only is not a new FLS denial, hidden API-required survives, and same-name or
+shared-phone candidates do not by themselves prove a duplicate business event.
+Separate deterministic, real-model, actual-media, trusted-channel and Salesforce
+read-back evidence. Six core model journeys need repeated runs; optional original
+archiving invitations are counted separately from blocking clarification.
+
 ## Maintainer Skill
 
 ```text

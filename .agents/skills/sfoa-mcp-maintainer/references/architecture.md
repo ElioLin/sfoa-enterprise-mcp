@@ -20,6 +20,16 @@ MCP client
 
 The LLM performs analysis. The server supplies deterministic operations and evidence. Salesforce remains the business authorization and automation authority.
 
+The material-workflow boundary (ADR-0035) keeps file ingestion/coverage and bounded
+requester+session task continuity in the OpenClaw adapter. Its optional task-note
+tool is host-local guidance state, never a required MCP preparation token. Office
+basic reading uses a Python stdlib adapter; native vision/PDF/ASR remain host
+capabilities and need actual reading evidence. Agent synthesis and applicable
+event/identity-key duplicate checks remain reasoning, not a new DML policy engine.
+CREATE includeValueAssessment is default-off pure observation of existing facts,
+including original default presence; it neither makes extra Salesforce calls nor
+authorizes/blocks DML. UPDATE has no hypothetical Edit Dynamic Forms resolver.
+
 ## Major boundaries
 
 - Identity: Internal bearer + trusted platform Header, USER_BOUND route token, or Buntu token validation all produce an authenticated principal. None permits a Tool argument to select a Salesforce username. Buntu validation is reused in-process per token until the upstream `data.expiresAt`, which collapses the per-POST `IDENTITY_VALIDATION` audits of one interaction only when the client reuses the same token; a client that issues a fresh token per POST gets one independent validation and audit per POST (correct, not suppressible). validate-token stays authoritative and the identity route is re-read each request.

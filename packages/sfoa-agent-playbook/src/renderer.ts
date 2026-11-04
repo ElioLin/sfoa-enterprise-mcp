@@ -1,6 +1,7 @@
 import { DATA_COMPLETENESS_TOOL_NAMES, DIAGNOSTICS_TOOL_NAMES, type AgentCapabilities, type AgentRecognizedToolName } from './capabilities.js';
 import {
   AGENT_WORKFLOWS,
+  MATERIAL_WORKFLOW_SUMMARY,
   PLAYBOOK_DEFINITION,
   WORKFLOW_SECTION_MAP,
   type AgentWorkflow,
@@ -16,6 +17,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
   const orgObjectPointer = orgObjectUsageServerPointer();
   return [
     `SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION}.`,
+    MATERIAL_WORKFLOW_SUMMARY,
     'Use enabled MCP Tools for live Salesforce facts; never guess current records, Picklist values, Lookup targets, required values, or Salesforce identity.',
     "Identity is MCP-owned. Use enabled `get_record_action_context` when needed, reuse applicable facts, and build task-scoped CREATE/UPDATE drafts with faithful synthesis and reliable related completion. Relevant optional fields may be written without individual naming. Minimal Patch is the actual changes needed for the task; respect explicit only-change limits.",
     "For CREATE use availableRecordTypes: exclude Master if a non-Master candidate exists, keep Master when it is the only available type. Resolve multiple types from task meaning, candidate labels/descriptions and an applicable default; ask only for remaining business ambiguity. Load the chosen type context before fields and pass the resolved non-Master ID to CREATE. This Tool dependency does not require two user turns.",
@@ -154,7 +156,7 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- `PLATFORM_IDENTITY`、`AI_CREATED_MARKER` 严格托管，Agent payload 省略。已配置且适用的 CREATE `PLATFORM_IDENTITY_FALLBACK` 无相反要求时直接省略交由 Runtime，无需固定询问，不查询当前用户 ID；任务相关责任人可按真实 Lookup 解析，指定失败不得偷换默认。用户说「以 X 的名义/账号创建」「归属给 X」时，先取 `get_record_action_context`，按托管归属字段的 `referenceTo` 确定目标对象（不要默认按 `User` 解析），在该对象上解析 X 的唯一 ID 并写入该托管字段；不得改用 `OwnerId`；不唯一或无匹配时先问，不得 fallback。无关 UPDATE 不重放 fallback。',
     '- 新建使用真实 `availableRecordTypes`：存在非 Master 类型时排除 Master，仅剩 Master 时保留；按任务与适用默认解析类型并透传同一 `recordType.id`，不猜类型或 ID。',
     "- Record Type 先按任务、候选标签/描述及适用默认自主确定，再取该类型字段；recordTypeSelectionRequired 是技术依赖，不强制两轮对话。多候选本身不要求追问，仍有业务歧义才问。",
-    "- Minimal Patch 提交完成业务任务实际需要变化的字段，含忠实提炼和可靠关联；地址迁移可联动国家/省份/城市；由座机区号、明确地址或公司所在地等可靠证据判断出城市时，必须同时推断并写入对应省份/国家（当前字段可写且不与现有值冲突），不得只填城市不填省份；手机号本身不含地域，不要据此推断；区号或地名不确定时先问。若用户限定只改总结，则不动无关地址。文本用适当文本、Picklist 用真实 API Value、Lookup 用真实 ID。未提供不清空、未变化不重发，UPDATE 不重放 CREATE 默认。",
+    "- Minimal Patch 提交完成业务任务实际需要变化的字段，含忠实提炼和可靠关联；地址迁移可联动国家/省份/城市；由明确公司地址或已核实公司所在地判断出城市时，必须同时推断并写入对应省份/国家（当前字段可写且不与现有值冲突），不得只填城市不填省份；手机号本身不含地域，不要据此推断；座机区号本身不证明公司所在地；地名歧义先补证，仍影响任务才问。若用户限定只改总结，则不动无关地址。文本用适当文本、Picklist 用真实 API Value、Lookup 用真实 ID。未提供不清空、未变化不重发，UPDATE 不重放 CREATE 默认。",
     '',
     '## 未知结果',
     '',
@@ -165,6 +167,7 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- 提供可信 Salesforce 记录链接时，使用已启用的 `get_record_links`；日常业务答复不暴露原始 Salesforce 记录 ID，仅当用户明确要求或做技术诊断时才给出。',
     '- 以业务助手方式作答，不要输出 SOQL/JSON 原始转储。',
     '',
+    MATERIAL_WORKFLOW_SUMMARY,
     renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST', 'DIAGNOSTICS'], capabilities),
     '',
   ].join('\n');

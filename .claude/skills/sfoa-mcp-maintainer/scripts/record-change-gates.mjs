@@ -239,23 +239,26 @@ export function evaluateCreateReadiness({
 
   for (const field of fields) {
     const { apiName, visibilityState = 'VISIBLE', apiRequired = false, effectiveRequired = false,
-      effectiveEditable, dependsOn = [] } = field;
+      dependsOn = [] } = field;
     if (apiName === undefined) continue;
     if (visibilityState === 'PENDING') {
       const unresolved = dependsOn.filter((name) => !(name in knownValues));
       if (unresolved.length > 0) blockers.push(`PENDING_DEPENDENCY_UNRESOLVED:${apiName}`);
-      continue;
+      if (!apiRequired) continue;
     }
-    if (visibilityState === 'HIDDEN') continue;
+    // Hidden page-only requiredness disappears; API-required does not.
+    if (visibilityState === 'HIDDEN' && !apiRequired) continue;
     if (visibilityState === 'UNKNOWN') {
       if (apiRequired || effectiveRequired) blockers.push(`UNKNOWN_REQUIRED:${apiName}`);
       continue;
     }
-    const required = apiRequired || effectiveRequired;
-    if (required && !(apiName in knownValues) && !runtimeSatisfiedFields.includes(apiName)) blockers.push(`MISSING_REQUIRED:${apiName}`);
-    // `effectiveEditable` is the CREATE Dynamic Forms editability signal. A value the Agent intends
-    // to submit must not be submitted through a field that context proves non-editable.
-    if (effectiveEditable === false && apiName in knownValues) blockers.push(`FIELD_NOT_EDITABLE:${apiName}`);
+    const required = apiRequired || (visibilityState === 'VISIBLE' && effectiveRequired);
+    const present = Object.hasOwn(knownValues, apiName);
+    const value = knownValues[apiName];
+    const hasValue = present && value !== null && value !== undefined && value !== '';
+    if (required && !hasValue && !(runtimeSatisfiedFields.includes(apiName) && !present)) blockers.push(`MISSING_REQUIRED:${apiName}`);
+    // UI editability is not FLS. This development oracle does not add a DML permission rule.
+    if (field.fieldCreateable === false && present) blockers.push(`FIELD_NOT_EDITABLE:${apiName}`);
   }
 
   if (lookupAmbiguity) blockers.push('LOOKUP_AMBIGUOUS');
@@ -300,15 +303,15 @@ export const DUPLICATE_USER_DECISION = Object.freeze({
  * `identityValues` are only the values that will be written directly to the new record and came
  * from the user, read materials or trusted context; the Agent normalizes them before calling.
  * `matches` are what the bounded read returned, each carrying the matched field and its strength.
- * A complete check with no match proceeds; a match, an incomplete check or a not-run check blocks
- * until the user decides. The model never picks an existing record and never turns a match into an
- * UPDATE on its own.
+ * Candidate strength alone does not prove business identity. Only unresolved same-record evidence
+ * requires a business choice. Incomplete coverage is disclosed independently of readiness.
  */
 export function evaluateCreateDuplicateGate({
   identityValues = [],
   matches = [],
   checkStatus = DUPLICATE_CHECK_STATUS.NOT_RUN,
   userDecision = DUPLICATE_USER_DECISION.NONE,
+  materialAmbiguity = false,
 } = {}) {
   const supplied = identityValues.filter((entry) => entry
     && typeof entry.field === 'string' && entry.field.length > 0
@@ -326,12 +329,17 @@ export function evaluateCreateDuplicateGate({
   if (userDecision === DUPLICATE_USER_DECISION.UPDATE_EXISTING) {
     return Object.freeze({ allowed: false, reason: 'USER_CHOSE_UPDATE', ...decided });
   }
+  const sameRecord = matches.some((match) => match?.sameBusinessRecord === true);
+  if (materialAmbiguity || sameRecord) {
+    return Object.freeze({ allowed: userDecision === DUPLICATE_USER_DECISION.PROCEED,
+      reason: userDecision === DUPLICATE_USER_DECISION.PROCEED ? 'USER_CONFIRMED_PROCEED' : 'SAME_RECORD_CHOICE_REQUIRED', ...decided });
+  }
   if (checkStatus !== DUPLICATE_CHECK_STATUS.COMPLETE) {
     if (userDecision === DUPLICATE_USER_DECISION.PROCEED) {
       return Object.freeze({ allowed: true, reason: 'USER_CONFIRMED_DESPITE_INCOMPLETE_CHECK', ...decided });
     }
     return Object.freeze({
-      allowed: false,
+      allowed: true,
       reason: checkStatus === DUPLICATE_CHECK_STATUS.NOT_RUN ? 'DUPLICATE_CHECK_NOT_RUN' : 'DUPLICATE_CHECK_INCOMPLETE',
       ...decided,
     });
@@ -343,8 +351,8 @@ export function evaluateCreateDuplicateGate({
     return Object.freeze({ allowed: true, reason: 'USER_CONFIRMED_PROCEED', ...decided });
   }
   return Object.freeze({
-    allowed: false,
-    reason: strongMatch ? 'STRONG_DUPLICATE_CONFIRMATION_REQUIRED' : 'SAME_NAME_CONFIRMATION_REQUIRED',
+    allowed: true,
+    reason: 'CANDIDATES_NOT_PROVEN_DUPLICATES',
     ...decided,
   });
 }
@@ -415,7 +423,7 @@ export function evaluateUpdateReadiness({
     const evidence = fieldEvidence[name];
     if (!evidence) continue;
     // UPDATE editability evidence: the two flags the UPDATE action context actually publishes.
-    const updateable = evidence.fieldUpdateable !== false && evidence.layoutEditableForUpdate !== false;
+    const updateable = evidence.fieldUpdateable !== false;
     if (!updateable) blockers.push(`FIELD_NOT_UPDATEABLE:${name}`);
   }
 

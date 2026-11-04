@@ -76,7 +76,7 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['UNKNOWN', '把 UNKNOWN 推断成任何一种可见状态'],
   ['Critical Dependency', 'Critical Dynamic Dependency'],
   ['Critical Dependency', '未稳定时 `CHANGE_READY=false`'],
-  ['HIDDEN', '`visibilityState=HIDDEN` 的字段 **MUST NOT** 询问'],
+  ['HIDDEN', '`visibilityState=HIDDEN` 的仅页面必填字段不追问'],
   ['Refinement Limit', '`refinementLimitReached`'],
   ['Refinement Limit', '并如实说明当前页面条件无法充分解析'],
   ['Initial Facts', '已知信息不重复问'],
@@ -116,11 +116,11 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['Per-record Batch Readiness', 'Batch 独立就绪'],
   ['No retry of successful subset', 'Batch 不得重放成功项'],
   ['Current State != Transaction Outcome', 'Current State != Transaction Outcome'],
-  // CREATE dedupe is a user-facing warning gate, not a runtime uniqueness engine.
-  ['CREATE Duplicate Check', '每次 CREATE 前'],
-  ['CREATE Duplicate Check', '敏感身份字段'],
-  ['CREATE Duplicate Check', '**MUST NOT** 静默创建'],
-  ['CREATE Duplicate Check', '0 行只证明'],
+  // Business/event evidence determines material ambiguity; candidates are not a universal gate.
+  ['CREATE Duplicate Check', '业务身份/事件键'],
+  ['CREATE Duplicate Check', '共享电话'],
+  ['CREATE Duplicate Check', '不能静默覆盖旧记录'],
+  ['CREATE Duplicate Check', '不声称全库唯一'],
 ]);
 
 // The ordinary OpenClaw business Agent sees exactly these Skills. `sfoa-mcp-maintainer` is a
@@ -290,7 +290,7 @@ test('duplicate check reference covers identity fields, bounded evidence and the
   const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'duplicate-check.md'), 'utf8');
   for (const marker of ['名称', '电话', '手机', '邮箱', '统一社会信用代码', '外部 ID',
     '不是每个字段', '备注', '描述', '日期', '金额', '默认值', '`query_records`', 'LIMIT',
-    '强身份键', '同名', '疑似重复', '继续新建', '改为更新', '取消',
+    '业务身份', '同名', '疑似重复', '继续新建', '改为更新', '取消',
     '0 行', '共享', '权限', '批内重复', 'MUST NOT** 静默', 'Duplicate Rules']) {
     assert.ok(reference.includes(marker), `duplicate-check.md is missing: ${marker}`);
   }
@@ -959,13 +959,13 @@ test('UPDATE gate — a non-updateable field blocks, and CREATE-only evidence is
   assert.equal(blocked.changeReady, false);
   assert.ok(blocked.blockers.includes('FIELD_NOT_UPDATEABLE:FrozenField'));
 
-  const layoutBlocked = evaluateUpdateReadiness({
+  const layoutOnly = evaluateUpdateReadiness({
     targetResolution: TARGET_RESOLUTION.RESOLVED,
     patchFields: ['FrozenField'],
     intendedFields: ['FrozenField'],
     fieldEvidence: { FrozenField: { fieldUpdateable: true, layoutEditableForUpdate: false } },
   });
-  assert.ok(layoutBlocked.blockers.includes('FIELD_NOT_UPDATEABLE:FrozenField'));
+  assert.equal(layoutOnly.changeReady, true, 'Page layout is not a second FLS denial');
 
   // `effectiveEditable` is produced only on the CREATE Dynamic Forms path. The UPDATE model must not
   // invent an UPDATE rule from a CREATE-only flag.
@@ -976,9 +976,13 @@ test('UPDATE gate — a non-updateable field blocks, and CREATE-only evidence is
     fieldEvidence: { FrozenField: { fieldUpdateable: true, layoutEditableForUpdate: true, effectiveEditable: false } },
   });
   assert.equal(createOnlyFlag.changeReady, true, createOnlyFlag.blockers.join(','));
-  // On CREATE the same flag does block a submitted value.
-  assert.ok(evaluateCreateReadiness({
+  // CREATE also preserves the API/FLS boundary; UI-only read-only is not a server gate.
+  assert.equal(evaluateCreateReadiness({
     fields: [{ apiName: 'FrozenField', effectiveEditable: false }],
+    knownValues: { FrozenField: 'x' },
+  }).changeReady, true);
+  assert.ok(evaluateCreateReadiness({
+    fields: [{ apiName: 'FrozenField', fieldCreateable: false }],
     knownValues: { FrozenField: 'x' },
   }).blockers.includes('FIELD_NOT_EDITABLE:FrozenField'));
 });
@@ -1222,9 +1226,13 @@ test('CREATE regression — VISIBLE + required, PENDING dependency and refinemen
   });
   assert.ok(missing.blockers.includes('MISSING_REQUIRED:TalkPlanField'));
 
-  // HIDDEN is never a question; UNKNOWN is never promoted to VISIBLE.
+  // HIDDEN page-only requirements disappear; hidden API-required remains necessary.
   const hidden = evaluateCreateReadiness({ fields: [{ apiName: 'HiddenField', visibilityState: 'HIDDEN', effectiveRequired: true }] });
   assert.equal(hidden.changeReady, true);
+  assert.ok(evaluateCreateReadiness({ fields: [{ apiName: 'HiddenApi', visibilityState: 'HIDDEN', apiRequired: true }] }).blockers.includes('MISSING_REQUIRED:HiddenApi'));
+  assert.ok(evaluateCreateReadiness({ fields: [{ apiName: 'PendingApi', visibilityState: 'PENDING', apiRequired: true }] }).blockers.includes('MISSING_REQUIRED:PendingApi'));
+  for (const value of [false, 0]) assert.equal(evaluateCreateReadiness({fields: [{apiName: 'Value', apiRequired: true}], knownValues: {Value: value}}).changeReady, true);
+  for (const value of [null, '']) assert.equal(evaluateCreateReadiness({fields: [{apiName: 'Value', apiRequired: true}], knownValues: {Value: value}, runtimeSatisfiedFields: ['Value']}).changeReady, false);
   const unknown = evaluateCreateReadiness({ fields: [{ apiName: 'UnknownField', visibilityState: 'UNKNOWN', apiRequired: true }] });
   assert.ok(unknown.blockers.includes('UNKNOWN_REQUIRED:UnknownField'));
   // apiRequired survives UI visibility.
@@ -1241,7 +1249,7 @@ test('CREATE regression — record type, managed fallback, lookup and picklist s
   assert.equal(evaluateCreateReadiness({}).changeReady, true);
 });
 
-test('CREATE duplicate gate — identity keys block on matches and incomplete evidence until the user decides', () => {
+test('CREATE duplicate oracle — material same-record ambiguity needs a decision; candidates and gaps stay bounded', () => {
   const phone = [{ field: 'Phone', value: '13800138000' }];
   const strongMatch = [{ field: 'Phone', strength: DUPLICATE_MATCH_STRENGTH.STRONG, recordId: 'aaaaaaaaaaaaaaa' }];
   const nameMatch = [{ field: 'Name', strength: DUPLICATE_MATCH_STRENGTH.NAME, recordId: 'aaaaaaaaaaaaaab' }];
@@ -1255,20 +1263,24 @@ test('CREATE duplicate gate — identity keys block on matches and incomplete ev
   assert.equal(clean.allowed, true);
   assert.equal(clean.reason, 'NO_MATCH_OBSERVED');
 
-  // Strong and name-only matches both require the user; only the reason differs.
+  // A phone or name hit is a candidate, not proof of the same entity or event.
   const strong = evaluateCreateDuplicateGate({ identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE, matches: strongMatch });
-  assert.equal(strong.allowed, false);
-  assert.equal(strong.reason, 'STRONG_DUPLICATE_CONFIRMATION_REQUIRED');
+  assert.equal(strong.allowed, true);
+  assert.equal(strong.reason, 'CANDIDATES_NOT_PROVEN_DUPLICATES');
   assert.equal(strong.strongMatch, true);
   const nameOnly = evaluateCreateDuplicateGate({
     identityValues: [{ field: 'Name', value: 'Example' }],
     checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE,
     matches: nameMatch,
   });
-  assert.equal(nameOnly.allowed, false);
-  assert.equal(nameOnly.reason, 'SAME_NAME_CONFIRMATION_REQUIRED');
+  assert.equal(nameOnly.allowed, true);
+  assert.equal(nameOnly.reason, 'CANDIDATES_NOT_PROVEN_DUPLICATES');
   assert.equal(nameOnly.strongMatch, false);
 
+  const sameRecord = [{...strongMatch[0], sameBusinessRecord: true}];
+  assert.equal(evaluateCreateDuplicateGate({identityValues: phone, matches: sameRecord, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE}).allowed, false);
+  assert.equal(evaluateCreateDuplicateGate({identityValues: phone, matches: sameRecord, userDecision: DUPLICATE_USER_DECISION.PROCEED}).allowed, true);
+  assert.equal(evaluateCreateDuplicateGate({identityValues: phone, materialAmbiguity: true}).allowed, false);
   // The user, not the model, decides whether to create, update or cancel.
   assert.equal(evaluateCreateDuplicateGate({
     identityValues: phone, checkStatus: DUPLICATE_CHECK_STATUS.COMPLETE, matches: strongMatch,
@@ -1286,7 +1298,7 @@ test('CREATE duplicate gate — identity keys block on matches and incomplete ev
   // A failed or not-run query is not a pass; the user may still accept the risk after being told.
   for (const status of [DUPLICATE_CHECK_STATUS.NOT_RUN, DUPLICATE_CHECK_STATUS.INCOMPLETE]) {
     const incomplete = evaluateCreateDuplicateGate({ identityValues: phone, checkStatus: status });
-    assert.equal(incomplete.allowed, false);
+    assert.equal(incomplete.allowed, true);
     assert.equal(incomplete.reason, status === DUPLICATE_CHECK_STATUS.NOT_RUN ? 'DUPLICATE_CHECK_NOT_RUN' : 'DUPLICATE_CHECK_INCOMPLETE');
     assert.equal(evaluateCreateDuplicateGate({
       identityValues: phone, checkStatus: status, userDecision: DUPLICATE_USER_DECISION.PROCEED,

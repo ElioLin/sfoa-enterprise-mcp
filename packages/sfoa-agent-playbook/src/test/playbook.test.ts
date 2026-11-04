@@ -29,19 +29,20 @@ describe('canonical SFoA Agent Playbook', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
       for (const token of ['requirednessSource', 'EFFECTIVE_REQUIRED', 'PAGE_LAYOUT_REQUIRED', 'PAGE_LAYOUT_FALLBACK', 'includeRequiredness', 'MIXED', 'omittedFieldCatalog', 'NO_LEGAL_VALUE', 'writable=false']) assert.ok(output.includes(token), token);
       assert.match(output, /Never fetch a layout by name/iu);
-      assert.match(output, /validation-rule error/iu);
+      assert.match(output, /FIELD_CUSTOM_VALIDATION_EXCEPTION.*cross-field/iu);
       assert.match(output, /Never store a mapped structured fact only in Description/iu);
     }
   });
-  it('classifies mobile and phone fields with mainland China rules before DML', () => {
+  it('preserves international numbers and does not derive a company address from an area code', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
-      for (const token of ['MobilePhone', 'Phone', '+86', '11 digits', 'ask before DML', 'never silently truncate', 'landline area code', 'province and country together']) assert.ok(output.includes(token), token);
-      assert.match(output, /mainland China mobile pattern/iu);
-      assert.match(output, /never write the city alone/iu);
-      assert.match(output, /Mobile numbers do not encode geography/iu);
+      assert.match(output, /Mainland China patterns apply only to mainland numbers/iu);
+      assert.match(output, /Preserve international country codes/iu);
+      assert.match(output, /area code alone does not establish company/iu);
+      assert.match(output, /province and country together/iu);
+      assert.match(output, /Names, shared phones and fuzzy matches are candidates/iu);
+      assert.match(output, /incomplete.failed check is a disclosed limit/iu);
     }
-    assert.match(renderWorkflow('UPDATE'), /deduplicated against that new value/iu);
-    assert.match(renderWorkflow('UPDATE'), /0-row query/iu);
+    assert.match(renderWorkflow('UPDATE'), /only when an identity value actually changes/iu);
   });
   it('maps a requested owner to the configured managed owner field instead of OwnerId', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
@@ -50,7 +51,7 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderWorkBuddySkill(), /action-context referenceTo target object.*never substitute OwnerId/iu);
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.12.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -350,7 +351,7 @@ describe('P9 data-completeness contract', () => {
   });
 
   it('stamps the version on the Dify instruction head', () => {
-    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.12\.0$/mu);
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.13\.0$/mu);
   });
 });
 
@@ -485,7 +486,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.12.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.

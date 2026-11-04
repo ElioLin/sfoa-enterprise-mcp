@@ -30,6 +30,20 @@ Default development endpoints:
 
 ## Deployment
 
+For material workflows, apply migration 017_attachment_attempt_lifecycle before
+loading the new control-plane/server. It additively extends attachment attempt
+states and separates staged-byte cleanup from outcome evidence. Do not reset
+historical FAILED, UPLOADING or OUTCOME_UNKNOWN to STAGED. A rollback can retain
+the additive schema; old code safely refuses new states. Back up affected source,
+dist, the actual loaded adapter and runtime Skills; deploy committed LF archives
+through staging with non-deleting rsync, preserve app directory traversal and
+check affected SELinux labels. The app adapter path is not proof of the Gateway
+load path: inspect process config plus plugin registry and verify the loaded copy.
+Keep business runtime Skills separate from generated development copies and the
+independent skill:export package. Config/protocol/health checks are not business
+acceptance. The test-server deployment guide and current task delivery report
+contain the actual version and rollback evidence.
+
 Production uses two Node processes (MCP/Admin API), static Admin Web files, MySQL 8, and an HTTPS reverse proxy. Vite does not run in production. Keep Node listeners and MySQL off the public network. Apply reviewed migrations before application restart, verify `/ready` and `/health`, then shift traffic.
 
 Use `SFOA_CONTROL_PLANE_MODE=mysql`; missing DB governance fails closed. Back up schema, migration ledger, configuration, credential ciphertext, and Audit together; preserve the matching identity encryption key separately. Do not mount Salesforce CLI auth cache. Production Salesforce uses direct JWT/OAuth through `@salesforce/core`.
