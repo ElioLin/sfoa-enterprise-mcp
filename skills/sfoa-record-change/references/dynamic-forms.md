@@ -16,7 +16,7 @@ CREATE 输出里的 `uiContext` 与 `coverage.dynamicFormsEvaluated` 才能说�
 | --- | --- | --- |
 | `VISIBLE` | 当前规则判定为可见 | 可以询问、可以推荐、可以提交 |
 | `HIDDEN` | 当前规则判定为隐藏 | 仅页面要求不询问、不推荐；API-required 仍独立必需 |
-| `PENDING` | 存在当前已知的 dependency，但依赖值还不在 draft 中 | **MUST** 继续解析或询问依赖 |
+| `PENDING` | 存在当前已知的 dependency，但依赖值还不在 draft 中 | 影响本次必填、提交合法性或业务事实时继续解析；仍缺关键事实才问 |
 | `UNKNOWN` | 当前 Runtime 无法判定 | **MUST NOT** 猜测成 VISIBLE 或 HIDDEN |
 
 `UNKNOWN` 不等于 `PENDING`。PENDING 表示「差一个已知输入」；UNKNOWN 表示「当前解析能力不足以判定」。
@@ -32,7 +32,8 @@ field.visibilityState == PENDING && dependsOn == [...]
 - 用户回答后 → 更新 draft → refinement → 重新获取 Effective Context → 重新判断。
 
 ```text
-看见 PENDING → 忽略 → CREATE   ❌ 绝对禁止
+影响本次必填或提交合法性的 PENDING → 补足相关依赖 → 判断是否仍需澄清
+仅无关选填字段的显示条件 PENDING → 保留覆盖限制，不阻断已充分确定的写入
 ```
 
 `conditionalRequired=true` 表示该字段在 PENDING 状态下曾经是必填。它只有在可见性解析为 `VISIBLE` 之后才变成问题。
@@ -57,14 +58,14 @@ field.visibilityState == PENDING && dependsOn == [...]
 一个 unresolved 状态属于 **Critical Dynamic Dependency**，当且仅当它可能改变：
 
 - 本次字段是否 Required
-- 本次要提交的字段是否 Editable
-- 本次字段是否 Visible
+- 本次要提交的字段是否具有 API 写权限或是否合法
 - Required Checklist 的内容
 - Lookup 依赖
 - Picklist 依赖
 - 当前字段是否合法
 
-则 `CHANGE_READY=false`。
+且缺口不能由已有 API、默认值、材料或其他可靠事实消解时，`CHANGE_READY=false`。
+单纯页面显隐或页面只读未知，不等于 API 无写权限，也不新增所有 DML 都必须通过的页面门槛。
 
 反之，如果只是与本次 mutation 无关的 non-critical UNKNOWN，并且 Runtime 已经足够证明：
 
@@ -139,7 +140,7 @@ get_record_action_context(action=UPDATE)
 因此 UPDATE 中：
 
 - **MUST NOT** 建立一个假的 CREATE form completeness，也 **MUST NOT** 要求用户重新填写整张 CREATE 表单。
-- **MUST** 只关注本次要修改的字段是否「当前有效、当前可更新、当前依赖关系可解析」，判据是 `fieldUpdateable` / `layoutEditableForUpdate` 与字段自身类型。
+- **MUST** 只关注本次要修改的字段是否「当前有效、具有 API 更新权限、相关依赖可解析」，以 `fieldUpdateable`、类型和真实约束判断；`layoutEditableForUpdate` 是页面事实，不单独否定 API 可写字段。
 - 用户修改 controller 类字段可能导致其他 UI 字段显隐变化。当前 Runtime **无法预计算**这种 hypothetical UPDATE context；该能力边界**MUST** 如实承认。
 - 变更后真正生效的必填 / 校验 / 依赖结果由 Salesforce Validation、Flow、Trigger、Lookup Filter 与 DML Runtime 裁决。**MUST NOT** 用模型猜测补齐这个缺口，**MUST NOT** 为此新增一个 Form Engine。
 

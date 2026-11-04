@@ -80,7 +80,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 | 默认值 | Create Defaults 可用 | UPDATE 不返回 defaults；omission = preserve |
 | Record Type | 需要解析并选择 | 沿用记录当前 Record Type，不静默变更 |
 | Owner fallback | CREATE 时按策略可用 | 不重放 CREATE fallback；任务相关的责任变更按可靠事实解析 |
-| 查重 | 写入前对名称 / 电话 / 手机 / 邮箱等身份键做有界查重；命中先由用户决定 | 已有记录不例行查重；引入新的手机 / 电话 / 邮箱值时提示（见 [phone-and-mobile.md](references/phone-and-mobile.md)） |
+| 查重 | 按对象的业务身份或事件键做有界查重；名称/共享电话只是候选，已有事实无法消解的实质同记录歧义才询问 | 已有目标不例行重复查重；仅对本次变化且适用的身份值核实，结合现有事实消歧（见 [duplicate-check.md](references/duplicate-check.md)） |
 | 批量语义 | 新建多条 | 每条可有**不同** Patch，不得互相复制字段 |
 
 UPDATE 的 Dynamic Forms 预计算当前 **不可用**：Runtime 无法给出变更后 hypothetical 的 UI 状态。**MUST** 承认这一能力边界，由 Salesforce Validation / Flow / Trigger / Lookup Filter / DML Runtime 作为最终 authority，**MUST NOT** 用模型猜测补齐。

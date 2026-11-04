@@ -77,7 +77,7 @@ VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠
 
 - `layoutRequired` 与 `apiRequired` 是两套独立来源，`requiredSource` 会同时列出 `API`、`PAGE_LAYOUT`、`DYNAMIC_FORM`。
 - `conditionalRequired=true` 表示该字段在某个 PENDING 状态下曾经是必填；它只有在可见性解析为 VISIBLE 之后才成为问题。
-- `fieldCreateable=false` 或 `effectiveEditable=false` 的字段不能作为用户可填项；**MUST NOT** 通过反复试写去发现字段。
+- `fieldCreateable=false` 的字段不能作为用户可写项；`effectiveEditable=false` 仅表示页面状态，不能单独否定已有 API 写权限。**MUST NOT** 通过反复试写去发现字段。
 - 系统字段、公式字段、自动编号字段、只读字段不是用户问题。
 
 **MUST NOT** 硬编码 Salesforce Required Fields，也不要为了「必填不漏」把所有 API-required 字段都拿来追问用户。
@@ -111,9 +111,9 @@ fact → target field (label/section/inlineHelpText/type/dependency)
 
 ## Phone / Mobile
 
-- 手机与电话按 [phone-and-mobile.md](phone-and-mobile.md) 按适用国家地区分类；仅中国大陆手机匹配 `^1[3-9]\d{9}$`（可带 `+86`）；电话匹配区号 `0\d{2,3}` + 7-8 位本地号码（可带分机）。
-- 用户只说「电话/联系电话」时按值的格式判断字段；显式标签与格式冲突时先问。
-- 无效、位数不符或歧义时，插入前提示并确认；**MUST NOT** 截断、补位、编造数字、把同一号码写入两个字段或静默换字段。
+- 手机与电话按 [phone-and-mobile.md](phone-and-mobile.md) 结合适用国家地区分类；已确认中国大陆时，手机适用 `^1[3-9]\d{9}$`（可带 `+86`），座机适用区号 `0\d{2,3}` + 7-8 位本地号码（可带分机）。不能将此模式用于其他国家或未确认地区。
+- 用户只说「电话/联系电话」时结合号码格式与材料语境判断字段；显式标签与格式冲突时先补证，仍影响正确写入的实质歧义才集中询问。
+- 无效、位数不符或歧义时，先按适用国家与来源核对，仍无法解决才提示；**MUST NOT** 截断、补位、编造数字、把同一号码写入两个字段或静默换字段。
 - 明确公司地址或已核实公司所在地能确定城市时，按 [phone-and-mobile.md](phone-and-mobile.md) 同时推断并写入对应的省份/国家；不得只填城市；手机号本身不含地域，**MUST NOT** 据此推断。
 
 ## 适用查重

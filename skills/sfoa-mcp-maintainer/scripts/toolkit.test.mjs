@@ -226,7 +226,8 @@ test('dynamic forms reference keeps the four states distinct and gates refinemen
   for (const marker of ['`VISIBLE`', '`HIDDEN`', '`PENDING`', '`UNKNOWN`',
     '`UNKNOWN` 不等于 `PENDING`', 'Critical Dynamic Dependency', '`uiContext.refinementLimitReached`',
     '`refinement` 取值 `0..3`', 'Evidence Delivery Incomplete', 'Runtime Coverage Partial',
-    'completeLightningPageEvaluated', '看见 PENDING → 忽略 → CREATE']) {
+    'completeLightningPageEvaluated', '影响本次必填或提交合法性的 PENDING',
+    '仅无关选填字段的显示条件 PENDING', '不阻断已充分确定的写入']) {
     assert.ok(reference.includes(marker), `dynamic-forms.md is missing: ${marker}`);
   }
   // A PAGE_LAYOUT fallback carries no effective properties and must not be described as Dynamic Forms.

@@ -36,7 +36,6 @@ Evidence-Based Mutation Readiness
 | Picklist 未归一 | 还没有解析成当前 Record Type 的真实 API Value |
 | Managed 字段规则未满足 | 见 [managed-lookups.md](managed-lookups.md) |
 | 实质同记录歧义 | 适用查重证据指向同一业务记录，已有材料无法消解且用户尚未决定继续新建/更新/取消 |
-| 疑似重复未确认 | 强身份键命中，或名称命中；用户尚未选择继续新建 / 改为更新 / 取消 |
 | Evidence 不足或被截断 | 见 [dynamic-forms.md](dynamic-forms.md) 的 Evidence Completeness |
 | Mutation Intent 与最终 payload 不一致 | payload 超出业务任务或违反用户明确限定 |
 | 用户已显式指定但解析失败 | 例如显式 Owner / Lookup 0 match、multiple match |
