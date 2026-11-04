@@ -26,14 +26,50 @@ export function agentCommand({ suite, configPath, workspace, state, messageFile,
 }
 
 export function normalizeTurnResult(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) parsed = {};
   const body = parsed.result ?? parsed;
   const agent = body.meta?.agentMeta;
-  return { runId: parsed.runId ?? body.runId ?? body.meta?.runId ?? agent?.runId ?? 'NOT_AVAILABLE',
+  const status = [parsed.status, body.status].find(value => value !== undefined && value !== 'ok') ?? parsed.status ?? body.status;
+  const reasons = [body.meta?.stopReason, body.meta?.completion?.stopReason, body.meta?.completion?.finishReason].filter(value => value !== undefined);
+  const failure = body.meta?.aborted ? 'aborted'
+    : parsed.error || body.error || body.meta?.error || (Array.isArray(body.payloads) && body.payloads.some(item => item?.isError === true)) ? 'error'
+      : parsed.partial || body.partial || body.meta?.partial ? 'partial'
+        : body.meta?.replayInvalid ? 'INVALID_RESULT'
+          : reasons.some(value => !['stop', 'end_turn', 'stop_sequence'].includes(value)) ? 'INCOMPLETE_RESULT' : undefined;
+  return { runId: parsed.runId ?? body.runId ?? body.meta?.runId ?? agent?.runId ?? agent?.terminalReceipt?.runId ?? 'NOT_AVAILABLE',
     sessionId: parsed.sessionId ?? body.sessionId ?? agent?.sessionId ?? 'NOT_AVAILABLE',
     model: parsed.model ?? body.model ?? (agent?.model ? [agent.provider, agent.model].filter(Boolean).join('/') : ''),
-    reply: parsed.final ?? body.final ?? body.payloads?.map(item => item.text ?? '').filter(Boolean).join('\n') ?? '',
-    executionStatus: parsed.status ?? body.status ?? (body.meta?.aborted ? 'aborted' : agent && Array.isArray(body.payloads) ? 'ok' : 'INVALID_RESULT'),
+    reply: parsed.final ?? body.final ?? (Array.isArray(body.payloads) ? body.payloads.map(item => item?.text ?? '').filter(Boolean).join('\n') : ''),
+    executionStatus: failure ?? status ?? (agent && Array.isArray(body.payloads) ? 'ok' : 'INVALID_RESULT'),
     usage: agent?.usage ?? body.usage ?? null, durationMs: body.meta?.durationMs ?? body.durationMs ?? null };
+}
+
+/** Only the observed final CLI envelope can justify ending a lingering process. */
+export function completedAgentResult(stdout) {
+  let parsed; try { parsed = JSON.parse(stdout); } catch { return undefined; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+  const body = parsed.result ?? parsed;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const meta = body.meta, agent = meta?.agentMeta;
+  if (!meta || !agent || !Number.isFinite(meta.durationMs) || meta.durationMs < 0
+    || typeof agent.sessionId !== 'string' || !agent.sessionId
+    || typeof agent.model !== 'string' || !agent.model
+    || !Array.isArray(body.payloads) || !body.payloads.some(item => typeof item?.text === 'string' && item.text.trim())) return undefined;
+  // OpenClaw 2026.9.5 can retain livenessState=working in a final envelope. Its
+  // completion stop/finish reasons and non-aborted result are the terminal facts.
+  const reasons = [meta.stopReason, meta.completion?.stopReason, meta.completion?.finishReason].filter(value => value !== undefined);
+  if (!reasons.length || reasons.some(value => !['stop', 'end_turn', 'stop_sequence'].includes(value))) return undefined;
+  if ([parsed.status, body.status].some(value => value !== undefined && value !== 'ok')) return undefined;
+  return normalizeTurnResult(parsed).executionStatus === 'ok' ? parsed : undefined;
+}
+
+/** Preserve real OS exit facts; a proven final result is independent of CLI shutdown. */
+export function isSuccessfulTurn(turn) {
+  if (turn.executionStatus !== 'ok') return false;
+  if (turn.processLifecycleStatus === 'FINAL_RESULT_TERMINATED') return turn.completeFinalResult === true
+    && ((turn.exitCode === null && ['SIGTERM', 'SIGKILL'].includes(turn.exitSignal))
+      || (turn.exitCode === 0 && turn.exitSignal === null));
+  return turn.exitCode === 0 && (turn.processLifecycleStatus === undefined || turn.processLifecycleStatus === 'EXITED');
 }
 
 /** Hash executed JavaScript, not only unchanged index re-exports. Never read configuration. */

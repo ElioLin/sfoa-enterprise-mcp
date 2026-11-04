@@ -2,6 +2,8 @@
 
 这些是开发验收工具，不随四个业务 Skill 发布，不进入 MCP 生产请求路径。使用合成材料和 loopback mock DML，不访问 Salesforce，不伪造企微 requester，也不把 CLI 回合算成企微端到端。
 
+runner 将模型执行结果与 CLI 进程退出分开记录。OpenClaw 已输出完整 JSON、真实 agent meta/payloads 与正常 completion stop reason 时，给进程 2 秒退出时间；仍驻留则只向本 runner 启动的子 PID 发 SIGTERM，5 秒后必要时 SIGKILL。`processLifecycleStatus=FINAL_RESULT_TERMINATED` 保留实际 `exitCode`/`exitSignal`，不伪造退出码 0；只有完整、非 aborted/error/partial 的终态结果才能继续同一会话下一轮。半截 JSON、截断输出、非零自行退出及 240 秒内没有终态仍失败，未知 mutation 不重放。CLI 的 `meta.agentMeta.terminalReceipt.runId` 是可用的真实 run ID 来源，sessionId 不得代替它。历史失败 capture 不会被自动改写为通过，业务语义与材料读取仍须独立复核。
+
 `business-cases.json` 包含 24 个固定样本与语义复核标准：材料/转写、否定与主体、厦门/杭州地域、迁址、拜访地点、限定只改总结、同名/冲突/截断、不同 API 值/Record Type/Lookup、Owner fallback、类型选择、业务/技术诊断，以及过大字段上下文的任务投影。`candidateFields` / `candidateReply` 是手写 fixture，不是真实模型输出，也不会进入 Agent 输入包。旧 corpus 仍包含预解析材料和预置 metadata，只用于保留既有回归，不代表从自然任务完成对象/字段发现。
 
 在仓库根目录构建 Provider 和 Playbook 后执行：
@@ -57,6 +59,8 @@ node --test integrations/openclaw/sfoa-wecom-mcp-adapter/harness/test/*.test.mjs
 ```
 
 两个 `--*-runtime` 必须同时给出，指向分别构建过的 Context、DML、Data、Server dist 和依赖；runner 读取指定版本的 JS 并记录整组 dist SHA-256。若省略，则明确记为 `SHARED_PROVIDER_RUNTIME_GUIDANCE_COMPARISON_ONLY`：两组指导使用同一个 Provider runtime，不能声称已比较旧/新运行时。该隔离终点也没有生产请求身份、实际附件存储或 Salesforce 权限，指定不同 runtime 不会把模拟升级为生产链路验收。
+
+合成查询只支持简单字段投影、字面值 `=`/`LIKE`、ISO 日期 `>=`/`<` 及 `AND`。投影和条件字段必须由合成 describe 声明；未知字段或不支持的条件明确失败，已选择的未设置字段返回 `null`。这不是完整 SOQL 实现，未声明字段也不代表真实 Salesforce 组织中不存在。旧夹具的历史结果保留原哈希与限制，不因修复改写评分。
 
 203 已核实的 OpenClaw 2026.9.5 `agent exec --help` 没有续会话参数。自然多轮因此使用实际支持的 `agent --local --session-id --session-key --message-file`，由独立 `OPENCLAW_CONFIG_PATH`/`OPENCLAW_STATE_DIR` 指向隔离配置，禁用 channel/plugin 和真实 MCP，永不 `--deliver`。旧单轮默认 `--suite legacy`，仍走 `agent exec`。runner 保存每轮原始结果、stderr、工具参数/返回、最终 SDK dispatch、模型/usage/实际 session ID；`runId` 与 `sessionId` 分开，CLI 未返回真实 runId 时明确记为 `NOT_AVAILABLE`，不能拿 sessionId 冒充。任何失败保留，不挑最好一次。先可用 `--cases natural-optional-archive --repeats 1` 做环境烟测，再运行完整重复矩阵。
 

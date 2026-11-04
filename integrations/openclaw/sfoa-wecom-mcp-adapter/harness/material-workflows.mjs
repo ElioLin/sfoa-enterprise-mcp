@@ -6,6 +6,7 @@ import { readFile, writeFile, mkdir, appendFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isSuccessfulTurn } from './run-evidence.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const customerId = '001000000000001AAA';
@@ -88,6 +89,38 @@ export async function prepareMaterialTurn(fixture, turn, workspace) {
     + materialEvidence.map(file => `${file.path}，${file.bytes} 字节，原件引用 ${file.attachmentRef}。请使用宿主 read 读取实际内容。`).join('\n') : ''), materialEvidence };
 }
 
+/** The fixture supports literal =/LIKE and ISO date >=/< predicates joined by AND. */
+export function filterMaterialFixtureRows(rows, where, fields) {
+  const predicate = /\s*([A-Za-z][A-Za-z0-9_]*)\s*(>=|<|=|LIKE)\s*(?:'((?:\\.|[^'\\])*)'|(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:?\d{2}))?))\s*/iyu;
+  const filters = [];
+  let offset = 0;
+  for (;;) {
+    predicate.lastIndex = offset;
+    const match = predicate.exec(where);
+    if (!match) throw new Error('SYNTHETIC_QUERY_FILTER_UNSUPPORTED');
+    const [, field, rawOperator, quoted, date] = match;
+    if (fields && !fields.has(field)) throw Object.assign(new Error('INVALID_FIELD'), { errorCode: 'INVALID_FIELD' });
+    const operator = rawOperator.toUpperCase();
+    const value = quoted === undefined ? date : quoted.replace(/\\(['\\])/gu, '$1');
+    const instant = date === undefined ? undefined : Date.parse(date);
+    if ((date !== undefined && !Number.isFinite(instant)) || (['>=', '<'].includes(operator) && instant === undefined)
+      || (operator === 'LIKE' && quoted === undefined)) throw new Error('SYNTHETIC_QUERY_FILTER_UNSUPPORTED');
+    filters.push({ field, operator, value, instant });
+    offset = predicate.lastIndex;
+    if (offset === where.length) break;
+    const separator = /^AND\s+/iu.exec(where.slice(offset));
+    if (!separator) throw new Error('SYNTHETIC_QUERY_FILTER_UNSUPPORTED');
+    offset += separator[0].length;
+  }
+  return rows.filter(row => filters.every(({ field, operator, value, instant }) => {
+    if (operator === 'LIKE') return String(row[field] ?? '').includes(value.replace(/%/gu, ''));
+    if (instant === undefined) return String(row[field] ?? '') === value;
+    const actual = typeof row[field] === 'string' ? Date.parse(row[field]) : NaN;
+    if (!Number.isFinite(actual)) return false;
+    return operator === '>=' ? actual >= instant : operator === '<' ? actual < instant : actual === instant;
+  }));
+}
+
 /** Real Provider schemas/executors, synthetic SDK metadata/rows, simulated attachment backend. */
 export async function serveMaterialFixture({ caseId, sourceRoot = root, runtimeRoot = root, tracePath }) {
   const fixture = materialCases.find(item => item.id === caseId);
@@ -133,21 +166,15 @@ export async function serveMaterialFixture({ caseId, sourceRoot = root, runtimeR
   const query = async statement => {
     const objectName = /\bFROM\s+([A-Za-z][A-Za-z0-9_]*)/iu.exec(statement)?.[1];
     if (!objectName || !records[objectName]) throw new Error('INVALID_TYPE');
-    let rows = [...records[objectName]];
-    const where = /\bWHERE\s+([\s\S]*?)(?:\bORDER\s+BY\b|\bLIMIT\b|$)/iu.exec(statement)?.[1];
-    if (where) {
-      // The corpus deliberately needs only equality/date/LIKE filters; unsupported
-      // syntax is a visible fixture limitation, never an unfiltered success.
-      const filters = [...where.matchAll(/([A-Za-z][A-Za-z0-9_]*)\s*(=|LIKE)\s*(?:'((?:\\'|[^'])*)'|(\d{4}-\d{2}-\d{2}))/giu)];
-      if (!filters.length || /\bOR\b/iu.test(where)) throw new Error('SYNTHETIC_QUERY_FILTER_UNSUPPORTED');
-      rows = rows.filter(row => filters.every(([, field, op, quoted, date]) => {
-        const value = (quoted ?? date).replace(/\\'/gu, "'");
-        return op.toUpperCase() === 'LIKE' ? String(row[field] ?? '').includes(value.replace(/%/gu, '')) : String(row[field] ?? '') === value;
-      }));
-    }
     const projection = /^\s*SELECT\s+([\s\S]+?)\s+FROM\b/iu.exec(statement)?.[1]?.split(',').map(field => field.trim());
     if (!projection?.every(field => /^[A-Za-z][A-Za-z0-9_]*$/u.test(field))) throw new Error('SYNTHETIC_QUERY_PROJECTION_UNSUPPORTED');
-    return { done: true, totalSize: rows.length, records: rows.map(row => Object.fromEntries(projection.filter(field => Object.hasOwn(row, field)).map(field => [field, row[field]]))) };
+    const fields = new Set((await describe(objectName)).fields.map(field => field.name));
+    if (projection.some(field => !fields.has(field))) throw Object.assign(new Error('INVALID_FIELD'), { errorCode: 'INVALID_FIELD' });
+    let rows = [...records[objectName]];
+    const where = /\bWHERE\s+([\s\S]*?)(?:\bORDER\s+BY\b|\bLIMIT\b|$)/iu.exec(statement)?.[1];
+    if (where !== undefined) rows = filterMaterialFixtureRows(rows, where, fields);
+    // Missing optional fixture values mean unset, just like a selected Salesforce null.
+    return { done: true, totalSize: rows.length, records: rows.map(row => Object.fromEntries(projection.map(field => [field, row[field] ?? null]))) };
   };
   const connection = {
     getApiVersion: () => '67.0', describe, query,
@@ -291,7 +318,7 @@ export function evaluateMaterialCapture(fixture, capture) {
   const turns = capture.turns ?? [];
   const sessionIds = new Set(turns.map(turn => turn.sessionId).filter(id => id && id !== 'NOT_AVAILABLE'));
   const actual = capture.origin === 'OPENCLAW_RUN' && turns.length === fixture.turns.length && sessionIds.size === 1
-    && turns.every(turn => turn.sessionId && turn.sessionId !== 'NOT_AVAILABLE' && turn.model && turn.executionStatus === 'ok' && turn.exitCode === 0) && capture.contextEvidence;
+    && turns.every(turn => turn.sessionId && turn.sessionId !== 'NOT_AVAILABLE' && turn.model && isSuccessfulTurn(turn)) && capture.contextEvidence;
   if (!actual) failures.push('same-session successful model turns not proven');
   const materialReviewed = !(fixture.files?.length) || (capture.materialReview?.length === fixture.files.length
     && capture.materialReview.every(item => item.readingEvidence === 'OBSERVED_NATIVE_READ' && item.evidence));

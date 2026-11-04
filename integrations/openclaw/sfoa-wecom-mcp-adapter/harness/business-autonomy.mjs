@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isSuccessfulTurn } from './run-evidence.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 export const businessCases = JSON.parse(await readFile(new URL('./business-cases.json', import.meta.url), 'utf8'));
@@ -55,7 +56,7 @@ export function evaluateCapture(fixture, capture) {
   const reviewComplete = semantic.length === reviews.length && semantic.every((item, index) => item.criterion === reviews[index] && item.verdict === 'PASS' && item.evidence);
   const actualModelRun = capture.origin === 'OPENCLAW_RUN'
     && Boolean(((capture.sessionId && capture.sessionId !== 'NOT_AVAILABLE') || (capture.runId && capture.runId !== 'NOT_AVAILABLE')) && capture.model && capture.contextEvidence)
-    && capture.executionStatus === 'ok' && capture.exitCode === 0;
+    && isSuccessfulTurn(capture);
   if (capture.origin === 'OPENCLAW_RUN') {
     if (!actualModelRun) failures.push('model execution not successfully captured');
     const dispatches = capture.sdkDispatches ?? [];

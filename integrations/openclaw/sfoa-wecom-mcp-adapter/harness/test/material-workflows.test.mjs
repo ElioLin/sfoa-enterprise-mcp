@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { materialCases, prepareMaterialTurn, serveMaterialFixture, evaluateMaterialCapture } from '../material-workflows.mjs';
+import { materialCases, prepareMaterialTurn, serveMaterialFixture, evaluateMaterialCapture, filterMaterialFixtureRows } from '../material-workflows.mjs';
 import { agentCommand, normalizeTurnResult, readRunOptions } from '../run-evidence.mjs';
 import { businessCases, evaluateCapture } from '../business-autonomy.mjs';
 import { projectProviderInput } from '../provider-input-observer.mjs';
@@ -103,6 +103,82 @@ test('natural MCP uses actual metadata/context/query/DML executors and exposes o
     assert.equal(mock.dispatches[0].turn, 1);
     assert.equal(mock.records.Reception_Request__c.length, 1);
   } finally { await client.close(); await mock.close(); }
+});
+
+test('fixture query rejects fields absent from describe even when the object has no records', async () => {
+  const mock = await serveMaterialFixture({ caseId: 'natural-multisource-create' });
+  const client = new Client({ name: 'unknown-field-contract-test', version: '1' });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(mock.endpoint)));
+    for (const query of ['SELECT Id, BillingProvince FROM Account', 'SELECT Id, Account_Name__c FROM Reception_Request__c']) {
+      const result = await client.callTool({ name: 'query_records', arguments: { query } });
+      assert.equal(result.isError, true);
+      assert.equal(result.structuredContent.errorCode, 'MCP_QUERY_FIELD_INVALID');
+      assert.match(result.structuredContent.message, /INVALID_FIELD/u);
+    }
+  } finally { await client.close(); await mock.close(); }
+});
+
+test('fixture query rejects unknown predicate fields instead of reporting no matching event', async () => {
+  const mock = await serveMaterialFixture({ caseId: 'natural-existing-supplement' });
+  const client = new Client({ name: 'unknown-predicate-contract-test', version: '1' });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(mock.endpoint)));
+    for (const query of ['SELECT Id FROM Customer_Contact_Log__c WHERE OccurredOn__c = 2026-11-03',
+      'SELECT Id FROM Reception_Request__c WHERE PlannedAt__c >= 2026-11-06T00:00:00Z']) {
+      const result = await client.callTool({ name: 'query_records', arguments: { query } });
+      assert.equal(result.isError, true);
+      assert.equal(result.structuredContent.errorCode, 'MCP_QUERY_FIELD_INVALID');
+      assert.match(result.structuredContent.message, /INVALID_FIELD/u);
+      assert.equal(result.structuredContent.records, undefined);
+    }
+  } finally { await client.close(); await mock.close(); }
+});
+
+test('fixture query returns explicit null for a selected known but unset field', async () => {
+  const mock = await serveMaterialFixture({ caseId: 'natural-existing-supplement' });
+  const client = new Client({ name: 'null-field-contract-test', version: '1' });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(mock.endpoint)));
+    const result = await client.callTool({ name: 'query_records', arguments: { query: 'SELECT Id, Location__c FROM Customer_Contact_Log__c' } });
+    assert.equal(result.isError, undefined);
+    assert.equal(result.structuredContent.records.length, 1);
+    assert.equal(Object.hasOwn(result.structuredContent.records[0], 'Location__c'), true);
+    assert.equal(result.structuredContent.records[0].Location__c, null);
+    assert.equal(Object.hasOwn(result.structuredContent.records[0], 'Progress__c'), false);
+  } finally { await client.close(); await mock.close(); }
+});
+
+test('fixture ISO date ranges filter cross-date events through the actual query tool', async () => {
+  const mock = await serveMaterialFixture({ caseId: 'natural-multisource-create' });
+  const client = new Client({ name: 'date-range-contract-test', version: '1' });
+  const customer = '001000000000001AAA';
+  mock.records.Reception_Request__c.push(
+    { Id: 'before', Customer__c: customer, Planned_At__c: '2026-11-05T15:59:59Z' },
+    { Id: 'start', Customer__c: customer, Planned_At__c: '2026-11-05T16:00:00Z' },
+    { Id: 'inside', Customer__c: customer, Planned_At__c: '2026-11-06T06:00:00Z' },
+    { Id: 'end', Customer__c: customer, Planned_At__c: '2026-11-06T16:00:00Z' },
+    { Id: 'other', Customer__c: '001000000000002AAA', Planned_At__c: '2026-11-06T06:00:00Z' },
+  );
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(mock.endpoint)));
+    const result = await client.callTool({ name: 'run_soql_query', arguments: { query:
+      `SELECT Id FROM Reception_Request__c WHERE Customer__c = '${customer}' AND Planned_At__c >= 2026-11-06T00:00:00+08:00 AND Planned_At__c < 2026-11-07T00:00:00+08:00` } });
+    assert.deepEqual(result.structuredContent.records.map(row => row.Id), ['start', 'inside']);
+    const unsupported = await client.callTool({ name: 'run_soql_query', arguments: { query:
+      `SELECT Id FROM Reception_Request__c WHERE Customer__c = '${customer}' AND Planned_At__c != 2026-11-06T06:00:00Z` } });
+    assert.equal(unsupported.isError, true);
+    assert.equal(unsupported.structuredContent.errorCode, 'SYNTHETIC_QUERY_FILTER_UNSUPPORTED');
+  } finally { await client.close(); await mock.close(); }
+});
+
+test('fixture predicates consume the whole AND expression and reject unknown syntax even with no rows', () => {
+  const rows = [{ day: '2026-11-02' }, { day: '2026-11-03' }, { day: '2026-11-04' }];
+  assert.deepEqual(filterMaterialFixtureRows(rows, 'day >= 2026-11-03 AND day < 2026-11-04'), [rows[1]]);
+  assert.equal(filterMaterialFixtureRows([{ Name: "O'Brien AND co" }], "Name = 'O\\'Brien AND co'").length, 1);
+  for (const where of ["Name = 'x' AND day != 2026-11-03", "Name = 'x' OR Name = 'y'", "Name = 'x' AND", "Name = 'x' garbage", 'day >= TODAY', "day >= 'yesterday'", "Name = 'x' AND day IN ('2026-11-03')"]) {
+    assert.throws(() => filterMaterialFixtureRows([], where), /SYNTHETIC_QUERY_FILTER_UNSUPPORTED/u, where);
+  }
 });
 
 test('simulated attachment partial failure keeps the record and permits only the failed original on recovery turn', async () => {

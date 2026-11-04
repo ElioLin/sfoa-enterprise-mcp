@@ -1,5 +1,4 @@
 /** Test-server only: native OpenClaw + isolated loopback MCP + in-memory DML. */
-import { spawn } from 'node:child_process';
 import { readFile, writeFile, mkdir, copyFile, access, cp } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +7,8 @@ import { businessCases, prepareEvaluation, serveFixture } from './business-auton
 import { projectOpenClawConfig } from './inspect-openclaw.mjs';
 import { observeProviderInput } from './provider-input-observer.mjs';
 import { materialCases, prepareMaterialTurn, serveMaterialFixture } from './material-workflows.mjs';
-import { agentCommand, normalizeTurnResult, readRunOptions, runtimeFingerprint } from './run-evidence.mjs';
+import { agentCommand, isSuccessfulTurn, normalizeTurnResult, readRunOptions, runtimeFingerprint } from './run-evidence.mjs';
+import { runAgentProcess } from './run-process.mjs';
 
 const args = process.argv.slice(2);
 const value = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
@@ -99,25 +99,18 @@ async function worker() {
         const command = agentCommand({ suite: options.suite, configPath, workspace, state, messageFile, sessionId, sessionKey,
           thinking: main.thinkingDefault ?? actual.agents.defaults.thinkingDefault ?? 'off' });
         console.log(JSON.stringify({ start: id, turn, requester: 'none', suite: options.suite }));
-        const child = spawn(options.cli, command.args, { cwd: workspace, env: { ...process.env, ...command.env }, stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '', stderr = '', exceeded = false;
-        let forcedStop;
-        const hardDeadline = setTimeout(() => {
-          exceeded = true; child.kill('SIGTERM');
-          forcedStop = setTimeout(() => child.kill('SIGKILL'), 5000);
-        }, 240000);
-        child.stdout.on('data', b => { stdout += b; }); child.stderr.on('data', b => { stderr += b; });
-        const code = await new Promise(done => {
-          child.once('exit', done);
-          child.once('error', error => { stderr += `OpenClaw process could not start: ${error.code ?? 'SPAWN_ERROR'}\n`; done(-1); });
-        }).finally(() => { clearTimeout(hardDeadline); clearTimeout(forcedStop); });
+        const { stdout, stderr, ...processResult } = await runAgentProcess(options.cli, command.args,
+          { cwd: workspace, env: { ...process.env, ...command.env } });
         await writeFile(join(state, `turn-${turn + 1}-result.json`), stdout, { mode: 0o600 });
         await writeFile(join(state, `turn-${turn + 1}-stderr.log`), stderr, { mode: 0o600 });
         let parsed; try { parsed = JSON.parse(stdout); } catch { parsed = { status: 'INVALID_RESULT' }; }
         const result = normalizeTurnResult(parsed);
-        turns.push({ turn, ...result, exitCode: code, ...(exceeded ? { executionStatus: 'HARD_TIMEOUT' } : {}) });
-        console.log(JSON.stringify({ done: id, turn, code, status: result.executionStatus, model: result.model, toolCalls: mock.calls.length, mutations: mock.dispatches.length }));
-        if (code !== 0 || result.executionStatus !== 'ok' || exceeded) break;
+        const capturedTurn = { turn, ...result, ...processResult,
+          ...(processResult.processLifecycleStatus === 'HARD_TIMEOUT' ? { executionStatus: 'HARD_TIMEOUT' } : {}) };
+        turns.push(capturedTurn);
+        console.log(JSON.stringify({ done: id, turn, code: capturedTurn.exitCode, status: capturedTurn.executionStatus,
+          processLifecycleStatus: capturedTurn.processLifecycleStatus, model: result.model, toolCalls: mock.calls.length, mutations: mock.dispatches.length }));
+        if (!isSuccessfulTurn(capturedTurn)) break;
       }
       await writeFile(join(state, 'sdk-dispatches.json'), JSON.stringify(mock.dispatches, null, 2));
       const final = turns.at(-1) ?? {};
@@ -126,6 +119,7 @@ async function worker() {
         runtimeScope: options.runtimeScope, turns, materialReview: materials, uploads: mock.uploads ?? [], finalRecords: mock.records ?? null,
         contextEvidence: join(state, observer ? 'provider-input.jsonl' : 'logs/cache-trace.jsonl'), toolCalls: mock.calls, sdkDispatches: mock.dispatches,
         reply: turns.map(item => item.reply).join('\n\n'), executionStatus: final.executionStatus, exitCode: final.exitCode,
+        exitSignal: final.exitSignal, processLifecycleStatus: final.processLifecycleStatus, completeFinalResult: final.completeFinalResult,
         transcriptReview: { blockingQuestionCount: null, optionalArchiveInvitations: null,
           criteria: fixture.review.map(criterion => ({ criterion, verdict: 'NOT_REVIEWED', evidence: '' })) } };
       captures[variant].push(capture);
