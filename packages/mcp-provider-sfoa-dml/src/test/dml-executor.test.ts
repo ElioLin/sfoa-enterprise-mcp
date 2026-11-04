@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 import {
+  CreateRecordMcpTool,
   DmlExecutor,
   DmlRuntimeError,
   dmlExecutionErrorToolResult,
@@ -56,6 +57,21 @@ test('explicitly allowed CREATE and UPDATE use the one request-scoped Connection
       record: { Id: '00Q000000000001AAA', Company: 'Updated' },
     },
   ]);
+});
+
+test('CREATE dispatches all 131072 text characters independently of the smaller Context draft bound', async () => {
+  const calls: MutationCall[] = [];
+  const tool = new CreateRecordMcpTool(createLeadExecutor(createConnection(calls)));
+  const description = `start\n${'材'.repeat(131_072 - 10)}\nend`;
+  assert.equal(description.length, 131_072);
+
+  const result = await tool.exec({ objectApiName: 'Lead', fields: { LastName: 'Long material', Description: description } });
+
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(result.structuredContent, { success: true, recordId: '00Q000000000001AAA' });
+  assert.deepEqual(calls, [{
+    operation: 'CREATE', objectApiName: 'Lead', record: { LastName: 'Long material', Description: description },
+  }]);
 });
 
 test('mutation observer receives the exact submitted fields and Salesforce result record ID', async () => {
