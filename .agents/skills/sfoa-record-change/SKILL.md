@@ -5,7 +5,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 
 # SFOA Record Change
 
-指导修订：1.13.0 — 材料工作流、任务连续性、适用查重与可选原件归档。
+指导修订：1.13.1 — 材料工作流、任务连续性、适用查重与可选原件归档。
 
 按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/字段事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → 执行和回执。复用仍适用的上下文；这不是查询、普通 UPDATE、纯附件或诊断的固定调用清单。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
 
@@ -66,7 +66,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 39. **Explicit Fact Coverage** — 提示词、已读材料与可信关联中的每个明确业务事实，**MUST** 先映射到当前 Record Type 的可写字段（按 label、section、inlineHelpText、类型与依赖），或明确标记 `NO_FIELD` / `NO_LEGAL_VALUE` / `LOOKUP_UNRESOLVED`。使用 `fieldApiNames` 投影后，**MUST** 检查 `coverage.fieldProjection.omittedFieldCatalog`；被省略字段不代表不存在，label/section 命中明确事实时必须补取。**MUST NOT** 把已能映射到结构化字段的事实只写进 Description；当前类型没有合法 Picklist 值时，换候选类型或集中追问一次，不得静默降级。
 40. **Phone / Mobile 与地域** — 按当前字段 label/help、明确用途及号码所属国家地区分类。中国大陆规则仅适用于大陆号码，不作为全球校验器；保留国际国家码、分机和数字，不截断、补位、编造或静默换字段。座机区号本身不证明公司城市/省份/国家；明确公司地点可可靠补全行政层级，手机号不推断地址。详见 [phone-and-mobile.md](references/phone-and-mobile.md)。
 41. **指定归属人意图** — 用户说「以 X 的账号/名义创建」「归属给 X」时，**MUST NOT** 切换认证身份。先看当前 `managedDmlFields` 与字段 label：若配置了可用户指定的归属人/归属 Managed 字段（如 `PLATFORM_USER_LOOKUP_FALLBACK`），**MUST** 先调用 `get_record_action_context` 获取该对象/动作的字段描述，读取该托管字段对应字段的 `referenceTo` 确定目标对象（**MUST NOT** 默认按 `User` 解析），再在该目标对象上按姓名/工号等业务字段做有界查询，把唯一 Salesforce ID 写入该托管字段；**MUST NOT** 改用 `OwnerId` 或其他非托管字段代替。若 action context 不可用、字段描述缺失或 `referenceTo` 为空，**MUST** 先问，不得猜。若没有可用户指定的归属字段，或策略是 strict `PLATFORM_IDENTITY`，**MUST** 明确告知用户无法指定归属人/身份，只能按当前认证身份执行（获得用户确认后）。目标对象存在重名时先问哪一条，不得取第一条或猜 ID。详见 [managed-lookups.md](references/managed-lookups.md)。
-42. **适用查重** — CREATE 围绕当前真实对象的业务身份/事件键，UPDATE 仅对实际变化且适用的身份值做有界 USER 查询；名称、共享电话、模糊匹配是候选，不直接证明重复。拜访结合客户、时间和事件，历史拜访不阻止新事件。先用已有事实消歧；实质同记录冲突或继续新建/改为更新/取消的独立选择才集中问，已有决定不重问；不能静默覆盖旧记录。无适用键、查询失败或截断如实说明限制，不统一阻断，也不声称全库唯一。见 [duplicate-check.md](references/duplicate-check.md)。
+42. **适用查重** — CREATE 围绕当前真实对象的业务身份/事件键，UPDATE 仅对实际变化且适用的身份值做有界 USER 查询；名称、共享电话、模糊匹配是候选，不直接证明重复。拜访结合客户、时间和事件，历史拜访不阻止新事件。先用已有事实消歧；实质同记录冲突或继续新建/改为更新/取消的独立选择才集中问，已有决定不重问；普通初始“新建”不代表已知后来发现的同记录证据后仍决定再建一份，未解选择应在保存前问；不能静默覆盖旧记录。无适用键、查询失败或截断如实说明限制，不统一阻断，也不声称全库唯一。见 [duplicate-check.md](references/duplicate-check.md)。
 
 ## CREATE 与 UPDATE 的关键差异
 

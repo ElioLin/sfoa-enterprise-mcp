@@ -10,7 +10,9 @@
 - `success=false` 或 Tool 报错 → 没有成功证据；如实报告 `errorCode`、`message` 与 `salesforceErrors`，不要把失败说成完成。
 - `MCP_DML_OBJECT_NOT_ALLOWED` / `MCP_DML_OPERATION_NOT_ALLOWED` / 输入校验错误表示**尚未 dispatch**，没有 Salesforce 副作用。这属于治理结果，**MUST NOT** 用其他通道、角色或工具绕过。
 - `MCP_DML_OUTCOME_UNKNOWN` 或请求发出后超时 / 传输中断 → 提交状态不可证明。
-- `FIELD_CUSTOM_VALIDATION_EXCEPTION`（例如“请填写来访厂别”）表示某个业务必填事实缺失。先向用户询问该业务值；**MUST NOT** 在多个候选值中自行选择或把字段补成猜测值。修复后按原始 mutation intent 重新准备并执行。
+- `FIELD_CUSTOM_VALIDATION_EXCEPTION` 是真实业务校验拒绝，可能涉及必填、跨字段或其他业务条件，不能一律解释为缺字段。按实际错误与当前事实补证，材料已支持的值可合理提炼；仍缺关键事实或独立业务选择才集中询问，不猜值、不盲目重试。实际拒绝与已有证据足以定位待选业务事项或冲突后，停止同义诊断并集中提问；记录操作请求不授权关闭或绕过规则。
+
+回执描述已保存或已修改的事实。只有 USER 读取明确返回 null/空值，才说某字段未填；属性未返回（即使查询请求过该字段）仍是未取得，不能推成空值，也不要在成功回执中追加未核实的空缺判断。
 
 ## 批量 `create_records` / `update_records`
 

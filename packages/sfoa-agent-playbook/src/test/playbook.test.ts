@@ -51,7 +51,7 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderWorkBuddySkill(), /action-context referenceTo target object.*never substitute OwnerId/iu);
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.1');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -351,7 +351,7 @@ describe('P9 data-completeness contract', () => {
   });
 
   it('stamps the version on the Dify instruction head', () => {
-    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.13\.0$/mu);
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.13\.1$/mu);
   });
 });
 
@@ -486,7 +486,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.0');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.1');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.
