@@ -22,6 +22,8 @@
 
 独立审阅修复：`efd2dce` 保留复合任务主目标，子记录/批量结果不覆盖归档目标（任务专项 11/11）；本次指导修订消除旧表格中的“名称命中必问”、无关 UI PENDING 拒写及电话冲突直接追问。Skill 最终 sync/check 与 80/80 toolkit 回归通过，早先旧文案 oracle 失败日志保留（`skill-review-test.log`），最终结果为 `skill-review-final-test.log`。
 
+首次测试部署候选 `c02c392`：119 文件严格预检通过，先备份 source/dist、插件/Skill/私有配置及附件表 36 行、迁移台账 15 行。Admin API 构建发现测试替身缺少新的附件 repository 四个方法，部署停止且未执行 017。已启动回滚，补齐测试替身后 Admin API 全量 43/43 PASS；失败不归为环境问题。回滚时新增而未应用的迁移文件须移入本轮备份保留，否则旧 runtime 的迁移检查会拒绝启动；不删除、不恢复旧数据库状态。最终部署结果另记。
+
 ## 已取得证据
 
 - 批次 1：DOCX/XLSX/CSV 真实本地文件读取、覆盖状态、材料累积、请求者/会话隔离和任务恢复；完整 Adapter 回归 90/90 PASS（`.temp/agent-material-workflows/adapter-batch1-final.log`）。图片/PDF/音频的宿主原生读取在没有执行证据时保持 UNKNOWN，不把暂存成功当成读取成功。

@@ -716,6 +716,10 @@ function createRepositories(
     attachmentStaging: {
       create: async (input) => { throw new Error('not used'); },
       getByRef: async () => undefined,
+      claimUpload: async () => { throw new Error('not used'); },
+      releaseUpload: async () => { throw new Error('not used'); },
+      markOutcomeUnknown: async () => { throw new Error('not used'); },
+      markBytesRemoved: async () => { throw new Error('not used'); },
       markConsumed: async () => { throw new Error('not used'); },
       markFailed: async () => { throw new Error('not used'); },
       markExpired: async () => { throw new Error('not used'); },
