@@ -1,0 +1,4377 @@
+{
+  "scope": "GUIDANCE_COMPARISON_FIXED_OLD_PROVIDER_RUNTIME_SYNTHETIC_SDK",
+  "runtimeRoot": "/data/sfoa-enterprise-mcp/eval-runtime-material-baseline-fixed-20261105",
+  "runtimeSha256": "386d5f0ea1c1b15df86af94722b1be3fcf132c57f2f034fad113d595527e44da",
+  "harnessSha256": "5a40a37c69b58628d70af3dce825467694ce7473803d3a8671bcc6351c5ba2f6",
+  "beforeGuidanceSource": "/data/sfoa-enterprise-mcp/baseline-material-workflows-61f8a0c",
+  "afterGuidanceSource": "/data/sfoa-enterprise-mcp/staging-material-workflows-d57f110",
+  "variants": {
+    "before": {
+      "reviewedCaptures": "/data/sfoa-enterprise-mcp/evidence/material-workflows-repeated-d57f110-20261105/before-reviewed.json",
+      "reviewedCapturesSha256": "e678d35157eb770d5e2e04769e1805ab95f85f3bcb9c134f7cf1d18414fd4b6a",
+      "score": "/data/sfoa-enterprise-mcp/evidence/material-workflows-repeated-d57f110-20261105/before-reviewed-score.json",
+      "scoreExitCode": 1,
+      "cases": 18,
+      "sessions": 18,
+      "modelTurns": 42,
+      "actualTraceRunIds": 42,
+      "nativeMaterialReads": 21,
+      "materials": 21,
+      "businessVerdicts": {
+        "PASS": 15,
+        "FAIL": 3
+      },
+      "coreRepeatedCoverage": "PARTIAL",
+      "repetitionCoverage": [
+        {
+          "id": "natural-multisource-create",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-existing-supplement",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-optional-archive",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 0
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        }
+      ],
+      "blockingQuestions": 3,
+      "optionalArchiveInvitations": 0,
+      "toolCallCount": 209,
+      "sdkMutationCount": 21,
+      "uploadCallCount": 9,
+      "reportedDurationMsTotal": 683284,
+      "durationUnknownTurns": 0,
+      "reportedUsageSumsByKey": {
+        "input": 576762,
+        "output": 96785,
+        "cacheRead": 5962752,
+        "cacheWrite": 0,
+        "reasoningTokens": 68200,
+        "total": 6636299
+      },
+      "usageUnknownTurns": 0,
+      "nonPass": [
+        {
+          "id": "natural-optional-archive",
+          "iteration": 1,
+          "verdict": "FAIL",
+          "criteria": [
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "FAIL",
+              "evidence": "Two successful actual turns preserve the target and no duplicate CREATE/upload occurs, but first-turn upload happens before archival authorization. There is no optional invitation; the second-turn request only receives a receipt for the already uploaded original."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "FAIL",
+              "evidence": "uploads[0]/toolCalls[5] upload the source in turn0, while user authorization arrives only in turn1. No upload occurs in authorized turn1 because it already succeeded. This violates optional archival sequencing despite correct target and record."
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 2,
+          "verdict": "FAIL",
+          "criteria": [
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "FAIL",
+              "evidence": "Two exact prompts/actual runIds share a session and no actual replay occurs, but first turn uploads without authorization and never offers the optional invitation. Second reply also proposes re-upload if the page appears empty despite an already confirmed upload success."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "FAIL",
+              "evidence": "Only upload occurs at turn0 (call[10]) before the user agrees in turn1. The later turn performs failed unsupported attachment queries and reports prior success, not the required authorized-turn upload. Record target itself is correct."
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 3,
+          "verdict": "FAIL",
+          "criteria": [
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "FAIL",
+              "evidence": "Actual prompts/runIds/session are continuous, the target and record receipt are correct, and no second-turn replay occurs; however, first-turn original upload precedes consent and the optional invitation never occurs."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "FAIL",
+              "evidence": "uploads[0]/call[9] succeed in turn0, before user approval in turn1. Later turn only reports prior success after unsupported attachment queries, rather than performing the requested authorized upload sequence."
+            }
+          ]
+        }
+      ],
+      "perCase": [
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 1,
+          "sessionId": "ecc5729c-6314-4d8d-b58b-e0f995ca2387",
+          "originalCaptureSha256": "0bfc255eabaab2e4b350432d9d009bb84c043fb030b60ded13bbf6ebe7213b0d",
+          "actualRunIds": [
+            "21eff648-5d11-4b73-bf73-dca01a12215a",
+            "11dd29ff-325f-4758-b7da-2f87f3d2426c"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 2,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "21eff648-5d11-4b73-bf73-dca01a12215a",
+              "durationMs": 48951,
+              "usage": {
+                "input": 34758,
+                "output": 8111,
+                "cacheRead": 294016,
+                "cacheWrite": 0,
+                "reasoningTokens": 6356,
+                "total": 336885,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "11dd29ff-325f-4758-b7da-2f87f3d2426c",
+              "durationMs": 4135,
+              "usage": {
+                "input": 573,
+                "output": 396,
+                "cacheRead": 86144,
+                "cacheWrite": 0,
+                "reasoningTokens": 225,
+                "total": 87113,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Discovery/context and Account describe establish valid fields after rejected assumptions. Query[5] resolves customer; query[7] checks that customer's events before CREATE[8]. No expected API or payload was injected into natural materials."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Both original files have complete hash-matching native reads. Final fields preserve Nov 3/Xiamen office, ongoing testing, interest without procurement commitment, unknown quantity, price objection and next-week actions still unperformed. Relevant optional fields are written."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two exact prompts and unique actual runIds share one session. First reply accurately separates record success from partial attachment failure; second accurately reports recovery without replaying creation or the successful first original."
+            },
+            {
+              "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+              "verdict": "PASS",
+              "evidence": "uploads[0] has first ref SUCCESS and second ref FAILED/retryable=true. uploads[1] contains only the second ref and succeeds on the same actual created a01000000000002AAA; sdkDispatches contains exactly one CREATE."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 196 bytes SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "follow-up.txt",
+              "path": "materials/follow-up.txt",
+              "kind": "TEXT",
+              "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+              "bytes": 60,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 5; complete 60 bytes SHA256 7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 2,
+          "sessionId": "75c3bb2b-1380-4893-b051-0d46c451a76c",
+          "originalCaptureSha256": "472c3d16dd30389e237f87f50440343f6cabc07b99f1d96f5c6ef99cf2c8af6e",
+          "actualRunIds": [
+            "dc6e8678-c5dd-4149-9805-55e4ca52883e",
+            "5bf62a5e-4b45-445f-8178-28bbfb668c16"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 2,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "dc6e8678-c5dd-4149-9805-55e4ca52883e",
+              "durationMs": 23229,
+              "usage": {
+                "input": 31604,
+                "output": 3412,
+                "cacheRead": 246912,
+                "cacheWrite": 0,
+                "reasoningTokens": 1747,
+                "total": 281928,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "5bf62a5e-4b45-445f-8178-28bbfb668c16",
+              "durationMs": 4508,
+              "usage": {
+                "input": 540,
+                "output": 346,
+                "cacheRead": 70656,
+                "cacheWrite": 0,
+                "reasoningTokens": 182,
+                "total": 71542,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Discovery/context calls establish actual type and writable fields. Customer query[4] resolves the subject after rejected assumed OwnerId; event query[6] checks customer/date before CREATE[7]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Both complete native reads match original bytes/hashes. The single payload includes date, office, testing, price, interest without commitment, unknown quantity and next-week follow-up still unperformed. Broad Concerns field accepts unresolved concerns; no fact is omitted or falsely strengthened."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two exact prompts and actual runIds share one session. First reply truthfully separates saved record from partial file outcome. Next reply matches one-file recovery and retains the original record; no blocking question."
+            },
+            {
+              "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+              "verdict": "PASS",
+              "evidence": "First upload returns first ref SUCCESS and second FAILED/retryable=true; second turn only uploads the second ref successfully to the same actual created ID. One CREATE total, no successful-file replay."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 196 bytes SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "follow-up.txt",
+              "path": "materials/follow-up.txt",
+              "kind": "TEXT",
+              "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+              "bytes": 60,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 5; complete 60 bytes SHA256 7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 3,
+          "sessionId": "57396bf9-7a2d-41e0-920b-ffdee7a6b4e8",
+          "originalCaptureSha256": "ca59c30c717ec46c4aa2258457bf06038681e5a051ad16e2b63742c6835bb0d1",
+          "actualRunIds": [
+            "ac7cf824-13c3-4522-937a-ebfce2aae7b6",
+            "41b18194-fd65-44a6-ba68-f651e2fe72dd"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 2,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "ac7cf824-13c3-4522-937a-ebfce2aae7b6",
+              "durationMs": 26699,
+              "usage": {
+                "input": 30774,
+                "output": 3650,
+                "cacheRead": 272640,
+                "cacheWrite": 0,
+                "reasoningTokens": 2305,
+                "total": 307064,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "41b18194-fd65-44a6-ba68-f651e2fe72dd",
+              "durationMs": 3747,
+              "usage": {
+                "input": 549,
+                "output": 317,
+                "cacheRead": 69248,
+                "cacheWrite": 0,
+                "reasoningTokens": 140,
+                "total": 70114,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/context/Account describe support actual object/type and fields; corrected query[4] resolves customer, event query[5] checks existing customer events before CREATE[6]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Both originals have complete hash-matching native reads. Final fields preserve Nov 3, office, ongoing testing, cooperation interest without purchase commitment, unknown quantity, price objection and next-week action not yet done, including relevant optional fields."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two actual runIds and exact prompt matches share a session. First reply accurately distinguishes created record/first file success/second file failure. Second accurately reports only failed-file recovery with no new record or successful-file resend."
+            },
+            {
+              "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+              "verdict": "PASS",
+              "evidence": "uploads[0] proves first SUCCESS and second FAILED/retryable=true; uploads[1] contains only second ref, SUCCESS, same a01000000000002AAA. SDK dispatches contains one CREATE only."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 196 bytes SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "follow-up.txt",
+              "path": "materials/follow-up.txt",
+              "kind": "TEXT",
+              "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+              "bytes": 60,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 5; complete 60 bytes SHA256 7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 1,
+          "sessionId": "5452c2f8-b469-4b58-a4bf-2ee13f1f0fed",
+          "originalCaptureSha256": "5205ad2ed9fb3074ee5fa3ddb11bd8d4268f72ad0f544e8a4102f03268766198",
+          "actualRunIds": [
+            "82b1bd7d-04fc-42f7-96a7-16e5d746cc11",
+            "cba79976-5631-49bf-a508-4d5ef0d1bee7",
+            "6cf9f4be-cead-4ce5-a396-ef67958e3d12",
+            "8739dc9e-806e-416f-9f10-1a9f600df57f"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 3,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "82b1bd7d-04fc-42f7-96a7-16e5d746cc11",
+              "durationMs": 4417,
+              "usage": {
+                "input": 10044,
+                "output": 461,
+                "cacheRead": 10368,
+                "cacheWrite": 0,
+                "reasoningTokens": 228,
+                "total": 20873,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "cba79976-5631-49bf-a508-4d5ef0d1bee7",
+              "durationMs": 2121,
+              "usage": {
+                "input": 456,
+                "output": 149,
+                "cacheRead": 22656,
+                "cacheWrite": 0,
+                "reasoningTokens": 22,
+                "total": 23261,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 2,
+              "runId": "6cf9f4be-cead-4ce5-a396-ef67958e3d12",
+              "durationMs": 1634,
+              "usage": {
+                "input": 197,
+                "output": 100,
+                "cacheRead": 11520,
+                "cacheWrite": 0,
+                "reasoningTokens": 49,
+                "total": 11817,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 3,
+              "runId": "8739dc9e-806e-416f-9f10-1a9f600df57f",
+              "durationMs": 22556,
+              "usage": {
+                "input": 21256,
+                "output": 3550,
+                "cacheRead": 198144,
+                "cacheWrite": 0,
+                "reasoningTokens": 2455,
+                "total": 222950,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "calls[0,2,3,5,6] discover actual object/field/Record Type guidance; unsupported assumed Account fields fail at call[1], then describe and valid call[4] resolve the customer. Event query[7] checks the same customer/date before CREATE[8]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Both complete original-file read results match actual hashes. sdkDispatches[0] preserves interest, ongoing testing, unknown quantity, no procurement commitment, price objection, next-week follow-up, Nov 3 and Xiamen office, including relevant optional fields. No unsupported precision or business commitment."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Four actual trace runIds match four exact prompts in one session; first three turns wait with no CRM mutation. Final turn creates once and reads back all written facts. No archive/invitation after explicit refusal; zero blocking questions."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "progress.txt",
+              "path": "materials/progress.txt",
+              "kind": "TEXT",
+              "contentSha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+              "bytes": 69,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 69 bytes SHA256 37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "feedback.txt",
+              "path": "materials/feedback.txt",
+              "kind": "TEXT",
+              "contentSha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+              "bytes": 63,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 4, message index 8; complete 63 bytes SHA256 826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 2,
+          "sessionId": "7473eb33-4606-49d1-9bc4-b6b92c888731",
+          "originalCaptureSha256": "34690d62c603d320cc848580b15045474d63dac47c619ba32eb5125793c6a96e",
+          "actualRunIds": [
+            "4c6beb22-4364-4bb8-a723-7bab1585e068",
+            "619295c7-1c8f-4235-87a3-d350c856539a",
+            "9183561b-d353-4ecd-a7c1-73b096cbd6da",
+            "9e262c48-8da6-491c-937a-bf637ba9c070"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 3,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "4c6beb22-4364-4bb8-a723-7bab1585e068",
+              "durationMs": 4602,
+              "usage": {
+                "input": 9930,
+                "output": 542,
+                "cacheRead": 10624,
+                "cacheWrite": 0,
+                "reasoningTokens": 342,
+                "total": 21096,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "619295c7-1c8f-4235-87a3-d350c856539a",
+              "durationMs": 3393,
+              "usage": {
+                "input": 369,
+                "output": 161,
+                "cacheRead": 22912,
+                "cacheWrite": 0,
+                "reasoningTokens": 42,
+                "total": 23442,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 2,
+              "runId": "9183561b-d353-4ecd-a7c1-73b096cbd6da",
+              "durationMs": 2662,
+              "usage": {
+                "input": 160,
+                "output": 283,
+                "cacheRead": 11648,
+                "cacheWrite": 0,
+                "reasoningTokens": 180,
+                "total": 12091,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 3,
+              "runId": "9e262c48-8da6-491c-937a-bf637ba9c070",
+              "durationMs": 29687,
+              "usage": {
+                "input": 21421,
+                "output": 4425,
+                "cacheRead": 278784,
+                "cacheWrite": 0,
+                "reasoningTokens": 3271,
+                "total": 304630,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Calls[0..2,4,6] supply object, type and field facts. Invalid assumed fields fail visibly, corrected query[5] resolves the customer, and query[7] checks its same-date events before CREATE[8]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Two original text files are fully read. Final payload preserves cooperation interest, no purchase commitment, ongoing testing, unknown quantity, price objection and next-week testing/quotation follow-up, plus Nov 3 and the optional office location."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Four unique actual runIds and prompt matches share one session; first three turns wait and perform no CRM mutation. Last creates once and confirms readback after correcting unsupported projection. Explicit no-archive is honored; no unnecessary questions."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "progress.txt",
+              "path": "materials/progress.txt",
+              "kind": "TEXT",
+              "contentSha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+              "bytes": 69,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 69 bytes SHA256 37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "feedback.txt",
+              "path": "materials/feedback.txt",
+              "kind": "TEXT",
+              "contentSha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+              "bytes": 63,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 4, message index 8; complete 63 bytes SHA256 826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 3,
+          "sessionId": "9e6b01b4-8758-4bfb-bcda-98773278f38c",
+          "originalCaptureSha256": "d90fe181ed317ee9e322238529a945608939eb834c0f64bfc567e170b0026c99",
+          "actualRunIds": [
+            "7b6cc388-1a7f-40a9-8e96-ae471e568994",
+            "1b2afd08-1b2f-4ba8-9e87-03195935df5e",
+            "a3206d28-138d-446c-84a7-264dba25c89a",
+            "3da4bdef-cadd-4f9b-b08b-c4c50d29add1"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 3,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "7b6cc388-1a7f-40a9-8e96-ae471e568994",
+              "durationMs": 3508,
+              "usage": {
+                "input": 9961,
+                "output": 471,
+                "cacheRead": 10496,
+                "cacheWrite": 0,
+                "reasoningTokens": 259,
+                "total": 20928,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "1b2afd08-1b2f-4ba8-9e87-03195935df5e",
+              "durationMs": 2787,
+              "usage": {
+                "input": 475,
+                "output": 166,
+                "cacheRead": 22656,
+                "cacheWrite": 0,
+                "reasoningTokens": 33,
+                "total": 23297,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 2,
+              "runId": "a3206d28-138d-446c-84a7-264dba25c89a",
+              "durationMs": 3092,
+              "usage": {
+                "input": 224,
+                "output": 354,
+                "cacheRead": 11520,
+                "cacheWrite": 0,
+                "reasoningTokens": 238,
+                "total": 12098,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 3,
+              "runId": "3da4bdef-cadd-4f9b-b08b-c4c50d29add1",
+              "durationMs": 24440,
+              "usage": {
+                "input": 20387,
+                "output": 3712,
+                "cacheRead": 251008,
+                "cacheWrite": 0,
+                "reasoningTokens": 2572,
+                "total": 275107,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/context return the supported object and fields despite empty list filter. Invalid assumed fields fail; describe/corrected Account query[5] resolves customer. Query[6] checks the same customer/date before CREATE[7]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Both raw text files are actually read completely. Payload preserves all interest/testing/quantity/no-purchase/price/next-week/date/office facts. 'Already agreed to follow up next week' accurately reflects the agreement and does not claim the follow-up already occurred."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Four exact prompts and actual runIds share one session. First three turns explicitly wait without CRM writes; final turn creates once and confirms readback after projection recovery. No optional invitation/upload after explicit refusal."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "progress.txt",
+              "path": "materials/progress.txt",
+              "kind": "TEXT",
+              "contentSha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+              "bytes": 69,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 69 bytes SHA256 37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "feedback.txt",
+              "path": "materials/feedback.txt",
+              "kind": "TEXT",
+              "contentSha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+              "bytes": 63,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 4, message index 8; complete 63 bytes SHA256 826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 1,
+          "sessionId": "08443502-38e6-4f86-bf74-9428dfb00c0d",
+          "originalCaptureSha256": "8a73f0bfcc4939d486262dc6a8ca81c8d08727ee812f5447e6fb4915980092c8",
+          "actualRunIds": [
+            "f8366d76-3228-4455-a379-7a1795ba2ebf",
+            "45597d9b-3a8b-4576-a7a7-67944c3de063"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 1,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "f8366d76-3228-4455-a379-7a1795ba2ebf",
+              "durationMs": 30616,
+              "usage": {
+                "input": 34929,
+                "output": 4505,
+                "cacheRead": 230784,
+                "cacheWrite": 0,
+                "reasoningTokens": 3325,
+                "total": 270218,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "45597d9b-3a8b-4576-a7a7-67944c3de063",
+              "durationMs": 9958,
+              "usage": {
+                "input": 2301,
+                "output": 1164,
+                "cacheRead": 164480,
+                "cacheWrite": 0,
+                "reasoningTokens": 742,
+                "total": 167945,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Calls[0..3] discover current object/type/fields. Account query[4] fails on undeclared fields, then describe[5]/valid query[6] resolve the subject; event query[8] returns the same customer's actual dated record after unsupported relationship projection fails."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "The reply accurately describes existing facts and asks only the independent duplicate-handling choice. Selected Location__c is now explicitly null; no omitted property is misrepresented. User's second-turn limitation is preserved exactly."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Both actual runs match their natural prompts in one session. No first-turn mutation; second turn uses the prior observed target and reports only the successful concern update. One blocking business choice, no repeated confirmation or archival invitation."
+            },
+            {
+              "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+              "verdict": "PASS",
+              "evidence": "Exactly one sdk UPDATE occurs on turn1, with only Id+Concerns__c='报价偏高且关注噪音控制'. No CREATE. Readback[11] confirms existing record unchanged elsewhere."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 2,
+          "sessionId": "9812553d-ca6e-4e9b-b9e5-4262c8570f90",
+          "originalCaptureSha256": "98b63a543615e29a181945243effc219aa7470aa4c95866b34b98a01fdb7061e",
+          "actualRunIds": [
+            "4b90106a-36c6-4406-980c-d4679525b453",
+            "046eb26d-c38e-4a33-9bd0-baa00d4bf823"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 1,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "4b90106a-36c6-4406-980c-d4679525b453",
+              "durationMs": 23978,
+              "usage": {
+                "input": 31285,
+                "output": 3202,
+                "cacheRead": 194944,
+                "cacheWrite": 0,
+                "reasoningTokens": 2173,
+                "total": 229431,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "046eb26d-c38e-4a33-9bd0-baa00d4bf823",
+              "durationMs": 8029,
+              "usage": {
+                "input": 2612,
+                "output": 892,
+                "cacheRead": 145280,
+                "cacheWrite": 0,
+                "reasoningTokens": 486,
+                "total": 148784,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Discovery and valid customer query[6] establish actual facts after visible schema recovery. Query[8] returns the matching existing event and its actual fields before the model chooses to ask rather than mutate."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Existing facts are quoted faithfully. Location is explicitly null in the selected result, so stating it is unfilled is supported in this corrected fixture. User's concern-only update is preserved without unwanted supplementation."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two matching prompts and actual runIds retain one session/target. Exactly one independent duplicate-handling question; second turn executes without repeated confirmation. Receipt agrees with actual UPDATE and readback."
+            },
+            {
+              "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+              "verdict": "PASS",
+              "evidence": "No first-turn mutation, no CREATE. sdkDispatches contains only turn1 UPDATE with Id+Concerns__c on the observed a01000000000001AAA. All other existing fields remain unchanged."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 3,
+          "sessionId": "828d3a3f-53b0-49d3-af64-56ba90745c82",
+          "originalCaptureSha256": "41d8ab69553f2c94691fc96b99bcb5634dd8a8d39aa1b150d75db04ec7808727",
+          "actualRunIds": [
+            "b2d46a46-cabe-4efa-8300-789b6e4aa00f",
+            "02f93bd0-c175-4a33-a24b-26ac5f98b911"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 1,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "b2d46a46-cabe-4efa-8300-789b6e4aa00f",
+              "durationMs": 34518,
+              "usage": {
+                "input": 32810,
+                "output": 5484,
+                "cacheRead": 165760,
+                "cacheWrite": 0,
+                "reasoningTokens": 4440,
+                "total": 204054,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "02f93bd0-c175-4a33-a24b-26ac5f98b911",
+              "durationMs": 6735,
+              "usage": {
+                "input": 2346,
+                "output": 768,
+                "cacheRead": 158848,
+                "cacheWrite": 0,
+                "reasoningTokens": 329,
+                "total": 161962,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/list/context/describe establish actual object/type/fields; customer query[3] and corrected event query[6] provide the same customer's dated record before any mutation."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Existing testing/no-commitment/price/follow-up facts are faithfully stated; selected Location is explicit null, supporting 'unfilled'. The second-turn instruction restricts the actual patch to concern text; proposed wider supplementation is not executed."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two exact natural prompts and actual runIds share one session. One necessary duplicate business choice is asked before writing; the explicit answer is acted on without renewed confirmation. Receipts match readback and no archive occurs."
+            },
+            {
+              "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+              "verdict": "PASS",
+              "evidence": "No first-turn mutation or CREATE. Single turn1 SDK UPDATE contains only Id+Concerns__c on observed a01000000000001AAA; query[9] proves all other fields unchanged."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 1,
+          "sessionId": "44b8f89d-d365-4b24-8cbd-d78f94f98f26",
+          "originalCaptureSha256": "0fc37b8f05b2496fe92483e7a15a5c48330a39b3a18cf255cefaff4e233e566c",
+          "actualRunIds": [
+            "382d7135-190a-4387-ba6c-61ee1e6640ee",
+            "0e077177-0317-4ea2-aa72-95382dd23843"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 2,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            },
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Follow_Up__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "382d7135-190a-4387-ba6c-61ee1e6640ee",
+              "durationMs": 15448,
+              "usage": {
+                "input": 29621,
+                "output": 1804,
+                "cacheRead": 206336,
+                "cacheWrite": 0,
+                "reasoningTokens": 781,
+                "total": 237761,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "0e077177-0317-4ea2-aa72-95382dd23843",
+              "durationMs": 7165,
+              "usage": {
+                "input": 2062,
+                "output": 695,
+                "cacheRead": 131712,
+                "cacheWrite": 0,
+                "reasoningTokens": 306,
+                "total": 134469,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Returned discovery/context and queries[3,5] establish the customer and Nov 3 existing record; unsupported relationship projection[4] fails visibly and the corrected query succeeds. Both UPDATE contexts use the observed recordId."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "First patch preserves the existing price objection while appending the noise concern; second faithfully changes only the next action to next Wednesday by Chen Qing. No negation, tense or unrelated field is changed."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two exact natural prompts and distinct actual runIds share one session; replies match successful UPDATE/readback results. No unnecessary question, CREATE or upload."
+            },
+            {
+              "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+              "verdict": "PASS",
+              "evidence": "sdkDispatches[0] contains only Id+Concerns__c, [1] only Id+Follow_Up__c, both a01000000000001AAA. Readbacks[8,11] confirm retained progress/date/customer and appended concern."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 2,
+          "sessionId": "00a1e31c-322a-4724-a7f1-39e06e13e84e",
+          "originalCaptureSha256": "75f4d5797bff8a0b81cd81d25ceb5ab7775196e19a29d609d4b7fe940c952a07",
+          "actualRunIds": [
+            "1c74c7eb-301a-415a-94de-89d5393af38c",
+            "421a0eab-1f42-4d4a-85f9-29af4815323a"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 2,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            },
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Follow_Up__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "1c74c7eb-301a-415a-94de-89d5393af38c",
+              "durationMs": 16056,
+              "usage": {
+                "input": 20265,
+                "output": 1963,
+                "cacheRead": 147968,
+                "cacheWrite": 0,
+                "reasoningTokens": 943,
+                "total": 170196,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "421a0eab-1f42-4d4a-85f9-29af4815323a",
+              "durationMs": 6697,
+              "usage": {
+                "input": 2134,
+                "output": 745,
+                "cacheRead": 94720,
+                "cacheWrite": 0,
+                "reasoningTokens": 340,
+                "total": 97599,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "List/describe and Account query[2] provide real object/subject facts. Corrected event query[4] returns the dated row and matching Customer__c; both UPDATE contexts use this observed record."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "First patch appends the noise concern while preserving the price objection. Second sets only next Wednesday/Chen Qing/test-progress action. Replies and readbacks preserve ongoing testing, absent purchase commitment and unrelated values."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two actual trace runIds match two natural prompts in one session; no unnecessary questions, create or archive. Both receipts agree with successful tool results."
+            },
+            {
+              "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+              "verdict": "PASS",
+              "evidence": "Two SDK UPDATE dispatches contain respectively Id+Concerns__c and Id+Follow_Up__c, with identical verified target. Readbacks[7,10] confirm minimal patches and preserved prior facts."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 3,
+          "sessionId": "413b8cf1-1b3b-4f47-84a9-1e091a48e812",
+          "originalCaptureSha256": "a0b06c15244bdd004f91881f0448dde324ced3f9937791fce9a4f7c18ff802d6",
+          "actualRunIds": [
+            "01aa2056-8757-4541-87ed-772875219104",
+            "e7460779-7a41-48be-911d-d277d3a79979"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 2,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            },
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Follow_Up__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "01aa2056-8757-4541-87ed-772875219104",
+              "durationMs": 17682,
+              "usage": {
+                "input": 30817,
+                "output": 2213,
+                "cacheRead": 220032,
+                "cacheWrite": 0,
+                "reasoningTokens": 1130,
+                "total": 253062,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "e7460779-7a41-48be-911d-d277d3a79979",
+              "durationMs": 8121,
+              "usage": {
+                "input": 1953,
+                "output": 1031,
+                "cacheRead": 137088,
+                "cacheWrite": 0,
+                "reasoningTokens": 624,
+                "total": 140072,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/list/describe, Account query[3], and valid same-customer/date query[5] establish the observed existing target and current fields; both UPDATE contexts use that target."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Noise concern is appended without losing price objection. The next action is changed to next Wednesday by Chen Qing, preserving its future status. Unrelated actual progress, date, customer and prior concern are retained."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two exact prompts and actual runIds share one session. Replies accurately reflect successful UPDATE and readback; no unnecessary question, new record or archival action."
+            },
+            {
+              "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+              "verdict": "PASS",
+              "evidence": "SDK patches contain only Id+Concerns__c then Id+Follow_Up__c on the same observed a01000000000001AAA. Readbacks[8,11] substantiate the final values and retained existing facts."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 1,
+          "sessionId": "f6e179e2-aeb4-4596-b2ea-752317ed4557",
+          "originalCaptureSha256": "3c8cb524cdb0d1251923d38b70c98eacae3f00db047c344770f0e9a1bdd7a2bb",
+          "actualRunIds": [
+            "16b77a59-39d4-4add-8137-9ed954e1256e",
+            "4adea870-d465-41c9-97e6-2e7aab8add7b"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "CREATE",
+              "objectApiName": "Reception_Request__c",
+              "fields": [
+                "Agenda__c",
+                "Aim__c",
+                "Customer__c",
+                "Location__c",
+                "Planned_At__c",
+                "RecordTypeId",
+                "Visitors__c"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "16b77a59-39d4-4add-8137-9ed954e1256e",
+              "durationMs": 6106,
+              "usage": {
+                "input": 10175,
+                "output": 928,
+                "cacheRead": 10880,
+                "cacheWrite": 0,
+                "reasoningTokens": 593,
+                "total": 21983,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "4adea870-d465-41c9-97e6-2e7aab8add7b",
+              "durationMs": 32875,
+              "usage": {
+                "input": 23809,
+                "output": 5107,
+                "cacheRead": 336768,
+                "cacheWrite": 0,
+                "reasoningTokens": 3455,
+                "total": 365684,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/context calls[0..2] provide object and customer/supplier Record Types; model resolves customer visit type from intent. Valid Account query[5] resolves lookup after visible invalid-field recovery; event queries[7,8] precede CREATE[9]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Final Aim/Agenda/Visitors/Location contain faucets, testing, noise emphasis, all three agenda times, customer Lin Wei purchasing role and internal Chen Qing R&D role. Earlier incorrect draft names are not written; final field facts and tense are faithful."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two matching natural prompts and distinct actual trace runs retain one session. First turn waits without CRM mutation; second creates exactly once, validates readback and honors explicit no-archive. No unnecessary question or invitation."
+            },
+            {
+              "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+              "verdict": "PASS",
+              "evidence": "agenda.txt 105 bytes and participants.csv 87 bytes are complete native-read results matching original hashes. Written planned time 2026-11-06T06:00:00.000Z equals Shanghai 14:00; all source agenda/party facts and later noise emphasis are included."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "agenda.txt",
+              "path": "materials/agenda.txt",
+              "kind": "TEXT",
+              "contentSha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+              "bytes": 105,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 105 bytes SHA256 6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "participants.csv",
+              "path": "materials/participants.csv",
+              "kind": "CSV",
+              "contentSha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+              "bytes": 87,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 5; complete 87 bytes SHA256 44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 2,
+          "sessionId": "eb89fad8-8dd6-44df-9707-922049e674f3",
+          "originalCaptureSha256": "0de9201891348761090c7acc467bddee5ca91c82272a54ab9bba283b9a660b07",
+          "actualRunIds": [
+            "a4580b20-07a3-4370-9355-d588ba719fa3",
+            "162bffad-e87d-4294-8f1f-6770e4de0082"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "CREATE",
+              "objectApiName": "Reception_Request__c",
+              "fields": [
+                "Agenda__c",
+                "Aim__c",
+                "Customer__c",
+                "Location__c",
+                "Planned_At__c",
+                "RecordTypeId",
+                "Visitors__c"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "a4580b20-07a3-4370-9355-d588ba719fa3",
+              "durationMs": 27438,
+              "usage": {
+                "input": 30931,
+                "output": 4139,
+                "cacheRead": 116608,
+                "cacheWrite": 0,
+                "reasoningTokens": 3174,
+                "total": 151678,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "162bffad-e87d-4294-8f1f-6770e4de0082",
+              "durationMs": 16098,
+              "usage": {
+                "input": 1648,
+                "output": 2427,
+                "cacheRead": 186624,
+                "cacheWrite": 0,
+                "reasoningTokens": 1754,
+                "total": 190699,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Returned object/type/field facts establish customer visit type without asking. After invalid assumed fields, Account query[6] returns the complete single-customer fixture and confirms the unique subject; event query[7] precedes CREATE[8]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Final payload faithfully includes every agenda time, customer/internal participant roles, location, faucets/testing and later noise emphasis. Planned event remains planned; no supported optional fact is omitted."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "First turn performs read-only preparation but no write while waiting; second creates once after completion and reads back. Two exact prompts/actual runIds share a session. Explicit no-archive is honored and no blocking question is added."
+            },
+            {
+              "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+              "verdict": "PASS",
+              "evidence": "Both originals have complete native-read hashes matching actual files. Planned_At__c=2026-11-06T14:00:00.000+0800 preserves Shanghai time; agenda, roles and noise addition all reach final fields."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "agenda.txt",
+              "path": "materials/agenda.txt",
+              "kind": "TEXT",
+              "contentSha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+              "bytes": 105,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 105 bytes SHA256 6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "participants.csv",
+              "path": "materials/participants.csv",
+              "kind": "CSV",
+              "contentSha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+              "bytes": 87,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 5; complete 87 bytes SHA256 44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 3,
+          "sessionId": "2aeaadbb-6e77-4568-82f1-b8b8f009f5a9",
+          "originalCaptureSha256": "78ec28c7e59d4bcc9454dfe07538834acb819fef6e6b629371e300ab653eae93",
+          "actualRunIds": [
+            "52acd726-07d8-4c4b-9727-18b1a9ee6764",
+            "eb44f11a-1b28-4fdd-9beb-66a1b2a5eab0"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "CREATE",
+              "objectApiName": "Reception_Request__c",
+              "fields": [
+                "Agenda__c",
+                "Aim__c",
+                "Customer__c",
+                "Location__c",
+                "Planned_At__c",
+                "RecordTypeId",
+                "Visitors__c"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "52acd726-07d8-4c4b-9727-18b1a9ee6764",
+              "durationMs": 8622,
+              "usage": {
+                "input": 10112,
+                "output": 1181,
+                "cacheRead": 11264,
+                "cacheWrite": 0,
+                "reasoningTokens": 1045,
+                "total": 22557,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "eb44f11a-1b28-4fdd-9beb-66a1b2a5eab0",
+              "durationMs": 25526,
+              "usage": {
+                "input": 22589,
+                "output": 3836,
+                "cacheRead": 227456,
+                "cacheWrite": 0,
+                "reasoningTokens": 2749,
+                "total": 253881,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/list/context expose actual object/Record Types; customer query[3] resolves lookup, selected customer type is supported by intent, and event query[5] checks existing customer events before CREATE[6]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Written Aim/Agenda/Visitors/Location preserve faucets, laboratory testing, noise emphasis, all agenda times, each participant's party/role and venue. No planned activity becomes a completed fact."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two matching natural prompts and actual runIds retain one session; first waits without CRM mutation. Second creates once, corrects unsupported readback projection and truthfully reports the final record. No archive after explicit refusal."
+            },
+            {
+              "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+              "verdict": "PASS",
+              "evidence": "Both original TXT/CSV native read results fully match bytes/hashes. Planned_At__c 2026-11-06T14:00:00+08:00 preserves Shanghai 14:00; all original agenda and personnel facts plus later noise emphasis are written."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "agenda.txt",
+              "path": "materials/agenda.txt",
+              "kind": "TEXT",
+              "contentSha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+              "bytes": 105,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 105 bytes SHA256 6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            },
+            {
+              "fileName": "participants.csv",
+              "path": "materials/participants.csv",
+              "kind": "CSV",
+              "contentSha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+              "bytes": 87,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 5; complete 87 bytes SHA256 44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 1,
+          "sessionId": "a3d2fa66-3092-4623-9db0-27908101c8d3",
+          "originalCaptureSha256": "27bc9d2b96f70893dce05453abd11f8f985fdc20df25aa7de8ad860f301d075c",
+          "actualRunIds": [
+            "75d84b40-9bd6-4b1d-aa3b-358ecad60156",
+            "20fe5dcc-aeff-4dba-84ad-e5f205aca3da"
+          ],
+          "businessVerdict": "FAIL",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 1,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "75d84b40-9bd6-4b1d-aa3b-358ecad60156",
+              "durationMs": 25568,
+              "usage": {
+                "input": 22294,
+                "output": 3589,
+                "cacheRead": 176768,
+                "cacheWrite": 0,
+                "reasoningTokens": 2293,
+                "total": 202651,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "20fe5dcc-aeff-4dba-84ad-e5f205aca3da",
+              "durationMs": 6366,
+              "usage": {
+                "input": 401,
+                "output": 766,
+                "cacheRead": 52480,
+                "cacheWrite": 0,
+                "reasoningTokens": 618,
+                "total": 53647,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Discovery/context, customer query[1] and event query[3] support the chosen object/lookup and applicable event check before CREATE[4]. No expected field values were preloaded in the natural prompt."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "The original 196-byte text was actually read in full. Date, venue, testing, interest, no procurement commitment, unknown quantity, price and next-week action are all preserved in written fields. Broad Concerns help permits uncertainty; its placement is not treated as a factual failure."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "FAIL",
+              "evidence": "Two successful actual turns preserve the target and no duplicate CREATE/upload occurs, but first-turn upload happens before archival authorization. There is no optional invitation; the second-turn request only receives a receipt for the already uploaded original."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "FAIL",
+              "evidence": "uploads[0]/toolCalls[5] upload the source in turn0, while user authorization arrives only in turn1. No upload occurs in authorized turn1 because it already succeeded. This violates optional archival sequencing despite correct target and record."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 196 bytes SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 2,
+          "sessionId": "d9f332d2-a125-46fc-9b6f-aba7732f6588",
+          "originalCaptureSha256": "466268c632701e6250568a2a3848657153464f25f04225f965df3152b06c3b9c",
+          "actualRunIds": [
+            "4a47cc4f-a4a9-42f7-a521-32c24f0f739a",
+            "e27c1ef0-5568-4cc7-bbd1-7b4b01ba1671"
+          ],
+          "businessVerdict": "FAIL",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 16,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 1,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "4a47cc4f-a4a9-42f7-a521-32c24f0f739a",
+              "durationMs": 40477,
+              "usage": {
+                "input": 32703,
+                "output": 5894,
+                "cacheRead": 311936,
+                "cacheWrite": 0,
+                "reasoningTokens": 4503,
+                "total": 350533,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "e27c1ef0-5568-4cc7-bbd1-7b4b01ba1671",
+              "durationMs": 24056,
+              "usage": {
+                "input": 685,
+                "output": 3622,
+                "cacheRead": 158848,
+                "cacheWrite": 0,
+                "reasoningTokens": 3321,
+                "total": 163155,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Tool-returned context/describe establish actual fields after rejected assumptions; valid customer query[6] and same-date event query[8] precede CREATE[9]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Complete original native read supports all written date/location, ongoing testing, interest without purchase commitment, unknown quantity, price and next-week action. Payload preserves optional coverage, negation and tense."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "FAIL",
+              "evidence": "Two exact prompts/actual runIds share a session and no actual replay occurs, but first turn uploads without authorization and never offers the optional invitation. Second reply also proposes re-upload if the page appears empty despite an already confirmed upload success."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "FAIL",
+              "evidence": "Only upload occurs at turn0 (call[10]) before the user agrees in turn1. The later turn performs failed unsupported attachment queries and reports prior success, not the required authorized-turn upload. Record target itself is correct."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 196 bytes SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 3,
+          "sessionId": "09cd4a92-83c9-45c8-8b07-9ec1cb31d611",
+          "originalCaptureSha256": "ab6b528ade2df4194a46e528966117d4ceee7d6e2542641a34615fe082193d8b",
+          "actualRunIds": [
+            "dafd8252-c43d-45c6-bec1-e7f35f5c21b7",
+            "987f1e08-a580-4c03-87f1-2eb21e860a37"
+          ],
+          "businessVerdict": "FAIL",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 15,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 1,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "dafd8252-c43d-45c6-bec1-e7f35f5c21b7",
+              "durationMs": 38112,
+              "usage": {
+                "input": 32650,
+                "output": 5672,
+                "cacheRead": 315648,
+                "cacheWrite": 0,
+                "reasoningTokens": 4184,
+                "total": 353970,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "987f1e08-a580-4c03-87f1-2eb21e860a37",
+              "durationMs": 30869,
+              "usage": {
+                "input": 1952,
+                "output": 4552,
+                "cacheRead": 157568,
+                "cacheWrite": 0,
+                "reasoningTokens": 4246,
+                "total": 164072,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Discovery/context/describe and corrected customer query[5] establish real fields and subject; event query[7] checks existing events before CREATE[8]."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "The original text is actually read in full with matching hash. Payload includes all date/location/testing/interest/no-commitment/unknown-quantity/price/next-week-action facts with appropriate tense and optional coverage."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "FAIL",
+              "evidence": "Actual prompts/runIds/session are continuous, the target and record receipt are correct, and no second-turn replay occurs; however, first-turn original upload precedes consent and the optional invitation never occurs."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "FAIL",
+              "evidence": "uploads[0]/call[9] succeed in turn0, before user approval in turn1. Later turn only reports prior success after unsupported attachment queries, rather than performing the requested authorized upload sequence."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "Actual native read result in provider-input.jsonl request 2, message index 4; complete 196 bytes SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1 match the actual original TXT/CSV file, unclipped. Body reviewed against actual payload/replies."
+            }
+          ]
+        }
+      ]
+    },
+    "after": {
+      "reviewedCaptures": "/data/sfoa-enterprise-mcp/evidence/material-workflows-repeated-d57f110-20261105/after-reviewed.json",
+      "reviewedCapturesSha256": "1affadd1d94cba8f7ac2547148009fddc70bbbf225f07a5201bbfe2470b9d0b5",
+      "score": "/data/sfoa-enterprise-mcp/evidence/material-workflows-repeated-d57f110-20261105/after-reviewed-score.json",
+      "scoreExitCode": 1,
+      "cases": 18,
+      "sessions": 18,
+      "modelTurns": 42,
+      "actualTraceRunIds": 42,
+      "nativeMaterialReads": 21,
+      "materials": 21,
+      "businessVerdicts": {
+        "PASS": 17,
+        "FAIL": 1
+      },
+      "coreRepeatedCoverage": "PARTIAL",
+      "repetitionCoverage": [
+        {
+          "id": "natural-multisource-create",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-existing-supplement",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        },
+        {
+          "id": "natural-optional-archive",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 2
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "runs": 3,
+          "distinctSessions": 3,
+          "passed": 3
+        }
+      ],
+      "blockingQuestions": 3,
+      "optionalArchiveInvitations": 3,
+      "toolCallCount": 206,
+      "sdkMutationCount": 21,
+      "uploadCallCount": 9,
+      "reportedDurationMsTotal": 739775,
+      "durationUnknownTurns": 0,
+      "reportedUsageSumsByKey": {
+        "input": 575681,
+        "output": 107105,
+        "cacheRead": 6406272,
+        "cacheWrite": 0,
+        "reasoningTokens": 77920,
+        "total": 7089058
+      },
+      "usageUnknownTurns": 0,
+      "nonPass": [
+        {
+          "id": "natural-optional-archive",
+          "iteration": 3,
+          "verdict": "FAIL",
+          "criteria": [
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "FAIL",
+              "evidence": "CREATE call6 Progress__c adds 客户送来的样品 (samples sent by the customer). Original meeting.txt says only 样品仍在测试; neither source material nor any metadata/record read identifies the sample supplier or a customer shipment. This invents a business actor/action, despite preserving date/location/negation/quantity and follow-up."
+            }
+          ]
+        }
+      ],
+      "perCase": [
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 1,
+          "sessionId": "157b707c-52ad-45da-a26c-a55547a0801d",
+          "originalCaptureSha256": "e599b4567bacfa832425f7520d1dc538cf23b5f22ca201e31817c82f5c00d126",
+          "actualRunIds": [
+            "f072e34b-99cc-4c1b-b426-02e1aca6f2ba",
+            "b529966c-c712-4005-9c59-7a9218dafeca"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 13,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 2,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "f072e34b-99cc-4c1b-b426-02e1aca6f2ba",
+              "durationMs": 47186,
+              "usage": {
+                "input": 32696,
+                "output": 7583,
+                "cacheRead": 352768,
+                "cacheWrite": 0,
+                "reasoningTokens": 5799,
+                "total": 393047,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "b529966c-c712-4005-9c59-7a9218dafeca",
+              "durationMs": 4173,
+              "usage": {
+                "input": 510,
+                "output": 311,
+                "cacheRead": 81280,
+                "cacheWrite": 0,
+                "reasoningTokens": 137,
+                "total": 82101,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/Context/describe used for natural note task; corrected lookup resolves the unique customer and successful complete event query precedes CREATE."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Both files are actually read. Payload retains date, location, testing, interest, no order commitment, undecided quantity, price concern and unexecuted next-week action; readback matches."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "One CREATE only; receipt separately reports saved record, first file success and second file definite failure. Second turn uses the same successful record and only failed second reference."
+            },
+            {
+              "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+              "verdict": "PASS",
+              "evidence": "Initial upload attempted both refs and returned SUCCESS/FAILED with explicit not-published/recoverable message; following turn uploads only second ref and receives SUCCESS. No duplicate record or first-file replay."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read meeting.txt, 196 bytes, SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "follow-up.txt",
+              "path": "materials/follow-up.txt",
+              "kind": "TEXT",
+              "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+              "bytes": 60,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 5; native read follow-up.txt, 60 bytes, SHA256 7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 2,
+          "sessionId": "cad6109a-28a4-4a8a-8d88-d1578cea54f5",
+          "originalCaptureSha256": "e18e522a7b3e3c64d754bd77282f1186b4fd6a4febf47aa58d799062c73aea0d",
+          "actualRunIds": [
+            "11035921-3de4-4b99-96c6-20414e2a3029",
+            "b2b54e9a-6074-40cc-b103-6b3bccaff0b7"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 2,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "11035921-3de4-4b99-96c6-20414e2a3029",
+              "durationMs": 23805,
+              "usage": {
+                "input": 31740,
+                "output": 3579,
+                "cacheRead": 248704,
+                "cacheWrite": 0,
+                "reasoningTokens": 2118,
+                "total": 284023,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "b2b54e9a-6074-40cc-b103-6b3bccaff0b7",
+              "durationMs": 4235,
+              "usage": {
+                "input": 458,
+                "output": 401,
+                "cacheRead": 71296,
+                "cacheWrite": 0,
+                "reasoningTokens": 228,
+                "total": 72155,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Natural task resolved through playbook/inventory/Context and unique customer query; complete same-customer/date event query at call4 precedes CREATE."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Date/location, testing, interest, no purchase commitment, unknown quantity, price objection and unexecuted next-week follow-up remain truthful in payload/readback. Storing interest/quantity uncertainty with feedback is semantically reasonable, not a forced-slot error."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "First reply accurately separates record success and partial attachment result; second uses the same successful target and reports only failed-file recovery."
+            },
+            {
+              "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+              "verdict": "PASS",
+              "evidence": "Both raw files matched native reads. Initial two-ref attempt returned first SUCCESS/second FAILED explicitly not published; second attempt only failed ref succeeds, no repeated record or first upload."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 5; native read meeting.txt, 196 bytes, SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "follow-up.txt",
+              "path": "materials/follow-up.txt",
+              "kind": "TEXT",
+              "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+              "bytes": 60,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 6; native read follow-up.txt, 60 bytes, SHA256 7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 3,
+          "sessionId": "b4d20883-6c58-4f60-aa69-844d8ba65973",
+          "originalCaptureSha256": "f66ffcd832383c89ebd05f881fdd357f3dae498c1776a168e36e4b616eff599f",
+          "actualRunIds": [
+            "6b729e6e-8b2c-44d2-9f2e-edb9fd6521b4",
+            "2c9e093e-2c08-495d-9bff-d3615d8863a6"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 2,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "6b729e6e-8b2c-44d2-9f2e-edb9fd6521b4",
+              "durationMs": 26672,
+              "usage": {
+                "input": 32061,
+                "output": 3815,
+                "cacheRead": 278016,
+                "cacheWrite": 0,
+                "reasoningTokens": 2304,
+                "total": 313892,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "2c9e093e-2c08-495d-9bff-d3615d8863a6",
+              "durationMs": 3441,
+              "usage": {
+                "input": 530,
+                "output": 304,
+                "cacheRead": 72704,
+                "cacheWrite": 0,
+                "reasoningTokens": 124,
+                "total": 73538,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/describe/Context supply note schema and type; successful customer lookup and complete customer event query precede CREATE."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Actual payload/readback preserves date/location, testing, cooperation interest, no purchase commitment, undecided quantity, price objection and unexecuted next-week follow-up."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Record creation and attachment partial success clearly separated; same actual created target reused in second turn with no additional DML."
+            },
+            {
+              "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+              "verdict": "PASS",
+              "evidence": "Both raw files read. First request attempts both; first SUCCESS and second definite FAILED/not-published. Second request only failed reference succeeds; receipt accurately distinguishes prior/current successes."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read meeting.txt, 196 bytes, SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "follow-up.txt",
+              "path": "materials/follow-up.txt",
+              "kind": "TEXT",
+              "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+              "bytes": 60,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 5; native read follow-up.txt, 60 bytes, SHA256 7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 1,
+          "sessionId": "a63d5243-a404-4765-bcab-71715192e2fa",
+          "originalCaptureSha256": "3ea9debe2ffec9154f8df5e84fa2dd649f8ecc449c9cb2b6b622fd39032dd152",
+          "actualRunIds": [
+            "c41d76b0-564e-47f6-91d0-4d79e4ff5018",
+            "f873d552-3df1-4eaf-8d5d-2ce0b81fb0c2",
+            "d677ef9a-a914-4b51-9d18-6401453094dd",
+            "4952d5d2-80d2-437c-90dd-d59fc3c7a31d"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 3,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "c41d76b0-564e-47f6-91d0-4d79e4ff5018",
+              "durationMs": 4220,
+              "usage": {
+                "input": 10017,
+                "output": 472,
+                "cacheRead": 10496,
+                "cacheWrite": 0,
+                "reasoningTokens": 270,
+                "total": 20985,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "f873d552-3df1-4eaf-8d5d-2ce0b81fb0c2",
+              "durationMs": 2401,
+              "usage": {
+                "input": 464,
+                "output": 153,
+                "cacheRead": 22656,
+                "cacheWrite": 0,
+                "reasoningTokens": 32,
+                "total": 23273,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 2,
+              "runId": "d677ef9a-a914-4b51-9d18-6401453094dd",
+              "durationMs": 1961,
+              "usage": {
+                "input": 205,
+                "output": 108,
+                "cacheRead": 11520,
+                "cacheWrite": 0,
+                "reasoningTokens": 44,
+                "total": 11833,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 3,
+              "runId": "4952d5d2-80d2-437c-90dd-d59fc3c7a31d",
+              "durationMs": 20744,
+              "usage": {
+                "input": 12031,
+                "output": 2960,
+                "cacheRead": 205184,
+                "cacheWrite": 0,
+                "reasoningTokens": 1640,
+                "total": 220175,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Natural task; list_sobjects and Context discovered the note object/fields/type. Invalid Account projection corrected from describe before unique customer resolution."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Final CREATE includes past date, office location, interest, testing, undecided quantity, no purchase commitment, price objection and next-week follow-up in relevant fields. Complete event query at call7 returned zero before call8 CREATE."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Four same-session turns; no mutation during first three collection turns, exactly one CREATE in turn3. Native progress/feedback reads matched original bytes/hash; saved record readback matches reply. Explicit no archival respected."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "progress.txt",
+              "path": "materials/progress.txt",
+              "kind": "TEXT",
+              "contentSha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+              "bytes": 69,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read progress.txt, 69 bytes, SHA256 37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "feedback.txt",
+              "path": "materials/feedback.txt",
+              "kind": "TEXT",
+              "contentSha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+              "bytes": 63,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 4, message index 8; native read feedback.txt, 63 bytes, SHA256 826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 2,
+          "sessionId": "8a73b3c0-bf0b-4721-9ce4-9d3ac2331264",
+          "originalCaptureSha256": "c722690da1f1d1323a0c742bb8061ed7ba90906b850a9b812bbbc078644182c4",
+          "actualRunIds": [
+            "5d80d76f-0134-418a-9298-47c6c8f8cdc9",
+            "a64316e9-73ee-4279-9533-4d5080ed4370",
+            "01809015-9107-468d-8768-db0710b24414",
+            "3915d29e-528c-4047-9749-2620eacc524f"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 3,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "5d80d76f-0134-418a-9298-47c6c8f8cdc9",
+              "durationMs": 4516,
+              "usage": {
+                "input": 9959,
+                "output": 549,
+                "cacheRead": 10496,
+                "cacheWrite": 0,
+                "reasoningTokens": 338,
+                "total": 21004,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "a64316e9-73ee-4279-9533-4d5080ed4370",
+              "durationMs": 3035,
+              "usage": {
+                "input": 386,
+                "output": 176,
+                "cacheRead": 22912,
+                "cacheWrite": 0,
+                "reasoningTokens": 40,
+                "total": 23474,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 2,
+              "runId": "01809015-9107-468d-8768-db0710b24414",
+              "durationMs": 3164,
+              "usage": {
+                "input": 185,
+                "output": 313,
+                "cacheRead": 11648,
+                "cacheWrite": 0,
+                "reasoningTokens": 230,
+                "total": 12146,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 3,
+              "runId": "3915d29e-528c-4047-9749-2620eacc524f",
+              "durationMs": 24004,
+              "usage": {
+                "input": 22665,
+                "output": 3456,
+                "cacheRead": 258048,
+                "cacheWrite": 0,
+                "reasoningTokens": 2212,
+                "total": 284169,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/inventory/Context/describe guide natural object and field selection; unique customer lookup succeeds after correction."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Final values retain actual date/location, interest, still testing, unknown quantity, no purchase commitment, price objection and next-week follow-up; successful complete event query call8 precedes CREATE call9."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Two native files match bytes/hash. Four same-session turns preserve all accumulated facts; first three have no writes, fourth exactly one CREATE/readback and no archive."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "progress.txt",
+              "path": "materials/progress.txt",
+              "kind": "TEXT",
+              "contentSha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+              "bytes": 69,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read progress.txt, 69 bytes, SHA256 37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "feedback.txt",
+              "path": "materials/feedback.txt",
+              "kind": "TEXT",
+              "contentSha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+              "bytes": 63,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 4, message index 8; native read feedback.txt, 63 bytes, SHA256 826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 3,
+          "sessionId": "688b37c4-52d8-491d-9294-7008d4a5e32d",
+          "originalCaptureSha256": "989b004daafe2d4afe17137e8aa25e9d814a984af3f2cfd8c50104671066b6ef",
+          "actualRunIds": [
+            "774ec591-59c0-4e9f-8d6a-1a2b6d639988",
+            "cdcc9e97-c2c5-4a22-8767-c595c0cab9ce",
+            "d8583865-17ac-436a-ae89-fbea29ff5110",
+            "eceebe25-52b7-4578-9ffa-9acc28f5cabe"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 3,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "774ec591-59c0-4e9f-8d6a-1a2b6d639988",
+              "durationMs": 4002,
+              "usage": {
+                "input": 10028,
+                "output": 446,
+                "cacheRead": 10368,
+                "cacheWrite": 0,
+                "reasoningTokens": 267,
+                "total": 20842,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "cdcc9e97-c2c5-4a22-8767-c595c0cab9ce",
+              "durationMs": 2401,
+              "usage": {
+                "input": 388,
+                "output": 129,
+                "cacheRead": 22656,
+                "cacheWrite": 0,
+                "reasoningTokens": 53,
+                "total": 23173,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 2,
+              "runId": "d8583865-17ac-436a-ae89-fbea29ff5110",
+              "durationMs": 2513,
+              "usage": {
+                "input": 162,
+                "output": 219,
+                "cacheRead": 11520,
+                "cacheWrite": 0,
+                "reasoningTokens": 129,
+                "total": 11901,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 3,
+              "runId": "eceebe25-52b7-4578-9ffa-9acc28f5cabe",
+              "durationMs": 24198,
+              "usage": {
+                "input": 22321,
+                "output": 3648,
+                "cacheRead": 245376,
+                "cacheWrite": 0,
+                "reasoningTokens": 2478,
+                "total": 271345,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/inventory/Context/describe discovered note schema/type; unique customer resolved after removing unexposed fields."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Final payload includes all accumulated past-event facts, negation, location and next-week action. Complete customer event query at call8 returned zero before CREATE call9."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Four same-session turns, both exact native file reads, no early write; final single CREATE/readback matches receipt and no-archive instruction."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "progress.txt",
+              "path": "materials/progress.txt",
+              "kind": "TEXT",
+              "contentSha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+              "bytes": 69,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read progress.txt, 69 bytes, SHA256 37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "feedback.txt",
+              "path": "materials/feedback.txt",
+              "kind": "TEXT",
+              "contentSha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+              "bytes": 63,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 4, message index 8; native read feedback.txt, 63 bytes, SHA256 826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 1,
+          "sessionId": "a18d7083-0509-4eec-808b-44c15eab2fd7",
+          "originalCaptureSha256": "86ae61c967d5069276c3185256a23bd7cea22ed06b3bd3e40196f22c98965468",
+          "actualRunIds": [
+            "2d6afa84-b4fa-438b-8d4f-cdd745afef03",
+            "cd1672bc-f41f-4f47-b17f-e6af6292d582"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 1,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 14,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "2d6afa84-b4fa-438b-8d4f-cdd745afef03",
+              "durationMs": 95883,
+              "usage": {
+                "input": 36657,
+                "output": 15188,
+                "cacheRead": 503424,
+                "cacheWrite": 0,
+                "reasoningTokens": 13074,
+                "total": 555269,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "cd1672bc-f41f-4f47-b17f-e6af6292d582",
+              "durationMs": 10270,
+              "usage": {
+                "input": 2175,
+                "output": 1273,
+                "cacheRead": 212992,
+                "cacheWrite": 0,
+                "reasoningTokens": 900,
+                "total": 216440,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook, inventory and describe used; customer and existing event read from successful queries after invalid projections were corrected."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Same customer/date/content were actually observed. Location projection now returned explicit null, unlike the old fixture. Final patch contains only the chosen price/noise concern and no invented current facts."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "No first-turn mutation; one business choice between update and distinct new record. Second turn updates only Concerns on the observed existing ID, reads it back, and accurately says no new record."
+            },
+            {
+              "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+              "verdict": "PASS",
+              "evidence": "Applicable event identity check returned the same event before the single concentrated question. Explicit second-turn choice was honored without asking again."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 2,
+          "sessionId": "3f598f31-1ed7-450f-b4e7-642c7d0d4a46",
+          "originalCaptureSha256": "e710f1cf35e4a6afa8c489eff5364ceb54663455f808fdc1a75b4e56423badbd",
+          "actualRunIds": [
+            "60b20579-afa4-4d8c-a24a-06215ebee0ac",
+            "b8a7187b-8a37-4896-85a7-e0c39d3451bc"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 1,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 13,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "60b20579-afa4-4d8c-a24a-06215ebee0ac",
+              "durationMs": 100882,
+              "usage": {
+                "input": 34628,
+                "output": 17264,
+                "cacheRead": 415616,
+                "cacheWrite": 0,
+                "reasoningTokens": 15666,
+                "total": 467508,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "b8a7187b-8a37-4896-85a7-e0c39d3451bc",
+              "durationMs": 9002,
+              "usage": {
+                "input": 838,
+                "output": 1267,
+                "cacheRead": 157824,
+                "cacheWrite": 0,
+                "reasoningTokens": 1003,
+                "total": 159929,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Object/fields/type from actual playbook, inventory, describe and Context; unique customer resolved before existing event lookup."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Successful queries explicitly contain same date/subject and current facts, including Location=null; statement that location is empty is supported in this corrected fixture. Final concern patch preserves price/noise meaning."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "First turn asks once without mutation, second updates only requested Concerns on existing ID and readback substantiates other fields unchanged."
+            },
+            {
+              "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+              "verdict": "PASS",
+              "evidence": "Same event recognized before business choice; user's choice honored without duplicate CREATE or further confirmation."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 3,
+          "sessionId": "7d065e28-9b69-47a6-89a2-59f788750477",
+          "originalCaptureSha256": "fd12188e40aa1fe99e62a691f0e0687fdad2f34494860428977d59383abd0685",
+          "actualRunIds": [
+            "db1c8a61-e78e-451b-82d9-179694c23e0b",
+            "0cdcf517-4125-4b9c-bfe4-7c1cc27718bd"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 1,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 9,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "db1c8a61-e78e-451b-82d9-179694c23e0b",
+              "durationMs": 25079,
+              "usage": {
+                "input": 31428,
+                "output": 3529,
+                "cacheRead": 162432,
+                "cacheWrite": 0,
+                "reasoningTokens": 2669,
+                "total": 197389,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "0cdcf517-4125-4b9c-bfe4-7c1cc27718bd",
+              "durationMs": 9182,
+              "usage": {
+                "input": 2133,
+                "output": 1110,
+                "cacheRead": 146560,
+                "cacheWrite": 0,
+                "reasoningTokens": 685,
+                "total": 149803,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Inventory/describe/Context and customer query discover actual note schema/type and unique customer."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Complete event query actually returns same date/content and explicit Location null. No fabricated current value. Final feedback patch faithfully captures requested price/noise concern."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "One first-turn business choice and no mutation; second-turn minimal update on same existing ID, successful readback, no CREATE/upload and no repeated question."
+            },
+            {
+              "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+              "verdict": "PASS",
+              "evidence": "Same event was recognized before presenting informed choice. Explicit decision updates only requested concern, leaving all other fields unchanged."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 1,
+          "sessionId": "61f3b450-9a64-42ca-bad6-980a8c6a977b",
+          "originalCaptureSha256": "290a005620ba355f89623b226345c96fd1e98575c1771ad73f1867eb8b17998a",
+          "actualRunIds": [
+            "e31ddd86-fe7c-44d2-af7c-9f2123e76706",
+            "1c65633c-56f2-4770-b998-0f0218c9a2e5"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 13,
+          "sdkMutationCount": 2,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            },
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Follow_Up__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "e31ddd86-fe7c-44d2-af7c-9f2123e76706",
+              "durationMs": 18439,
+              "usage": {
+                "input": 30333,
+                "output": 2187,
+                "cacheRead": 239744,
+                "cacheWrite": 0,
+                "reasoningTokens": 1085,
+                "total": 272264,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "1c65633c-56f2-4770-b998-0f0218c9a2e5",
+              "durationMs": 10590,
+              "usage": {
+                "input": 1814,
+                "output": 1659,
+                "cacheRead": 135936,
+                "cacheWrite": 0,
+                "reasoningTokens": 1293,
+                "total": 139409,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Discovered note schema and uniquely resolved customer/date target; initial unsupported query projections corrected before the patch."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "First patch appends noise concern to existing price objection; second changes only requested follow-up. No other facts cleared. Receipt's next Wednesday November11 matches the current week anchor."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Same session and existing ID across both turns; successful readbacks match each minimal patch and unchanged fields; no CREATE or upload."
+            },
+            {
+              "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+              "verdict": "PASS",
+              "evidence": "Exactly two UPDATE dispatches: Concerns first, Follow_Up second. Each carries only ID plus its requested field."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 2,
+          "sessionId": "a62ae9d0-852b-4848-88cc-81a3516369a0",
+          "originalCaptureSha256": "146d89e900c1b117b21479e9e800b6d763ef0ac99bc076faa82ae05716365da4",
+          "actualRunIds": [
+            "20cd58dd-c066-4d35-af4e-207bacabb1fd",
+            "080b2926-78a1-4257-84cc-aade04248783"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 12,
+          "sdkMutationCount": 2,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            },
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Follow_Up__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "20cd58dd-c066-4d35-af4e-207bacabb1fd",
+              "durationMs": 17799,
+              "usage": {
+                "input": 30410,
+                "output": 2182,
+                "cacheRead": 241920,
+                "cacheWrite": 0,
+                "reasoningTokens": 1117,
+                "total": 274512,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "080b2926-78a1-4257-84cc-aade04248783",
+              "durationMs": 5960,
+              "usage": {
+                "input": 596,
+                "output": 615,
+                "cacheRead": 99584,
+                "cacheWrite": 0,
+                "reasoningTokens": 374,
+                "total": 100795,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Schema/lookup and successful date query resolve the existing note; unsupported relationship query was corrected before mutation."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Adds noise concern to original price feedback and replaces only requested follow-up; direct user next-Wednesday receipt date November11 is consistent with current date."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Both turns address the same record and final readbacks substantiate each receipt; no create/upload or unrelated change."
+            },
+            {
+              "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+              "verdict": "PASS",
+              "evidence": "Two dispatches contain only Id+Concerns and Id+Follow_Up respectively; existing progress/location/date remain unchanged."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 3,
+          "sessionId": "c9817c81-f43f-4499-9b90-63b741c36b70",
+          "originalCaptureSha256": "335d08ef6296eb8d871ec20b1a38b3cb04bb33504b06a01308d3d11fec845b61",
+          "actualRunIds": [
+            "8835396f-196d-44d6-85da-eee075d2dce1",
+            "4046055c-fd18-40c5-a213-a1e86a105cdc"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 11,
+          "sdkMutationCount": 2,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Id"
+              ]
+            },
+            {
+              "turn": 1,
+              "operation": "UPDATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Follow_Up__c",
+                "Id"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "8835396f-196d-44d6-85da-eee075d2dce1",
+              "durationMs": 15846,
+              "usage": {
+                "input": 20737,
+                "output": 1534,
+                "cacheRead": 192640,
+                "cacheWrite": 0,
+                "reasoningTokens": 536,
+                "total": 214911,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "4046055c-fd18-40c5-a213-a1e86a105cdc",
+              "durationMs": 5865,
+              "usage": {
+                "input": 837,
+                "output": 459,
+                "cacheRead": 67456,
+                "cacheWrite": 0,
+                "reasoningTokens": 199,
+                "total": 68752,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Inventory/describe and unique customer/current-event reads identify the target; UPDATE Context includes relevant fields."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Existing price objection preserved when appending noise question; only requested next-week Wednesday Chen follow-up changed in second turn. Current-value receipt claims are backed by readbacks."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Both turns continue same session and same existing record; no CREATE/upload or unrelated clearing."
+            },
+            {
+              "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+              "verdict": "PASS",
+              "evidence": "Exactly two minimal patches: Concerns then Follow_Up. Success/readback verify the unchanged progress/date and preserved prior update."
+            }
+          ],
+          "materialReview": []
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 1,
+          "sessionId": "fec8db73-779a-4fa5-aa79-9398ef1c6173",
+          "originalCaptureSha256": "0cc0e70f359e25c1d72ce5d6277212f53017ee46ea0d1c3526db9cb9c609b21f",
+          "actualRunIds": [
+            "c535cc0a-5e21-4dee-8ab4-9fa1bc6199a9",
+            "5466ca92-3f6e-440d-9268-b3c4bc642f52"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "CREATE",
+              "objectApiName": "Reception_Request__c",
+              "fields": [
+                "Agenda__c",
+                "Aim__c",
+                "Customer__c",
+                "Location__c",
+                "Planned_At__c",
+                "RecordTypeId",
+                "Visitors__c"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "c535cc0a-5e21-4dee-8ab4-9fa1bc6199a9",
+              "durationMs": 27655,
+              "usage": {
+                "input": 29943,
+                "output": 4517,
+                "cacheRead": 86272,
+                "cacheWrite": 0,
+                "reasoningTokens": 3729,
+                "total": 120732,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "5466ca92-3f6e-440d-9268-b3c4bc642f52",
+              "durationMs": 23281,
+              "usage": {
+                "input": 3326,
+                "output": 3686,
+                "cacheRead": 267904,
+                "cacheWrite": 0,
+                "reasoningTokens": 2831,
+                "total": 274916,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook policies and CREATE Context supplied the object and customer Record Type; query resolved the customer. No schema/expected payload injected in natural prompt."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Payload includes Shanghai 14:00 instant, location, all agenda times, named customer/host roles and later noise-control concern. Event query errors from unexposed RecordTypeId corrected; successful complete empty event-table query precedes CREATE."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "First turn waits without mutation; one CREATE after completion message. Successful record readback supports receipt; no upload after explicit no-archive instruction."
+            },
+            {
+              "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+              "verdict": "PASS",
+              "evidence": "Both agenda.txt and participants.csv have exact native read hashes/bytes, not clipped. Payload writes agenda/personnel and later user concern in relevant optional fields."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "agenda.txt",
+              "path": "materials/agenda.txt",
+              "kind": "TEXT",
+              "contentSha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+              "bytes": 105,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read agenda.txt, 105 bytes, SHA256 6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "participants.csv",
+              "path": "materials/participants.csv",
+              "kind": "CSV",
+              "contentSha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+              "bytes": 87,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 5; native read participants.csv, 87 bytes, SHA256 44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 2,
+          "sessionId": "a30bb5f8-c46e-4fb5-ac4e-4344d3e58e00",
+          "originalCaptureSha256": "389e5c0c8086a74bdca0f97ca57aded10eaddd4d6c1a413706f60584eb755c75",
+          "actualRunIds": [
+            "e428e98f-35a5-488e-88e8-77fbdf09bbcc",
+            "36ef4812-797e-4898-8fb4-22125e384d5a"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 13,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "CREATE",
+              "objectApiName": "Reception_Request__c",
+              "fields": [
+                "Agenda__c",
+                "Aim__c",
+                "Customer__c",
+                "Location__c",
+                "Planned_At__c",
+                "RecordTypeId",
+                "Visitors__c"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "e428e98f-35a5-488e-88e8-77fbdf09bbcc",
+              "durationMs": 6164,
+              "usage": {
+                "input": 10091,
+                "output": 723,
+                "cacheRead": 10880,
+                "cacheWrite": 0,
+                "reasoningTokens": 496,
+                "total": 21694,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "36ef4812-797e-4898-8fb4-22125e384d5a",
+              "durationMs": 26260,
+              "usage": {
+                "input": 24150,
+                "output": 3623,
+                "cacheRead": 331776,
+                "cacheWrite": 0,
+                "reasoningTokens": 2100,
+                "total": 359549,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook and selected customer Context expose object/type; corrected customer lookup resolves unique target."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Payload contains Shanghai14:00, location, every agenda time, both named roles and later noise concern. Complete per-customer event query returns zero before CREATE."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "First turn only reads/waits; second creates exactly once and eventually reads back all relevant values. No upload after explicit no archive."
+            },
+            {
+              "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+              "verdict": "PASS",
+              "evidence": "TXT and CSV exact native read bytes/hash observed; their distinct agenda and participant facts plus later text are written to relevant optional fields."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "agenda.txt",
+              "path": "materials/agenda.txt",
+              "kind": "TEXT",
+              "contentSha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+              "bytes": 105,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read agenda.txt, 105 bytes, SHA256 6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "participants.csv",
+              "path": "materials/participants.csv",
+              "kind": "CSV",
+              "contentSha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+              "bytes": 87,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 5; native read participants.csv, 87 bytes, SHA256 44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 3,
+          "sessionId": "8a303b61-ee4c-482a-ae87-cc796660f0b9",
+          "originalCaptureSha256": "6f47e625c4253d4b0e3d9060c3facb55b45b5f66425eefafd2dec5909e1f7f61",
+          "actualRunIds": [
+            "cbdea0f7-54bf-4b28-98be-ecc0ddf9da0f",
+            "33f5d34f-ff7a-4dc0-b37d-f3e90aa1cec3"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 0,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 0,
+          "writtenFields": [
+            {
+              "turn": 1,
+              "operation": "CREATE",
+              "objectApiName": "Reception_Request__c",
+              "fields": [
+                "Agenda__c",
+                "Aim__c",
+                "Customer__c",
+                "Location__c",
+                "Planned_At__c",
+                "RecordTypeId",
+                "Visitors__c"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "cbdea0f7-54bf-4b28-98be-ecc0ddf9da0f",
+              "durationMs": 3992,
+              "usage": {
+                "input": 8299,
+                "output": 565,
+                "cacheRead": 1024,
+                "cacheWrite": 0,
+                "reasoningTokens": 545,
+                "total": 9888,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": false
+            },
+            {
+              "turn": 1,
+              "runId": "33f5d34f-ff7a-4dc0-b37d-f3e90aa1cec3",
+              "durationMs": 28456,
+              "usage": {
+                "input": 24788,
+                "output": 4441,
+                "cacheRead": 241920,
+                "cacheWrite": 0,
+                "reasoningTokens": 3025,
+                "total": 271149,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/inventory and selected customer CREATE Context provide object/type/fields; unique customer lookup succeeds."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Correct Shanghai time, location, agenda times, both personnel roles and later noise concern written. Complete successful empty-table event query precedes CREATE after invalid RecordTypeId projection correction."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "First turn waits without DML; second reads retained raw materials and creates once, reads back, and accurately reports no archive."
+            },
+            {
+              "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+              "verdict": "PASS",
+              "evidence": "TXT and CSV exact native reads observed after text completion, proving retained files across turns. Distinct agenda/personnel content and later concern are actually written."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "agenda.txt",
+              "path": "materials/agenda.txt",
+              "kind": "TEXT",
+              "contentSha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+              "bytes": 105,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 3, message index 7; native read agenda.txt, 105 bytes, SHA256 6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e; matches original bytes/hash, clipped=false"
+            },
+            {
+              "fileName": "participants.csv",
+              "path": "materials/participants.csv",
+              "kind": "CSV",
+              "contentSha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+              "bytes": 87,
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 3, message index 8; native read participants.csv, 87 bytes, SHA256 44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 1,
+          "sessionId": "e99a85e5-130b-46b6-818b-f24c9098cb4f",
+          "originalCaptureSha256": "f584a5d96b03638c2476987b7a8a40b8fdf26ca74b5378f016cc5e12cc99504b",
+          "actualRunIds": [
+            "1dbf6660-38bb-4049-b3b0-9581c58b6669",
+            "58da4264-787f-4669-a448-812a0c7425a8"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 1,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 1,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "1dbf6660-38bb-4049-b3b0-9581c58b6669",
+              "durationMs": 28213,
+              "usage": {
+                "input": 30948,
+                "output": 4344,
+                "cacheRead": 215168,
+                "cacheWrite": 0,
+                "reasoningTokens": 3134,
+                "total": 250460,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "58da4264-787f-4669-a448-812a0c7425a8",
+              "durationMs": 5492,
+              "usage": {
+                "input": 481,
+                "output": 616,
+                "cacheRead": 71424,
+                "cacheWrite": 0,
+                "reasoningTokens": 477,
+                "total": 72521,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Actual playbook/context and describe facts supply note schema and type; customer lookup and complete event query precede CREATE."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Payload preserves past date, office location, interest, testing, no purchase commitment, undecided quantity, price objection and next-week follow-up. November9 week is consistent with the source event/current week."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Successful CREATE/readback in turn0, no initial upload, one optional invitation. Turn1 only attaches the source meeting.txt to the actual newly successful ID and accurately reports 1 success."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "PASS",
+              "evidence": "Exact native file read observed. One CREATE and one later upload with matching original reference; no repeated creation, no premature attachment action."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 3; native read meeting.txt, 196 bytes, SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 2,
+          "sessionId": "2d463253-44b1-4092-803b-dff9a49e567d",
+          "originalCaptureSha256": "17b0fd0c266cdde8bf7e592fa837b6b79b03014dbf7bf7d85cd81cde48e38d90",
+          "actualRunIds": [
+            "a7fae757-5009-416c-9df1-bd2830ca123c",
+            "0581972c-5aad-42d0-8209-5af088dc614e"
+          ],
+          "businessVerdict": "PASS",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 1,
+          "toolCallCount": 11,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 1,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "a7fae757-5009-416c-9df1-bd2830ca123c",
+              "durationMs": 24923,
+              "usage": {
+                "input": 32204,
+                "output": 3298,
+                "cacheRead": 302976,
+                "cacheWrite": 0,
+                "reasoningTokens": 1874,
+                "total": 338478,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "0581972c-5aad-42d0-8209-5af088dc614e",
+              "durationMs": 4512,
+              "usage": {
+                "input": 549,
+                "output": 439,
+                "cacheRead": 71296,
+                "cacheWrite": 0,
+                "reasoningTokens": 306,
+                "total": 72284,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/Context/describe and corrected customer query provide actual schema/type/identity; complete event query precedes CREATE."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "PASS",
+              "evidence": "Past date, office location, interest, testing, no purchase commitment, unknown quantity, price objection and next-week action all written and read back. Relative week November9 is anchored to source/current week."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "One initial CREATE with no upload; first reply invites archival once. Later explicit request triggers one successful upload to the exact created ID, with no repeated DML."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "PASS",
+              "evidence": "Source meeting.txt native read matches original bytes/hash. Only its valid synthetic ref uploaded after authorization; receipt reflects actual SUCCESS."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read meeting.txt, 196 bytes, SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1; matches original bytes/hash, clipped=false"
+            }
+          ]
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 3,
+          "sessionId": "95abc7b7-c4c8-401f-aa3a-fe20c6348bdb",
+          "originalCaptureSha256": "3bfb207392e1e998bca9433c97ac6d93c5425bbf7849ae745f2501a81765e12a",
+          "actualRunIds": [
+            "560f332c-7a47-48c0-a2ca-711b03a1abe5",
+            "5ce898c6-8d5f-4ee5-a1c3-bff479ea61c8"
+          ],
+          "businessVerdict": "FAIL",
+          "blockingQuestionCount": 0,
+          "optionalArchiveInvitations": 1,
+          "toolCallCount": 10,
+          "sdkMutationCount": 1,
+          "uploadCallCount": 1,
+          "writtenFields": [
+            {
+              "turn": 0,
+              "operation": "CREATE",
+              "objectApiName": "Customer_Contact_Log__c",
+              "fields": [
+                "Concerns__c",
+                "Customer__c",
+                "Follow_Up__c",
+                "Location__c",
+                "Occurred_On__c",
+                "Progress__c",
+                "RecordTypeId"
+              ]
+            }
+          ],
+          "turnMetrics": [
+            {
+              "turn": 0,
+              "runId": "560f332c-7a47-48c0-a2ca-711b03a1abe5",
+              "durationMs": 23405,
+              "usage": {
+                "input": 30946,
+                "output": 3288,
+                "cacheRead": 212096,
+                "cacheWrite": 0,
+                "reasoningTokens": 1895,
+                "total": 246330,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            },
+            {
+              "turn": 1,
+              "runId": "5ce898c6-8d5f-4ee5-a1c3-bff479ea61c8",
+              "durationMs": 5954,
+              "usage": {
+                "input": 564,
+                "output": 676,
+                "cacheRead": 69760,
+                "cacheWrite": 0,
+                "reasoningTokens": 464,
+                "total": 71000,
+                "cost": {
+                  "total": 0
+                }
+              },
+              "processLifecycleStatus": "EXITED",
+              "exitCode": 0,
+              "replayInvalid": true
+            }
+          ],
+          "criteria": [
+            {
+              "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+              "verdict": "PASS",
+              "evidence": "Playbook/Context/customer lookup and successful complete same-date event query precede CREATE; no API answer injected in prompt."
+            },
+            {
+              "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+              "verdict": "FAIL",
+              "evidence": "CREATE call6 Progress__c adds 客户送来的样品 (samples sent by the customer). Original meeting.txt says only 样品仍在测试; neither source material nor any metadata/record read identifies the sample supplier or a customer shipment. This invents a business actor/action, despite preserving date/location/negation/quantity and follow-up."
+            },
+            {
+              "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+              "verdict": "PASS",
+              "evidence": "Single CREATE is read back before one optional invitation. Explicit second-turn authorization leads to one matching-reference upload on the actual created target, no repeated DML. Final reply accurately qualifies the synthetic attachment result."
+            },
+            {
+              "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+              "verdict": "PASS",
+              "evidence": "Native meeting.txt read matches original bytes/hash. No turn0 upload; only turn1 upload after permission. Archive timing and target are correct independently of the invented record fact."
+            }
+          ],
+          "materialReview": [
+            {
+              "fileName": "meeting.txt",
+              "path": "materials/meeting.txt",
+              "kind": "TEXT",
+              "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+              "bytes": 196,
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "stagingEvidence": "SYNTHETIC_REF_ONLY",
+              "readingEvidence": "OBSERVED_NATIVE_READ",
+              "evidence": "provider-input.jsonl line 2, message index 4; native read meeting.txt, 196 bytes, SHA256 c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1; matches original bytes/hash, clipped=false"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "originalsUnchanged": true,
+  "limitations": [
+    "Both variants used the same fixed old Provider/server dist; this compares guidance, not candidate Provider runtime.",
+    "No real Salesforce writes or WeCom ingress; SDK records and attachment backend are synthetic.",
+    "Native read proof covers actual isolated TXT/CSV only, not PDF/image/audio or Adapter task-ledger integration.",
+    "The shared old attachment Provider omits retryable from tool output. Recovery proves handling of explicit FAILED/not-published facts plus user-reported resolution, not visibility of the new retryable field or the new attachment backend.",
+    "Finite fixture query subset: simple fields, =/LIKE, ISO >=/< and AND. Unsupported projections/predicates fail; full SOQL is not implemented.",
+    "Provider-reported duration sums are not wall-clock elapsed time. Usage keys are preserved separately and must not be summed across overlapping totals/cache fields.",
+    "Replay safety metadata remains separate from actual execution status. Older failed or classifier-defective runs remain unchanged and excluded from this comparison."
+  ],
+  "totalDistinctSessions": 36,
+  "totalActualTraceRunIds": 84,
+  "comparison": [
+    {
+      "id": "natural-multisource-create",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-cross-turn-create",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-existing-supplement",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-duplicate-choice",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-optional-archive",
+      "beforePassed": 0,
+      "afterPassed": 2
+    },
+    {
+      "id": "natural-attachment-recovery",
+      "beforePassed": 3,
+      "afterPassed": 3
+    }
+  ]
+}

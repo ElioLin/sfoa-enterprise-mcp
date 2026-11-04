@@ -1,0 +1,486 @@
+{
+  "schemaVersion": 1,
+  "verdict": "PASS_FOR_THIS_ISOLATED_MIXED_MATERIAL_BUSINESS_PROBE",
+  "scope": "ACTUAL_OPENCLAW_MODEL_DEPLOYED_OFFICE_READER_AND_PRIOR_ACTUAL_ASR_NATIVE_IMAGE_PDF_REAL_PROVIDER_SYNTHETIC_SDK",
+  "sourceCommit": "d57f110223bdd2fa76231f7094f93f7fd29f2d8a",
+  "guidanceVersion": "1.13.1",
+  "evidenceSha256": {
+    "capture": "6f66f5ac8aabe34bb94e865024dba9ca93474c7d6495fa8e7f4f2d7d3ed56fc5",
+    "providerInput": "8ec29b584c16092b7e49a56e84b0820f02f724b5a424f097c3ff23648cf205f1",
+    "guidance": "5fd03d16d172b805a78cd6a8fb04bcbb0fd6004278a13f6b521a4ff4db20adef",
+    "providerRuntime": "09cf79f0a480175b702ec18ee0e30e5914e388062aabfb3a9fdfcd3bb9b109c4",
+    "material-reader.js": "4aa833bc23016bb7505bab1eb188b28e16e2e52f035b52d19c5696840e16cac8",
+    "read-office.py": "dfc56ee4959e24a23faf43b412c97f88537e1d0a155f59ee9a10f4f2573a728b"
+  },
+  "inputMaterials": [
+    {
+      "fileName": "synthetic-visit-brief.docx",
+      "bytes": 1103,
+      "sha256": "0ddfa16400c467b3d088b64fe5176503869b409ee422f24a0be0ab0326e16477"
+    },
+    {
+      "fileName": "synthetic-attendees.xlsx",
+      "bytes": 1473,
+      "sha256": "226ac0114e5d3d8b0cf25af805e996c87c85d05a8bc90240da1c59b483d61716"
+    },
+    {
+      "fileName": "synthetic-followup.csv",
+      "bytes": 231,
+      "sha256": "5dd9f8d5fdf6a6dfb5073bfceaa010812953939eb370169b4541fe6cc279965f"
+    },
+    {
+      "fileName": "synthetic-agenda.pdf",
+      "bytes": 809,
+      "sha256": "b68fa0a4a9f608a596aa5d9231db729b5e2d801dba7dc0310c7c564d7bfaa166"
+    },
+    {
+      "fileName": "synthetic-scanned.pdf",
+      "bytes": 75453,
+      "sha256": "08926c2f15f77c77e337352e3faa30804b685c0e9ef3343f715fc8f2ac222e3a"
+    },
+    {
+      "fileName": "synthetic-site.png",
+      "bytes": 21634,
+      "sha256": "4651447e36b693409d06356cf39e8a4aa32ea4f6aec3b07dd404dbc9aae04e75"
+    },
+    {
+      "fileName": "synthetic-file-audio.m4a",
+      "bytes": 112928,
+      "sha256": "37d12a33f656b1380684ee4ca925c44c9287a338e811252967ba6d512acb3e3b"
+    }
+  ],
+  "hostOfficeReads": [
+    {
+      "fileName": "synthetic-visit-brief.docx",
+      "method": "ACTUAL_DEPLOYED_ADAPTER_READER_CURRENT_EXECUTION",
+      "status": "READ",
+      "contentSha256": "0ddfa16400c467b3d088b64fe5176503869b409ee422f24a0be0ab0326e16477",
+      "coverage": {
+        "unit": "body-paragraphs-and-basic-table-rows",
+        "paragraphs": 2,
+        "tableRows": 1,
+        "pages": "UNKNOWN",
+        "excluded": [
+          "headers",
+          "footers",
+          "drawings",
+          "comments",
+          "layout"
+        ],
+        "textCharactersTotal": 136,
+        "textCharactersProvided": 136
+      },
+      "text": "合成测试材料，仅用于验收。客户：材料工作流测试客户甲。计划于2026年11月13日13:30到访厦门研发中心；此为事前申请，尚未发生。\n目的：评估新品试验方案。客户有兴趣但尚未承诺采购；若测试合格，再讨论寄样。不要将地点当成客户注册地址。\n议程\t展厅参观、样品测试条件讨论",
+      "source": "OFFICE_BASIC_READER"
+    },
+    {
+      "fileName": "synthetic-attendees.xlsx",
+      "method": "ACTUAL_DEPLOYED_ADAPTER_READER_CURRENT_EXECUTION",
+      "status": "READ",
+      "contentSha256": "226ac0114e5d3d8b0cf25af805e996c87c85d05a8bc90240da1c59b483d61716",
+      "coverage": {
+        "unit": "basic-cells",
+        "sheetsTotal": 1,
+        "sheets": [
+          {
+            "sheet": "合成参与人",
+            "rowsRead": 3,
+            "rowsTotal": 3,
+            "formulasWithoutCachedValue": 0
+          }
+        ],
+        "values": "stored/cached values; basic date-formatted serials use the workbook date system without a timezone",
+        "excluded": [
+          "charts",
+          "drawings",
+          "formula evaluation",
+          "complex formatting"
+        ],
+        "textCharactersTotal": 64,
+        "textCharactersProvided": 64
+      },
+      "text": "Sheet: 合成参与人\nA1=姓名\tB1=角色\nA2=合成陈经理\tB2=客户技术负责人\nA3=合成李工程师\tB3=我方测试协调",
+      "source": "OFFICE_BASIC_READER"
+    },
+    {
+      "fileName": "synthetic-followup.csv",
+      "method": "ACTUAL_DEPLOYED_ADAPTER_READER_CURRENT_EXECUTION",
+      "status": "READ",
+      "contentSha256": "5dd9f8d5fdf6a6dfb5073bfceaa010812953939eb370169b4541fe6cc279965f",
+      "coverage": {
+        "unit": "rows",
+        "rowsRead": 5,
+        "rowsTotal": 5,
+        "encoding": "utf-8",
+        "textCharactersTotal": 80,
+        "textCharactersProvided": 80
+      },
+      "text": "类型\t内容\n合成测试材料\t不代表真实客户，不直接写入真实客户\n进展\t测试中，尚未通过\n后续\t若测试合格，再讨论寄样\n客户诉求\t耐久性测试数据需补充，数量暂未确定",
+      "source": "OFFICE_BASIC_READER"
+    }
+  ],
+  "hostAudio": {
+    "fileName": "synthetic-file-audio.m4a",
+    "method": "SAVED_ACTUAL_CONFIGURED_ASR_OUTPUT_NO_NEW_ASR_OR_MANUAL_TRANSCRIPT",
+    "outputSha256": "d36c555c32e369a48de0350cf338d38f9073648b0b8377a5801fbd306bce492c",
+    "text": "Synthetic acceptance recording The sample is still under testing The customer thinks the price is high; there is no confirmed order and the quantity is undecided Follow up after the laboratory feedback next week.\n",
+    "speakerTimingConfidence": "UNKNOWN"
+  },
+  "actualProviderInput": {
+    "requests": 25,
+    "models": [
+      "deepseek-flash",
+      "qwen3-vl"
+    ],
+    "exactHostTextObserved": [
+      {
+        "fileName": "synthetic-visit-brief.docx",
+        "method": "ACTUAL_DEPLOYED_ADAPTER_READER_CURRENT_EXECUTION",
+        "textSha256": "e17540f3f0d26b46d418cd9ce8ce898d197817002e5149cdd2598d3baf4e529d",
+        "textBytes": 376,
+        "evidence": "EXACT_HOST_TEXT_OBSERVED_IN_ACTUAL_PROVIDER_USER_INPUT"
+      },
+      {
+        "fileName": "synthetic-attendees.xlsx",
+        "method": "ACTUAL_DEPLOYED_ADAPTER_READER_CURRENT_EXECUTION",
+        "textSha256": "5633b82d186b1ebb160bc10cf3d66632a4f2ef7f4979d6086db52d263fde990f",
+        "textBytes": 130,
+        "evidence": "EXACT_HOST_TEXT_OBSERVED_IN_ACTUAL_PROVIDER_USER_INPUT"
+      },
+      {
+        "fileName": "synthetic-followup.csv",
+        "method": "ACTUAL_DEPLOYED_ADAPTER_READER_CURRENT_EXECUTION",
+        "textSha256": "223aa65d30ab297a24be31eed044795f42704ecfd1e6ccc7b2306798bdcd2ed8",
+        "textBytes": 222,
+        "evidence": "EXACT_HOST_TEXT_OBSERVED_IN_ACTUAL_PROVIDER_USER_INPUT"
+      },
+      {
+        "fileName": "synthetic-file-audio.m4a",
+        "method": "SAVED_ACTUAL_CONFIGURED_ASR_OUTPUT_NO_NEW_ASR_OR_MANUAL_TRANSCRIPT",
+        "textSha256": "d36c555c32e369a48de0350cf338d38f9073648b0b8377a5801fbd306bce492c",
+        "textBytes": 213,
+        "evidence": "EXACT_HOST_TEXT_OBSERVED_IN_ACTUAL_PROVIDER_USER_INPUT"
+      }
+    ],
+    "imageRequests": [
+      {
+        "requestIndex": 13,
+        "model": "qwen3-vl",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 14,
+        "model": "qwen3-vl",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 15,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 16,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 17,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 18,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 19,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 20,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 21,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 22,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 23,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      },
+      {
+        "requestIndex": 24,
+        "model": "deepseek-flash",
+        "imageParts": 1
+      }
+    ],
+    "note": "Image parts repeated in later conversational requests are history, not independent new material reads.",
+    "nativeMaterialToolCalls": [
+      {
+        "name": "pdf",
+        "arguments": {
+          "pdf": "materials/synthetic-agenda.pdf",
+          "prompt": "请逐页忠实提取这份材料的全部文字与版面信息，按原文输出，不要概括、不要补写。如果包含表格，请保留行列关系。"
+        }
+      },
+      {
+        "name": "pdf",
+        "arguments": {
+          "pdf": "materials/synthetic-scanned.pdf",
+          "prompt": "请逐页忠实提取这份扫描件的全部文字与版面信息，按原文输出，不要概括、不要补写。如果图像模糊或不可识别，请如实说明。"
+        }
+      },
+      {
+        "name": "view_image",
+        "arguments": {
+          "path": "materials/synthetic-site.png",
+          "prompt": "请忠实描述并提取这张现场说明图片中的全部文字信息，按原文输出，不要概括、不要补写。"
+        }
+      }
+    ],
+    "nativeResults": [
+      {
+        "tool": "pdf",
+        "text": "SYNTHETIC ACCEPTANCE AGENDA\nPlanned visit: 2026-11-06, 13:30 to 15:00 Asia/Shanghai.\nPurpose: product proposal and exhibition tour.\nDiscuss samples, price concerns and next laboratory review."
+      },
+      {
+        "tool": "pdf",
+        "text": "SYNTHETIC ACCEPTANCE MATERIAL\nVisit location: Exhibition Hall B\nThe visit is planned, not completed.\nAttendees: two visitors and one host.\nNo order or quantity is committed."
+      },
+      {
+        "tool": "view_image",
+        "text": "Loaded 1 image into private model context for inspection; not displayed, attached, or sent to the user."
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "runId": "aec10b8a-7534-493b-82ec-4d01404a251d",
+      "sessionId": "a45dc18c-baf4-42cc-b1dc-7c8b720afea1",
+      "model": "deepseek-flash",
+      "promptSha256": "ca212bb1da4321c3b6a1de35e8df7b684f1bd15cb6fc5d770c792ec087b9f4d4",
+      "executionStatus": "ok",
+      "exitCode": 0,
+      "exitSignal": null,
+      "processLifecycleStatus": "EXITED",
+      "completeFinalResult": true,
+      "replayInvalid": true,
+      "reply": "第一件已读完并记下，暂未创建：\n\n- **客户**：材料工作流测试客户甲（CRM 中已存在，公司城市为厦门市）\n- **计划到访**：2026年11月13日 13:30（上海时区）\n- **接待地点**：厦门研发中心（仅作为本次来访地点，不当作客户注册地址）\n- **目的**：评估新品试验方案\n- **议程**：展厅参观、样品测试条件讨论\n- **双方人员**：合成陈经理（客户技术负责人）、合成李工程师（我方测试协调）\n- **背景要点**：客户有兴趣但尚未承诺采购；测试进行中、尚未通过；若测试合格，再讨论寄样；客户诉求是补充耐久性测试数据，数量暂未确定。\n\n等您发完另外两条，我再一起核对并创建。",
+      "durationMs": 33348,
+      "runIdProvenance": "ACTUAL_OPENCLAW_RESULT_TERMINAL_RECEIPT_VIA_NORMALIZER"
+    },
+    {
+      "turn": 1,
+      "runId": "ecf1207a-0f40-4155-9d89-09dc0272a772",
+      "sessionId": "a45dc18c-baf4-42cc-b1dc-7c8b720afea1",
+      "model": "deepseek-flash",
+      "promptSha256": "e930d386ec9cd4a3a18e5008de3992402bd1729c16e7b50fde8f3f09762ecb79",
+      "executionStatus": "ok",
+      "exitCode": 0,
+      "exitSignal": null,
+      "processLifecycleStatus": "EXITED",
+      "completeFinalResult": true,
+      "replayInvalid": true,
+      "reply": "第二件已读完并记下，仍未创建：\n\n- **客户**：材料工作流测试客户乙（CRM 中已存在，公司城市为厦门市）\n- **计划到访**：2026年11月6日 13:30–15:00（上海时区）\n- **接待地点**：Exhibition Hall B\n- **目的**：产品方案介绍与展厅参观\n- **议程/讨论**：讨论样品、价格顾虑及下一次实验室评审\n- **双方人员**：两位来访人员、一位接待人员（材料未提供姓名）\n- **背景**：样品仍在测试中；客户认为价格偏高；无已确认订单，数量未定；实验室反馈后下周跟进\n- **状态**：计划来访，尚未完成；无订单或数量承诺\n\n图片与扫描件内容一致。等您发第三条。",
+      "durationMs": 15122,
+      "runIdProvenance": "ACTUAL_OPENCLAW_RESULT_TERMINAL_RECEIPT_VIA_NORMALIZER"
+    },
+    {
+      "turn": 2,
+      "runId": "8a3b2c51-77ed-4d53-a5a4-c32c9ae546cf",
+      "sessionId": "a45dc18c-baf4-42cc-b1dc-7c8b720afea1",
+      "model": "deepseek-flash",
+      "promptSha256": "d32f75aa257987e54a21945c0466a7826295ddde1923b70bfcc5ccc57132fae4",
+      "executionStatus": "ok",
+      "exitCode": 0,
+      "exitSignal": null,
+      "processLifecycleStatus": "EXITED",
+      "completeFinalResult": true,
+      "replayInvalid": true,
+      "reply": "两份客户来访申请已分别创建，并已重新读取并核对，两家客户和两次安排彼此独立：\n\n**材料工作流测试客户甲 — 单据 MV-TEST-3**\n- 计划到访时间：2026年11月13日 13:30（上海时区）\n- 接待地点：厦门研发中心\n- 来访目的：评估新品试验方案；客户有兴趣但尚未承诺采购；测试进行中、尚未通过；若测试合格，再讨论寄样；客户诉求为补充耐久性测试数据，数量暂未确定\n- 议程：展厅参观、样品测试条件讨论\n- 双方参与人员：合成陈经理（客户技术负责人）、合成李工程师（我方测试协调）\n\n**材料工作流测试客户乙 — 单据 MV-TEST-4**\n- 计划到访时间：2026年11月6日 13:30–15:00（上海时区）\n- 接待地点：Exhibition Hall B\n- 来访目的：产品方案介绍与展厅参观；讨论样品、价格顾虑及下一次实验室评审；样品仍在测试中，客户认为价格偏高，无已确认订单，数量未定，实验室反馈后下周跟进\n- 议程：13:30–15:00 产品方案介绍、展厅参观；随后讨论样品、价格顾虑及下一次实验室评审\n- 双方参与人员：客户方来访人员2人、我方接待人员1人\n\n两份申请都使用了「客户来访申请」记录类型，原件未归档。",
+      "durationMs": 25550,
+      "runIdProvenance": "ACTUAL_OPENCLAW_RESULT_TERMINAL_RECEIPT_VIA_NORMALIZER"
+    }
+  ],
+  "sdkDispatches": [
+    {
+      "turn": 2,
+      "operation": "CREATE",
+      "objectApiName": "Reception_Request__c",
+      "fields": {
+        "Customer__c": "001000000000001AAA",
+        "Planned_At__c": "2026-11-13T13:30:00+08:00",
+        "Aim__c": "评估新品试验方案。客户有兴趣但尚未承诺采购；测试进行中、尚未通过；若测试合格，再讨论寄样。客户诉求：补充耐久性测试数据，数量暂未确定。",
+        "Agenda__c": "展厅参观、样品测试条件讨论",
+        "Visitors__c": "合成陈经理（客户技术负责人）、合成李工程师（我方测试协调）",
+        "Location__c": "厦门研发中心",
+        "RecordTypeId": "012000000000001AAA"
+      },
+      "recordId": "a02000000000002AAA"
+    },
+    {
+      "turn": 2,
+      "operation": "CREATE",
+      "objectApiName": "Reception_Request__c",
+      "fields": {
+        "Customer__c": "001000000000002AAA",
+        "Planned_At__c": "2026-11-06T13:30:00+08:00",
+        "Aim__c": "产品方案介绍与展厅参观。客户希望讨论样品、价格顾虑及下一次实验室评审；样品仍在测试中，客户认为价格偏高，无已确认订单，数量未定，实验室反馈后下周跟进。",
+        "Agenda__c": "13:30–15:00：产品方案介绍、展厅参观；随后讨论样品、价格顾虑及下一次实验室评审",
+        "Visitors__c": "客户方来访人员2人、我方接待人员1人",
+        "Location__c": "Exhibition Hall B",
+        "RecordTypeId": "012000000000001AAA"
+      },
+      "recordId": "a02000000000003AAA"
+    }
+  ],
+  "readBacks": [
+    {
+      "query": "SELECT Id, Name, Customer__c, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Id = 'a02000000000002AAA'",
+      "complete": true,
+      "records": [
+        {
+          "Id": "a02000000000002AAA",
+          "Name": "MV-TEST-3",
+          "Customer__c": "001000000000001AAA",
+          "Planned_At__c": "2026-11-13T13:30:00+08:00",
+          "Location__c": "厦门研发中心",
+          "Aim__c": "评估新品试验方案。客户有兴趣但尚未承诺采购；测试进行中、尚未通过；若测试合格，再讨论寄样。客户诉求：补充耐久性测试数据，数量暂未确定。",
+          "Agenda__c": "展厅参观、样品测试条件讨论",
+          "Visitors__c": "合成陈经理（客户技术负责人）、合成李工程师（我方测试协调）"
+        }
+      ]
+    },
+    {
+      "query": "SELECT Id, Name, Customer__c, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Id = 'a02000000000003AAA'",
+      "complete": true,
+      "records": [
+        {
+          "Id": "a02000000000003AAA",
+          "Name": "MV-TEST-4",
+          "Customer__c": "001000000000002AAA",
+          "Planned_At__c": "2026-11-06T13:30:00+08:00",
+          "Location__c": "Exhibition Hall B",
+          "Aim__c": "产品方案介绍与展厅参观。客户希望讨论样品、价格顾虑及下一次实验室评审；样品仍在测试中，客户认为价格偏高，无已确认订单，数量未定，实验室反馈后下周跟进。",
+          "Agenda__c": "13:30–15:00：产品方案介绍、展厅参观；随后讨论样品、价格顾虑及下一次实验室评审",
+          "Visitors__c": "客户方来访人员2人、我方接待人员1人"
+        }
+      ]
+    }
+  ],
+  "applicableDuplicateChecks": [
+    {
+      "callIndex": 10,
+      "turn": 0,
+      "query": "SELECT Id, Name, Customer__c, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Customer__c = '001000000000001AAA' ORDER BY Planned_At__c DESC",
+      "complete": true,
+      "returnedCount": 0
+    },
+    {
+      "callIndex": 12,
+      "turn": 1,
+      "query": "SELECT Id, Name, Customer__c, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Customer__c = '001000000000002AAA' ORDER BY Planned_At__c DESC",
+      "complete": true,
+      "returnedCount": 0
+    }
+  ],
+  "counts": {
+    "mcpCalls": 19,
+    "mutations": 2,
+    "uploads": 0,
+    "blockingQuestions": 0,
+    "optionalArchiveInvitations": 0,
+    "queryFailures": 3
+  },
+  "queryFailures": [
+    {
+      "callIndex": 4,
+      "turn": 0,
+      "tool": "query_records",
+      "query": "SELECT Id, Name, OwnerId FROM Account WHERE Name LIKE '%材料工作流测试客户甲%' ORDER BY Name",
+      "errorCode": "MCP_QUERY_FIELD_INVALID",
+      "salesforceErrorCode": "INVALID_FIELD"
+    },
+    {
+      "callIndex": 9,
+      "turn": 0,
+      "tool": "query_records",
+      "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Customer__c = '001000000000001AAA' ORDER BY Planned_At__c DESC",
+      "errorCode": "MCP_QUERY_RECORDS_FAILED",
+      "salesforceErrorCode": null
+    },
+    {
+      "callIndex": 16,
+      "turn": 2,
+      "tool": "query_records",
+      "query": "SELECT Id, Name, Customer__c, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Id IN ('a02000000000002AAA','a02000000000003AAA') ORDER BY Planned_At__c",
+      "errorCode": "MCP_QUERY_RECORDS_FAILED",
+      "salesforceErrorCode": null
+    }
+  ],
+  "criteria": [
+    {
+      "criterion": "Natural entry; metadata discovered before selecting object, relationship, record type and writable fields",
+      "verdict": "PASS",
+      "evidence": "No schema/API/expected payload in the prompts; list_sobjects, describe_sobject and two get_record_action_context calls observed. Actual runtime optional value assessment returned PARTIAL before record type selection and COMPLETE after selection."
+    },
+    {
+      "criterion": "Real original bytes and faithful host-to-model material delivery",
+      "verdict": "PASS",
+      "evidence": "Seven originals matched prior ingress hashes. Deployed Office reader executed again on DOCX/XLSX/CSV. Their entire extracted texts and the saved real M4A ASR output exactly matched provider user input. This is explicit host injection, not a claim of native Office parsing or automatic Adapter hooks."
+    },
+    {
+      "criterion": "Native image/PDF reads and preserved negation",
+      "verdict": "PASS",
+      "evidence": "Actual pdf calls for agenda and scanned original returned the respective source text; two qwen3-vl image requests observed. view_image loaded PNG into main deepseek context; main request image part present. Planned/not completed and no order/quantity commitments retained."
+    },
+    {
+      "criterion": "Multiple-turn collection and separate business identities/events",
+      "verdict": "PASS",
+      "evidence": "Same session through three actual runs; first two turns made no mutation; final turn made exactly two CREATE calls. Customer A Nov13 R&D and Customer B Nov6 HallB remain distinct, each with Shanghai time."
+    },
+    {
+      "criterion": "Relevant optional material fields are actually written",
+      "verdict": "PASS",
+      "evidence": "Both records contain purpose, agenda, participants and location. A includes named sides, durability data, test not passed and conditional sampling. B includes 15:00 end, participant counts, high-price concern, testing, unknown quantity/order and lab-feedback follow-up."
+    },
+    {
+      "criterion": "Applicable event duplicate check, accurate receipt and archive intent",
+      "verdict": "PASS",
+      "evidence": "Each customer had a complete successful event query before CREATE. Both actual successful IDs were queried back, matching final receipt. Explicit no-archive instruction respected; zero upload calls."
+    }
+  ],
+  "nonBlockingNotes": [
+    "The synthetic SDK rejected an unexposed OwnerId, unsupported relationship projection, and unsupported IN predicate. All three errors are preserved; the model corrected each query safely and ultimately read back both created rows.",
+    "The fixture ignores ORDER BY semantics; one empty-table pre-create query orders by CreatedDate which is not in fixture describe. Per-customer complete duplicate checks already returned zero rows earlier, so this query is not used as acceptance evidence.",
+    "B agenda uses subsequently for discussion after presentation/tour; source states discussion topics but no internal ordering. The reply still gives the original overall 13:30-15:00 window. This inferred agenda ordering is not treated as a source-confirmed fact.",
+    "The recorded ASR is reused from the earlier actual configured command output with an exact hash; it is not a new transcription run and has no speaker/timing/confidence guarantee."
+  ],
+  "failureHistory": {
+    "priorRun": "mixed-material-model-cac5f3e",
+    "status": "HARNESS_CLASSIFICATION_DEFECT_STOPPED_AFTER_FIRST_READ_ONLY_TURN",
+    "reason": "The old normalizer treated replayInvalid alone as execution failure. Installed OpenClaw source proves it also marks unsafe replay after potential tool effects. Original capture remains unchanged; d57f110 records the flag without treating it as failure by itself. No live Salesforce mutation was replayed."
+  },
+  "acceptanceBoundaries": {
+    "actualModelBusinessUseOfOfficeAndAsr": "VERIFIED_IN_THIS_ISOLATED_PROBE",
+    "nativeImageAndPdfUse": "VERIFIED",
+    "realProviderContextAndDmlExecution": "VERIFIED_WITH_SYNTHETIC_SDK_ONLY",
+    "adapterHookToModel": "NOT_TESTED_EXPLICIT_HELPER_OUTPUT_INJECTION",
+    "realSalesforce": "NOT_CALLED",
+    "gateway": "NOT_TESTED",
+    "wecom": "NOT_TESTED",
+    "realAttachmentPublication": "NOT_TESTED",
+    "repeatedStatisticalReliability": "NOT_ESTABLISHED_SINGLE_PROBE"
+  }
+}

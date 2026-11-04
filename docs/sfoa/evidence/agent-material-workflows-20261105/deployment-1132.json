@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "evidenceScope": "Reviewed 1.13.2 test-server deployment only; real capability calls and fresh Gateway reads are recorded separately by the parent task",
+  "baselineCommit": "d57f110223bdd2fa76231f7094f93f7fd29f2d8a",
+  "candidateCommit": "94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9",
+  "archiveSha256": "9c439f00cf91afa48494424e657db0600d7f618d00e4d44b4d5773181acf7b8f",
+  "scriptSha256": "a74dd38ae6ee0559729c06e0dcf0ea4a51f07459dcb0cd6816440b474f5f73d6",
+  "scriptSyntaxCheck": "PASS",
+  "startedAt": "2026-11-04T17:50:35Z",
+  "exitCode": 0,
+  "manifestFileCount": 18,
+  "preflight": "PASS_NO_UNEXPECTED_HASHES",
+  "deployedFileHashes": "18_OF_18_MATCH",
+  "playbookVersion": "1.13.2",
+  "playbookVersionAssertion": "PASS",
+  "playbookBuild": "PASS",
+  "agentCheck": "PASS",
+  "skillCheck": "PASS",
+  "businessRuntimeSkills": {
+    "sfoa-crm-core": "PASS_DRIFT_EMPTY",
+    "sfoa-record-change": "PASS_DRIFT_EMPTY",
+    "sfoa-data-analysis": "PASS_DRIFT_EMPTY",
+    "sfoa-org-diagnostics": "PASS_DRIFT_EMPTY"
+  },
+  "independentSkillExport": {
+    "playbookVersion": "1.13.2",
+    "skillBodyComparison": "PASS",
+    "existingMcpJsonPreserved": true
+  },
+  "mcpHealth": "UP",
+  "adminReady": "UP",
+  "mcpReload": "PASS",
+  "services": {
+    "mcp": {
+      "beforePid": 3029640,
+      "afterPid": 3040205,
+      "afterState": "active"
+    },
+    "adminApi": {
+      "beforePid": 3029725,
+      "afterPid": 3040291,
+      "afterState": "active"
+    },
+    "openclawGateway": {
+      "beforePid": 3029618,
+      "afterPid": 3040184,
+      "afterState": "active"
+    }
+  },
+  "loadedPlugin": {
+    "id": "sfoa-wecom-mcp-adapter",
+    "version": "1.0.0",
+    "status": "loaded",
+    "source": "/data/openclaw/plugins/sfoa-wecom-mcp-adapter/src/index.js",
+    "sourceSha256": "9b17eec23d989acac9f502cfc85c62bbdbb98d78e49a6d687a36b53765580f1f",
+    "sourcePreserved": true
+  },
+  "backup": "/data/sfoa-enterprise-mcp/backup/guidance-1132-20261104T175035Z-94aa6612",
+  "rollbackScript": "/data/sfoa-enterprise-mcp/backup/guidance-1132-20261104T175035Z-94aa6612/rollback.sh",
+  "rollbackRehearsal": "NOT_EXECUTED",
+  "configurationChanges": "NONE",
+  "dependencyChanges": "NONE",
+  "dmlTestSourceSynced": true,
+  "dmlRuntimeRebuilt": false,
+  "databaseOperationsByScript": "NONE",
+  "ledgerHelper": "NOT_EXECUTED",
+  "ledgerBeforeAfterComparison": "NOT_EXECUTED",
+  "businessAcceptance": "NOT_EXECUTED_BY_DEPLOYMENT_SCRIPT",
+  "startupObservations": "MCP/Admin briefly refused connections during restart; existing finite retries recovered and final health/ready were UP",
+  "evidenceLogs": [
+    ".temp/agent-material-workflows/guidance-1132-preflight.log",
+    ".temp/agent-material-workflows/guidance-1132-deploy.log",
+    ".temp/agent-material-workflows/guidance-1132-deployment-evidence.log"
+  ],
+  "priorEvidencePreserved": [
+    ".temp/agent-material-workflows/deployment-reviewed.json",
+    ".temp/agent-material-workflows/skill-smoke-linux-d57f110-retry1.log"
+  ]
+}

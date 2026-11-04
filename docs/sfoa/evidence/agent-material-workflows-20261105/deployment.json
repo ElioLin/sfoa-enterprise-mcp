@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "evidenceScope": "Reviewed test-server deployment and isolated synthetic load checks; no claim of complete business acceptance",
+  "deployment": {
+    "baselineCommit": "1f060ed5bd5104ebb7b1b7995bd58a8b9988aa32",
+    "candidateCommit": "5c1558ce26d7a4b56a0e1695bca7544801d00191",
+    "archiveSha256": "ee4465718a2dda14bc7afd8aabfb71b2c1ac9cefa068c920e2d3ad5f935788c9",
+    "scriptSha256": "9df862448f421bc016cb8faf84959f6ce92021917bbcaa486b04628e30193058",
+    "scriptSyntaxCheck": "PASS",
+    "startedAt": "2026-11-04T17:13:52Z",
+    "exitCode": 0,
+    "manifestFileCount": 38,
+    "preflight": "PASS_WITH_ONE_REVIEWED_CURRENT_HASH",
+    "deployedFileHashes": "38_OF_38_MATCH",
+    "playbookVersion": "1.13.1",
+    "playbookBuild": "PASS",
+    "agentCheck": "PASS",
+    "skillCheck": "PASS",
+    "businessRuntimeSkills": {
+      "sfoa-crm-core": "PASS_DRIFT_EMPTY",
+      "sfoa-record-change": "PASS_DRIFT_EMPTY",
+      "sfoa-data-analysis": "PASS_DRIFT_EMPTY",
+      "sfoa-org-diagnostics": "PASS_DRIFT_EMPTY"
+    },
+    "independentSkillExport": {
+      "playbookVersion": "1.13.1",
+      "skillBodyComparison": "PASS",
+      "existingMcpJsonPreserved": true
+    },
+    "mcpHealth": "UP",
+    "adminReady": "UP",
+    "mcpReload": "PASS",
+    "services": {
+      "mcp": {
+        "beforePid": 3022513,
+        "afterPid": 3029640,
+        "afterState": "active"
+      },
+      "adminApi": {
+        "beforePid": 3022514,
+        "afterPid": 3029725,
+        "afterState": "active"
+      },
+      "openclawGateway": {
+        "beforePid": 3022542,
+        "afterPid": 3029618,
+        "afterState": "active"
+      }
+    },
+    "loadedPlugin": {
+      "id": "sfoa-wecom-mcp-adapter",
+      "version": "1.0.0",
+      "status": "loaded",
+      "source": "/data/openclaw/plugins/sfoa-wecom-mcp-adapter/src/index.js",
+      "sourceSha256": "9b17eec23d989acac9f502cfc85c62bbdbb98d78e49a6d687a36b53765580f1f",
+      "sourcePreserved": true
+    },
+    "backup": "/data/sfoa-enterprise-mcp/backup/guidance-harness-20261104T171352Z-5c1558ce",
+    "rollbackScript": "/data/sfoa-enterprise-mcp/backup/guidance-harness-20261104T171352Z-5c1558ce/rollback.sh",
+    "rollbackRehearsal": "NOT_EXECUTED",
+    "configurationChanges": "NONE",
+    "dependencyChanges": "NONE",
+    "databaseOperations": "NONE_BY_THIS_DEPLOYMENT_SCRIPT",
+    "ledgerHelper": "UPLOADED_NOT_EXECUTED",
+    "ledgerBeforeAfterComparison": "NOT_EXECUTED",
+    "businessAcceptance": "NOT_EXECUTED_BY_DEPLOYMENT_SCRIPT"
+  },
+  "preservedPreflightFailures": [
+    {
+      "result": "BLOCKED_ARCHIVE_FILE_MISMATCH",
+      "reason": "Windows core.autocrlf=true converted archive text to CRLF; no app/service change occurred",
+      "resolution": "Rebuilt committed archive with core.autocrlf=false; all 38 manifest entries matched LF Git blobs"
+    },
+    {
+      "result": "BLOCKED_UNEXPECTED_BYTES",
+      "path": "docs/sfoa/CHANGELOG.md",
+      "approvedCurrentSha256": "0b826b74a0e2ac7183b673aa7acbfe6df6bc10fea6de91afdff55049b05b8163",
+      "review": "Independent full diff found missing committed history, no server-only content; exact current hash approved before successful preflight"
+    }
+  ],
+  "isolatedLoadChecks": {
+    "deployedCommitAtExecution": "1f060ed5bd5104ebb7b1b7995bd58a8b9988aa32",
+    "platform": "Linux",
+    "nodeVersion": "v22.23.1",
+    "sequential": true,
+    "syntheticSalesforce": true,
+    "deploymentEnvironmentLoaded": false,
+    "databaseAccess": false,
+    "serviceOperations": false,
+    "httpRequestBudgetMs": 2000,
+    "toolBudgetMs": 1000,
+    "p7CaseBudgetMs": 180000,
+    "externalHardLimitSecondsPerProcess": 240,
+    "http": {
+      "startedAt": "2026-11-04T16:52:35Z",
+      "passed": 1,
+      "failed": 0,
+      "exitCode": 0,
+      "caseDurationMs": 429.372208,
+      "suiteDurationMs": 2739.484145,
+      "compiledTestSha256": "36c19e17ff1fae8106512ec5a5631b70858546cdde7b90b9ac50eeaba91e4454",
+      "evidence": "/data/sfoa-enterprise-mcp/validation-material-load-http-PW1uXT"
+    },
+    "p7": {
+      "startedAt": "2026-11-04T16:53:11Z",
+      "passed": 1,
+      "failed": 0,
+      "exitCode": 0,
+      "caseDurationMs": 5719.119363,
+      "suiteDurationMs": 7814.119769,
+      "compiledTestSha256": "362186c3258f48ef380c117b710cb870f803f548e412d55146393d040c2d189c",
+      "offOnConcurrencyLevels": [
+        50,
+        100,
+        200
+      ],
+      "pairsPerConcurrency": 3,
+      "allRoundFailures": 0,
+      "evidence": "/data/sfoa-enterprise-mcp/validation-material-load-p7-zKe81v"
+    },
+    "fullSuiteAcceptance": false,
+    "realSalesforceOrChannelAcceptance": false,
+    "windowsFailuresRemainRecorded": true
+  },
+  "cleanSkillSmoke": {
+    "status": "PASS",
+    "committed": "d57f110223bdd2fa76231f7094f93f7fd29f2d8a",
+    "bundleSha256": "cf49b5cce04204e3a2bd174e98cb47df83b0bccdcfe8edfdaca690905f38b4e9",
+    "workingTreeInput": false,
+    "configurationLoaded": false,
+    "evidence": "/data/sfoa-enterprise-mcp/evidence/clean-skill-checkout-d57f110-retry1",
+    "previousWindowsEnvironmentFailuresPreserved": true,
+    "previousLinux1f060edPassPreserved": true,
+    "exitCode": 0,
+    "committedFileCount": 1419,
+    "nodeVersion": "v22.23.1",
+    "yarnVersion": "1.22.22",
+    "gates": [
+      {
+        "name": "skill:validate",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:sync",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:check",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:test",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "ai:snapshot",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "ai:doctor (missing-env)",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "toolkitTests": {
+      "tests": 80,
+      "pass": 80,
+      "fail": 0
+    },
+    "doctorMissingEnvironment": {
+      "ok": true,
+      "exists": false
+    },
+    "databaseCheck": "SKIPPED",
+    "serviceCheck": "SKIPPED",
+    "initialLaunchFailurePreserved": {
+      "exitCode": 127,
+      "reason": "Incorrect /usr/bin/yarn path; Skill gates did not start",
+      "resolution": "Verified /usr/local/bin/yarn -> /usr/local/lib/node_modules/yarn/bin/yarn.js, version 1.22.22; new isolated clone rerun",
+      "evidence": "/data/sfoa-enterprise-mcp/evidence/clean-skill-checkout-d57f110"
+    }
+  },
+  "reviewedAt": "2026-11-04T17:22:30.782276+00:00"
+}

@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-11-05 材料工作流测试部署（203）
+
+最新状态：`94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9` 的 Playbook **1.13.2** 已加载。18/18 文件预检及落盘匹配，LF 归档 SHA256 `9c439f00cf91afa48494424e657db0600d7f618d00e4d44b4d5773181acf7b8f`；备份及回滚 `/data/sfoa-enterprise-mcp/backup/guidance-1132-20261104T175035Z-94aa6612/rollback.sh`。MCP/Admin/Gateway PID `3040205 / 3040291 / 3040184`，健康/ready UP，配置/依赖/DB 未改。实际 tools/list 仍 29 项；四业务 Skill hash 匹配，新 Gateway run `614c7c46-32a6-42e4-9eaa-7da30fe2c943` 读回完整 Skill/材料引用。下列 1.13.1 部署记录作为历史保留。
+
+- 核心 runtime `1f060ed5bd5104ebb7b1b7995bd58a8b9988aa32` 已加载，迁移 017 已应用；备份 `/data/sfoa-enterprise-mcp/backup/material-workflows-20261104T162153Z-1f060ed5`。
+- 后续指导/验收工具候选 `5c1558ce26d7a4b56a0e1695bca7544801d00191`，Playbook **1.13.1**；LF 归档 SHA256 `ee4465718a2dda14bc7afd8aabfb71b2c1ac9cefa068c920e2d3ad5f935788c9`。38 文件经旧/新 hash 预检、备份、非删除覆盖；只重建 Playbook，未改依赖/配置/DB。备份和可执行回滚：`/data/sfoa-enterprise-mcp/backup/guidance-harness-20261104T171352Z-5c1558ce/rollback.sh`。
+- 四业务 runtime Skills、独立 `sfoa` export、Dify/WorkBuddy/WeCom 生成物分别校验；独立导出保留原 `mcp.json`。实际插件仍加载 `/data/openclaw/plugins/sfoa-wecom-mcp-adapter/src/index.js`，hash `9b17eec23d989acac9f502cfc85c62bbdbb98d78e49a6d687a36b53765580f1f`。
+- 补丁后 MCP / Admin / Gateway PID 分别 `3029640 / 3029725 / 3029618`，健康/ready UP。实际工具发现仍 29 项，直接创建/更新/批量/附件输入 schema 未变；Context 的 `includeValueAssessment` 为可选，实际 Playbook 返回 1.13.1。
+- 首次核心构建的 Admin mock 缺方法已修复并曾实际回滚；后续补丁 CRLF 归档与旧 CHANGELOG 字节差异分别被预检拦下，未越过门禁。打包必须保留 §3.1 的 `core.autocrlf=false`，不以归档外层 hash 代替逐文件 Git blob 比对。
+- 完整证据、失败、业务边界和分层回滚见 [交付报告](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md)。真实 Salesforce 当前测试材料与活动校验冲突，真人企微未验；服务健康和原始文件读取不等于业务验收。
+
+017 回滚必须先判断实际 ledger/schema：未应用时将新添 SQL 移入备份后再启旧 runtime；已应用时保留追加 schema 与 UNKNOWN/成功事实，不恢复旧附件表。旧 runtime 不清理新增状态，须保留兼容清理或按原 TTL 安排原件清理。源码回滚不撤销 Salesforce 写入，也不重放未知操作。
+
 ## 2026-11-03 CREATE 敏感身份字段查重 Skill 发布（203）
 
 | 项目 | 实际记录 |

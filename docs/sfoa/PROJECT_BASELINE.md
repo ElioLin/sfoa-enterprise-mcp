@@ -100,15 +100,22 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 
 ## Current phase
 
-2026-11-04: **Agent material workflows** proceeds on
+2026-11-05: **Agent material workflows** is implemented on
 `feature/agent-material-workflows` from fetched `61f8a0c11f7acb9d56f95762014335fd0c2aab05`.
 The authorized four batches cover host material continuity/reading, task-based
 mapping and applicable duplicate checks, default-off CREATE value facts, and
 attachment attempt recovery. Identity, existing direct/batch/compound MCP calls,
-governance and managed-field boundaries remain. Verification and test deployment
-are in progress; see [delivery record](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md) and
-[ADR-0035](adr/ADR-0035-agent-material-workflows.md). This entry does not claim
-production or real-channel business acceptance.
+governance and managed-field boundaries remain. Core runtime `1f060ed` and
+Playbook 1.13.2 / guidance `94aa661` are deployed to the authorized 203 test server;
+the actual 29-tool set and direct mutation schemas are retained. Repeated-model
+verification passed 18/18 candidate journeys versus the frozen baseline 15/18, with
+identical old Provider runtime and synthetic SDK scope. It is recorded separately
+from real-material reading and channel/Salesforce
+acceptance. The live Salesforce fixture was rejected by active business rules;
+dedicated test entity/factory data and real WeCom UAT remain outstanding. See
+[delivery record](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md) and
+[ADR-0035](adr/ADR-0035-agent-material-workflows.md). Overall business acceptance
+remains PARTIAL; this is not a production release.
 
 2026-10-26: **OpenClaw business-task autonomy, source delivery** is based on fetched
 origin/main 12df237f7ab03c4771109813b84f715a29e9e32d, branch

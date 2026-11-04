@@ -1,0 +1,3043 @@
+{
+  "schema": "sfoa-material-candidate-independent-review-v1",
+  "candidate": {
+    "sourceSha": "94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9",
+    "guidanceVersion": "1.13.2",
+    "evidenceDirectory": "material-workflows-candidate-94aa661-20261105",
+    "actualModel": [
+      "deepseek-flash"
+    ],
+    "providerRuntimeSha256": "386d5f0ea1c1b15df86af94722b1be3fcf132c57f2f034fad113d595527e44da",
+    "providerRuntimeFileCount": 154
+  },
+  "scope": "SHARED_FIXED_PROVIDER_RUNTIME_GUIDANCE_COMPARISON_SYNTHETIC_SDK_NO_ADAPTER_NO_REAL_SALESFORCE_NO_WECOM",
+  "baseline": {
+    "evidence": "material-workflows-repeated-d57f110-20261105/before-reviewed.json",
+    "reusedPrevious18": true,
+    "newBeforeRuns": 0,
+    "comparison": "Use the separately generated cross-directory independent comparison; the empty candidate before-captures.json is not a baseline execution."
+  },
+  "runner": {
+    "originalSha256": "07932bd01228814c885e2f909f1b73a6a0e86587c47172ca90fa7178e847dc92",
+    "candidateSha256": "6084d2a96cd4423003b71a2bce2faf037437d0fa7150e1e508c903e65d9063c8",
+    "onlyChange": {
+      "from": "const jobs = ['before', 'after'].flatMap",
+      "to": "const jobs = ['after'].flatMap"
+    },
+    "restoresExactOriginal": true
+  },
+  "aggregate": {
+    "reviewed": 18,
+    "necessaryBusinessChoices": 3,
+    "unnecessaryBlockingQuestions": 0,
+    "optionalArchiveInvitations": 3,
+    "createCases": 12,
+    "expectedRelevantOptionalWrites": 48,
+    "observedRelevantOptionalWrites": 48,
+    "semanticallyCorrectRelevantOptionalWrites": 48,
+    "unsupportedFactCount": 0,
+    "nativeReadsExpected": 21,
+    "nativeReadsObserved": 21,
+    "universalFactCoverageRatio": null,
+    "productionReliability": null,
+    "realSalesforceAcceptance": null,
+    "wecomAcceptance": null,
+    "businessPass": 18,
+    "businessFail": 0,
+    "actualTurns": 42,
+    "distinctSessions": 18,
+    "distinctRuns": 42,
+    "retainedQueryErrors": 29
+  },
+  "attachmentBoundary": "Shared old Provider output schema strips retryable from model-visible tool results. Recovery is evidenced by FAILED plus explicit not-published/recoverable message, not by new retryable-field delivery or candidate backend execution.",
+  "limitations": [
+    "Real isolated OpenClaw/model turns and actual native TXT/CSV reads; shared fixed older Provider dist plus synthetic SDK. This compares guidance, not complete backend releases.",
+    "29 failed queries remain, including unexposed synthetic fields and unsupported relationship projections. Final actions use valid observed queries; do not describe this run as error-free or production reliability.",
+    "Synthetic records, successful mutations and uploads do not prove real Salesforce persistence or attachment publication.",
+    "Adapter hooks, real gateway ingress and WeCom delivery are not exercised by this matrix.",
+    "replayInvalid records unsafe-replay metadata, not execution failure; actual execution status and lifecycle are separately retained.",
+    "48 named applicable CREATE optional-field values are reviewed; universal fact coverage and production reliability are unmeasured (null).",
+    "Prior d57f110 candidate 17/18 with unsupported customer sample-origin failure and all earlier failed/defective runs remain unchanged."
+  ],
+  "cases": [
+    {
+      "caseId": "natural-attachment-recovery",
+      "iteration": 1,
+      "sourceCaptureSha256": "69e84e406575a36a5456557efffb44c5cd2ea71ab826a7bd5ca6f50da0d234f8",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/Context/customer lookup and complete event query call4 establish schema/type and no existing event before CREATE."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Both files read and all date/location, testing, interest/no commitment/unknown quantity, price and future unexecuted follow-up facts preserved. Feedback allocation is semantically reasonable; no source attribution invented."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "One CREATE/readback and accurate partial-attachment receipt; next turn continues same actual target without repeating DML."
+        },
+        {
+          "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+          "verdict": "PASS",
+          "evidence": "Initial two refs attempted with first SUCCESS/second definite FAILED/not-published; second turn only failed ref succeeds. Exact raw reads proved; no first-file replay."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "7289c902-a478-48cb-b253-1d2c6fede2e5",
+          "sessionId": "cc659f76-711f-4c1f-8336-e0818acc9964",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建青禾厦门的事后拜访纪要，记录号 MV-TEST-3。\n\n- 客户：青禾厦门\n- 沟通日期：2026年11月3日\n- 沟通地点：厦门办公室\n- 实际进展：客户到厦门办公室沟通，样品仍在测试中、尚未完成\n- 客户反馈：认为报价偏高；有合作兴趣，但未承诺采购，采购数量尚未确定\n- 下一步行动：下周（2026年11月9日当周）跟进样品测试与报价，尚未执行\n\n原件附件情况：\n- meeting.txt：已成功附上\n- follow-up.txt：附件失败，Salesforce 返回 FIELD_CUSTOM_VALIDATION_EXCEPTION，提示为“测试上传限制，明确未发布；解除后可恢复此原件。”\n\n拜访纪要本身已创建成功，附件失败不影响该记录。"
+        },
+        {
+          "turn": 1,
+          "runId": "9a0420e2-eecd-4d9f-8370-410f95484de7",
+          "sessionId": "cc659f76-711f-4c1f-8336-e0818acc9964",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "follow-up.txt 已重新上传成功，并附到原来的拜访纪要 MV-TEST-3 上；这次没有新建记录，也没有重发已成功的 meeting.txt。\n\n目前两份原件都已归档在该拜访纪要下。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Progress__c": "2026年11月3日客户到厦门办公室沟通，样品仍在测试中（尚未完成）。",
+            "Concerns__c": "客户认为报价偏高；有合作兴趣，但未承诺采购，采购数量尚未确定。",
+            "Follow_Up__c": "下周（2026年11月9日当周）跟进样品测试与报价，尚未执行。",
+            "Location__c": "厦门办公室",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "2026年11月3日客户到厦门办公室沟通，样品仍在测试中（尚未完成）。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为报价偏高；有合作兴趣，但未承诺采购，采购数量尚未确定。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "下周（2026年11月9日当周）跟进样品测试与报价，尚未执行。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "meeting.txt",
+          "sha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "bytes": 196,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        },
+        {
+          "fileName": "follow-up.txt",
+          "sha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+          "bytes": 60,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 5,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 1,
+          "turn": 0,
+          "tool": "run_soql_query",
+          "query": "SELECT Id, Name, OwnerId, BillingCountry, BillingState, BillingCity, BillingStreet FROM Account WHERE Name LIKE '%青禾%' ORDER BY Name LIMIT 50",
+          "errorCode": "INVALID_FIELD"
+        },
+        {
+          "callIndex": 7,
+          "turn": 0,
+          "tool": "run_soql_query",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "SYNTHETIC_QUERY_PROJECTION_UNSUPPORTED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [
+        {
+          "turn": 0,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+            "att_bbbbbbbbbbbbbbbbbbbbbbbb"
+          ],
+          "status": "PARTIAL_SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "fileName": "meeting.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": false
+            },
+            {
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "fileName": "follow-up.txt",
+              "status": "FAILED",
+              "salesforceErrorCode": "FIELD_CUSTOM_VALIDATION_EXCEPTION",
+              "salesforceMessage": "测试上传限制，明确未发布；解除后可恢复此原件。",
+              "syntheticExecutorRetryable": true
+            }
+          ]
+        },
+        {
+          "turn": 1,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_bbbbbbbbbbbbbbbbbbbbbbbb"
+          ],
+          "status": "SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "fileName": "follow-up.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": false
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "Old shared output schema omits retryable; model sees explicit FAILED/recoverable message. Two query errors corrected; simulated attachments."
+      ]
+    },
+    {
+      "caseId": "natural-attachment-recovery",
+      "iteration": 2,
+      "sourceCaptureSha256": "373b535634ecad376e718a7fccf2e0d18625ee7c2d2ede169a7e4b12289c2087",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/describe/Context and corrected unique customer lookup establish schema/type/relationship; complete event query call6 precedes CREATE."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Both exact native files read; date/location, testing, interest/no commitment/unknown quantity, price and future unexecuted follow-up preserved without invented source."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "One CREATE and accurate partial attachment receipt; same-session continuation reuses actual target, no repeated DML."
+        },
+        {
+          "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+          "verdict": "PASS",
+          "evidence": "Initial upload attempts both refs, first SUCCESS and second definite FAILED/not-published; next turn uploads only failed ref and succeeds."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "6293b296-e812-46fc-83ad-f23887bd1d06",
+          "sessionId": "aaa529dc-e2ae-4f32-93cc-30518296deb6",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "青禾厦门客户的事后拜访纪要已创建，客户关联为「青禾厦门」，沟通日期为 2026-11-03，沟通地点为厦门办公室。\n\n纪要要点：\n- 实际进展：客户到访厦门办公室；样品仍在测试中，尚未完成测试；客户有合作兴趣，但未承诺采购，采购数量未定。\n- 客户反馈：客户认为当前报价偏高。\n- 下一步行动：下周（2026年11月9日当周）跟进样品测试与报价，尚未执行。\n\n原件附件情况：\n- meeting.txt：已成功附到该纪要。\n- follow-up.txt：未附上。Salesforce 返回 FIELD_CUSTOM_VALIDATION_EXCEPTION，原文为「测试上传限制，明确未发布；解除后可恢复此原件。」"
+        },
+        {
+          "turn": 1,
+          "runId": "e7c3111c-7d33-46cf-810e-714a1fbf2451",
+          "sessionId": "aaa529dc-e2ae-4f32-93cc-30518296deb6",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已只重试 follow-up.txt 这一份文件，并成功将它附加到原拜访纪要，没有重新创建单据。\n\n当前结果：meeting.txt 和 follow-up.txt 两份原件都已附上，且附件仍记录在原拜访纪要上。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Location__c": "厦门办公室",
+            "Progress__c": "客户于2026年11月3日到厦门办公室沟通。样品仍在测试中，尚未完成测试；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "Concerns__c": "客户认为当前报价偏高。",
+            "Follow_Up__c": "下周（2026年11月9日当周）跟进样品测试进展与报价，尚未执行。",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户于2026年11月3日到厦门办公室沟通。样品仍在测试中，尚未完成测试；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为当前报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "下周（2026年11月9日当周）跟进样品测试进展与报价，尚未执行。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "meeting.txt",
+          "sha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "bytes": 196,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        },
+        {
+          "fileName": "follow-up.txt",
+          "sha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+          "bytes": 60,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 5,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 2,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, OwnerId FROM Account WHERE Name LIKE '%青禾%' ORDER BY LastModifiedDate DESC",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [
+        {
+          "turn": 0,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+            "att_bbbbbbbbbbbbbbbbbbbbbbbb"
+          ],
+          "status": "PARTIAL_SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "fileName": "meeting.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": false
+            },
+            {
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "fileName": "follow-up.txt",
+              "status": "FAILED",
+              "salesforceErrorCode": "FIELD_CUSTOM_VALIDATION_EXCEPTION",
+              "salesforceMessage": "测试上传限制，明确未发布；解除后可恢复此原件。",
+              "syntheticExecutorRetryable": true
+            }
+          ]
+        },
+        {
+          "turn": 1,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_bbbbbbbbbbbbbbbbbbbbbbbb"
+          ],
+          "status": "SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "fileName": "follow-up.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": false
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "One invalid-field query corrected. Old shared schema omits retryable; explicit recoverable failure message reaches model. Attachment execution is synthetic."
+      ]
+    },
+    {
+      "caseId": "natural-attachment-recovery",
+      "iteration": 3,
+      "sourceCaptureSha256": "93ee7257a222ecc4a55b664963ade41c21b5ce6538d2eb1000beb36f5997c431",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/Context/describe/customer lookup establish schema/type/identity; successful complete customer event query precedes CREATE."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Both exact native files read and all date/location, testing, interest/no commitment/unknown quantity, price and unexecuted follow-up facts preserved without invented provenance."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "One CREATE and matching readback support accurate partial-attachment receipt; next turn continues same target without repeated DML."
+        },
+        {
+          "criterion": "首轮记录保存独立成功，附件第一份成功第二份明确失败；恢复仅第二份，同一目标、同一有效 ref",
+          "verdict": "PASS",
+          "evidence": "Initial upload attempts both originals, first succeeds and second definitely fails/not-published; second turn retries only failed ref and succeeds without first-file replay."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "2901b5ae-2c00-46ec-b572-e7556b1fd330",
+          "sessionId": "71e6eca0-075a-46a9-b146-5ed2871a4ca4",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建青禾厦门的事后拜访纪要（编号 MV-TEST-3）。\n\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 地点：厦门办公室\n- 实际进展：样品仍在测试中；客户对合作有兴趣，但未承诺采购，采购数量未定\n- 客户反馈：认为当前报价偏高\n- 下一步行动：下周跟进样品测试进展与报价反馈，尚未执行\n\n附件上传结果：\n\n- ✅ meeting.txt：已附到该拜访纪要\n- ❌ follow-up.txt：未附上。Salesforce 明确拒绝，错误码 FIELD_CUSTOM_VALIDATION_EXCEPTION，提示为“测试上传限制，明确未发布；解除后可恢复此原件。”该文件确认未发布，可在限制解除后再附。"
+        },
+        {
+          "turn": 1,
+          "runId": "822fe7f0-c6f0-4166-860c-5fb7fff6c6ef",
+          "sessionId": "71e6eca0-075a-46a9-b146-5ed2871a4ca4",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "重试成功：follow-up.txt 已附到原拜访纪要（MV-TEST-3）。\n\n- ✅ follow-up.txt：已上传\n- 未重发 meeting.txt（此前已成功）\n- 未新建记录，仍是原纪要"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Location__c": "厦门办公室",
+            "Progress__c": "客户到厦门办公室沟通。样品仍在测试中；客户对合作有兴趣，但未承诺采购，采购数量未定。",
+            "Concerns__c": "客户认为当前报价偏高。",
+            "Follow_Up__c": "下周跟进样品测试进展与报价反馈；目前尚未执行。",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户到厦门办公室沟通。样品仍在测试中；客户对合作有兴趣，但未承诺采购，采购数量未定。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为当前报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "下周跟进样品测试进展与报价反馈；目前尚未执行。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "meeting.txt",
+          "sha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "bytes": 196,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        },
+        {
+          "fileName": "follow-up.txt",
+          "sha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+          "bytes": 60,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 5,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 3,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Occurred_On__c, Location__c, CreatedDate FROM Customer_Contact_Log__c WHERE Customer__c = '001000000000001AAA' AND Occurred_On__c = 2026-11-03",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        },
+        {
+          "callIndex": 7,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, OwnerId, CreatedDate, LastModifiedDate FROM Customer_Contact_Log__c",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        },
+        {
+          "callIndex": 10,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Location__c, Progress__c, Concerns__c, Follow_Up__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [
+        {
+          "turn": 0,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+            "att_bbbbbbbbbbbbbbbbbbbbbbbb"
+          ],
+          "status": "PARTIAL_SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "fileName": "meeting.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": false
+            },
+            {
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "fileName": "follow-up.txt",
+              "status": "FAILED",
+              "salesforceErrorCode": "FIELD_CUSTOM_VALIDATION_EXCEPTION",
+              "salesforceMessage": "测试上传限制，明确未发布；解除后可恢复此原件。",
+              "syntheticExecutorRetryable": true
+            }
+          ]
+        },
+        {
+          "turn": 1,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_bbbbbbbbbbbbbbbbbbbbbbbb"
+          ],
+          "status": "SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_bbbbbbbbbbbbbbbbbbbbbbbb",
+              "fileName": "follow-up.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": false
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "Three query errors retained; valid complete event/readback queries support final actions. Old shared schema omits retryable; recovery follows explicit recoverable message. Simulated attachments."
+      ]
+    },
+    {
+      "caseId": "natural-cross-turn-create",
+      "iteration": 1,
+      "sourceCaptureSha256": "00c34d5296b3fb7bea589581dc44469312cf1106e5a722ad41e22c7dcb864b18",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/inventory/describe/Context and unique customer query establish actual schema/type/relationship; no answer APIs injected."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Payload preserves date/location, interest, testing, unknown quantity, no purchase promise, price concern and future follow-up without invented sample origin. Complete customer event query call5 precedes CREATE call6."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Both exact native files read; four same-session turns wait through collection, then one CREATE/readback and no archive. One unsupported relationship readback corrected before receipt."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "43c59ae5-5087-451f-b335-bf4d8345f53f",
+          "sessionId": "72447867-e076-44ae-a25c-8b4dcf03b8af",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已收到第一条材料（materials/progress.txt），读取到的原文是：\n\n客户对合作有兴趣；样品仍在测试，数量尚未确定。\n\n我先记下，等您把剩下的材料发完再处理。"
+        },
+        {
+          "turn": 1,
+          "runId": "be0dc1df-8ee2-48b8-91a0-b9ee43fffad3",
+          "sessionId": "72447867-e076-44ae-a25c-8b4dcf03b8af",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已收到第二条材料（materials/feedback.txt），读取到的原文是：\n\n客户认为报价偏高；约定下周跟进测试和报价。\n\n暂不创建任何记录，等您把行动安排确认完我再操作。"
+        },
+        {
+          "turn": 2,
+          "runId": "1deabc75-6cd0-47f4-a616-5864d3c5b0b5",
+          "sessionId": "72447867-e076-44ae-a25c-8b4dcf03b8af",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "补充已记下：\n\n- 沟通时间：2026年11月3日\n- 地点：厦门办公室\n- 性质：已发生的沟通\n- 客户未承诺采购\n\n目前仍不创建记录，等您的最终行动安排。"
+        },
+        {
+          "turn": 3,
+          "runId": "64c10ce8-9381-4922-9d7a-ddbe4b92b460",
+          "sessionId": "72447867-e076-44ae-a25c-8b4dcf03b8af",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建事后拜访纪要（类型：客户拜访纪要），单据名称：MV-TEST-3。\n\n记录内容：\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 沟通地点：厦门办公室\n- 实际进展：2026年11月3日在厦门办公室与客户沟通（已发生）。客户对合作有兴趣；样品仍在测试中，数量尚未确定；客户未承诺采购。\n- 客户反馈：客户认为当前报价偏高。\n- 下一步行动：约定下周跟进样品测试进展和报价。\n\n原件未归档。已核对该客户名下此前无拜访纪要记录，本次为新建，无重复。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 3,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Progress__c": "2026年11月3日在厦门办公室与客户沟通（已发生）。客户对合作有兴趣；样品仍在测试中，数量尚未确定；客户未承诺采购。",
+            "Concerns__c": "客户认为当前报价偏高。",
+            "Follow_Up__c": "约定下周跟进样品测试进展和报价。",
+            "Location__c": "厦门办公室",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "2026年11月3日在厦门办公室与客户沟通（已发生）。客户对合作有兴趣；样品仍在测试中，数量尚未确定；客户未承诺采购。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为当前报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "约定下周跟进样品测试进展和报价。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "progress.txt",
+          "sha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+          "bytes": 69,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 3,
+          "clipped": false
+        },
+        {
+          "fileName": "feedback.txt",
+          "sha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+          "bytes": 63,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 4,
+          "messageIndex": 8,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 7,
+          "turn": 3,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": []
+    },
+    {
+      "caseId": "natural-cross-turn-create",
+      "iteration": 2,
+      "sourceCaptureSha256": "e7614e75148608f1c4897455d663f0979581ada0cf77df8f60ec9ba041647507",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory/playbook/Context/describe and corrected unique customer lookup discover actual object/type/fields."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Actual payload retains date/location, interest/testing/unknown quantity/no commitment, price and future next-week follow-up without invented provenance. Complete event query call7 precedes CREATE call8."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Four same-session turns with two exact native file reads; no earlier mutation; final single CREATE/readback and accurate no-archive receipt. Two query errors corrected."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "7158a8ef-8906-4721-a5e4-27ec9012b74c",
+          "sessionId": "51c2c546-9780-4ec1-b3c0-e506bcd8986c",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "第一条已收到并读完了。\n\nprogress.txt 的内容：客户对合作有兴趣；样品仍在测试，数量尚未确定。\n\n我先不做任何处理，等你说完。"
+        },
+        {
+          "turn": 1,
+          "runId": "4934d4f3-4e1b-4cd2-9642-b739abd0cbfd",
+          "sessionId": "51c2c546-9780-4ec1-b3c0-e506bcd8986c",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "第二条收到。\n\nfeedback.txt 的内容：客户认为报价偏高；约定下周跟进测试和报价。\n\n继续等你发完，暂不创建。"
+        },
+        {
+          "turn": 2,
+          "runId": "175547a6-78b6-45f8-9de8-58ec6c186ba6",
+          "sessionId": "51c2c546-9780-4ec1-b3c0-e506bcd8986c",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "补充已记录：此次沟通是 2026年11月3日在厦门办公室已发生的，客户没有承诺采购。\n\n材料我先整合着，等你确认最后的行动安排后再动。"
+        },
+        {
+          "turn": 3,
+          "runId": "bd8b25e5-8a57-4e9b-81f1-69ce34e2c35f",
+          "sessionId": "51c2c546-9780-4ec1-b3c0-e506bcd8986c",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建完成，拜访纪要记录名称是 **MV-TEST-3**。\n\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 沟通地点：厦门办公室\n- 实际进展：2026年11月3日在厦门办公室与客户沟通。客户对合作有兴趣；样品仍在测试阶段，采购数量尚未确定；客户未承诺采购。\n- 客户反馈：客户认为报价偏高。\n- 下一步行动：按约定下周跟进样品测试进展与报价。\n\n创建前已核对，该客户此前没有拜访纪要记录，未发现重复。按你的要求，原件未归档。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 3,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Progress__c": "2026年11月3日在厦门办公室与客户沟通。客户对合作有兴趣；样品仍在测试阶段，采购数量尚未确定；客户未承诺采购。",
+            "Concerns__c": "客户认为报价偏高。",
+            "Follow_Up__c": "按约定下周跟进样品测试进展与报价。",
+            "Location__c": "厦门办公室",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "2026年11月3日在厦门办公室与客户沟通。客户对合作有兴趣；样品仍在测试阶段，采购数量尚未确定；客户未承诺采购。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "按约定下周跟进样品测试进展与报价。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "progress.txt",
+          "sha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+          "bytes": 69,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 3,
+          "clipped": false
+        },
+        {
+          "fileName": "feedback.txt",
+          "sha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+          "bytes": 63,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 4,
+          "messageIndex": 8,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 1,
+          "turn": 3,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry, Phone, Website, OwnerId FROM Account WHERE Name LIKE '%青禾%' ORDER BY Name",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        },
+        {
+          "callIndex": 9,
+          "turn": 3,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": []
+    },
+    {
+      "caseId": "natural-cross-turn-create",
+      "iteration": 3,
+      "sourceCaptureSha256": "f9bf4efb48870f7011d1aa731d63c99465506a232a7e5b86bbfffc7a9b8a37c2",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory/playbook/Context and corrected official query establish actual object/type and unique customer; legitimate official query capability retained."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Payload preserves date/location, interest/testing/unknown quantity/no commitment, price and future follow-up without invented sample origin. Successful done=true customer/date and broader event queries precede CREATE."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Four same-session turns retain both exact native materials and later text, wait through collection, then create once/read back with no upload and accurate receipt."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "68d87c83-15cc-444d-a6a8-77aa0d80c1b0",
+          "sessionId": "519f4df9-1975-4db5-ad6e-24f7e7c77b86",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "第一条已收到，内容已记下：\n\n- 客户对合作有兴趣\n- 样品仍在测试，数量尚未确定\n\n我先不动手，等你说材料发完了再开始整理和处理。请继续发。"
+        },
+        {
+          "turn": 1,
+          "runId": "a1395c1d-c5ba-4e17-b57d-0444e6a9204b",
+          "sessionId": "519f4df9-1975-4db5-ad6e-24f7e7c77b86",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "第二条也已经收到了：\n\n- 客户认为报价偏高\n- 约定下周跟进测试和报价\n\n我会继续等后面的材料。你说可以动手之前，我不会创建任何记录。"
+        },
+        {
+          "turn": 2,
+          "runId": "d0cb1c9c-663c-446f-810d-dafd7af1eb91",
+          "sessionId": "519f4df9-1975-4db5-ad6e-24f7e7c77b86",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": false,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已补充记录：\n\n- 沟通时间：2026年11月3日\n- 地点：厦门办公室\n- 性质：面对面沟通（已完成）\n- 结论：客户未承诺采购\n\n继续等你把材料发完，并告诉我最后的行动安排。"
+        },
+        {
+          "turn": 3,
+          "runId": "f5bd95de-c1d0-4bcd-9820-3b144a6f9d66",
+          "sessionId": "519f4df9-1975-4db5-ad6e-24f7e7c77b86",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已按全部材料创建“拜访纪要”（客户拜访纪要），并已回读核对无误：\n\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 沟通地点：厦门办公室\n- 实际进展：客户对合作有兴趣；样品仍在测试，数量尚未确定；客户未承诺采购\n- 客户反馈：客户认为报价偏高\n- 下一步行动：约定下周跟进测试和报价\n\n原件未归档，未上传任何附件。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 3,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Progress__c": "本次沟通中，客户对合作有兴趣；样品仍在测试，数量尚未确定。客户未承诺采购。",
+            "Concerns__c": "客户认为报价偏高。",
+            "Follow_Up__c": "约定下周跟进测试和报价。",
+            "Location__c": "厦门办公室",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "本次沟通中，客户对合作有兴趣；样品仍在测试，数量尚未确定。客户未承诺采购。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "约定下周跟进测试和报价。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "progress.txt",
+          "sha256": "37461c0aea893a763e21afef2612f45a32be57cb88107cd1c726ded7b6cff524",
+          "bytes": 69,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 3,
+          "clipped": false
+        },
+        {
+          "fileName": "feedback.txt",
+          "sha256": "826783407f4cf4416ae9cad8a8dbf18aaa9a5b4c9d82323a8bbf677b12ca8032",
+          "bytes": 63,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 4,
+          "messageIndex": 8,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 1,
+          "turn": 3,
+          "tool": "run_soql_query",
+          "query": "SELECT Id, Name, OwnerId FROM Account WHERE Name LIKE '%青禾%'",
+          "errorCode": "INVALID_FIELD"
+        },
+        {
+          "callIndex": 9,
+          "turn": 3,
+          "tool": "run_soql_query",
+          "query": "SELECT Id, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "SYNTHETIC_QUERY_PROJECTION_UNSUPPORTED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "Two unsupported projection queries corrected; official run_soql_query exposes done=true instead of Provider complete. ORDER BY not used as evidence."
+      ]
+    },
+    {
+      "caseId": "natural-duplicate-choice",
+      "iteration": 1,
+      "sourceCaptureSha256": "0947ecbf1592be8309bc06ea37595799be2eb868f1a222b8e27e294743a31752",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Actual playbook/inventory/Context/describe and successful customer/event reads establish schema/type and matching existing note."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "First reply accurately cites observed same-date/content; final price/noise concern patch adds no unsupported actor/source facts."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "First turn makes no mutation and asks one business choice; second changes only Concerns on existing ID and reads back unchanged progress/follow-up."
+        },
+        {
+          "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+          "verdict": "PASS",
+          "evidence": "Credible same-event duplicate prompts informed choice before any mutation; chosen reuse is honored with one UPDATE, no CREATE or further question."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "4bd0aa53-4882-4194-8a2f-5871c6d466c5",
+          "sessionId": "14f79ea0-b3c0-4ac9-8899-f6a42868db28",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "开始保存前，需要你确认一下处理方式。\n\n系统里已有一条青禾厦门在 2026-11-03 的拜访纪要（MV-TEST-EXISTING），内容和这次沟通基本一致：样品仍在测试、报价偏高、下周联系。看起来是同一次沟通的已有记录。\n\n请选择：\n1. 把这次的信息更新到这条已有纪要上：沟通地点为厦门办公室；客户有合作兴趣但未承诺采购、数量未定；下周跟进测试与报价\n2. 仍然另外新建一份拜访纪要\n3. 取消本次创建\n\n你选哪个？"
+        },
+        {
+          "turn": 1,
+          "runId": "eb60de43-718f-41f3-b1e6-88da5bcec947",
+          "sessionId": "14f79ea0-b3c0-4ac9-8899-f6a42868db28",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已沿用这条已有拜访纪要，没有新建记录。\n\n更新内容只有客户反馈一栏：\n- 客户反馈：报价偏高且关注噪音控制\n\n这条纪要仍属于青禾厦门，沟通日期为 2026-11-03；实际进展和下一步行动保持原样，分别是“样品仍在测试，采购尚未承诺”和“下周联系”。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 1,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Concerns__c": "报价偏高且关注噪音控制。"
+          }
+        }
+      ],
+      "optionalFields": null,
+      "requestedPatches": [
+        {
+          "turn": 1,
+          "fields": [
+            "Concerns__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        }
+      ],
+      "facts": {
+        "namedFactsReviewed": [
+          "same-event customer/date/content read",
+          "explicit current Location null where claimed",
+          "business choice before mutation",
+          "selected price/noise feedback patch",
+          "unrelated fields unchanged"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 1,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [],
+      "queryErrors": [
+        {
+          "callIndex": 3,
+          "turn": 0,
+          "tool": "run_soql_query",
+          "query": "SELECT Id, Name, OwnerId FROM Account WHERE Name LIKE '%青禾%' ORDER BY Name",
+          "errorCode": "INVALID_FIELD"
+        },
+        {
+          "callIndex": 9,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Visit_Date__c, Status__c, Location__c FROM Reception_Request__c ORDER BY Visit_Date__c DESC",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "Two invalid-field queries corrected; extra read of the planned-visit object did not affect target or receipt."
+      ]
+    },
+    {
+      "caseId": "natural-duplicate-choice",
+      "iteration": 2,
+      "sourceCaptureSha256": "d77b75d85538dd652d8529ebe31bb42c5909490289d5991e6b7356d2e8e2127d",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory/playbook/Context/describe and successful complete customer/event queries establish real exposed schema and existing target."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "First receipt accurately cites existing same-date testing/no-purchase/price/follow-up facts; final price/noise patch preserves supported semantics without invented source."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "First turn asks one informed business choice with no mutation; next turn changes only requested concern and reads back unchanged progress/follow-up."
+        },
+        {
+          "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+          "verdict": "PASS",
+          "evidence": "Credible same-event duplicate is surfaced before execution; explicit choice reuses existing ID with one UPDATE, no CREATE or further question."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "ec386aed-cbeb-4f7c-aa21-9cbcdf6b0254",
+          "sessionId": "2df8faf0-7807-4df5-9ce7-65b73e914538",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "我查到一条已有的拜访纪要，内容与这次描述几乎一致：\n\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 实际进展：样品仍在测试，采购尚未承诺\n- 客户反馈：报价偏高\n- 下一步：下周联系\n\n这看起来像是同一场沟通。请确认怎么处理：\n\n1. 更新这条已有纪要（补充：客户到厦门办公室沟通、有合作兴趣但未承诺采购、数量未定、下周跟进测试与报价）\n2. 仍然新建一条独立纪要\n3. 取消\n\n确认后我再提交。"
+        },
+        {
+          "turn": 1,
+          "runId": "8bfb621d-8b0e-4873-a4cc-04a22db34d19",
+          "sessionId": "2df8faf0-7807-4df5-9ce7-65b73e914538",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已更新这条拜访纪要（青禾厦门，沟通日期 2026-11-03）：\n\n- 客户反馈：报价偏高且关注噪音控制。\n- 其余字段保持不变（实际进展仍为“样品仍在测试，采购尚未承诺”，下一步仍为“下周联系”）。\n\n未新建记录。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 1,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Concerns__c": "报价偏高且关注噪音控制。"
+          }
+        }
+      ],
+      "optionalFields": null,
+      "requestedPatches": [
+        {
+          "turn": 1,
+          "fields": [
+            "Concerns__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        }
+      ],
+      "facts": {
+        "namedFactsReviewed": [
+          "same-event customer/date/content read",
+          "explicit current Location null where claimed",
+          "business choice before mutation",
+          "selected price/noise feedback patch",
+          "unrelated fields unchanged"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 1,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [],
+      "queryErrors": [
+        {
+          "callIndex": 3,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, OwnerId FROM Account WHERE Name LIKE '%青禾%' ORDER BY Name",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "One invalid-field query corrected; complete broad event query supplies the actual existing note."
+      ]
+    },
+    {
+      "caseId": "natural-duplicate-choice",
+      "iteration": 3,
+      "sourceCaptureSha256": "b6be8688c7a19f23c5c6fe6ccfcb2032633c8a2f1ef70d23caf38ee62f86d8ea",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/inventory/describe/Context and corrected customer/event queries establish exposed schema/type and same-event target."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Existing date/content accurately cited; suggestion to fill location is backed by explicit null. Final price/noise patch adds no unsupported source or commitment."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "First turn makes no mutation and asks one business choice; chosen second turn patches only Concerns on existing target and reads back unchanged other fields."
+        },
+        {
+          "criterion": "先查客户和事件身份，发现同一事件后提出实际选择；未经用户选择不静默改 UPDATE，明确选择后不重复询问",
+          "verdict": "PASS",
+          "evidence": "Known same-event record is surfaced before execution; explicit reuse choice causes one UPDATE, no CREATE or further confirmation."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "c1521187-e22c-4585-b9c8-6780d633743c",
+          "sessionId": "6f7c622a-016e-4cb0-b163-584d463d75c9",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "我先核对了一下：青禾厦门在 **2026-11-03** 已经有一条拜访纪要，单据名称是 **MV-TEST-EXISTING**，记录内容为：\n\n- 实际进展：样品仍在测试，采购尚未承诺\n- 客户反馈：报价偏高\n- 下一步行动：下周联系\n\n这些信息与您这次描述的沟通指向同一次拜访。请确认希望如何处理：\n\n1. **更新**这条已有纪要，补全地点（厦门办公室）、数量未定以及下周跟进测试和报价等内容；\n2. 仍**新建**一条独立的拜访纪要；\n3. 取消，不做处理。\n\n您回复选择后，我立刻执行。"
+        },
+        {
+          "turn": 1,
+          "runId": "06412b75-8921-47f1-812e-9dfaa0eaddf5",
+          "sessionId": "6f7c622a-016e-4cb0-b163-584d463d75c9",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已更新原拜访纪要，未新建记录。\n\n- 单据：MV-TEST-EXISTING\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 客户反馈：报价偏高，且关注噪音控制。\n\n其他字段保持原样未动。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 1,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Concerns__c": "报价偏高，且关注噪音控制。"
+          }
+        }
+      ],
+      "optionalFields": null,
+      "requestedPatches": [
+        {
+          "turn": 1,
+          "fields": [
+            "Concerns__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        }
+      ],
+      "facts": {
+        "namedFactsReviewed": [
+          "same-event customer/date/content read",
+          "explicit current Location null where claimed",
+          "business choice before mutation",
+          "selected price/noise feedback patch",
+          "unrelated fields unchanged"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 1,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [],
+      "queryErrors": [
+        {
+          "callIndex": 3,
+          "turn": 0,
+          "tool": "run_soql_query",
+          "query": "SELECT Id, Name, RecordTypeId FROM Account WHERE Name LIKE '%青禾%' LIMIT 50",
+          "errorCode": "INVALID_FIELD"
+        },
+        {
+          "callIndex": 6,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Customer__c = '001000000000001AAA' ORDER BY Occurred_On__c DESC",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "Two unsupported field/relationship queries corrected. Direct UPDATE used known describe facts without an unnecessary new gate."
+      ]
+    },
+    {
+      "caseId": "natural-existing-supplement",
+      "iteration": 1,
+      "sourceCaptureSha256": "d53e2fb0b045066117dca77c346daa79bc72dc1e86b43644fd53fc4b44475796",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/inventory/describe/customer lookup and successful customer/date query resolve existing note; UPDATE Context read."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Appends noise concern while preserving price, then only replaces requested next-Wednesday Chen follow-up. Receipt date11/11 explicitly anchored to current11/5, consistent."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Two same-target turns and readbacks support unchanged-field receipt claims; no CREATE/upload or unrelated changes."
+        },
+        {
+          "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+          "verdict": "PASS",
+          "evidence": "Two minimal UPDATE dispatches contain only Id+Concerns then Id+Follow_Up. One unsupported projection corrected."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "4de1f50a-70ee-4c72-8bde-7c2e7da391b7",
+          "sessionId": "86620949-de08-43f9-a436-5d4e9fc04d38",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已更新完成。\n\n客户：青禾厦门\n拜访纪要：2026年11月3日（单据 MV-TEST-EXISTING）\n客户反馈：报价偏高。对噪音控制仍有疑问。\n\n其他字段未改动：实际进展仍为「样品仍在测试，采购尚未承诺。」，下一步行动仍为「下周联系。」。"
+        },
+        {
+          "turn": 1,
+          "runId": "191a79ea-69ec-4615-9e81-76ce7087e606",
+          "sessionId": "86620949-de08-43f9-a436-5d4e9fc04d38",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已完成修改，只更新了「下一步行动」。\n\n下一步行动：下周三由陈清反馈测试进展。\n（按今天 11月5日计算，下周三为 11月11日）\n\n其他字段未变：客户反馈仍为「报价偏高。对噪音控制仍有疑问。」，实际进展仍为「样品仍在测试，采购尚未承诺。」。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Concerns__c": "报价偏高。对噪音控制仍有疑问。"
+          }
+        },
+        {
+          "turn": 1,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Follow_Up__c": "下周三由陈清反馈测试进展。"
+          }
+        }
+      ],
+      "optionalFields": null,
+      "requestedPatches": [
+        {
+          "turn": 0,
+          "fields": [
+            "Concerns__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        },
+        {
+          "turn": 1,
+          "fields": [
+            "Follow_Up__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        }
+      ],
+      "facts": {
+        "namedFactsReviewed": [
+          "same existing customer/date record",
+          "preserved original price feedback",
+          "new noise-control concern",
+          "next-Wednesday Chen test-progress follow-up",
+          "unrelated fields unchanged"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [],
+      "queryErrors": [
+        {
+          "callIndex": 4,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Occurred_On__c = 2026-11-03 ORDER BY Name",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": []
+    },
+    {
+      "caseId": "natural-existing-supplement",
+      "iteration": 2,
+      "sourceCaptureSha256": "208a22ebab6b8f1190b8575fa2d150e2f87847263cf43efdecad8d40082c0fe6",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/inventory/describe and corrected customer/event query uniquely identify existing target; UPDATE Context read."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Original price concern preserved, noise concern appended, requested Chen Wednesday follow-up replaced. Location empty claims are backed by explicit null in successful reads."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Same session/target across turns and both readbacks support accurate receipts; no create/upload/clearing."
+        },
+        {
+          "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+          "verdict": "PASS",
+          "evidence": "Exactly two minimal patches: Concerns then Follow_Up. Other observed fields unchanged; unsupported relationship query corrected."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "f4266b48-a8ce-4216-98dd-c4e2784e75ac",
+          "sessionId": "919885bd-f809-4bed-a3fc-46e1bdc7abee",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已更新完成。\n\n青禾厦门 2026年11月3日的拜访纪要（唯一一条），客户反馈由「报价偏高。」补充为：\n\n「报价偏高。对噪音控制仍有疑问。」\n\n其他字段均未改动：实际进展仍为「样品仍在测试，采购尚未承诺。」，下一步行动仍为「下周联系。」，沟通地点为空。回读确认已保存成功。"
+        },
+        {
+          "turn": 1,
+          "runId": "61f816f7-5870-40ba-88b1-41cac441f4b6",
+          "sessionId": "919885bd-f809-4bed-a3fc-46e1bdc7abee",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已更新完成，并且只修改了「下一步行动」：\n\n- 下一步行动：改为「下周三由陈清反馈测试进展」\n- 其他字段保持不变：客户反馈仍为「报价偏高。对噪音控制仍有疑问。」，实际进展仍为「样品仍在测试，采购尚未承诺。」，沟通地点为空\n\n回读确认本次修改已保存成功。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Concerns__c": "报价偏高。对噪音控制仍有疑问。"
+          }
+        },
+        {
+          "turn": 1,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Follow_Up__c": "下周三由陈清反馈测试进展"
+          }
+        }
+      ],
+      "optionalFields": null,
+      "requestedPatches": [
+        {
+          "turn": 0,
+          "fields": [
+            "Concerns__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        },
+        {
+          "turn": 1,
+          "fields": [
+            "Follow_Up__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        }
+      ],
+      "facts": {
+        "namedFactsReviewed": [
+          "same existing customer/date record",
+          "preserved original price feedback",
+          "new noise-control concern",
+          "next-Wednesday Chen test-progress follow-up",
+          "unrelated fields unchanged"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [],
+      "queryErrors": [
+        {
+          "callIndex": 4,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Concerns__c, Progress__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Occurred_On__c = 2026-11-03 ORDER BY CreatedDate DESC",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": []
+    },
+    {
+      "caseId": "natural-existing-supplement",
+      "iteration": 3,
+      "sourceCaptureSha256": "20a451ae986e9460805cdd2f6d34593c8454618db1ab62874679e7c8bacd880f",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory/describe, complete date-filtered note query, customer-ID lookup and UPDATE Context resolve the existing target."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Existing price concern retained while noise concern appended; second turn changes only requested Chen next-Wednesday follow-up without adding unsupported facts."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Both same-target/session turns and readbacks support unchanged-field receipts, with no create/upload/clearing."
+        },
+        {
+          "criterion": "两次 UPDATE 接续同一已读目标，各自为 minimal patch，无 CREATE、无无关清空",
+          "verdict": "PASS",
+          "evidence": "Exactly two minimal UPDATE dispatches: Id+Concerns then Id+Follow_Up; all other observed fields preserved."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "c350bb0e-3c8c-43b4-bfe4-c0fc6bea52d6",
+          "sessionId": "eae138f0-badc-4f09-86e7-8aa3ceee01ea",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "✅ 已补充青禾厦门客户 2026-11-03 拜访纪要的「客户反馈」。\n\n- 原内容：报价偏高。\n- 现内容：报价偏高。对噪音控制仍有疑问。\n\n其余字段均未改动：实际进展、下一步行动、沟通地点保持原值。"
+        },
+        {
+          "turn": 1,
+          "runId": "d5d91af0-2d66-4c1d-9437-b9807a5f87b5",
+          "sessionId": "eae138f0-badc-4f09-86e7-8aa3ceee01ea",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "✅ 已更新同一条拜访纪要（青禾厦门，2026-11-03）的「下一步行动」。\n\n- 原内容：下周联系。\n- 现内容：下周三由陈清反馈测试进展。\n\n其他字段均未改动，客户反馈仍为「报价偏高。对噪音控制仍有疑问。」"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Concerns__c": "报价偏高。对噪音控制仍有疑问。"
+          }
+        },
+        {
+          "turn": 1,
+          "operation": "UPDATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000001AAA",
+          "fields": {
+            "Id": "a01000000000001AAA",
+            "Follow_Up__c": "下周三由陈清反馈测试进展。"
+          }
+        }
+      ],
+      "optionalFields": null,
+      "requestedPatches": [
+        {
+          "turn": 0,
+          "fields": [
+            "Concerns__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        },
+        {
+          "turn": 1,
+          "fields": [
+            "Follow_Up__c"
+          ],
+          "recordId": "a01000000000001AAA"
+        }
+      ],
+      "facts": {
+        "namedFactsReviewed": [
+          "same existing customer/date record",
+          "preserved original price feedback",
+          "new noise-control concern",
+          "next-Wednesday Chen test-progress follow-up",
+          "unrelated fields unchanged"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [],
+      "queryErrors": [
+        {
+          "callIndex": 2,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Occurred_On__c = 2026-11-03 AND Customer__r.Name LIKE '%青禾%'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        },
+        {
+          "callIndex": 7,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__r.Name, Occurred_On__c, Progress__c, Concerns__c, Follow_Up__c, Location__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000001AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "Two unsupported relationship queries corrected; explicit null location observed but no claim of fabricated content."
+      ]
+    },
+    {
+      "caseId": "natural-multisource-create",
+      "iteration": 1,
+      "sourceCaptureSha256": "1435a6be5a1836943a55b93b157b08885706ac32a968dd315897cd6e7a2f7f12",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/inventory/Context/describe establish schema/customer type; corrected unique customer lookup proves relationship."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Correct Shanghai14:00, location, purpose, agenda times, two named sides and later noise concern all written; complete correct Shanghai-day ISO range duplicate query succeeds before CREATE."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "First turn waits with0writes, second creates once and reads back. Receipt is accurate; explicit no archive honored."
+        },
+        {
+          "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+          "verdict": "PASS",
+          "evidence": "TXT/CSV actual native read hashes and bytes match. All distinctive agenda/personnel facts and later text are written in relevant optional fields."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "3dfb5080-ef60-41be-9dee-096fb0f4675f",
+          "sessionId": "7884a77d-3e0a-4a90-befd-19109bbb6ba7",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "好的，我先不提交，等您补充完整。\n\n我已核对并准备好草稿信息：\n- 客户：青禾厦门（CRM 中唯一匹配，所在地厦门市）\n- 计划到访：2026-11-06 14:00（上海时区）\n- 接待地点：集团展厅\n- 来访目的：了解新款节水龙头和测试流程\n- 议程：按议程附件填入\n- 双方参与人员：青禾厦门 林薇（采购负责人）；我方 陈清（研发接待）\n\n另外我已查过，当天没有该客户的既有来访申请。您补充完最后一句后，我再一并创建。"
+        },
+        {
+          "turn": 1,
+          "runId": "dacdd038-e766-4fdc-b8e1-792e89ce64f1",
+          "sessionId": "7884a77d-3e0a-4a90-befd-19109bbb6ba7",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "我已创建来访申请 **MV-TEST-3**（记录类型：客户来访申请）。\n\n- 来访客户：青禾厦门\n- 计划到访时间：2026-11-06 14:00（上海时区）\n- 接待地点：集团展厅\n- 来访目的：了解新款节水龙头和测试流程；客户对噪音控制特别关注\n- 议程：14:00 参观展厅，14:40 了解实验室测试流程，15:10 讨论节水龙头与噪音控制\n- 双方参与人员：青禾厦门 林薇（采购负责人）；我方 陈清（研发接待）\n\n按您的要求，本次没有归档原始文件。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 1,
+          "operation": "CREATE",
+          "objectApiName": "Reception_Request__c",
+          "recordId": "a02000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Planned_At__c": "2026-11-06T14:00:00+08:00",
+            "Aim__c": "了解新款节水龙头和测试流程；客户对噪音控制特别关注。",
+            "Agenda__c": "14:00参观展厅，14:40了解实验室测试流程，15:10讨论节水龙头与噪音控制。",
+            "Visitors__c": "青禾厦门：林薇（采购负责人）；我方：陈清（研发接待）",
+            "Location__c": "集团展厅",
+            "RecordTypeId": "012000000000001AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Aim__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "了解新款节水龙头和测试流程；客户对噪音控制特别关注。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Agenda__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "14:00参观展厅，14:40了解实验室测试流程，15:10讨论节水龙头与噪音控制。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Visitors__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "青禾厦门：林薇（采购负责人）；我方：陈清（研发接待）",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "集团展厅",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "planned date/time and Shanghai timezone",
+          "location separate from customer address",
+          "purpose/new water-saving faucet and testing",
+          "all three agenda times and activities",
+          "customer participant identity/role",
+          "host identity/role",
+          "later noise-control concern"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "agenda.txt",
+          "sha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+          "bytes": 105,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        },
+        {
+          "fileName": "participants.csv",
+          "sha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+          "bytes": 87,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 5,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 2,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, OwnerId, BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry, Phone, Website FROM Account WHERE Name LIKE '%青禾%'",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        },
+        {
+          "callIndex": 10,
+          "turn": 1,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Planned_At__c, Aim__c, Agenda__c, Visitors__c, Location__c FROM Reception_Request__c WHERE Id = 'a02000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "Unexposed Account projection and unsupported relationship readback corrected; fixed synthetic query parser actually evaluates ISO >=/< day bounds."
+      ]
+    },
+    {
+      "caseId": "natural-multisource-create",
+      "iteration": 2,
+      "sourceCaptureSha256": "f5b35ce03bc055561c0e78791a2187801a9cde12e3cb32103da1d98898844802",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory and selected Context provide object/customer Record Type; corrected unique customer lookup resolves relationship."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Correct Shanghai14:00, location, full timed agenda, named sides and later noise concern written. Successful complete empty event-table query precedes CREATE after invalid projection correction."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "First turn waits without mutation; second creates once and reads back matching record. Explicit no archive respected."
+        },
+        {
+          "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+          "verdict": "PASS",
+          "evidence": "TXT/CSV exact native bytes/hash observed and distinct agenda/personnel facts written with later user text to relevant optional fields."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "7cc5b34b-5513-485d-971f-8b7d6455d7d9",
+          "sessionId": "575a472e-1190-463e-a06e-a18700985b22",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "收到，我先不创建申请，等您把补充说完。\n\n已读取材料，并核对到客户「青禾厦门」在 CRM 中已有记录。当前草稿：\n\n- 来访客户：青禾厦门\n- 计划到访：2026-11-06 14:00（上海时区）\n- 接待地点：集团展厅\n- 来访目的：了解新款节水龙头和测试流程\n- 议程：14:00 参观展厅；14:40 了解实验室测试流程；15:10 讨论节水龙头与噪音控制\n- 双方人员：青禾厦门——林薇（采购负责人）；我方——陈清（研发接待）\n\n请补充，我收到后一并提交。"
+        },
+        {
+          "turn": 1,
+          "runId": "49a21413-18b7-4647-94a0-7ad43726474e",
+          "sessionId": "575a472e-1190-463e-a06e-a18700985b22",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "来访申请已创建成功，并已复核以下信息：\n\n- 单据：MV-TEST-3（记录 ID：a02000000000002AAA）\n- 类型：客户来访申请\n- 来访客户：青禾厦门\n- 计划到访：2026-11-06 14:00（上海时区）\n- 接待地点：集团展厅\n- 来访目的：了解新款节水龙头和测试流程；客户对噪音控制特别关注\n- 议程：14:00 参观展厅；14:40 了解实验室测试流程；15:10 讨论节水龙头与噪音控制\n- 双方人员：青禾厦门——林薇（采购负责人）；我方——陈清（研发接待）\n\n按您的要求，未归档原始文件。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 1,
+          "operation": "CREATE",
+          "objectApiName": "Reception_Request__c",
+          "recordId": "a02000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Planned_At__c": "2026-11-06T14:00:00+08:00",
+            "Aim__c": "了解新款节水龙头和测试流程；客户对噪音控制特别关注。",
+            "Agenda__c": "14:00 参观展厅；14:40 了解实验室测试流程；15:10 讨论节水龙头与噪音控制。",
+            "Visitors__c": "青禾厦门：林薇（采购负责人）；我方：陈清（研发接待）",
+            "Location__c": "集团展厅",
+            "RecordTypeId": "012000000000001AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Aim__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "了解新款节水龙头和测试流程；客户对噪音控制特别关注。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Agenda__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "14:00 参观展厅；14:40 了解实验室测试流程；15:10 讨论节水龙头与噪音控制。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Visitors__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "青禾厦门：林薇（采购负责人）；我方：陈清（研发接待）",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "集团展厅",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "planned date/time and Shanghai timezone",
+          "location separate from customer address",
+          "purpose/new water-saving faucet and testing",
+          "all three agenda times and activities",
+          "customer participant identity/role",
+          "host identity/role",
+          "later noise-control concern"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "agenda.txt",
+          "sha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+          "bytes": 105,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        },
+        {
+          "fileName": "participants.csv",
+          "sha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+          "bytes": 87,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 5,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 2,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry, Phone, Website, OwnerId FROM Account WHERE Name LIKE '%青禾%' ORDER BY LastModifiedDate DESC",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        },
+        {
+          "callIndex": 5,
+          "turn": 1,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Planned_At__c, RecordTypeId FROM Reception_Request__c WHERE Customer__c = '001000000000001AAA' ORDER BY Planned_At__c DESC",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "Two unexposed-field errors corrected; fixture ignores ORDER BY semantics, not used as proof. Readback is broad but complete and contains only the actual new record."
+      ]
+    },
+    {
+      "caseId": "natural-multisource-create",
+      "iteration": 3,
+      "sourceCaptureSha256": "e34de654fa8cfb8446ee7c15499839dfd76764ffc0f104284948e3b3687e0d21",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory/playbook/describe/Context and unique customer lookup establish actual object, customer Record Type and relationship."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Correct Shanghai14:00, purpose, timed agenda, named sides, location and later noise concern all written. Complete empty customer-event query precedes CREATE."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "First turn waits without mutation; second creates once and reads back matching data with accurate receipt and no archive."
+        },
+        {
+          "criterion": "原始 TXT 和 CSV 均有真实 native read 证据；议程、双方人员与后续文字都写入适当字段；计划时间保留上海时区",
+          "verdict": "PASS",
+          "evidence": "Actual TXT/CSV native reads match original hashes/bytes; distinctive personnel and agenda facts plus later user text fill relevant optional fields."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "ac4e7a17-84bc-4731-a48e-1669ec103de4",
+          "sessionId": "899042a7-5a57-4459-a909-2bcb2b1a1555",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已收到并读完两份材料，来访申请我先不提交，等您补充完再一并处理。\n\n当前整理信息：\n- 来访客户：青禾厦门\n- 计划到访时间：2026年11月6日 14:00（上海时区）\n- 接待地点：集团展厅\n- 来访目的：了解新款节水龙头和测试流程\n- 议程：14:00 参观展厅；14:40 了解实验室测试流程；15:10 讨论节水龙头与噪音控制\n- 参与人员：青禾厦门 林薇（采购负责人）；我方 陈清（研发接待）\n\n我已确认该客户在 CRM 中的记录唯一，且该时间没有重复的来访申请。请继续补充。"
+        },
+        {
+          "turn": 1,
+          "runId": "5bd11723-5edc-412a-969b-777b38c55f09",
+          "sessionId": "899042a7-5a57-4459-a909-2bcb2b1a1555",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "来访申请已创建成功，单据编号为 **MV-TEST-3**。\n\n关键信息如下：\n- 来访客户：青禾厦门\n- 计划到访时间：2026年11月6日 14:00（上海时区）\n- 接待地点：集团展厅\n- 来访目的：了解新款节水龙头和测试流程，客户对噪音控制特别关注\n- 议程：14:00 参观展厅；14:40 了解实验室测试流程；15:10 讨论节水龙头与噪音控制\n- 双方人员：青禾厦门 林薇（采购负责人）；我方 陈清（研发接待）\n\n按照您的要求，原件未归档。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 1,
+          "operation": "CREATE",
+          "objectApiName": "Reception_Request__c",
+          "recordId": "a02000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Planned_At__c": "2026-11-06T14:00:00+08:00",
+            "Location__c": "集团展厅",
+            "Aim__c": "了解新款节水龙头和测试流程，客户对噪音控制特别关注。",
+            "Agenda__c": "14:00参观展厅，14:40了解实验室测试流程，15:10讨论节水龙头与噪音控制。",
+            "Visitors__c": "青禾厦门：林薇（采购负责人）；我方：陈清（研发接待）",
+            "RecordTypeId": "012000000000001AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Aim__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "了解新款节水龙头和测试流程，客户对噪音控制特别关注。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Agenda__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "14:00参观展厅，14:40了解实验室测试流程，15:10讨论节水龙头与噪音控制。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Visitors__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "青禾厦门：林薇（采购负责人）；我方：陈清（研发接待）",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "集团展厅",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "planned date/time and Shanghai timezone",
+          "location separate from customer address",
+          "purpose/new water-saving faucet and testing",
+          "all three agenda times and activities",
+          "customer participant identity/role",
+          "host identity/role",
+          "later noise-control concern"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 0
+      },
+      "originalReads": [
+        {
+          "fileName": "agenda.txt",
+          "sha256": "6130a3899389ca960217bbe680bac392e3d24cb6e7e1c75b747f80acdd48840e",
+          "bytes": 105,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        },
+        {
+          "fileName": "participants.csv",
+          "sha256": "44ea39804f095b65e360320295bf6396476cbef9476d6693d4f49248fc4b5692",
+          "bytes": 87,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 5,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 9,
+          "turn": 1,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Planned_At__c, Location__c, Aim__c, Agenda__c, Visitors__c FROM Reception_Request__c WHERE Id = 'a02000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [],
+      "limitations": [
+        "One unsupported relationship readback corrected. ORDER BY behavior is not acceptance evidence."
+      ]
+    },
+    {
+      "caseId": "natural-optional-archive",
+      "iteration": 1,
+      "sourceCaptureSha256": "bd2dcd396cc2aea1aa65e774b46284eb8b932ee5ff21e96e658423fa7965d719",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Inventory/playbook/Context/describe plus corrected customer query supply schema/type/identity; complete event query call7 precedes CREATE."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Payload/readback preserve date/location, interest, testing, unknown quantity, no purchase commitment, price concern and future follow-up, with no invented sample origin."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Turn0 creates once and invites archive once without upload; turn1 only uploads original meeting.txt to the actual successful record and accurately labels synthetic success."
+        },
+        {
+          "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+          "verdict": "PASS",
+          "evidence": "Exact native file read verified. Archive follows explicit authorization, uses matching ref/target, succeeds, and performs no repeated DML."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "94340635-dc14-4b53-b03c-4da9b33b070f",
+          "sessionId": "db0a1e0b-800b-41be-8392-1b4d41d8cc6e",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建青禾厦门客户的事后拜访纪要，内容如下：\n\n- **客户**：青禾厦门\n- **沟通日期**：2026年11月3日\n- **沟通地点**：厦门办公室\n- **实际进展**：客户到厦门办公室沟通；样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定\n- **客户反馈**：客户认为报价偏高\n- **下一步行动**：下周跟进样品测试进展与报价\n\n纪要已保存，单据名称 MV-TEST-3。要不要把本轮原始会议文件也归档到这条拜访纪要下？"
+        },
+        {
+          "turn": 1,
+          "runId": "b7cf63e9-3581-4662-b3ee-5be7fb27dd1e",
+          "sessionId": "db0a1e0b-800b-41be-8392-1b4d41d8cc6e",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已把原件 `meeting.txt` 附加到刚创建的拜访纪要（MV-TEST-3）上：\n\n- 文件：meeting.txt\n- 状态：SUCCESS（1 个文件，0 个失败）\n\n备注：当前测试环境的附件执行器是模拟执行器，它返回的结果只用于本次校验，并不构成真实的 Salesforce 上传证据。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Location__c": "厦门办公室",
+            "Progress__c": "2026年11月3日客户到厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "Concerns__c": "客户认为报价偏高。",
+            "Follow_Up__c": "下周跟进样品测试进展与报价。",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "2026年11月3日客户到厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "下周跟进样品测试进展与报价。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 1
+      },
+      "originalReads": [
+        {
+          "fileName": "meeting.txt",
+          "sha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "bytes": 196,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 1,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, OwnerId, BillingStreet, BillingCity, BillingState, BillingCountry, Phone, Website FROM Account WHERE Name LIKE '%青禾%' ORDER BY Name",
+          "errorCode": "MCP_QUERY_FIELD_INVALID"
+        },
+        {
+          "callIndex": 9,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Location__c, Progress__c, Concerns__c, Follow_Up__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [
+        {
+          "turn": 1,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_aaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          "status": "SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "fileName": "meeting.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": null
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "Two query errors corrected; attachment response is simulated, not real Salesforce publication."
+      ]
+    },
+    {
+      "caseId": "natural-optional-archive",
+      "iteration": 2,
+      "sourceCaptureSha256": "9f8613825003beb377ce524fdd5404aea2ebe620429cdd2a9ce9e754f4f3c94d",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/describe/Context/customer lookup establish schema/type/identity; complete event query call4 precedes CREATE."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Actual payload/readback retain date/location, interest/testing/no commitment/unknown quantity, price and future follow-up; no unsupported sample source added."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Turn0 creates once and offers archive once without upload; turn1 uploads only original meeting.txt to successful target, no repeated DML."
+        },
+        {
+          "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+          "verdict": "PASS",
+          "evidence": "Exact native file bytes/hash observed; explicit second-turn authorization precedes matching original ref upload and accurate success receipt."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "76e32a28-1ba9-4ca2-a655-554e5a41b360",
+          "sessionId": "8bfb5eac-4174-4732-b2d1-55bd89c177be",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建「青禾厦门」的拜访纪要，单据名称：MV-TEST-3\n\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 沟通地点：厦门办公室\n- 实际进展：客户到厦门办公室沟通；样品仍在测试中，客户有合作兴趣，但未承诺采购，采购数量未定\n- 客户反馈：客户认为当前报价偏高\n- 下一步行动：下周跟进样品测试进展与报价\n\n如果需要，我可以把本轮原件 meeting.txt 附到这条纪要上；回复确认即可。"
+        },
+        {
+          "turn": 1,
+          "runId": "c4428e68-b07d-4ec3-8d15-bd7ee6de5b35",
+          "sessionId": "8bfb5eac-4174-4732-b2d1-55bd89c177be",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已附上。文件 meeting.txt 已成功附加到刚创建的纪要（MV-TEST-3，青禾厦门 2026-11-03 拜访纪要），状态为 SUCCESS。"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Location__c": "厦门办公室",
+            "Progress__c": "客户到厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "Concerns__c": "客户认为当前报价偏高。",
+            "Follow_Up__c": "下周跟进样品测试进展与报价。",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户到厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为当前报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "下周跟进样品测试进展与报价。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 1
+      },
+      "originalReads": [
+        {
+          "fileName": "meeting.txt",
+          "sha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "bytes": 196,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 6,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Location__c, Progress__c, Concerns__c, Follow_Up__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [
+        {
+          "turn": 1,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_aaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          "status": "SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "fileName": "meeting.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": null
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "One unsupported relationship query corrected before receipt; archive publication is simulated."
+      ]
+    },
+    {
+      "caseId": "natural-optional-archive",
+      "iteration": 3,
+      "sourceCaptureSha256": "7f44859815cb5f06120f67df2b0a38625042da6e64a5c41d8f5e219a8eb5a224",
+      "originalCaptureUnchanged": true,
+      "businessVerdict": "PASS",
+      "criteria": [
+        {
+          "criterion": "从自然任务和工具返回的对象、字段与候选确定操作；未预填正确 API 名或答案",
+          "verdict": "PASS",
+          "evidence": "Playbook/describe/Context/unique customer lookup establish schema/type/relationship; complete same-customer/date query precedes CREATE."
+        },
+        {
+          "criterion": "事实、选填字段、主体、时态和否定保真，剩余实质歧义才问",
+          "verdict": "PASS",
+          "evidence": "Payload/readback retain date/location, testing, interest/no purchase commitment/unknown quantity, price and future follow-up; specifically no invented customer sample provenance."
+        },
+        {
+          "criterion": "逐轮目标与结果连续，回执准确；可选原件邀请与阻塞性澄清分开",
+          "verdict": "PASS",
+          "evidence": "Turn0 creates once and offers archive once without upload; turn1 only attaches original to actual created target with accurate result receipt."
+        },
+        {
+          "criterion": "首轮先保存并仅一次可选归档邀请；第二轮只上传本任务原件到实际成功 recordId，无重复 CREATE",
+          "verdict": "PASS",
+          "evidence": "Exact original native read proven; explicit authorization then one matching ref upload succeeds, with no repeated DML."
+        }
+      ],
+      "turns": [
+        {
+          "turn": 0,
+          "runId": "3a10af1a-5bfe-48b6-9881-d5d180a3cd60",
+          "sessionId": "43fd9970-184c-41c6-a02f-cc22ec6c8d02",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "已创建青禾厦门的拜访纪要（客户拜访纪要），并在 Salesforce 里核对无误。\n\n- 客户：青禾厦门\n- 沟通日期：2026-11-03\n- 沟通地点：厦门办公室\n- 实际进展：客户到访厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。\n- 客户反馈：客户认为报价偏高。\n- 下一步行动：下周跟进样品测试与报价。\n- 单据编号：MV-TEST-3\n\n如果需要，我也可以把本轮原件 meeting.txt 归档到这条纪要下。"
+        },
+        {
+          "turn": 1,
+          "runId": "af0eee39-72d6-4214-a2a3-6d92989ab734",
+          "sessionId": "43fd9970-184c-41c6-a02f-cc22ec6c8d02",
+          "model": "deepseek-flash",
+          "executionStatus": "ok",
+          "processLifecycleStatus": "EXITED",
+          "exitCode": 0,
+          "replayInvalid": true,
+          "traceEvidence": "Unique cache-trace prompt:before matches sessionId and exact original turn prompt",
+          "reply": "原件 meeting.txt 已附到刚创建的拜访纪要 MV-TEST-3 上，上传状态为 SUCCESS。\n\n- 附件：meeting.txt\n- 目标记录：拜访纪要 MV-TEST-3（青禾厦门，2026-11-03）"
+        }
+      ],
+      "fieldsActuallyWritten": [
+        {
+          "turn": 0,
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "fields": {
+            "Customer__c": "001000000000001AAA",
+            "Occurred_On__c": "2026-11-03",
+            "Location__c": "厦门办公室",
+            "Progress__c": "客户到访厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "Concerns__c": "客户认为报价偏高。",
+            "Follow_Up__c": "下周跟进样品测试与报价。",
+            "RecordTypeId": "012000000000003AAA"
+          }
+        }
+      ],
+      "optionalFields": {
+        "fields": [
+          {
+            "field": "Progress__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户到访厦门办公室沟通。样品仍在测试中；客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Concerns__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "客户认为报价偏高。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Follow_Up__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "下周跟进样品测试与报价。",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          },
+          {
+            "field": "Location__c",
+            "draftPropertyPresent": true,
+            "valueWritten": "厦门办公室",
+            "nonemptyWrite": true,
+            "semanticReview": "PASS"
+          }
+        ],
+        "expected": 4,
+        "observedNonemptyWrites": 4,
+        "scope": "Named applicable optional fields for this CREATE, independently reviewed for meaning"
+      },
+      "requestedPatches": null,
+      "facts": {
+        "namedFactsReviewed": [
+          "correct customer",
+          "past communication date",
+          "office location",
+          "sample still testing",
+          "cooperation interest",
+          "no purchase commitment",
+          "quantity undecided",
+          "price objection",
+          "future next-week testing/price follow-up"
+        ],
+        "semanticVerdict": "PASS",
+        "unsupportedFacts": [],
+        "allPossibleFactsDenominator": null,
+        "universalCoverageRatio": null
+      },
+      "questions": {
+        "necessaryBusinessChoices": 0,
+        "unnecessaryBlockingQuestions": 0,
+        "optionalArchiveInvitations": 1
+      },
+      "originalReads": [
+        {
+          "fileName": "meeting.txt",
+          "sha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "bytes": 196,
+          "readingEvidence": "OBSERVED_NATIVE_READ",
+          "providerInputLine": 2,
+          "messageIndex": 4,
+          "clipped": false
+        }
+      ],
+      "queryErrors": [
+        {
+          "callIndex": 6,
+          "turn": 0,
+          "tool": "query_records",
+          "query": "SELECT Id, Name, Customer__c, Customer__r.Name, Occurred_On__c, Location__c, Progress__c, Concerns__c, Follow_Up__c FROM Customer_Contact_Log__c WHERE Id = 'a01000000000002AAA'",
+          "errorCode": "MCP_QUERY_RECORDS_FAILED"
+        }
+      ],
+      "queryReview": "All failures retained. Successful observed customer/event or target-read queries support final business actions; this does not mean every failed query was individually retried.",
+      "attachments": [
+        {
+          "turn": 1,
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "attachmentRefs": [
+            "att_aaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          "status": "SUCCESS",
+          "results": [
+            {
+              "attachmentRef": "att_aaaaaaaaaaaaaaaaaaaaaaaa",
+              "fileName": "meeting.txt",
+              "status": "SUCCESS",
+              "salesforceErrorCode": null,
+              "salesforceMessage": null,
+              "syntheticExecutorRetryable": null
+            }
+          ]
+        }
+      ],
+      "limitations": [
+        "One unsupported relationship readback corrected. Model sees simulated Salesforce-shaped responses; this is not real Salesforce publication acceptance."
+      ]
+    }
+  ]
+}

@@ -13,13 +13,15 @@ gate. Attachment migration 017 supports atomic upload claims, controlled recover
 after an explicit Salesforce refusal, retained unknown outcomes and original-byte
 cleanup without replaying successful or uncertain writes.
 
-Playbook 1.13.1 and canonical business Skills guide task synthesis, relevant optional
+Playbook 1.13.2 and canonical business Skills guide task synthesis, relevant optional
 fields, event-aware duplicate checks, minimal UPDATE and one optional archive
 invitation. This supersedes the older blanket name-match question and area-code
 geography guidance below: a name is a candidate, and a phone area code alone does
 not prove a company's location. An initial CREATE request does not resolve a later
 same-event conflict. Actual validation errors determine the unresolved business
-choice; repeated equivalent diagnostics do not replace that question.
+choice; repeated equivalent diagnostics do not replace that question. Polishing
+must not invent an actor, source, recipient or transfer direction unsupported by
+materials or verified context; supported optional details still belong in the write.
 
 Test deployment, deterministic tests, repeated real-model comparisons, real-file
 reading, channel verification and Salesforce results are recorded separately in

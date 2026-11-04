@@ -1,0 +1,1367 @@
+{
+  "schemaVersion": 1,
+  "reviewedCommit": "94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9",
+  "source": "sfoa_codex_development_prompt.md section 9.2, all 28 minimum scenarios",
+  "overallBusinessAcceptance": "PARTIAL",
+  "finalD57RepeatedModelMatrix": "REVIEWED_BEFORE_15_OF_18_AFTER_17_OF_18",
+  "rules": [
+    "A passing deterministic test proves its stated implementation boundary, not all business semantics in the scenario.",
+    "Guidance text/snapshot and development-only oracle tests are not Agent behavior evidence.",
+    "Synthetic SDK dispatch/read-back is not Salesforce persistence or publication.",
+    "Manual real Adapter hooks and explicit helper-output injection are not a real WeCom entry or a complete native hook-to-model chain.",
+    "All real WeCom/native-voice scenarios remain NOT_TESTED; no successful real Salesforce CREATE, UPDATE or attachment publication exists in this task.",
+    "First 36-run fixture defects and d57 candidate unsupported-source failure remain preserved. Latest 1.13.2 candidate is 18/18 in the fixed-old-Provider synthetic-SDK guidance comparison; this is not production reliability or real Salesforce/WeCom acceptance."
+  ],
+  "executedSuites": {
+    "adapter": {
+      "log": ".temp/agent-material-workflows/adapter-final-92.log",
+      "result": "92/92 PASS"
+    },
+    "context": {
+      "log": ".temp/material-workflows/context-assessment-tests.log",
+      "result": "237/237 PASS"
+    },
+    "host": {
+      "log": ".temp/p8-04-regression/sfoa-mcp-server-test.log",
+      "result": "Relevant managed-context tests passed; aggregate 403/404, unrelated HTTP load 504 retained"
+    },
+    "dml": {
+      "log": ".temp/agent-material-workflows/dml-long-text-test.log",
+      "result": "47/47 PASS; includes Tool schema -> executor -> exact 131072-character mock dispatch"
+    },
+    "p3": {
+      "log": ".temp/p8-04-regression/sfoa-mcp-server-p3-test.log",
+      "result": "25/25 PASS"
+    },
+    "p4": {
+      "log": ".temp/p8-04-regression/sfoa-mcp-server-p4-test.log",
+      "result": "16/16 PASS"
+    },
+    "attachment": {
+      "log": ".temp/attachment-lifecycle/server-frozen.log",
+      "result": "Attachment plus WeCom HTTP 61/61 PASS"
+    },
+    "mysql": {
+      "log": ".temp/attachment-lifecycle/mysql-frozen.log",
+      "result": "18/18 PASS, actual guarded test database"
+    },
+    "playbook": {
+      "log": ".temp/agent-material-workflows/playbook-1132-test.log",
+      "result": "1.13.2 46/46 PASS; text inspections prove guidance distribution only"
+    },
+    "skill": {
+      "log": ".temp/agent-material-workflows/skill-1132-test.log",
+      "result": "1.13.2 toolkit 80/80 PASS; exact 7fdbaf3 isolated Linux committed-HEAD smoke 6/6 gates and 80/80 tests PASS; prior d57 smoke and failures preserved"
+    },
+    "fixture": {
+      "log": ".temp/agent-material-workflows/harness-query-fix-test-final.log",
+      "result": "Fixture query tests passed; synthetic SDK semantics only"
+    },
+    "finalCleanSkillSmoke": {
+      "log": ".temp/agent-material-workflows/skill-smoke-linux-7fdbaf3.log",
+      "result": "7fdbaf308cd7e7062878d910f765316f27b6a81a: 6/6 gates, 80/80 tests PASS; DB/services SKIPPED; no .env.local"
+    }
+  },
+  "testGroups": {
+    "AT": {
+      "kind": "RUNTIME_BEHAVIOR",
+      "suite": "adapter",
+      "file": "integrations/openclaw/sfoa-wecom-mcp-adapter/test/material-tasks.test.js",
+      "tests": {
+        "AT1": "PDF, recording, plain text and confirmation accumulate without extending original expiry",
+        "AT2": "same content resend is one material, same name different bytes retains versions",
+        "AT3": "requester, account and session isolation are host-derived, including shared conversations",
+        "AT4": "new task explicitly selects materials and resets target, questions and rejected archive",
+        "AT5": "actual MCP results bind targets and per-file outcomes, fabricated IDs are not notes",
+        "AT6": "compound child writes and batch results preserve the main task target",
+        "AT7": "host keyed store restores bounded facts on restart and session reset removes them",
+        "AT8": "task capacity and text budgets expose omissions and partial coverage"
+      }
+    },
+    "AB": {
+      "kind": "REAL_HOOK_BEHAVIOR_WITH_SYNTHETIC_TRUSTED_CONTEXT",
+      "suite": "adapter",
+      "file": "integrations/openclaw/sfoa-wecom-mcp-adapter/test/bridge.test.js",
+      "tests": {
+        "AB1": "real CSV body and failed original staging remain independent across text confirmation",
+        "AB2": "eleven originals are all staged and partial failures reach the actual prompt",
+        "AB3": "same-conversation requester switch and missing sender never expose another material",
+        "AB4": "real tool-result hook binds target; local notes and session reset never mutate CRM"
+      }
+    },
+    "AR": {
+      "kind": "ACTUAL_LOCAL_BYTES_READER_BEHAVIOR",
+      "suite": "adapter",
+      "file": "integrations/openclaw/sfoa-wecom-mcp-adapter/test/material-reader.test.js",
+      "tests": {
+        "AR1": "real DOCX basic paragraphs/tables preserve source text and known coverage",
+        "AR2": "real XLSX reads shared/inline/numeric/cached-formula cells and flags missing caches",
+        "AR3": "CSV quoted multiline cells, UTF-8 BOM and exact original hash are read",
+        "AR4": "long tables and bodies are explicitly partial, not reported fully read",
+        "AR5": "corrupt Office, unsupported encoding and missing Python give separate reading failure",
+        "AR6": "native image, PDF and audio remain native and never gain invented read coverage"
+      }
+    },
+    "CA": {
+      "kind": "CONTEXT_RUNTIME_BEHAVIOR",
+      "suite": "context",
+      "file": "packages/mcp-provider-sfoa-context/src/test/create-value-assessment.test.ts",
+      "tests": {
+        "CA1": "value assessment is opt-in and adds no Salesforce reads in OFF",
+        "CA2": "raw default presence survives null/undefined collapse while explicit false/zero/null/empty take precedence",
+        "CA3": "available defaults include false and zero without claiming a write; an oversized default stays UNKNOWN locally",
+        "CA4": "parsed Dynamic Forms distinguish hidden API required, hidden page-only and unresolved conditional requiredness",
+        "CA5": "strict managed policy overrides draft while fallback preserves every present scalar, including explicit empty",
+        "CA6": "missing Record Type returns PARTIAL and unknown defaults without fetching type-dependent APIs",
+        "CA7": "Tool schema and JSON mirror expose only the optional CREATE assessment; UPDATE and long drafts keep their bounds"
+      },
+      "parameterizedCoverage": {
+        "CA1": [
+          "OFF",
+          "SHADOW",
+          "ENFORCE"
+        ]
+      }
+    },
+    "HC": {
+      "kind": "HOST_RUNTIME_BEHAVIOR",
+      "suite": "host",
+      "file": "packages/sfoa-mcp-server/src/test/managed-action-context.test.ts",
+      "tests": {
+        "HC1": "optional CREATE assessment gains strict/fallback managed facts and keeps one exact final JSON mirror"
+      }
+    },
+    "DE": {
+      "kind": "DML_EXECUTOR_BEHAVIOR",
+      "suite": "dml",
+      "file": "packages/mcp-provider-sfoa-dml/src/test/dml-executor.test.ts",
+      "tests": {
+        "DE1": "explicitly allowed CREATE and UPDATE use the one request-scoped Connection",
+        "DE2": "mutation observer receives the exact submitted fields and Salesforce result record ID",
+        "DE3": "transport and unstructured SDK exceptions produce unknown outcomes without automatic retry",
+        "DE4": "CREATE dispatches all 131072 text characters independently of the smaller Context draft bound"
+      }
+    },
+    "DC": {
+      "kind": "COMPOUND_BEHAVIOR",
+      "suite": "dml",
+      "file": "packages/mcp-provider-sfoa-dml/src/test/compound.test.ts",
+      "tests": {
+        "DC1": "multiple roots correlate child Lookups by explicit references despite different phase ordering",
+        "DC2": "child partial failure preserves root success and reports incomplete intent without rollback",
+        "DC3": "after a partial child batch only the failed item qualifies for re-preparation"
+      }
+    },
+    "DB": {
+      "kind": "BATCH_BEHAVIOR",
+      "suite": "dml",
+      "file": "packages/mcp-provider-sfoa-dml/src/test/batch.test.ts",
+      "tests": {
+        "DB1": "per-item Record Type payload, exact submitted fields and request USER isolation",
+        "DB2": "allOrNone complete rejection and UNKNOWN transport have distinct counts; no retries"
+      }
+    },
+    "ID": {
+      "kind": "HTTP_IDENTITY_BEHAVIOR",
+      "suite": "p3",
+      "file": "packages/sfoa-mcp-server/src/p3-test/dml-http-integration.test.ts",
+      "tests": {
+        "ID1": "forged body identity fields cannot change the authenticated CREATE/UPDATE route",
+        "ID2": "P3 CREATE/UPDATE route A and B independently and never reuse a Connection"
+      }
+    },
+    "DG": {
+      "kind": "HTTP_DIAGNOSTIC_BEHAVIOR",
+      "suite": "p4",
+      "file": "packages/sfoa-mcp-server/src/p4-test/p4-http-integration.test.ts",
+      "tests": {
+        "DG1": "P4 Streamable HTTP keeps USER A/B context isolated and routes only diagnostic Tools to the fixed DIAGNOSTIC identity"
+      }
+    },
+    "UP": {
+      "kind": "REAL_DISPATCHER_AND_LOCAL_STAGING_BEHAVIOR_WITH_FAKE_SALESFORCE",
+      "suite": "attachment",
+      "file": "packages/sfoa-mcp-server/src/test/attachment-upload.test.ts",
+      "tests": {
+        "UP1": "only a proven refusal can reuse the same original ref, with owner and hash rechecked",
+        "UP2": "unknown attempts block replay across uploader instances and retain their fact after byte cleanup",
+        "UP3": "two concurrent calls issue at most one ContentVersion POST for one ref",
+        "UP4": "cancellation after claim but before POST releases only that unsent claim",
+        "UP5": "a POST response body that breaks mid-stream is unknown, retained and never replayed",
+        "UP6": "facade timeout preserves prior success, names the in-flight unknown and never dispatches the remaining file",
+        "UP7": "a mix of successes and a platform rejection is PARTIAL_SUCCESS, per file and in the aggregate",
+        "UP8": "the ContentVersion call is a multipart publish carrying FirstPublishLocationId and the exact staged bytes",
+        "UP9": "the attachment Tool is enabled only through its own inventory and its own policy",
+        "UP10": "a staged file whose bytes changed after staging is refused rather than published",
+        "UP11": "a reference may not be replayed once it has been consumed, and expires on its own clock"
+      }
+    },
+    "MY": {
+      "kind": "ACTUAL_MYSQL_REPOSITORY_BEHAVIOR",
+      "suite": "mysql",
+      "file": "packages/sfoa-control-plane/src/mysql-test/mysql.integration.test.ts",
+      "tests": {
+        "MY1": "attachment repository atomically claims owner-scoped live refs and cannot replay consumed or unknown attempts",
+        "MY2": "attachment recovery is explicit, expiry-bounded, and never revives legacy/local FAILED rows",
+        "MY3": "attachment cleanup includes failed and unknown bytes while preserving outcome facts and live claims",
+        "MY4": "017 preserves existing staged, consumed and failed rows without making historical failures retryable"
+      }
+    },
+    "GP": {
+      "kind": "GUIDANCE_SURFACE_TEXT_ONLY",
+      "suite": "playbook",
+      "file": "packages/sfoa-agent-playbook/src/test/playbook.test.ts",
+      "tests": {
+        "GP1": "renders every required safety contract on every distribution surface",
+        "GP2": "preserves international numbers and does not derive a company address from an area code",
+        "GP3": "maps a requested owner to the configured managed owner field instead of OwnerId",
+        "GP4": "distributes the file-attachment contract as its own capability, never as Generic DML"
+      }
+    },
+    "GO": {
+      "kind": "DEVELOPMENT_ONLY_ORACLE_NOT_RUNTIME_AGENT",
+      "suite": "skill",
+      "file": "skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs",
+      "tests": {
+        "GO1": "UPDATE gate — omitted, null, false and zero stay four different facts",
+        "GO2": "UPDATE gate — the patch never grows beyond the user intent",
+        "GO3": "CREATE duplicate oracle — material same-record ambiguity needs a decision; candidates and gaps stay bounded"
+      }
+    },
+    "GS": {
+      "kind": "GUIDANCE_REFERENCE_TEXT_ONLY",
+      "suite": "skill",
+      "file": "skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs",
+      "tests": {
+        "GS1": "lookup and picklist reference covers every match count and the Label/API Value split",
+        "GS2": "update readiness reference keeps target resolution, minimal patch and the CREATE separation",
+        "GS3": "outcome reconciliation reference forbids replaying UNKNOWN and resubmitting a partial batch",
+        "GS4": "record change entry retains its readiness hard-boundary content contract"
+      }
+    },
+    "HF": {
+      "kind": "HARNESS_FIXTURE_BEHAVIOR_NOT_SALESFORCE",
+      "suite": "fixture",
+      "file": "integrations/openclaw/sfoa-wecom-mcp-adapter/harness/test/material-workflows.test.mjs",
+      "tests": {
+        "HF1": "fixture ISO date ranges filter cross-date events through the actual query tool",
+        "HF2": "fixture query returns explicit null for a selected known but unset field",
+        "HF3": "simulated attachment partial failure keeps the record and permits only the failed original on recovery turn",
+        "HF4": "fixture predicates consume the whole AND expression and reject unknown syntax even with no rows"
+      }
+    }
+  },
+  "nonDeterministicEvidence": {
+    "M1": {
+      "source": "docs/sfoa/AGENT_MATERIAL_WORKFLOWS_DELIVERY.md section 5; material-workflows-repeated-c02c392",
+      "scope": "First real-model guidance comparison, shared frozen Provider runtime and synthetic SDK",
+      "before": "12 PASS / 6 FAIL",
+      "after": "14 PASS / 3 FAIL / 1 NOT_VERIFIED",
+      "afterByJourney": {
+        "multisourceCreate": "2/3 PASS",
+        "crossTurnCreate": "3/3 PASS",
+        "existingSupplement": "3/3 PASS",
+        "duplicateChoice": "0/3 PASS",
+        "optionalArchive": "3/3 PASS",
+        "attachmentRecovery": "3/3 PASS"
+      },
+      "limitation": "Unknown fields/unset selected values/range predicate fixture defects preserved; no corrected-fixture reliability claim"
+    },
+    "M2": {
+      "source": ".temp/agent-material-workflows/mixed-material-evidence-reviewed.json",
+      "scope": "Single d57 real-model mixed-original probe, actual Office reader and reused actual ASR; native image/PDF; explicit host injection; real Providers with synthetic SDK",
+      "verdict": "PASS_FOR_THIS_ISOLATED_PROBE",
+      "observed": "Three turns; zero writes while collecting; two distinct customer/event CREATE dispatches then synthetic read-backs; relevant optional facts written; explicit no-archive respected",
+      "notProven": "Automatic hook-to-model chain, Gateway/WeCom, real Salesforce, repeated reliability"
+    },
+    "P1": {
+      "source": ".temp/agent-material-workflows/material-evidence-reviewed.json",
+      "scope": "Nine original byte hashes, real installed SDK and manually invoked real Adapter hooks, isolated store and actual staging; DOCX/XLSX/CSV reads, WAV/m4a host ASR, PNG/scanned PDF model reading",
+      "verdict": "PARTIAL",
+      "notProven": "JPEG model reading, native voice entry, native read-state reconciliation, real WeCom, Salesforce publication"
+    },
+    "S1": {
+      "source": ".temp/agent-material-workflows/live-agent-rejection-review.md; docs/sfoa/AGENT_MATERIAL_WORKFLOWS_DELIVERY.md section 7",
+      "scope": "Actual Salesforce UAT CREATE attempt",
+      "verdict": "FAILED_AND_FOLLOWUP_BLOCKED",
+      "observed": "One CREATE explicitly rejected by source/customer-or-lead-or-opportunity/factory validation; no recordId, successful UPDATE or file publication; no successful replay"
+    },
+    "S2": {
+      "source": ".temp/agent-material-workflows/post-deploy-capabilities-1132-safe.json",
+      "scope": "Actual post-deployment discovery/schema comparison",
+      "verdict": "PASS_FOR_DISCOVERY_ONLY",
+      "observed": "29 names unchanged; only get_record_action_context schema changed; value assessment optional; five direct mutation/upload schemas unchanged",
+      "notProven": "Every discovered Tool successfully executes for every user/object"
+    },
+    "M3": {
+      "source": ".temp/agent-material-workflows/d57f110-independent-repeated-review-summary.json",
+      "scope": "36 real-model guidance runs using corrected fixture and fixed old Provider + synthetic SDK",
+      "before": "15 PASS / 3 FAIL",
+      "after": "17 PASS / 1 FAIL",
+      "actualRunsPerSide": 42,
+      "nativeReadsPerSide": 21,
+      "beforeByJourney": {
+        "multisourceCreate": "3/3",
+        "crossTurnCreate": "3/3",
+        "existingSupplement": "3/3",
+        "duplicateChoice": "3/3",
+        "optionalArchive": "0/3",
+        "attachmentRecovery": "3/3"
+      },
+      "afterByJourney": {
+        "multisourceCreate": "3/3",
+        "crossTurnCreate": "3/3",
+        "existingSupplement": "3/3",
+        "duplicateChoice": "3/3",
+        "optionalArchive": "2/3",
+        "attachmentRecovery": "3/3"
+      },
+      "observed": "Candidate failure retained: one optional-archive journey invented customer-provided samples; three optional invitations otherwise correctly ordered",
+      "limitation": "Shared old Provider strips retryable from model-visible results; recovery uses explicit failed/not-published message, not proof of new backend/field propagation"
+    },
+    "M4": {
+      "source": ".temp/agent-material-workflows/candidate-model-evidence-94aa661-reviewed.json; .temp/agent-material-workflows/final-comparison-safe.json; /data/sfoa-enterprise-mcp/evidence/material-workflows-candidate-94aa661-20261105/after-reviewed.json",
+      "scope": "Candidate 1.13.2 guidance-only 18 sessions / 42 actual trace runs; compared to the already reviewed d57 before18, not a new empty before-captures file",
+      "verdict": "18/18 PASS; six core journeys each 3/3",
+      "actualRuns": 42,
+      "sessions": 18,
+      "nativeReads": 21,
+      "relevantOptionalWrites": "48/48 semantically correct among defined expected optional slots",
+      "necessaryBusinessChoices": 3,
+      "unnecessaryBlockingQuestions": 0,
+      "optionalArchiveInvitations": 3,
+      "queryErrorsPreserved": 29,
+      "observed": "No unsupported sample actor/source in reviewed candidate payloads; required turns, target continuity, duplicate choice and scoped recovery passed",
+      "notProven": "Universal fact coverage, production reliability, candidate backend retryable propagation, automatic Adapter chain, real Salesforce or WeCom"
+    },
+    "B1": {
+      "source": ".temp/agent-material-workflows/d57f110-boundary-reviewed.json / boundary-select-one-original; .temp/agent-material-workflows/boundary-probes-safe.json",
+      "scope": "One real-model run, real two TXT native reads, fixed old Provider + synthetic SDK",
+      "verdict": "PASS_SINGLE_PROBE",
+      "observed": "Both original TXT bodies read; only explicitly selected first reference uploaded to actual successful synthetic CREATE target",
+      "notProven": "Repeated reliability or real attachment publication"
+    },
+    "B2": {
+      "source": ".temp/agent-material-workflows/d57f110-boundary-reviewed.json / boundary-transcript-without-audio; .temp/agent-material-workflows/boundary-probes-safe.json",
+      "scope": "One two-turn real-model session using user-provided transcript text only",
+      "verdict": "PASS_SINGLE_PROBE",
+      "observed": "Created from provided text; later original-audio request accurately reported unavailable original with zero tools/uploads and no invented reference",
+      "notProven": "Actual audio/ASR or real Salesforce publication"
+    },
+    "B3": {
+      "source": ".temp/agent-material-workflows/94aa661-boundary-ambiguity-date-reviewed.json / boundary-ambiguous-ack; .temp/agent-material-workflows/boundary-probes-safe.json",
+      "scope": "One two-turn 1.13.2 real-model session, two actual fixture Account candidates and undecided date",
+      "verdict": "PASS_SINGLE_PROBE",
+      "observed": "After only 好, customer/date remained two pending choices; no DML or upload",
+      "notProven": "Repeated or live-WeCom clarification reliability; same-name responsible-person resolution"
+    },
+    "B4": {
+      "source": ".temp/agent-material-workflows/94aa661-boundary-ambiguity-date-reviewed.json / boundary-old-event-transcript; .temp/agent-material-workflows/boundary-probes-safe.json",
+      "scope": "One 1.13.2 real-model run; exact native read of 519-byte user-transcription TXT dated October 15",
+      "verdict": "PASS_SINGLE_PROBE",
+      "observed": "Kept three/two participants, 1280 per set, negation, and follow-up as the week after the event without invented precise date or November anchor",
+      "notProven": "Raw old audio/ASR ambiguity or cross-timezone stability"
+    },
+    "B5": {
+      "source": "/data/sfoa-enterprise-mcp/evidence/material-boundary-phone-94aa661-20261105/boundary-reviewed.json; .temp/agent-material-workflows/boundary-probes-safe.json",
+      "scope": "Two single real-model sessions; fixture Context/schema wrapper and empty query fixture, actual old DMLExecutor + synthetic SDK",
+      "verdict": "2/2 SINGLE_PROBES_PASS",
+      "observed": "Dispatched MobilePhone +44 7700 900123 and Phone 0592-8888888转123 unchanged in respective cases; name/company/title written, City/State/Country absent, zero clarification",
+      "notProven": "Actual ContextExecutor, real Salesforce lookup/deduplication, phone reachability, area-code-only input or repeated reliability"
+    },
+    "S3": {
+      "source": ".temp/agent-material-workflows/fresh-gateway-1132-reviewed-safe.json",
+      "scope": "Fresh Gateway read-only run, no channel delivery or Salesforce",
+      "verdict": "PASS_FOR_RUNTIME_GUIDANCE_READING_ONLY",
+      "observed": "Run 614c7c46-32a6-42e4-9eaa-7da30fe2c943 read complete SKILL and material reference; returned body hashes matched actual runtime files; model identified 1.13.2",
+      "notProven": "Business execution or WeCom delivery"
+    }
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "scenario": "纯文字资料已充分",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "DE2"
+        ],
+        "scope": "Exact payload execution only; not Agent inference"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1",
+          "GS4"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_SINGLE_ISOLATED_PROBE",
+        "refs": [
+          "B2",
+          "M4"
+        ],
+        "scope": "Provided transcript text supports complete synthetic CREATE; this is one pure-text boundary case plus related material journeys"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "纯文字转写单例已通过；其他文字业务及真实 Salesforce 落库不由该单例保证。"
+    },
+    {
+      "id": 2,
+      "scenario": "文字+PDF+图片+录音各有独有信息",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "AR1",
+          "AR6",
+          "AB1"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_SINGLE_ISOLATED_PROBE",
+        "refs": [
+          "M2"
+        ]
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1",
+          "M2"
+        ],
+        "scope": "Actual originals read and unique facts used; audio reused actual ASR, Office explicitly injected"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "原生读取状态回写、自动 hook 到模型及真实渠道到 Salesforce 的完整链路未证实。"
+    },
+    {
+      "id": 3,
+      "scenario": "分多条发送材料后统一创建",
+      "deterministic": {
+        "status": "PASS_FOR_HOST_STATE",
+        "refs": [
+          "AT1",
+          "AB1"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M3",
+          "M4"
+        ],
+        "scope": "Latest 1.13.2 corresponding core journey 3/3; fixed old Provider and synthetic SDK only; previous failures retained"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1",
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "隔离重复多轮已通过；真人渠道到 Salesforce 的完整链路未通过。"
+    },
+    {
+      "id": 4,
+      "scenario": "事前申请与事后纪要",
+      "deterministic": {
+        "status": "NOT_TESTED_FOR_AGENT_SEMANTICS",
+        "refs": []
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M3",
+          "M4"
+        ],
+        "scope": "Latest 1.13.2 corresponding core journey 3/3; fixed old Provider and synthetic SDK only; previous failures retained"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1",
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "合成对象/Record Type 选择不证明真实组织中的对象、类型和写入正确。"
+    },
+    {
+      "id": 5,
+      "scenario": "正文相同段落涉及不同业务含义",
+      "deterministic": {
+        "status": "NOT_TESTED_FOR_AGENT_SEMANTICS",
+        "refs": []
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2",
+          "M3",
+          "M4"
+        ],
+        "scope": "Latest candidate 48/48 expected optional field writes semantically correct; d57 invented sample actor remains a preserved failure; not an exhaustive same-paragraph ambiguity suite"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "同段多义、字段长度压缩和避免重复复制仍需专项观察。"
+    },
+    {
+      "id": 6,
+      "scenario": "材料冲突与明确更正",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "AT2",
+          "AT5"
+        ],
+        "scope": "Versions and proven target state only"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1",
+          "GS2"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M4",
+          "B3"
+        ],
+        "scope": "Repeated existing-target date correction and single ambiguous acknowledgement passed; unresolved contradictory source precedence not exhaustively covered"
+      },
+      "realMaterial": {
+        "status": "NOT_TESTED_FOR_CONFLICT_RESOLUTION"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "一字回复多个待决选择已有单次通过；跨材料冲突及版本优先仍未穷举。"
+    },
+    {
+      "id": 7,
+      "scenario": "相对时间与旧录音",
+      "deterministic": {
+        "status": "NOT_TESTED_FOR_AGENT_SEMANTICS",
+        "refs": []
+      },
+      "guidanceOrFixture": {
+        "status": "PARTIAL",
+        "refs": [
+          "GP1",
+          "HF1"
+        ],
+        "scope": "Guidance and synthetic ISO query comparisons do not prove old-audio date anchoring"
+      },
+      "realModel": {
+        "status": "PASS_SINGLE_TRANSCRIPT_BOUNDARY",
+        "refs": [
+          "B4"
+        ],
+        "scope": "Old event date anchors next week in actual read transcription; no invented exact day or current-date anchor"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "B4",
+          "P1"
+        ],
+        "scope": "Actual old-event TXT native read; no raw old-audio temporal ambiguity probe"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "有日期的旧事件转写单例已通过；真实旧音频、ASR 与跨时区相对时间仍缺专项。"
+    },
+    {
+      "id": 8,
+      "scenario": "ASR 姓名或数字不清",
+      "deterministic": {
+        "status": "NOT_TESTED",
+        "refs": []
+      },
+      "guidanceOrFixture": {
+        "status": "PARTIAL",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "NOT_TESTED_FOR_AMBIGUOUS_ASR"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1"
+        ],
+        "scope": "WAV/m4a ASR works; unclear name/number repair not tested; speaker/timing/confidence unknown"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "含不清姓名/数字的录音与可靠旁证组合未测。"
+    },
+    {
+      "id": 9,
+      "scenario": "多个同名客户/责任人",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "ID1",
+          "AT3"
+        ],
+        "scope": "Identity cannot be changed by model/body; not selection semantics"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP3",
+          "GS1"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "B3",
+          "M4"
+        ],
+        "scope": "Two customer candidates remained unresolved after 好; request identity unchanged; same-name owner not separately tested"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "同名客户歧义单例已通过；真实同名责任人解析及渠道稳定性仍未验收。"
+    },
+    {
+      "id": 10,
+      "scenario": "CREATE 查重、重复来访",
+      "deterministic": {
+        "status": "NOT_TESTED_FOR_AGENT_DECISION",
+        "refs": []
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GO3",
+          "HF1",
+          "HF2"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M1",
+          "M3",
+          "M4"
+        ],
+        "scope": "First candidate duplicate failure retained; corrected d57 and latest 1.13.2 duplicate journeys each 3/3"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "同事件选择的隔离重复已通过；真实 Salesforce 事件查重和渠道写入仍未完成。"
+    },
+    {
+      "id": 11,
+      "scenario": "查询零结果、截断、错误",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "CA6"
+        ],
+        "scope": "Context partial facts, not global duplicate uniqueness"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GO3",
+          "HF2",
+          "HF4"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M3",
+          "M4",
+          "M2"
+        ],
+        "scope": "Latest candidate preserves 29 query errors while correcting unsupported queries; complete zero-row scopes stay bounded; truncated real duplicate search not verified"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "PARTIAL_READ_ONLY",
+      "gap": "真实查重截断或错误情况下的最终业务决定未验收。"
+    },
+    {
+      "id": 12,
+      "scenario": "电话带格式/国际号码/仅区号",
+      "deterministic": {
+        "status": "NOT_TESTED_FOR_PHONE_BUSINESS_BEHAVIOR",
+        "refs": []
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP2"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_TWO_SINGLE_PHONE_PROBES",
+        "refs": [
+          "B5"
+        ],
+        "scope": "International mobile and formatted landline/extension preserve values; no fabricated company geography or clarification; Context/query remain fixture"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "两类电话单例已通过；仅区号、真实查重/号码可达及实际 ContextExecutor 未由这两例证明。"
+    },
+    {
+      "id": 13,
+      "scenario": "hidden API-required、page-only required、只读/托管",
+      "deterministic": {
+        "status": "PASS_FOR_CONTEXT_FACTS",
+        "refs": [
+          "CA4",
+          "CA5",
+          "HC1"
+        ],
+        "scope": "Real parser path and host facts; no new DML gate"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ],
+        "scope": "Assessment PARTIAL before type/COMPLETE after selection; not each hidden-field branch"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED_FOR_ALL_BRANCHES",
+      "gap": "隐藏/API必填/页面必填各分支尚未逐项在真实 Salesforce 元数据及写入中验收。"
+    },
+    {
+      "id": 14,
+      "scenario": "false/0/null/空字符串/属性缺失",
+      "deterministic": {
+        "status": "PASS_FOR_CREATE_FACTS",
+        "refs": [
+          "CA2",
+          "CA3",
+          "CA5",
+          "HC1"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GO1"
+        ]
+      },
+      "realModel": {
+        "status": "NOT_TESTED_FOR_ALL_SCALAR_BRANCHES"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "CREATE 事实计算已证明；UPDATE oracle 仅为开发模型，不是完整真实 Salesforce 标量矩阵。"
+    },
+    {
+      "id": 15,
+      "scenario": "UPDATE 已有值、补充/只改某字段",
+      "deterministic": {
+        "status": "PASS_FOR_SUBMITTED_PATCH_AND_TARGET",
+        "refs": [
+          "DE2",
+          "AT5",
+          "AT6"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GO2",
+          "GS2"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M3",
+          "M4"
+        ],
+        "scope": "Latest 1.13.2 corresponding core journey 3/3; fixed old Provider and synthetic SDK only; previous failures retained"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "未达到真实原记录更新；不声称实现完整 UPDATE Dynamic Forms。"
+    },
+    {
+      "id": 16,
+      "scenario": "Context 选项关闭与长文本 DML",
+      "deterministic": {
+        "status": "PASS_FOR_CONTEXT_COMPATIBILITY_AND_LONG_DML_DISPATCH",
+        "refs": [
+          "CA1",
+          "CA7",
+          "DE4"
+        ],
+        "scope": "Context off/omitted request counts and 4097-character rejection remain separately proven; direct CREATE Tool accepts 131072 characters and dispatches exact text once with successful record ID"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "NOT_TESTED_FOR_LONG_DML"
+      },
+      "realMaterial": {
+        "status": "NOT_APPLICABLE"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "工具入口完整 131072 字符 dispatch 已通过；真实 Salesforce 长字段约束与最终读回仍未执行。"
+    },
+    {
+      "id": 17,
+      "scenario": "任务所需明细/参与人关系",
+      "deterministic": {
+        "status": "PASS_FOR_COMPOUND_MAPPING",
+        "refs": [
+          "DC1",
+          "DC2",
+          "AT6"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ],
+        "scope": "Participants written to supplied text field; not related participant record creation"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "真实模型结合组织结构建立参与人关系，以及独立新业务克制，未作专项。"
+    },
+    {
+      "id": 18,
+      "scenario": "多事件/多记录/批量部分结果",
+      "deterministic": {
+        "status": "PASS_FOR_BATCH_COMPOUND_BOUNDARIES",
+        "refs": [
+          "DC1",
+          "DC2",
+          "DB1",
+          "DB2",
+          "AT6"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1",
+          "GS3"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ],
+        "scope": "Two events correctly separated by sequential CREATE; not model-driven batch partial failure"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "真实模型 batch/compound 部分结果旅程及 Salesforce 最终状态未测。"
+    },
+    {
+      "id": 19,
+      "scenario": "明确要求原件归档",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "UP8",
+          "AT5"
+        ],
+        "scope": "Direct upload path works; consent intent is Agent decision"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP4",
+          "HF3"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M3",
+          "M4"
+        ],
+        "scope": "Latest 1.13.2 corresponding core journey 3/3; fixed old Provider and synthetic SDK only; previous failures retained"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1"
+        ],
+        "scope": "Original staging proven, publication not"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "真实明确归档的 Salesforce 文件发布尚未完成。"
+    },
+    {
+      "id": 20,
+      "scenario": "未说明/拒绝/选择部分原件",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "AT4",
+          "AT5"
+        ],
+        "scope": "Archive state/reset and selected state support, not one-invitation autonomous behavior"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP4"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_WITH_BOUNDED_SINGLE_AND_REPEATED_EVIDENCE",
+        "refs": [
+          "M2",
+          "M3",
+          "M4",
+          "B1"
+        ],
+        "scope": "Latest optional invitation 3/3; explicit decline in mixed case; subset selection one probe only"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "M2"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "一次邀请与拒绝/部分选择已有对应隔离证据；真实渠道授权续作和部分选择稳定性仍未证明。"
+    },
+    {
+      "id": 21,
+      "scenario": "创建后“好，一并附上”",
+      "deterministic": {
+        "status": "PASS_FOR_TARGET_CONTINUITY",
+        "refs": [
+          "AT1",
+          "AT5",
+          "AT6",
+          "AB4"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP4"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M3",
+          "M4",
+          "B3"
+        ],
+        "scope": "Latest 1.13.2 corresponding core journey 3/3; fixed old Provider and synthetic SDK only; previous failures retained"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "归档续作3/3、一字答复多待决项单例已通过；真实成功目标与文件发布仍未连通。"
+    },
+    {
+      "id": 22,
+      "scenario": "DOCX/XLSX/CSV 与多页/长材料",
+      "deterministic": {
+        "status": "PASS_FOR_BASIC_READERS_AND_BOUNDS",
+        "refs": [
+          "AR1",
+          "AR2",
+          "AR3",
+          "AR4",
+          "AR5",
+          "AT8"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_SINGLE_ISOLATED_PROBE",
+        "refs": [
+          "M2"
+        ]
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1",
+          "M2"
+        ],
+        "scope": "Real basic Office and one-page PDFs; known coverage/exclusions preserved"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "真实多页长文续读未证明；Office 排除项不在基础读取保证范围。"
+    },
+    {
+      "id": 23,
+      "scenario": "纯上传、仅有转写无原音频",
+      "deterministic": {
+        "status": "PARTIAL",
+        "refs": [
+          "UP8",
+          "AR6",
+          "AB1"
+        ],
+        "scope": "Uploader sends exact originals without parser; parser/ingress failure independent"
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP4"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_SINGLE_TRANSCRIPT_BOUNDARY",
+        "refs": [
+          "B2"
+        ],
+        "scope": "No-original-audio reply performs zero Tools/uploads and fabricates no ref; pure-upload-only conversation not separately covered"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1",
+          "B2"
+        ],
+        "scope": "P1 had actual audio originals; B2 used only supplied transcription text and correctly reported the original absent; it is not an audio-read/ASR test"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "只有转写时不冒充音频已单次通过；纯上传对话专项及真实发布仍未完成。"
+    },
+    {
+      "id": 24,
+      "scenario": "超限、部分暂存失败、同名不同版本、过期",
+      "deterministic": {
+        "status": "PASS_FOR_HOST_AND_REPOSITORY_BOUNDARIES",
+        "refs": [
+          "AB2",
+          "AT2",
+          "AT8",
+          "UP10",
+          "UP11",
+          "MY2",
+          "MY3"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP4"
+        ]
+      },
+      "realModel": {
+        "status": "NOT_TESTED_FOR_ALL_FAILURE_CLASSES"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1"
+        ],
+        "scope": "Nine successful originals and later text retained; not real expired/corrupt-ingress model journey"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED",
+      "gap": "宿主失败分支有确定性证明；模型对全部失败类别的正确处理未逐项验证。"
+    },
+    {
+      "id": 25,
+      "scenario": "记录成功、附件部分失败",
+      "deterministic": {
+        "status": "PASS_FOR_UPLOAD_RESULTS_AND_RECOVERY",
+        "refs": [
+          "UP1",
+          "UP7",
+          "MY2"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "HF3",
+          "GS3"
+        ]
+      },
+      "realModel": {
+        "status": "PASS_REPEATED_GUIDANCE_SCOPE",
+        "refs": [
+          "M3",
+          "M4"
+        ],
+        "scope": "Latest 1.13.2 corresponding core journey 3/3; fixed old Provider and synthetic SDK only; previous failures retained"
+      },
+      "realMaterial": {
+        "status": "NOT_TESTED_FOR_REAL_PUBLICATION"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "BLOCKED",
+      "gap": "没有真实记录成功后发生 Salesforce 单文件拒绝并受控恢复的证据。"
+    },
+    {
+      "id": 26,
+      "scenario": "明确失败、UNKNOWN、超时、并发提交",
+      "deterministic": {
+        "status": "PASS_FOR_RUNTIME_AND_REAL_REPOSITORY",
+        "refs": [
+          "UP1",
+          "UP2",
+          "UP3",
+          "UP4",
+          "UP5",
+          "UP6",
+          "MY1",
+          "MY2",
+          "MY3",
+          "MY4",
+          "DE3"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GS3",
+          "HF3"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M3",
+          "M4"
+        ],
+        "scope": "Repeated explicit rejected-file recovery passed in old-runtime fixture; all UNKNOWN/concurrent model paths not exercised"
+      },
+      "realMaterial": {
+        "status": "NOT_TESTED_FOR_REAL_REMOTE_UNKNOWN"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "NOT_TESTED_FOR_UNKNOWN_CONCURRENCY",
+      "gap": "未故意制造真实 Salesforce 未知/并发发布；模拟传输与真实 MySQL 证明相应实现边界。"
+    },
+    {
+      "id": 27,
+      "scenario": "requester/会话/新任务切换",
+      "deterministic": {
+        "status": "PASS_FOR_HOST_AND_AUTHORIZATION",
+        "refs": [
+          "AT3",
+          "AT4",
+          "AT7",
+          "AB3",
+          "ID1",
+          "ID2"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1"
+        ]
+      },
+      "realModel": {
+        "status": "NOT_TESTED_FOR_CROSS_REQUESTER_TASK_SWITCH"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1"
+        ],
+        "scope": "One isolated hook task, not cross-user live channel"
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "PARTIAL_READ_ONLY_IDENTITY_CONTEXT",
+      "gap": "真实多用户企微任务切换及重启恢复未执行。"
+    },
+    {
+      "id": 28,
+      "scenario": "旧直接工具、查询、诊断、批量、附件",
+      "deterministic": {
+        "status": "PASS_FOR_REPRESENTATIVE_BOUNDARIES_WITH_AGGREGATE_FAILURE_RETAINED",
+        "refs": [
+          "DE1",
+          "DB1",
+          "DB2",
+          "ID2",
+          "DG1",
+          "UP8",
+          "UP9"
+        ]
+      },
+      "guidanceOrFixture": {
+        "status": "PASS",
+        "refs": [
+          "GP1",
+          "GP4"
+        ]
+      },
+      "realModel": {
+        "status": "PARTIAL",
+        "refs": [
+          "M3",
+          "M4",
+          "M2"
+        ],
+        "scope": "Representative real-model guidance tasks plus actual 1.13.2 discovery; not all enabled Tool executions"
+      },
+      "realMaterial": {
+        "status": "PARTIAL",
+        "refs": [
+          "P1"
+        ]
+      },
+      "wecom": "NOT_TESTED",
+      "salesforce": "PARTIAL_DISCOVERY_AND_FAILED_CREATE",
+      "salesforceEvidence": [
+        "S1",
+        "S2"
+      ],
+      "gap": "实际 29 工具和 schema 保留已证明；可见不代表全部可执行；Windows HTTP/P7 聚合失败仍保留。",
+      "runtimeReadEvidence": [
+        "S3"
+      ]
+    }
+  ],
+  "priorityGaps": [
+    "真实 Salesforce 业务闭环受阻：没有成功 CREATE、UPDATE、关联子记录或原件发布/读回。",
+    "真人企微消息、原生语音、文件 m4a 和多轮归档授权仍为 NOT_TESTED。",
+    "原生读取结果回写覆盖、自动进入模型并执行的完整链路未证明；手工 hook 与显式文本注入是不同证据。",
+    "1.13.2 六旅程各3/3只证明冻结旧 Provider + 合成 SDK 的指导表现；旧 Provider 未向模型透传 retryable，新后台生命周期仍靠确定性/真实测试库验证。",
+    "六个边界单例全部通过但不是稳定率；电话 Context/query 为 fixture，不能替代实际 ContextExecutor/真实查重；仅区号仍未单测。",
+    "含糊 ASR 姓名/数字、原始旧音频相对时间、真实同名责任人、多来源关键冲突、真实多页长文续读仍缺专项。",
+    "真实模型关联子记录、compound/batch 部分结果，以及真实 Salesforce 131072 长文本约束/读回仍未完成。"
+  ],
+  "postReviewTestAddition": {
+    "file": "packages/mcp-provider-sfoa-dml/src/test/dml-executor.test.ts",
+    "testName": "CREATE dispatches all 131072 text characters independently of the smaller Context draft bound",
+    "kind": "TEST_ONLY_COMMITTED_7833b93",
+    "suiteResult": "47/47 PASS",
+    "buildLog": ".temp/agent-material-workflows/dml-long-text-build.log",
+    "testLog": ".temp/agent-material-workflows/dml-long-text-test.log",
+    "commit": "7833b93"
+  },
+  "final94RepeatedModelMatrix": "REVIEWED_AFTER_18_OF_18_USING_REVIEWED_D57_BEFORE_18",
+  "finalCommittedHeadSmoke": {
+    "status": "PASS",
+    "committed": "7fdbaf308cd7e7062878d910f765316f27b6a81a",
+    "gates": "6/6 PASS",
+    "toolkitTests": "80/80 PASS",
+    "evidence": ".temp/agent-material-workflows/final-clean-skill-7fdbaf3-reviewed.json",
+    "scope": "Final runtime/Skill commit, isolated clone from committed bundle; later report-only commits do not change these inputs; no app/config/DB access"
+  },
+  "reviewedAt": "2026-11-04T18:14:07.767120+00:00"
+}

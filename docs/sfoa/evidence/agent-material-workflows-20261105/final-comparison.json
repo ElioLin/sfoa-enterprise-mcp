@@ -1,0 +1,539 @@
+{
+  "schemaVersion": 1,
+  "kind": "SAFE_WHITELIST_GUIDANCE_COMPARISON",
+  "scope": "GUIDANCE_COMPARISON_FIXED_OLD_PROVIDER_RUNTIME_SYNTHETIC_SDK",
+  "beforeGuidanceCommit": "61f8a0c11f7acb9d56f95762014335fd0c2aab05",
+  "afterGuidanceCommit": "94aa661",
+  "afterGuidanceVersion": "1.13.2",
+  "sourceEvidenceDirectory": "material-workflows-candidate-94aa661-20261105",
+  "sourceFile": "independent-repeated-review-summary.json",
+  "sourceSummarySha256": "49d9e3f9573174d161ec1a271ae47cc6af2d22f64e732c9c8d65e35b0d483049",
+  "baselineReuse": {
+    "evidenceDirectory": "material-workflows-repeated-d57f110-20261105",
+    "reusedOriginalBeforeCases": 18,
+    "freshBeforeRunsInCandidateDirectory": 0,
+    "note": "全量复用已审阅的原before18；候选目录空before-captures不是新基线运行。"
+  },
+  "runtimeSha256SharedByBothVariants": "386d5f0ea1c1b15df86af94722b1be3fcf132c57f2f034fad113d595527e44da",
+  "harnessSha256": "5a40a37c69b58628d70af3dce825467694ce7473803d3a8671bcc6351c5ba2f6",
+  "totalDistinctSessions": 36,
+  "totalActualTraceRunIds": 84,
+  "allOriginalCapturesUnchanged": true,
+  "perScenario": [
+    {
+      "id": "natural-multisource-create",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-cross-turn-create",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-existing-supplement",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-duplicate-choice",
+      "beforePassed": 3,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-optional-archive",
+      "beforePassed": 0,
+      "afterPassed": 3
+    },
+    {
+      "id": "natural-attachment-recovery",
+      "beforePassed": 3,
+      "afterPassed": 3
+    }
+  ],
+  "variants": {
+    "before": {
+      "cases": 18,
+      "sessions": 18,
+      "modelTurns": 42,
+      "actualTraceRunIds": 42,
+      "verdicts": {
+        "PASS": 15,
+        "FAIL": 3
+      },
+      "repeatedCaseCoverage": "PARTIAL",
+      "nativeMaterialReads": 21,
+      "materialFiles": 21,
+      "blockingQuestions": 3,
+      "optionalArchiveInvitations": 0,
+      "toolCallCount": 209,
+      "sdkMutationCount": 21,
+      "uploadCallCount": 9,
+      "reportedDurationMsSum": 683284,
+      "durationUnknownTurns": 0,
+      "reportedUsageRawCounters": {
+        "input": 576762,
+        "output": 96785,
+        "cacheRead": 5962752,
+        "cacheWrite": 0,
+        "reasoningTokens": 68200,
+        "total": 6636299
+      },
+      "usageUnknownTurns": 0,
+      "casesAudit": [
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 1,
+          "sessionId": "ecc5729c-6314-4d8d-b58b-e0f995ca2387",
+          "runIds": [
+            "21eff648-5d11-4b73-bf73-dca01a12215a",
+            "11dd29ff-325f-4758-b7da-2f87f3d2426c"
+          ],
+          "originalCaptureSha256": "0bfc255eabaab2e4b350432d9d009bb84c043fb030b60ded13bbf6ebe7213b0d",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 2,
+          "sessionId": "75c3bb2b-1380-4893-b051-0d46c451a76c",
+          "runIds": [
+            "dc6e8678-c5dd-4149-9805-55e4ca52883e",
+            "5bf62a5e-4b45-445f-8178-28bbfb668c16"
+          ],
+          "originalCaptureSha256": "472c3d16dd30389e237f87f50440343f6cabc07b99f1d96f5c6ef99cf2c8af6e",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 3,
+          "sessionId": "57396bf9-7a2d-41e0-920b-ffdee7a6b4e8",
+          "runIds": [
+            "ac7cf824-13c3-4522-937a-ebfce2aae7b6",
+            "41b18194-fd65-44a6-ba68-f651e2fe72dd"
+          ],
+          "originalCaptureSha256": "ca59c30c717ec46c4aa2258457bf06038681e5a051ad16e2b63742c6835bb0d1",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 1,
+          "sessionId": "5452c2f8-b469-4b58-a4bf-2ee13f1f0fed",
+          "runIds": [
+            "82b1bd7d-04fc-42f7-96a7-16e5d746cc11",
+            "cba79976-5631-49bf-a508-4d5ef0d1bee7",
+            "6cf9f4be-cead-4ce5-a396-ef67958e3d12",
+            "8739dc9e-806e-416f-9f10-1a9f600df57f"
+          ],
+          "originalCaptureSha256": "5205ad2ed9fb3074ee5fa3ddb11bd8d4268f72ad0f544e8a4102f03268766198",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 2,
+          "sessionId": "7473eb33-4606-49d1-9bc4-b6b92c888731",
+          "runIds": [
+            "4c6beb22-4364-4bb8-a723-7bab1585e068",
+            "619295c7-1c8f-4235-87a3-d350c856539a",
+            "9183561b-d353-4ecd-a7c1-73b096cbd6da",
+            "9e262c48-8da6-491c-937a-bf637ba9c070"
+          ],
+          "originalCaptureSha256": "34690d62c603d320cc848580b15045474d63dac47c619ba32eb5125793c6a96e",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 3,
+          "sessionId": "9e6b01b4-8758-4bfb-bcda-98773278f38c",
+          "runIds": [
+            "7b6cc388-1a7f-40a9-8e96-ae471e568994",
+            "1b2afd08-1b2f-4ba8-9e87-03195935df5e",
+            "a3206d28-138d-446c-84a7-264dba25c89a",
+            "3da4bdef-cadd-4f9b-b08b-c4c50d29add1"
+          ],
+          "originalCaptureSha256": "d90fe181ed317ee9e322238529a945608939eb834c0f64bfc567e170b0026c99",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 1,
+          "sessionId": "08443502-38e6-4f86-bf74-9428dfb00c0d",
+          "runIds": [
+            "f8366d76-3228-4455-a379-7a1795ba2ebf",
+            "45597d9b-3a8b-4576-a7a7-67944c3de063"
+          ],
+          "originalCaptureSha256": "8a73f0bfcc4939d486262dc6a8ca81c8d08727ee812f5447e6fb4915980092c8",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 2,
+          "sessionId": "9812553d-ca6e-4e9b-b9e5-4262c8570f90",
+          "runIds": [
+            "4b90106a-36c6-4406-980c-d4679525b453",
+            "046eb26d-c38e-4a33-9bd0-baa00d4bf823"
+          ],
+          "originalCaptureSha256": "98b63a543615e29a181945243effc219aa7470aa4c95866b34b98a01fdb7061e",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 3,
+          "sessionId": "828d3a3f-53b0-49d3-af64-56ba90745c82",
+          "runIds": [
+            "b2d46a46-cabe-4efa-8300-789b6e4aa00f",
+            "02f93bd0-c175-4a33-a24b-26ac5f98b911"
+          ],
+          "originalCaptureSha256": "41d8ab69553f2c94691fc96b99bcb5634dd8a8d39aa1b150d75db04ec7808727",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 1,
+          "sessionId": "44b8f89d-d365-4b24-8cbd-d78f94f98f26",
+          "runIds": [
+            "382d7135-190a-4387-ba6c-61ee1e6640ee",
+            "0e077177-0317-4ea2-aa72-95382dd23843"
+          ],
+          "originalCaptureSha256": "0fc37b8f05b2496fe92483e7a15a5c48330a39b3a18cf255cefaff4e233e566c",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 2,
+          "sessionId": "00a1e31c-322a-4724-a7f1-39e06e13e84e",
+          "runIds": [
+            "1c74c7eb-301a-415a-94de-89d5393af38c",
+            "421a0eab-1f42-4d4a-85f9-29af4815323a"
+          ],
+          "originalCaptureSha256": "75f4d5797bff8a0b81cd81d25ceb5ab7775196e19a29d609d4b7fe940c952a07",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 3,
+          "sessionId": "413b8cf1-1b3b-4f47-84a9-1e091a48e812",
+          "runIds": [
+            "01aa2056-8757-4541-87ed-772875219104",
+            "e7460779-7a41-48be-911d-d277d3a79979"
+          ],
+          "originalCaptureSha256": "a0b06c15244bdd004f91881f0448dde324ced3f9937791fce9a4f7c18ff802d6",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 1,
+          "sessionId": "f6e179e2-aeb4-4596-b2ea-752317ed4557",
+          "runIds": [
+            "16b77a59-39d4-4add-8137-9ed954e1256e",
+            "4adea870-d465-41c9-97e6-2e7aab8add7b"
+          ],
+          "originalCaptureSha256": "3c8cb524cdb0d1251923d38b70c98eacae3f00db047c344770f0e9a1bdd7a2bb",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 2,
+          "sessionId": "eb89fad8-8dd6-44df-9707-922049e674f3",
+          "runIds": [
+            "a4580b20-07a3-4370-9355-d588ba719fa3",
+            "162bffad-e87d-4294-8f1f-6770e4de0082"
+          ],
+          "originalCaptureSha256": "0de9201891348761090c7acc467bddee5ca91c82272a54ab9bba283b9a660b07",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 3,
+          "sessionId": "2aeaadbb-6e77-4568-82f1-b8b8f009f5a9",
+          "runIds": [
+            "52acd726-07d8-4c4b-9727-18b1a9ee6764",
+            "eb44f11a-1b28-4fdd-9beb-66a1b2a5eab0"
+          ],
+          "originalCaptureSha256": "78ec28c7e59d4bcc9454dfe07538834acb819fef6e6b629371e300ab653eae93",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 1,
+          "sessionId": "a3d2fa66-3092-4623-9db0-27908101c8d3",
+          "runIds": [
+            "75d84b40-9bd6-4b1d-aa3b-358ecad60156",
+            "20fe5dcc-aeff-4dba-84ad-e5f205aca3da"
+          ],
+          "originalCaptureSha256": "27bc9d2b96f70893dce05453abd11f8f985fdc20df25aa7de8ad860f301d075c",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 2,
+          "sessionId": "d9f332d2-a125-46fc-9b6f-aba7732f6588",
+          "runIds": [
+            "4a47cc4f-a4a9-42f7-a521-32c24f0f739a",
+            "e27c1ef0-5568-4cc7-bbd1-7b4b01ba1671"
+          ],
+          "originalCaptureSha256": "466268c632701e6250568a2a3848657153464f25f04225f965df3152b06c3b9c",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 3,
+          "sessionId": "09cd4a92-83c9-45c8-8b07-9ec1cb31d611",
+          "runIds": [
+            "dafd8252-c43d-45c6-bec1-e7f35f5c21b7",
+            "987f1e08-a580-4c03-87f1-2eb21e860a37"
+          ],
+          "originalCaptureSha256": "ab6b528ade2df4194a46e528966117d4ceee7d6e2542641a34615fe082193d8b",
+          "verdict": "FAIL"
+        }
+      ]
+    },
+    "after": {
+      "cases": 18,
+      "sessions": 18,
+      "modelTurns": 42,
+      "actualTraceRunIds": 42,
+      "verdicts": {
+        "PASS": 18
+      },
+      "repeatedCaseCoverage": "PASS",
+      "nativeMaterialReads": 21,
+      "materialFiles": 21,
+      "blockingQuestions": 3,
+      "optionalArchiveInvitations": 3,
+      "toolCallCount": 196,
+      "sdkMutationCount": 21,
+      "uploadCallCount": 9,
+      "reportedDurationMsSum": 610353,
+      "durationUnknownTurns": 0,
+      "reportedUsageRawCounters": {
+        "input": 571517,
+        "output": 83329,
+        "cacheRead": 5528320,
+        "cacheWrite": 0,
+        "reasoningTokens": 56111,
+        "total": 6183166
+      },
+      "usageUnknownTurns": 0,
+      "casesAudit": [
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 1,
+          "sessionId": "cc659f76-711f-4c1f-8336-e0818acc9964",
+          "runIds": [
+            "7289c902-a478-48cb-b253-1d2c6fede2e5",
+            "9a0420e2-eecd-4d9f-8370-410f95484de7"
+          ],
+          "originalCaptureSha256": "69e84e406575a36a5456557efffb44c5cd2ea71ab826a7bd5ca6f50da0d234f8",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 2,
+          "sessionId": "aaa529dc-e2ae-4f32-93cc-30518296deb6",
+          "runIds": [
+            "6293b296-e812-46fc-83ad-f23887bd1d06",
+            "e7c3111c-7d33-46cf-810e-714a1fbf2451"
+          ],
+          "originalCaptureSha256": "373b535634ecad376e718a7fccf2e0d18625ee7c2d2ede169a7e4b12289c2087",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-attachment-recovery",
+          "iteration": 3,
+          "sessionId": "71e6eca0-075a-46a9-b146-5ed2871a4ca4",
+          "runIds": [
+            "2901b5ae-2c00-46ec-b572-e7556b1fd330",
+            "822fe7f0-c6f0-4166-860c-5fb7fff6c6ef"
+          ],
+          "originalCaptureSha256": "93ee7257a222ecc4a55b664963ade41c21b5ce6538d2eb1000beb36f5997c431",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 1,
+          "sessionId": "72447867-e076-44ae-a25c-8b4dcf03b8af",
+          "runIds": [
+            "43c59ae5-5087-451f-b335-bf4d8345f53f",
+            "be0dc1df-8ee2-48b8-91a0-b9ee43fffad3",
+            "1deabc75-6cd0-47f4-a616-5864d3c5b0b5",
+            "64c10ce8-9381-4922-9d7a-ddbe4b92b460"
+          ],
+          "originalCaptureSha256": "00c34d5296b3fb7bea589581dc44469312cf1106e5a722ad41e22c7dcb864b18",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 2,
+          "sessionId": "51c2c546-9780-4ec1-b3c0-e506bcd8986c",
+          "runIds": [
+            "7158a8ef-8906-4721-a5e4-27ec9012b74c",
+            "4934d4f3-4e1b-4cd2-9642-b739abd0cbfd",
+            "175547a6-78b6-45f8-9de8-58ec6c186ba6",
+            "bd8b25e5-8a57-4e9b-81f1-69ce34e2c35f"
+          ],
+          "originalCaptureSha256": "e7614e75148608f1c4897455d663f0979581ada0cf77df8f60ec9ba041647507",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-cross-turn-create",
+          "iteration": 3,
+          "sessionId": "519f4df9-1975-4db5-ad6e-24f7e7c77b86",
+          "runIds": [
+            "68d87c83-15cc-444d-a6a8-77aa0d80c1b0",
+            "a1395c1d-c5ba-4e17-b57d-0444e6a9204b",
+            "d0cb1c9c-663c-446f-810d-dafd7af1eb91",
+            "f5bd95de-c1d0-4bcd-9820-3b144a6f9d66"
+          ],
+          "originalCaptureSha256": "f9bf4efb48870f7011d1aa731d63c99465506a232a7e5b86bbfffc7a9b8a37c2",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 1,
+          "sessionId": "14f79ea0-b3c0-4ac9-8899-f6a42868db28",
+          "runIds": [
+            "4bd0aa53-4882-4194-8a2f-5871c6d466c5",
+            "eb60de43-718f-41f3-b1e6-88da5bcec947"
+          ],
+          "originalCaptureSha256": "0947ecbf1592be8309bc06ea37595799be2eb868f1a222b8e27e294743a31752",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 2,
+          "sessionId": "2df8faf0-7807-4df5-9ce7-65b73e914538",
+          "runIds": [
+            "ec386aed-cbeb-4f7c-aa21-9cbcdf6b0254",
+            "8bfb621d-8b0e-4873-a4cc-04a22db34d19"
+          ],
+          "originalCaptureSha256": "d77b75d85538dd652d8529ebe31bb42c5909490289d5991e6b7356d2e8e2127d",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-duplicate-choice",
+          "iteration": 3,
+          "sessionId": "6f7c622a-016e-4cb0-b163-584d463d75c9",
+          "runIds": [
+            "c1521187-e22c-4585-b9c8-6780d633743c",
+            "06412b75-8921-47f1-812e-9dfaa0eaddf5"
+          ],
+          "originalCaptureSha256": "b6be8688c7a19f23c5c6fe6ccfcb2032633c8a2f1ef70d23caf38ee62f86d8ea",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 1,
+          "sessionId": "86620949-de08-43f9-a436-5d4e9fc04d38",
+          "runIds": [
+            "4de1f50a-70ee-4c72-8bde-7c2e7da391b7",
+            "191a79ea-69ec-4615-9e81-76ce7087e606"
+          ],
+          "originalCaptureSha256": "d53e2fb0b045066117dca77c346daa79bc72dc1e86b43644fd53fc4b44475796",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 2,
+          "sessionId": "919885bd-f809-4bed-a3fc-46e1bdc7abee",
+          "runIds": [
+            "f4266b48-a8ce-4216-98dd-c4e2784e75ac",
+            "61f816f7-5870-40ba-88b1-41cac441f4b6"
+          ],
+          "originalCaptureSha256": "208a22ebab6b8f1190b8575fa2d150e2f87847263cf43efdecad8d40082c0fe6",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-existing-supplement",
+          "iteration": 3,
+          "sessionId": "eae138f0-badc-4f09-86e7-8aa3ceee01ea",
+          "runIds": [
+            "c350bb0e-3c8c-43b4-bfe4-c0fc6bea52d6",
+            "d5d91af0-2d66-4c1d-9437-b9807a5f87b5"
+          ],
+          "originalCaptureSha256": "20a451ae986e9460805cdd2f6d34593c8454618db1ab62874679e7c8bacd880f",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 1,
+          "sessionId": "7884a77d-3e0a-4a90-befd-19109bbb6ba7",
+          "runIds": [
+            "3dfb5080-ef60-41be-9dee-096fb0f4675f",
+            "dacdd038-e766-4fdc-b8e1-792e89ce64f1"
+          ],
+          "originalCaptureSha256": "1435a6be5a1836943a55b93b157b08885706ac32a968dd315897cd6e7a2f7f12",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 2,
+          "sessionId": "575a472e-1190-463e-a06e-a18700985b22",
+          "runIds": [
+            "7cc5b34b-5513-485d-971f-8b7d6455d7d9",
+            "49a21413-18b7-4647-94a0-7ad43726474e"
+          ],
+          "originalCaptureSha256": "f5b35ce03bc055561c0e78791a2187801a9cde12e3cb32103da1d98898844802",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-multisource-create",
+          "iteration": 3,
+          "sessionId": "899042a7-5a57-4459-a909-2bcb2b1a1555",
+          "runIds": [
+            "ac4e7a17-84bc-4731-a48e-1669ec103de4",
+            "5bd11723-5edc-412a-969b-777b38c55f09"
+          ],
+          "originalCaptureSha256": "e34de654fa8cfb8446ee7c15499839dfd76764ffc0f104284948e3b3687e0d21",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 1,
+          "sessionId": "db0a1e0b-800b-41be-8392-1b4d41d8cc6e",
+          "runIds": [
+            "94340635-dc14-4b53-b03c-4da9b33b070f",
+            "b7cf63e9-3581-4662-b3ee-5be7fb27dd1e"
+          ],
+          "originalCaptureSha256": "bd2dcd396cc2aea1aa65e774b46284eb8b932ee5ff21e96e658423fa7965d719",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 2,
+          "sessionId": "8bfb5eac-4174-4732-b2d1-55bd89c177be",
+          "runIds": [
+            "76e32a28-1ba9-4ca2-a655-554e5a41b360",
+            "c4428e68-b07d-4ec3-8d15-bd7ee6de5b35"
+          ],
+          "originalCaptureSha256": "9f8613825003beb377ce524fdd5404aea2ebe620429cdd2a9ce9e754f4f3c94d",
+          "verdict": "PASS"
+        },
+        {
+          "id": "natural-optional-archive",
+          "iteration": 3,
+          "sessionId": "43fd9970-184c-41c6-a02f-cc22ec6c8d02",
+          "runIds": [
+            "3a10af1a-5bfe-48b6-9881-d5d180a3cd60",
+            "af0eee39-72d6-4214-a2a3-6d92989ab734"
+          ],
+          "originalCaptureSha256": "7f44859815cb5f06120f67df2b0a38625042da6e64a5c41d8f5e219a8eb5a224",
+          "verdict": "PASS"
+        }
+      ]
+    }
+  },
+  "preservedHistoricalResults": {
+    "previousCandidateEvidenceDirectory": "material-workflows-repeated-d57f110-20261105",
+    "previousCandidatePass": 17,
+    "previousCandidateFail": 1,
+    "note": "先前候选的无依据送样主体错误及所有更早失败/分类缺陷证据均保留，没有抽取最好结果或覆盖旧运行。"
+  },
+  "limitations": [
+    "真实模型指导对比，双方固定旧Provider/server runtime相同；不是新Provider运行时或真实Salesforce/企微的完整验收。",
+    "材料证据仅21+21实际TXT/CSV native reads，PDF/图像/音频/Adapter账本分别看独立证据。",
+    "旧附件Provider未将retryable传给模型；恢复基于明确FAILED/未发布与用户解除限制，不能当作新字段入模证明。",
+    "有限SDK查询子集；不支持的字段/语法错误仍在原trace，恢复后的有效查询支持实际写入。",
+    "duration为每轮宿主报告时长之和，不是wall-clock；usage各原键可能重叠，不能跨total/cache/input再累加。",
+    "每场景3次只描述本样本，不外推普遍稳定率。"
+  ]
+}

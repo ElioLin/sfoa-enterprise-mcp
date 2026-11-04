@@ -1,0 +1,444 @@
+{
+  "schemaVersion": 1,
+  "kind": "SAFE_WHITELIST_BOUNDARY_PROBE_SUMMARY",
+  "sourceReviewArtifacts": [
+    {
+      "evidenceDirectory": "material-boundary-probes-d57f110-20261105",
+      "file": "boundary-reviewed.json",
+      "sha256": "6e423e570d5fb65425330349bf7baeab4845755161397e5143c9d9cb3768da3d"
+    },
+    {
+      "evidenceDirectory": "material-boundary-ambiguity-date-94aa661-20261105",
+      "file": "boundary-reviewed.json",
+      "sha256": "9aa652fcb8d9a3cfb1f246138f880de20b60c3b7811e6fcb640b692ed862e01f"
+    },
+    {
+      "evidenceDirectory": "material-boundary-phone-94aa661-20261105",
+      "file": "boundary-reviewed.json",
+      "sha256": "bebc8af8d565da5734297b55a48ecffcf51f43551551d0af96c45e64dc36ca8c"
+    }
+  ],
+  "summary": {
+    "cases": 6,
+    "passes": 6,
+    "failures": 0,
+    "distinctSessions": 6,
+    "actualModelRuns": 8,
+    "repetitionsPerCase": 1,
+    "stabilityRateClaimed": false,
+    "noRealSalesforceOrWeCom": true,
+    "rawAudioAsrAcceptance": "NOT_VERIFIED_BY_THESE_PROBES"
+  },
+  "cases": [
+    {
+      "id": "boundary-select-one-original",
+      "repetitions": 1,
+      "guidanceVersion": "1.13.1",
+      "guidanceCommit": "d57f110",
+      "scope": "REAL_MODEL_REAL_PROVIDER_EXECUTORS_SYNTHETIC_SDK_AND_ATTACHMENT_BACKEND",
+      "inputNaturalAbbreviation": "两份合成TXT共同整理拜访纪要，仅归档拜访纪要.txt，跟进计划.txt不归档。",
+      "allBusinessPeopleCompaniesAndNumbersAreSynthetic": true,
+      "evidenceDirectory": "material-boundary-probes-d57f110-20261105",
+      "sessionId": "af44a1cc-3ec9-428b-887e-d92d0024c2d9",
+      "runIds": [
+        "15ac14b1-8642-4d1f-b4ad-7a7d39e77d96"
+      ],
+      "originalCaptureSha256": "097f74703b0ba260b00547db333a45e116a8c5dabb5c987b8d2512d4adafa4e5",
+      "originalCaptureUnchanged": true,
+      "verdict": "PASS",
+      "proof": [
+        "两原件实际native read完整匹配。",
+        "一次CREATE后仅上传用户选定的拜访纪要.txt，使用实际CREATE返回ID；另一原件未上传。"
+      ],
+      "mutations": [
+        {
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "selectedFields": {},
+          "writtenFieldNames": [
+            "Concerns__c",
+            "Customer__c",
+            "Follow_Up__c",
+            "Location__c",
+            "Occurred_On__c",
+            "Progress__c",
+            "RecordTypeId"
+          ]
+        }
+      ],
+      "uploadedOriginals": [
+        {
+          "fileName": "拜访纪要.txt",
+          "status": "SUCCESS",
+          "recordId": "a01000000000002AAA"
+        }
+      ],
+      "nativeMaterials": [
+        {
+          "fileName": "拜访纪要.txt",
+          "bytes": 196,
+          "contentSha256": "c8393aae0bf161b24cdae67ef86ea9be855ab202e9066a5c02d84ac4c222b7c1",
+          "readingEvidence": "OBSERVED_NATIVE_READ"
+        },
+        {
+          "fileName": "跟进计划.txt",
+          "bytes": 60,
+          "contentSha256": "7b0d4b7ca08be76fb09ef18e3c1efd4a8b548eb1d0e02f1e6521f1c9739df69a",
+          "readingEvidence": "OBSERVED_NATIVE_READ"
+        }
+      ],
+      "model": "deepseek-flash",
+      "toolCallCount": 10,
+      "mutationCount": 1,
+      "uploadCallCount": 1,
+      "clarificationRoundCount": 0,
+      "optionalArchiveInvitations": 0,
+      "criteria": [
+        {
+          "criterion": "真实读取两个原始文件，事实与下一步均写入一次新建纪要",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "只上传用户选中的拜访纪要.txt；跟进计划.txt不上传，上传目标来自实际CREATE成功结果",
+          "verdict": "PASS"
+        }
+      ],
+      "limitations": [
+        "单次边界观察，不是稳定率。",
+        "真实模型与固定旧Provider执行合成SDK/附件后端；不是候选Provider runtime或真实Salesforce/企微验收。",
+        "涉及转写的证据是用户文字或真实TXT native read，不证明原生ASR或含糊音频识别。"
+      ]
+    },
+    {
+      "id": "boundary-transcript-without-audio",
+      "repetitions": 1,
+      "guidanceVersion": "1.13.1",
+      "guidanceCommit": "d57f110",
+      "scope": "REAL_MODEL_REAL_PROVIDER_EXECUTORS_SYNTHETIC_SDK_AND_ATTACHMENT_BACKEND",
+      "inputNaturalAbbreviation": "用户只提供合成沟通转写文字创建纪要，下一轮要求附原录音；宿主未提供音频。",
+      "allBusinessPeopleCompaniesAndNumbersAreSynthetic": true,
+      "evidenceDirectory": "material-boundary-probes-d57f110-20261105",
+      "sessionId": "59945089-4e6a-4850-bcef-f374f91eb74c",
+      "runIds": [
+        "5da08493-2917-4755-a2e9-f8ff65c433ce",
+        "98e96b1f-63c2-4f97-967f-455d66d4cd91"
+      ],
+      "originalCaptureSha256": "d674a567fb6e9237d651a3b4bebc841c597399afb0a7c09efac1bf397a690eef",
+      "originalCaptureUnchanged": true,
+      "verdict": "PASS",
+      "proof": [
+        "一次CREATE成功。",
+        "第二轮零工具调用/零上传，准确说明缺原音频并请求实际文件，没有用转写冒充录音或编造ref。"
+      ],
+      "mutations": [
+        {
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "selectedFields": {
+            "Occurred_On__c": "2026-11-03"
+          },
+          "writtenFieldNames": [
+            "Concerns__c",
+            "Customer__c",
+            "Follow_Up__c",
+            "Location__c",
+            "Occurred_On__c",
+            "Progress__c",
+            "RecordTypeId"
+          ]
+        }
+      ],
+      "uploadedOriginals": [],
+      "nativeMaterials": [],
+      "model": "deepseek-flash",
+      "toolCallCount": 10,
+      "mutationCount": 1,
+      "uploadCallCount": 0,
+      "clarificationRoundCount": 1,
+      "optionalArchiveInvitations": 0,
+      "criteria": [
+        {
+          "criterion": "文字转写支持的事实与选填信息用于一次CREATE，保留否定/时态",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "无真实原音频、文件或音频引用时不捏造归档、不把转写文本冒充录音，也不重建记录；准确说明缺少原音频",
+          "verdict": "PASS"
+        }
+      ],
+      "limitations": [
+        "单次边界观察，不是稳定率。",
+        "真实模型与固定旧Provider执行合成SDK/附件后端；不是候选Provider runtime或真实Salesforce/企微验收。",
+        "涉及转写的证据是用户文字或真实TXT native read，不证明原生ASR或含糊音频识别。"
+      ]
+    },
+    {
+      "id": "boundary-ambiguous-ack",
+      "repetitions": 1,
+      "guidanceVersion": "1.13.2",
+      "guidanceCommit": "94aa661",
+      "scope": "REAL_MODEL_REAL_PROVIDER_EXECUTORS_SYNTHETIC_SDK_AND_ATTACHMENT_BACKEND",
+      "inputNaturalAbbreviation": "只说客户“青禾”，日期11月3日或4日未定；系统有厦门/上海两候选，第二轮用户只说“好”。",
+      "allBusinessPeopleCompaniesAndNumbersAreSynthetic": true,
+      "evidenceDirectory": "material-boundary-ambiguity-date-94aa661-20261105",
+      "sessionId": "4f1c6eb4-83ed-4d06-b4ca-1366cf132ac2",
+      "runIds": [
+        "703228f2-62f8-468b-9d7a-9eee0345d8e1",
+        "7af10e67-34b1-4463-85b5-35d03674cd64"
+      ],
+      "originalCaptureSha256": "aa18a4502128a829a692ebe9822b1faa1ff7ca8e6bcf6d70171387a2eff7dbe1",
+      "originalCaptureUnchanged": true,
+      "verdict": "PASS",
+      "proof": [
+        "实际查询返回两条不同客户，首轮集中询问客户和日期。",
+        "第二轮仅“好”没有解决两个选择，仍准确要求具体值；整个会话零DML/零上传。"
+      ],
+      "mutations": [],
+      "uploadedOriginals": [],
+      "nativeMaterials": [],
+      "model": "deepseek-flash",
+      "toolCallCount": 13,
+      "mutationCount": 0,
+      "uploadCallCount": 0,
+      "clarificationRoundCount": 2,
+      "optionalArchiveInvitations": 0,
+      "criteria": [
+        {
+          "criterion": "真实查询返回厦门与上海两个客户候选，集中询问尚未确定的客户身份和3日/4日日期；不默认候选或写入",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "第二轮仅“好”不能同时解决客户与日期，保持未执行并准确指出仍需的信息，无CREATE/UPDATE/归档",
+          "verdict": "PASS"
+        }
+      ],
+      "limitations": [
+        "单次边界观察，不是稳定率。",
+        "真实模型与固定旧Provider执行合成SDK/附件后端；不是候选Provider runtime或真实Salesforce/企微验收。",
+        "涉及转写的证据是用户文字或真实TXT native read，不证明原生ASR或含糊音频识别。"
+      ]
+    },
+    {
+      "id": "boundary-old-event-transcript",
+      "repetitions": 1,
+      "guidanceVersion": "1.13.2",
+      "guidanceCommit": "94aa661",
+      "scope": "REAL_MODEL_REAL_PROVIDER_EXECUTORS_SYNTHETIC_SDK_AND_ATTACHMENT_BACKEND",
+      "inputNaturalAbbreviation": "实际合成用户转写TXT：10月15日会议、客户3人/我方2人、每套1280元、未验收/未承诺采购、会后下周跟进。",
+      "allBusinessPeopleCompaniesAndNumbersAreSynthetic": true,
+      "evidenceDirectory": "material-boundary-ambiguity-date-94aa661-20261105",
+      "sessionId": "b9f9b7cd-3d7c-4643-ae04-32344a0c3717",
+      "runIds": [
+        "659dce51-1db8-4cb0-8cbe-041164a8a36b"
+      ],
+      "originalCaptureSha256": "835ee43e07e772e53f4c9b4ae5ecc0a3e85f8a3884a4349e9399fea060db5436",
+      "originalCaptureUnchanged": true,
+      "verdict": "PASS",
+      "proof": [
+        "实际519字节TXT读取hash完整匹配；日期、人数、价格、否定均实际写入。",
+        "下一步明确“会后下周/未约定具体周几/会议当时未执行”，保留事件相对窗口，没有按当前11月计算或编精确日。"
+      ],
+      "mutations": [
+        {
+          "operation": "CREATE",
+          "objectApiName": "Customer_Contact_Log__c",
+          "recordId": "a01000000000002AAA",
+          "selectedFields": {
+            "Occurred_On__c": "2026-10-15",
+            "Location__c": "厦门办公室",
+            "Progress__c": "2026年10月15日在厦门办公室与青禾厦门进行沟通，客户方参会3人、我方参会2人。本次讨论了每套人民币1280元的报价。样品仍在测试中，尚未通过最终验收。客户有合作兴趣，但未承诺采购，采购数量未定。",
+            "Concerns__c": "客户认为每套人民币1280元的报价偏高。",
+            "Follow_Up__c": "双方约定在会后下周跟进样品测试和报价，未约定具体周几；截至会议当时该项跟进尚未执行。"
+          },
+          "writtenFieldNames": [
+            "Concerns__c",
+            "Customer__c",
+            "Follow_Up__c",
+            "Location__c",
+            "Occurred_On__c",
+            "Progress__c",
+            "RecordTypeId"
+          ]
+        }
+      ],
+      "uploadedOriginals": [],
+      "nativeMaterials": [
+        {
+          "fileName": "2026-10-15会议转写.txt",
+          "bytes": 519,
+          "contentSha256": "bb41a151fea90f0eff2ff3151bed60ed576a2bcf763438ce04c60c466b9f1a9b",
+          "readingEvidence": "OBSERVED_NATIVE_READ"
+        }
+      ],
+      "model": "deepseek-flash",
+      "toolCallCount": 13,
+      "mutationCount": 1,
+      "uploadCallCount": 0,
+      "clarificationRoundCount": 0,
+      "optionalArchiveInvitations": 0,
+      "criteria": [
+        {
+          "criterion": "真实读取用户提供的转写TXT，正确创建10月15日已发生纪要，保留双方人数3/2、每套1280元、测试未验收与未采购承诺/数量未定",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "下周以10月15日会议为参照保留10月19至25日窗口或明确会议后下一周，不按当前11月推算、不编精确周几或完成结果",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "不冒称原生ASR或原音频已读；无需额外确认且不归档原件",
+          "verdict": "PASS"
+        }
+      ],
+      "limitations": [
+        "单次边界观察，不是稳定率。",
+        "真实模型与固定旧Provider执行合成SDK/附件后端；不是候选Provider runtime或真实Salesforce/企微验收。",
+        "涉及转写的证据是用户文字或真实TXT native read，不证明原生ASR或含糊音频识别。"
+      ]
+    },
+    {
+      "id": "boundary-phone-uk-mobile",
+      "repetitions": 1,
+      "guidanceVersion": "1.13.2",
+      "guidanceCommit": "94aa661",
+      "scope": "REAL_MODEL_REAL_DML_PROVIDER_SYNTHETIC_CONTEXT_QUERY_AND_SDK",
+      "inputNaturalAbbreviation": "合成线索包含公司/联系人/职位及英国手机+44 7700 900123；没有公司地址。",
+      "allBusinessPeopleCompaniesAndNumbersAreSynthetic": true,
+      "evidenceDirectory": "material-boundary-phone-94aa661-20261105",
+      "sessionId": "32020153-a734-4edf-a1fe-a3d3e1c5fee8",
+      "runIds": [
+        "fcaa4cbc-f2e3-43de-b488-8db6349fa4c5"
+      ],
+      "originalCaptureSha256": "74485d4efab5bdeaa4f19324e795964cdafaa5aef1e53be3ecc690f536575e95",
+      "originalCaptureUnchanged": true,
+      "verdict": "PASS",
+      "proof": [
+        "真实DML Provider到合成SDK实际派发MobilePhone=+44 7700 900123，保留国家码/完整号码，不填Phone。",
+        "公司/姓名/职位同时写入，City/State/Country均未写，不因国际号码增加无谓确认。"
+      ],
+      "mutations": [
+        {
+          "operation": "CREATE",
+          "objectApiName": "Lead",
+          "selectedFields": {
+            "Company": "星桥设备有限公司",
+            "LastName": "许言",
+            "Title": "采购经理",
+            "MobilePhone": "+44 7700 900123"
+          },
+          "writtenFieldNames": [
+            "Company",
+            "LastName",
+            "MobilePhone",
+            "RecordTypeId",
+            "Title"
+          ]
+        }
+      ],
+      "uploadedOriginals": [],
+      "nativeMaterials": [],
+      "model": "deepseek-flash",
+      "toolCallCount": 7,
+      "mutationCount": 1,
+      "uploadCallCount": 0,
+      "clarificationRoundCount": 0,
+      "optionalArchiveInvitations": 0,
+      "criteria": [
+        {
+          "criterion": "真实模型自主使用fixture字段信息与真实DML Tool，英国手机号写入MobilePhone且保留+44与完整号码，不套用大陆11位限制",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "公司/联系人/职位实际写入；不从英国手机虚构公司国家、省份或城市，不增加无必要确认",
+          "verdict": "PASS"
+        }
+      ],
+      "limitations": [
+        "单次边界观察，不是稳定率。",
+        "Context与查询均为夹具；不是actual ContextExecutor或Data QueryExecutor，不证明真实SF查重或电话号码可达。",
+        "真实DML Provider使用固定旧runtime与合成SDK；未访问真实Salesforce或企微。"
+      ],
+      "contextExecutor": "FIXTURE_NOT_ACTUAL",
+      "temporaryHelperSha256": "29d451104e8be869ef6f72642c1156765cee57915ad1af831429aef986af8e4d",
+      "temporaryRunnerSha256": "61515f21674d762b0e49788030773bbc44ebfbdc1addc05af0bb71a372e2a957",
+      "temporaryDiffSha256": {
+        "helper.diff": "b42e53073a1616db41ba3851b6670ef3c2eef974fd514a0fe9c5af73ee26c0b7",
+        "runner.diff": "4aee63bf4d29f431c651d27ef2f6b40cdec3761cc9558c59e2f15813c1dff547"
+      },
+      "expectedPayloadWorkspaceFiles": "ABSENT_VERIFIED"
+    },
+    {
+      "id": "boundary-phone-area-extension",
+      "repetitions": 1,
+      "guidanceVersion": "1.13.2",
+      "guidanceCommit": "94aa661",
+      "scope": "REAL_MODEL_REAL_DML_PROVIDER_SYNTHETIC_CONTEXT_QUERY_AND_SDK",
+      "inputNaturalAbbreviation": "合成线索包含公司/联系人/职位及座机0592-8888888、分机123；没有公司地址。",
+      "allBusinessPeopleCompaniesAndNumbersAreSynthetic": true,
+      "evidenceDirectory": "material-boundary-phone-94aa661-20261105",
+      "sessionId": "4857b57d-5747-410f-b875-ed790d4fa7f6",
+      "runIds": [
+        "12544afe-09b6-4e1d-8442-9bc4f86fcbee"
+      ],
+      "originalCaptureSha256": "7b49b0d1e9099eb7bb5855d63783416fde1909f5a2979b8b61b361f439ba9113",
+      "originalCaptureUnchanged": true,
+      "verdict": "PASS",
+      "proof": [
+        "实际派发Phone=0592-8888888转123，座机/分机完整，不填MobilePhone。",
+        "没有从区号编写City/State/Country；公司/姓名/职位实际写入且无额外询问。"
+      ],
+      "mutations": [
+        {
+          "operation": "CREATE",
+          "objectApiName": "Lead",
+          "selectedFields": {
+            "Company": "北杉设备有限公司",
+            "LastName": "周岚",
+            "Title": "总经理",
+            "Phone": "0592-8888888转123"
+          },
+          "writtenFieldNames": [
+            "Company",
+            "LastName",
+            "Phone",
+            "RecordTypeId",
+            "Title"
+          ]
+        }
+      ],
+      "uploadedOriginals": [],
+      "nativeMaterials": [],
+      "model": "deepseek-flash",
+      "toolCallCount": 9,
+      "mutationCount": 1,
+      "uploadCallCount": 0,
+      "clarificationRoundCount": 0,
+      "optionalArchiveInvitations": 0,
+      "criteria": [
+        {
+          "criterion": "座机归入Phone，原电话号码与分机123完整保留在适用字段，不能误写手机",
+          "verdict": "PASS"
+        },
+        {
+          "criterion": "只凭0592区号不编写公司City/State/Country，公司/联系人/职位实际写入，不为无关地址发起额外澄清",
+          "verdict": "PASS"
+        }
+      ],
+      "limitations": [
+        "单次边界观察，不是稳定率。",
+        "Context与查询均为夹具；不是actual ContextExecutor或Data QueryExecutor，不证明真实SF查重或电话号码可达。",
+        "真实DML Provider使用固定旧runtime与合成SDK；未访问真实Salesforce或企微。"
+      ],
+      "contextExecutor": "FIXTURE_NOT_ACTUAL",
+      "temporaryHelperSha256": "29d451104e8be869ef6f72642c1156765cee57915ad1af831429aef986af8e4d",
+      "temporaryRunnerSha256": "61515f21674d762b0e49788030773bbc44ebfbdc1addc05af0bb71a372e2a957",
+      "temporaryDiffSha256": {
+        "helper.diff": "b42e53073a1616db41ba3851b6670ef3c2eef974fd514a0fe9c5af73ee26c0b7",
+        "runner.diff": "4aee63bf4d29f431c651d27ef2f6b40cdec3761cc9558c59e2f15813c1dff547"
+      },
+      "expectedPayloadWorkspaceFiles": "ABSENT_VERIFIED"
+    }
+  ]
+}

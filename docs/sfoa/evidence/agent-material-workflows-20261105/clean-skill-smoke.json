@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "kind": "COMMITTED_HEAD_ISOLATED_LINUX_SKILL_SMOKE",
+  "status": "PASS",
+  "committed": "7fdbaf308cd7e7062878d910f765316f27b6a81a",
+  "committedFileCount": 1419,
+  "bundleSha256": "7916b20670de4376a61236ce9fc2f0f7e9c163d548183c406fdcc0e770bc1396",
+  "workingTreeInput": false,
+  "deploymentConfigurationLoaded": false,
+  "databaseCheck": "SKIPPED",
+  "serviceCheck": "SKIPPED",
+  "applicationOrServiceMutation": false,
+  "exitCode": 0,
+  "hardLimitSeconds": 240,
+  "nodeVersion": "v22.23.1",
+  "yarnVersion": "1.22.22",
+  "yarnExecutable": "/usr/local/bin/yarn",
+  "gates": [
+    {
+      "name": "skill:validate",
+      "ok": true,
+      "exitCode": 0
+    },
+    {
+      "name": "skill:sync",
+      "ok": true,
+      "exitCode": 0
+    },
+    {
+      "name": "skill:check",
+      "ok": true,
+      "exitCode": 0
+    },
+    {
+      "name": "skill:test",
+      "ok": true,
+      "exitCode": 0
+    },
+    {
+      "name": "ai:snapshot",
+      "ok": true,
+      "exitCode": 0
+    },
+    {
+      "name": "ai:doctor (missing-env)",
+      "ok": true,
+      "exitCode": 0
+    }
+  ],
+  "toolkitTests": {
+    "tests": 80,
+    "pass": 80,
+    "fail": 0
+  },
+  "doctorMissingEnvironment": {
+    "ok": true,
+    "exists": false
+  },
+  "evidenceDirectory": "/data/sfoa-enterprise-mcp/evidence/clean-skill-checkout-7fdbaf3",
+  "localLog": ".temp/agent-material-workflows/skill-smoke-linux-7fdbaf3.log",
+  "localLogSha256": "3f8f92d85dcee6cfc502531ba1df9cb2eabd0d020e0d45fba86b503d13a888b5",
+  "preservedHistory": [
+    "Windows clean-smoke EBUSY/permission failures remain unchanged",
+    "Earlier Linux 1f060ed and d57f110 clean-smoke PASS retained",
+    "Initial d57f110 /usr/bin/yarn launch exit 127 retained; no Skill gates started in that attempt"
+  ],
+  "limitation": "Committed Skill synchronization/test/toolkit smoke only; not build of all packages, model behavior, live Salesforce or WeCom business acceptance"
+}

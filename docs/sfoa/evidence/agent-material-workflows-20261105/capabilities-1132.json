@@ -1,0 +1,265 @@
+{
+  "capturedAt": "2026-11-04T17:54:22.217Z",
+  "scope": "PROTOCOL_AND_LOCAL_CAPABILITIES_ONLY_NO_SALESFORCE_QUERY_OR_MUTATION",
+  "requester": "60245",
+  "protocolVersion": "2025-06-18",
+  "toolCount": 29,
+  "toolNames": [
+    "create_record",
+    "create_records",
+    "describe_sobject",
+    "explain_field_access",
+    "get_agent_playbook",
+    "get_apex_logs",
+    "get_bulk_query_results",
+    "get_debug_log_body",
+    "get_metadata_component_context",
+    "get_org_limits",
+    "get_platform_diagnostics",
+    "get_record_action_context",
+    "get_record_display_context",
+    "get_record_links",
+    "get_record_relationship_context",
+    "get_username",
+    "list_metadata_components",
+    "list_sobjects",
+    "query_records",
+    "resolve_field_display_values",
+    "retrieve_metadata",
+    "run_diagnostic_tooling_query",
+    "run_soql_query",
+    "search_records",
+    "set_trace_flag",
+    "submit_bulk_query",
+    "update_record",
+    "update_records",
+    "upload_files_to_record"
+  ],
+  "sameToolNames": true,
+  "changedSchemas": [
+    {
+      "name": "get_record_action_context",
+      "beforeSha256": "fed5b81efa57a929eddd8f6ae693f05a2ddbead1246d4ce16bc787a0c1a5c916",
+      "afterSha256": "878745b16498dfe874b201a4a33fd4e1eed3eb7a6c0149578db9fc30c0b1009e"
+    }
+  ],
+  "createValueAssessment": {
+    "type": "boolean",
+    "description": "CREATE only, default false: assess the bounded draft against already loaded requiredness and raw Salesforce defaults, without additional Salesforce reads. Also includes requiredness facts. PROVIDED is not validation, ABSENT is not proof the user omitted a fact, and defaults/managed values are not writes. Keep final long DML values outside the bounded draft when necessary."
+  },
+  "createValueAssessmentRequired": false,
+  "directTools": [
+    {
+      "name": "create_record",
+      "required": [
+        "objectApiName",
+        "fields"
+      ],
+      "parameters": [
+        "objectApiName",
+        "recordTypeId",
+        "uiContextResolutionId",
+        "fields"
+      ],
+      "unchangedSchema": true
+    },
+    {
+      "name": "create_records",
+      "required": [
+        "objectApiName",
+        "records"
+      ],
+      "parameters": [
+        "objectApiName",
+        "allOrNone",
+        "records"
+      ],
+      "unchangedSchema": true
+    },
+    {
+      "name": "update_record",
+      "required": [
+        "objectApiName",
+        "recordId",
+        "fields"
+      ],
+      "parameters": [
+        "objectApiName",
+        "recordId",
+        "fields"
+      ],
+      "unchangedSchema": true
+    },
+    {
+      "name": "update_records",
+      "required": [
+        "objectApiName",
+        "records"
+      ],
+      "parameters": [
+        "objectApiName",
+        "allOrNone",
+        "records"
+      ],
+      "unchangedSchema": true
+    },
+    {
+      "name": "upload_files_to_record",
+      "required": [
+        "objectApiName",
+        "recordId",
+        "attachmentRefs"
+      ],
+      "parameters": [
+        "objectApiName",
+        "recordId",
+        "attachmentRefs"
+      ],
+      "unchangedSchema": true
+    }
+  ],
+  "capabilities": {
+    "playbookVersion": "1.13.2",
+    "enabledTools": [
+      "get_username",
+      "run_soql_query",
+      "create_record",
+      "update_record",
+      "create_records",
+      "update_records",
+      "resolve_field_display_values",
+      "get_record_relationship_context",
+      "get_record_action_context",
+      "run_diagnostic_tooling_query",
+      "get_metadata_component_context",
+      "get_record_display_context",
+      "upload_files_to_record",
+      "list_sobjects",
+      "describe_sobject",
+      "query_records",
+      "search_records",
+      "submit_bulk_query",
+      "get_bulk_query_results",
+      "get_org_limits",
+      "set_trace_flag",
+      "get_apex_logs",
+      "get_debug_log_body",
+      "explain_field_access",
+      "list_metadata_components",
+      "get_platform_diagnostics",
+      "get_agent_playbook",
+      "get_record_links"
+    ],
+    "createAllowedObjects": [
+      "Account_Visit__c",
+      "Actual_Payment_Information__c",
+      "Contact",
+      "Lead",
+      "Visit_Participants__c",
+      "Visitors_Account__c"
+    ],
+    "updateAllowedObjects": [
+      "Account_Visit__c",
+      "Actual_Payment_Information__c",
+      "Contact",
+      "Lead",
+      "Visit_Participants__c",
+      "Visitors_Account__c"
+    ],
+    "attachmentEnabledObjects": [
+      "Account_Visit__c",
+      "Actual_Payment_Information__c",
+      "Contact",
+      "Lead",
+      "Visit_Participants__c",
+      "Visitors_Account__c"
+    ],
+    "diagnosticReady": true,
+    "dynamicFormEvidence": "PARTIAL",
+    "managedDmlFields": [
+      {
+        "objectApiName": "Account_Visit__c",
+        "fieldApiName": "Attributor__c",
+        "operations": [
+          "CREATE"
+        ],
+        "managedBy": "MCP",
+        "strategy": "PLATFORM_IDENTITY_FALLBACK"
+      },
+      {
+        "objectApiName": "Account_Visit__c",
+        "fieldApiName": "MCP_AI_Created__c",
+        "operations": [
+          "CREATE"
+        ],
+        "managedBy": "MCP",
+        "strategy": "AI_CREATED_MARKER"
+      },
+      {
+        "objectApiName": "Actual_Payment_Information__c",
+        "fieldApiName": "MCP_AI_Created__c",
+        "operations": [
+          "CREATE"
+        ],
+        "managedBy": "MCP",
+        "strategy": "AI_CREATED_MARKER"
+      },
+      {
+        "objectApiName": "Contact",
+        "fieldApiName": "MCP_AI_Created__c",
+        "operations": [
+          "CREATE"
+        ],
+        "managedBy": "MCP",
+        "strategy": "AI_CREATED_MARKER"
+      },
+      {
+        "objectApiName": "Lead",
+        "fieldApiName": "Lead_Owner__c",
+        "operations": [
+          "CREATE"
+        ],
+        "managedBy": "MCP",
+        "strategy": "PLATFORM_IDENTITY_FALLBACK"
+      },
+      {
+        "objectApiName": "Lead",
+        "fieldApiName": "MCP_AI_Created__c",
+        "operations": [
+          "CREATE"
+        ],
+        "managedBy": "MCP",
+        "strategy": "AI_CREATED_MARKER"
+      }
+    ]
+  },
+  "playbook": {
+    "isError": false,
+    "structuredVersion": "1.13.2",
+    "contentSha256": "84e46fcce3e58c6b131ee9f7fbf40e8899f5017495cd80bd3f4005e7b924c2f1"
+  },
+  "files": {
+    "packages/sfoa-agent-playbook/dist/version.js": "d333bd0b00c615953ec45f5e7de7ca2630f3973f27fd9b3897d123953ef2eace",
+    "integrations/openclaw/sfoa-wecom-mcp-adapter/src/index.js": "9b17eec23d989acac9f502cfc85c62bbdbb98d78e49a6d687a36b53765580f1f",
+    "sfoa-crm-core": {
+      "canonicalSha256": "986270e12fc810ef09077eb2abb87c4d62fda15e6bb942da8199357b15c78214",
+      "runtimeSha256": "986270e12fc810ef09077eb2abb87c4d62fda15e6bb942da8199357b15c78214",
+      "equal": true
+    },
+    "sfoa-record-change": {
+      "canonicalSha256": "ae44ece74cb72aa4291d135514475e4f9c6fdefa40210cf426820de2889df424",
+      "runtimeSha256": "ae44ece74cb72aa4291d135514475e4f9c6fdefa40210cf426820de2889df424",
+      "equal": true
+    },
+    "sfoa-data-analysis": {
+      "canonicalSha256": "2a36ed1302ae87c7d3d90fe6af98c0bcad21d2a212581ba506ee4c4284525007",
+      "runtimeSha256": "2a36ed1302ae87c7d3d90fe6af98c0bcad21d2a212581ba506ee4c4284525007",
+      "equal": true
+    },
+    "sfoa-org-diagnostics": {
+      "canonicalSha256": "dc4a1ac86b6a3aa54253f44cf24594bec340608b68dcca08c49a45ab0681ee18",
+      "runtimeSha256": "dc4a1ac86b6a3aa54253f44cf24594bec340608b68dcca08c49a45ab0681ee18",
+      "equal": true
+    }
+  }
+}
