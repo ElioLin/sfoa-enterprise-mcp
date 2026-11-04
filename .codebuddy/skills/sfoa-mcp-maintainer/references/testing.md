@@ -111,6 +111,9 @@ Fixture queries must reject unsupported fields/predicates; selected unset fields
 return null. The process runner preserves actual exit code/signal: a complete
 terminal result can precede a lingering CLI process, but a partial/error envelope
 or a nonzero exit is not success. Use terminalReceipt.runId, never sessionId as runId.
+OpenClaw 2026.9.5 also sets `meta.replayInvalid` after potential tool side effects:
+retain it as replay-safety evidence, not a standalone current-execution failure.
+This distinction never authorizes replaying an actual mutation.
 
 On Windows, a loaded aggregate run can exceed the unchanged HTTP/P7 2s/1s budgets.
 An isolated rerun or Linux pass is separate evidence and does not turn the failed
