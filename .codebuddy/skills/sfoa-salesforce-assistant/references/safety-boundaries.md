@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.13.1; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.13.2; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Safety Boundaries
 
-Playbook-Version: 1.13.1
+Playbook-Version: 1.13.2
 
 ## ERROR_HANDLING — Handle Salesforce and uncertain outcomes
 
