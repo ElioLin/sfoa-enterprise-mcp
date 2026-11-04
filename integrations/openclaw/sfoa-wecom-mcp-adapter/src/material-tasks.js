@@ -198,7 +198,10 @@ export function observeToolResult(task, event) {
     for (const row of rows) {
       const status = row.success === true ? "SUCCESS" : row.status === "OUTCOME_UNKNOWN" || /OUTCOME_UNKNOWN/u.test(row.errorCode ?? "") ? "OUTCOME_UNKNOWN" : "FAILED";
       const target = status === "SUCCESS" ? rememberTarget(row.recordId, name, objectApiName) : undefined;
-      if (target && rows.length === 1) task.target = target;
+      // A compound task can write its participants/details after the main record.
+      // Later success is evidence, not a choice to move the task/archive target.
+      // Keep an established target until an explicit note or new task changes it.
+      if (target && rows.length === 1 && !task.target && (!task.objectApiName || task.objectApiName === target.objectApiName)) task.target = target;
       task.results.push({ operation: name, status, ...(target ?? {}), ...(row.clientReferenceId ? { clientReferenceId: row.clientReferenceId } : {}) });
     }
     task.results = task.results.slice(-50);

@@ -113,6 +113,45 @@ test("unknown mutation never supplies a target and batch results remain separate
   assert.deepEqual(task.results.map((entry) => entry.status), ["OUTCOME_UNKNOWN", "SUCCESS", "FAILED"]);
 });
 
+test("compound child writes and batch results preserve the main task target", async () => {
+  const registry = createMaterialTaskRegistry();
+  const mainId = "a01000000000001AAA", childId = "a02000000000001AAA";
+  const task = await registry.change(scope(), (value) => {
+    observeToolResult(value, result("create_record", { objectApiName: "Event__c" }, { success: true, recordId: mainId }));
+    observeToolResult(value, result("create_record", { objectApiName: "Participant__c" }, { success: true, recordId: childId }));
+    observeToolResult(value, result("update_record", { objectApiName: "Participant__c", recordId: childId }, { success: true, recordId: childId }));
+    observeToolResult(value, result("create_records", { objectApiName: "Participant__c" }, { results: [
+      { success: true, recordId: "a02000000000002AAA" }, { success: false, status: "FAILED" },
+    ] }));
+    observeToolResult(value, result("create_records", { objectApiName: "Participant__c" }, { results: [
+      { success: true, recordId: "a02000000000003AAA" },
+    ] }));
+  });
+  assert.equal(task.target.recordId, mainId, "attachment continuation must retain the main record");
+  assert.equal(task.target.objectApiName, "Event__c");
+  assert.deepEqual(task.results.map((entry) => entry.status), ["SUCCESS", "SUCCESS", "SUCCESS", "SUCCESS", "FAILED", "SUCCESS"]);
+  assert.equal(task.observedTargets.length, 4, "child outcomes remain available for explicit selection");
+  const tool = taskNoteTool(registry, scope());
+  const selected = await tool.execute("select-child", { operation: "update", objectApiName: "Participant__c", targetRecordId: childId });
+  assert.equal(selected.details.target.recordId, childId, "the Agent can select another proven target for an authorized task");
+  const after = await registry.change(scope(), (value) => {
+    observeToolResult(value, result("update_record", { objectApiName: "Event__c", recordId: mainId }, { success: true, recordId: mainId }));
+  });
+  assert.equal(after.target.recordId, childId, "a later write cannot undo explicit target selection");
+});
+
+test("declared main object is not replaced by an earlier related-record create", async () => {
+  const registry = createMaterialTaskRegistry();
+  const task = await registry.change(scope(), (value, current) => {
+    updateTaskNote(value, { operation: "update", action: "COMPOUND", objectApiName: "Event__c" }, current);
+    observeToolResult(value, result("create_record", { objectApiName: "Contact" }, { success: true, recordId: "003000000000001AAA" }));
+    assert.equal(value.target, undefined);
+    observeToolResult(value, result("create_record", { objectApiName: "Event__c" }, { success: true, recordId: "a01000000000001AAA" }));
+  });
+  assert.equal(task.target.objectApiName, "Event__c");
+  assert.equal(task.observedTargets.length, 2);
+});
+
 test("host keyed store restores bounded facts on restart and session reset removes them", async () => {
   const data = new Map();
   const store = { lookup: async (key) => data.get(key), register: async (key, value) => data.set(key, structuredClone(value)),
