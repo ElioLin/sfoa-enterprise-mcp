@@ -235,7 +235,9 @@ export function normalizeStagedMediaRoots(options = {}) {
  */
 export function selectInboundMedia(event, options = {}) {
   if (!event || typeof event !== "object") return { files: [] };
-  if (event.mediaStagingPending === true) return { files: [], withheld: "MEDIA_STAGING_PENDING" };
+  if (event.mediaStagingPending === true) return { files: [], withheld: "MEDIA_STAGING_PENDING",
+    receivedCount: Array.isArray(event.originalMedia) ? event.originalMedia.length : 0,
+    rejected: (event.originalMedia ?? []).slice(0, 64).map((_entry, sourceIndex) => ({ sourceIndex, reason: "MEDIA_STAGING_PENDING" })) };
 
   const facts = Array.isArray(event.media) ? event.media : [];
   if (facts.length === 0) return { files: [] };
@@ -249,18 +251,21 @@ export function selectInboundMedia(event, options = {}) {
   const mediaRoots = normalizeStagedMediaRoots(options);
 
   const files = [];
+  const rejected = [];
   let withheld;
   let withheldDirectory;
-  for (const fact of facts) {
+  for (const [sourceIndex, fact] of facts.entries()) {
     if (files.length >= maxFiles) {
       withheld = withheld ?? "MEDIA_LIMIT_EXCEEDED";
-      break;
+      if (rejected.length < 64) rejected.push({ sourceIndex, reason: "MEDIA_LIMIT_EXCEEDED" });
+      continue;
     }
     const filePath = resolveStagedMediaPath(fact?.path, { ...options, mediaRoots });
     if (filePath === undefined) {
       // Distinguish "not local" from "unusable path" for the operator, but treat
       // both the same way: the fact is not forwarded.
       withheld = withheld ?? (typeof fact?.path === "string" ? "MEDIA_PATH_REJECTED" : "MEDIA_NOT_LOCAL");
+      if (rejected.length < 64) rejected.push({ sourceIndex, reason: typeof fact?.path === "string" ? "MEDIA_PATH_REJECTED" : "MEDIA_NOT_LOCAL" });
       // Where the rejected path pointed, so an operator can see which staging
       // root produced it. A directory is host infrastructure; the file name —
       // the user's own document title — is deliberately not included.
@@ -275,16 +280,17 @@ export function selectInboundMedia(event, options = {}) {
     const fileName = stagedFileName(filePath);
     if (fileName === undefined) {
       withheld = withheld ?? "MEDIA_PATH_REJECTED";
+      if (rejected.length < 64) rejected.push({ sourceIndex, reason: "MEDIA_PATH_REJECTED" });
       continue;
     }
     const mimeType = normalizeMimeType(fact?.contentType);
     files.push(mimeType === undefined ? { filePath, fileName } : { filePath, fileName, mimeType });
   }
 
-  if (withheld === undefined) return { files };
+  if (withheld === undefined) return { files, receivedCount: facts.length, rejected };
   return withheldDirectory === undefined
-    ? { files, withheld }
-    : { files, withheld, withheldDirectory };
+    ? { files, withheld, receivedCount: facts.length, rejected }
+    : { files, withheld, withheldDirectory, receivedCount: facts.length, rejected };
 }
 
 /**

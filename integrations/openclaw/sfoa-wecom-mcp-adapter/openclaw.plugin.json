@@ -43,7 +43,11 @@
       },
       "attachmentRefTtlMs": {
         "type": "number",
-        "description": "How long a staged reference stays available to the model. Defaults to 300000."
+        "description": "Legacy adapter-cache setting retained for config compatibility. Task notes expire after two hours; each original reference keeps the ingress expiresAt without renewal."
+      },
+      "officePython": {
+        "type": "string",
+        "description": "Host Python 3 executable for bounded DOCX/XLSX/UTF-8 CSV basics. Defaults to python3; no additional Python packages are required."
       }
     }
   }

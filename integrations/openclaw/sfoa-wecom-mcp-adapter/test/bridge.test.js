@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { registerHooks } from "node:module";
-import { after, test } from "node:test";
+import { after, beforeEach, test } from "node:test";
 
 // `src/index.js` imports the OpenClaw secret runtime, which only exists inside a
 // running Gateway. Redirect just that specifier; everything else is untouched,
@@ -52,6 +52,8 @@ const MCP_URL = "http://127.0.0.1:8080/mcp";
 const EXPECTED_INGRESS_URL = "http://127.0.0.1:8080/attachments";
 const CHANNEL = "wecom";
 const TOKEN = secretStub.state.value;
+const requesters = new Map();
+beforeEach(() => { delete globalThis[Symbol.for("sfoa.enterprise.mcp.material-task-registry.v1")]; requesters.clear(); });
 
 /** @type {string[]} */
 const tempRoots = [];
@@ -80,6 +82,7 @@ async function createWorkspace(files) {
 function createHarness(options = {}) {
   /** @type {Map<string, Function>} */
   const hooks = new Map();
+  const tools = new Map();
   /** @type {Array<[string, string]>} */
   const lines = [];
   const config = {
@@ -103,6 +106,8 @@ function createHarness(options = {}) {
       debug: (message) => lines.push(["debug", message]),
     },
     registerMcpServerConnectionResolver() {},
+    registerTool(factory, options) { tools.set(options.name, factory); },
+    runtime: options.runtime,
     on(hookName, handler) {
       hooks.set(hookName, handler);
     },
@@ -112,20 +117,94 @@ function createHarness(options = {}) {
 
   return {
     hooks,
+    tools,
     lines,
     warnings: () => lines.filter(([level]) => level === "warn").map(([, message]) => message),
     async emitMessageReceived(event, context = { channelId: CHANNEL }) {
       const handler = hooks.get("message_received");
       assert.ok(handler, "message_received must be registered when the bridge is enabled");
+      if (event.senderId && event.sessionKey) requesters.set(event.sessionKey, event.senderId);
       await handler(event, context);
     },
     emitBeforePromptBuild(context, event = {}) {
       const handler = hooks.get("before_prompt_build");
       assert.ok(handler, "before_prompt_build must be registered when the bridge is enabled");
-      return handler(event, context);
+      return handler(event, { channel: CHANNEL, senderId: requesters.get(context.sessionKey), ...context });
     },
   };
 }
+
+test("real CSV body and failed original staging remain independent across text confirmation", async () => {
+  const workspace = await createWorkspace([{ name: "facts.csv", content: "客户,事实\n合成客户,尚未通过测试" }]);
+  let harness;
+  await withFetch(() => new Response(JSON.stringify({ errorCode: "MCP_ATTACHMENT_TOO_LARGE" }), { status: 413 }), async () => {
+    harness = createHarness({ attachmentRoots: workspace,
+      pluginConfig: { officePython: process.env.SFOA_MATERIAL_PYTHON ?? (process.platform === "win32" ? "python3.12" : "python3") } });
+    await harness.emitMessageReceived({ senderId: "reader", sessionKey: "csv-task", messageId: "csv-1", media: [mediaFact(workspace.files[0].path, "text/csv")] });
+  });
+  const initial = await harness.emitBeforePromptBuild({ sessionKey: "csv-task" });
+  assert.match(initial.appendContext, /尚未通过测试/u);
+  assert.match(initial.appendContext, /NO_UPLOAD_REF/u);
+  assert.match(initial.appendContext, /MCP_ATTACHMENT_TOO_LARGE/u);
+  await harness.emitMessageReceived({ senderId: "reader", sessionKey: "csv-task", messageId: "text-2", content: "按以上创建" });
+  const next = await harness.emitBeforePromptBuild({ sessionKey: "csv-task" });
+  assert.match(next.appendContext, /facts.csv/u);
+  assert.doesNotMatch(next.appendContext, /untrustedExtractedText/u, "old bodies stay in native history, not every prompt");
+});
+
+test("eleven originals are all staged and partial failures reach the actual prompt", async () => {
+  const workspace = await createWorkspace(Array.from({ length: 11 }, (_, i) => ({ name: `${i}.pdf`, content: `%PDF synthetic ${i}` })));
+  let index = 0;
+  let harness;
+  const calls = await withFetch(() => index++ === 4
+    ? new Response(JSON.stringify({ errorCode: "MCP_ATTACHMENT_STAGING_FULL" }), { status: 503 })
+    : stagedResponse(`att_batch${index}`, { expiresAt: "2030-01-01T00:00:00.000Z", contentSha256: index.toString(16).padStart(64, "0") }), async () => {
+    harness = createHarness({ attachmentRoots: workspace });
+    await harness.emitMessageReceived({ senderId: "batch", sessionKey: "batch-task", messageId: "batch-1", media: workspace.files.map((file) => mediaFact(file.path, "application/pdf")) });
+  });
+  assert.equal(calls.length, 11, "ingress does not inherit the per-upload-call limit of ten");
+  const prompt = (await harness.emitBeforePromptBuild({ sessionKey: "batch-task" })).appendContext;
+  assert.match(prompt, /"received":11,"staged":10,"processed":11/u);
+  assert.match(prompt, /MCP_ATTACHMENT_STAGING_FULL/u);
+  assert.match(prompt, /4.pdf/u);
+  assert.match(prompt, /2030-01-01T00:00:00.000Z/u);
+  assert.match(prompt, /contentSha256/u);
+});
+
+test("same-conversation requester switch and missing sender never expose another material", async () => {
+  const workspace = await createWorkspace([{ name: "a.pdf", content: "%PDF A" }, { name: "b.pdf", content: "%PDF B" }]);
+  let index = 0;
+  let harness;
+  await withFetch(() => stagedResponse(`att_shared${++index}`), async () => {
+    harness = createHarness({ attachmentRoots: workspace });
+    for (const [i, senderId] of ["alice", "bob"].entries()) await harness.emitMessageReceived({ senderId, sessionKey: "shared-chat", media: [mediaFact(workspace.files[i].path, "application/pdf")] });
+  });
+  const alice = await harness.emitBeforePromptBuild({ sessionKey: "shared-chat", senderId: "alice" });
+  const bob = await harness.emitBeforePromptBuild({ sessionKey: "shared-chat", senderId: "bob" });
+  assert.match(alice.appendContext, /att_shared1/u);
+  assert.doesNotMatch(alice.appendContext, /att_shared2/u);
+  assert.match(bob.appendContext, /att_shared2/u);
+  assert.equal(await harness.emitBeforePromptBuild({ sessionKey: "shared-chat", senderId: undefined }), undefined);
+});
+
+test("real tool-result hook binds target; local notes and session reset never mutate CRM", async () => {
+  const workspace = await createWorkspace([]);
+  const harness = createHarness({ attachmentRoots: workspace });
+  const tool = harness.tools.get("sfoa_material_task")({ messageChannel: "wecom", requesterSenderId: "alice", sessionKey: "task-notes" });
+  assert.ok(tool);
+  assert.equal(harness.tools.get("sfoa_material_task")({ messageChannel: "wecom", requesterSenderId: "alice" }), null);
+  await tool.execute("note-1", { operation: "update", objective: "创建合成来访", phase: "COLLECTING", archiveStatus: "DECLINED" });
+  await harness.hooks.get("after_tool_call")({ toolName: "sfoa-enterprise-mcp__create_record", params: { objectApiName: "Event__c" },
+    result: { details: { structuredContent: { success: true, recordId: "a01000000000001AAA" } } } },
+  { sessionKey: "task-notes", requester: { channel: "wecom", senderId: "alice" } });
+  const saved = await tool.execute("note-2", { operation: "inspect" });
+  assert.equal(saved.details.target.recordId, "a01000000000001AAA");
+  assert.equal(saved.details.archive.status, "DECLINED");
+  await harness.hooks.get("session_end")({ reason: "reset" }, { sessionKey: "task-notes" });
+  const reset = await tool.execute("note-3", { operation: "inspect" });
+  assert.equal(reset.details.target, undefined);
+  assert.equal(reset.details.archive.status, "NOT_ASKED");
+});
 
 /**
  * Installs a fetch double, runs `body`, and returns every captured request with
@@ -213,7 +292,7 @@ test("a WeCom file is streamed to the ingress and only its reference reaches the
   // The body is the file itself, byte for byte.
   assert.deepEqual(call.body, content);
 
-  const result = harness.emitBeforePromptBuild({ sessionKey: "session-1", runId: "run-1" });
+  const result = await harness.emitBeforePromptBuild({ sessionKey: "session-1", runId: "run-1" });
   assert.ok(result, "the prompt build must receive attachment context");
   assert.match(result.appendContext, /att_0123456789abcdef/u);
   assert.match(result.appendContext, /invoice\.pdf/u);
@@ -243,8 +322,8 @@ test("a reference survives a second prompt build for the same turn", async () =>
   // OpenClaw may build the prompt more than once for one turn (retry,
   // compaction); the reference must survive that, because the runtime — not
   // this cache — is what consumes a reference exactly once.
-  const first = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
-  const second = harness.emitBeforePromptBuild({ sessionKey: "session-1", runId: "run-1-retry" });
+  const first = await harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  const second = await harness.emitBeforePromptBuild({ sessionKey: "session-1", runId: "run-1-retry" });
   assert.equal(first.appendContext, second.appendContext);
   assert.match(second.appendContext, /att_aaaaaaaaaa/u);
 });
@@ -286,7 +365,7 @@ test("two registrations of the plugin share one registry, so one stages what the
   // The host's other half: an independent registration of the same shipped
   // plugin, which is what actually serves the prompt build.
   const injecting = createHarness({ attachmentRoots: workspace });
-  const result = injecting.emitBeforePromptBuild({ sessionKey });
+  const result = await injecting.emitBeforePromptBuild({ sessionKey });
 
   assert.ok(result, "the second registration must see what the first staged");
   assert.match(result.appendContext, /att_tworegistrations/u);
@@ -321,15 +400,15 @@ test("two users in two conversations never see each other's references", async (
     },
   );
 
-  const forA = harness.emitBeforePromptBuild({ sessionKey: "session-a" });
-  const forB = harness.emitBeforePromptBuild({ sessionKey: "session-b" });
+  const forA = await harness.emitBeforePromptBuild({ sessionKey: "session-a" });
+  const forB = await harness.emitBeforePromptBuild({ sessionKey: "session-b" });
   assert.match(forA.appendContext, /att_1111111111/u);
   assert.doesNotMatch(forA.appendContext, /att_2222222222/u);
   assert.match(forB.appendContext, /att_2222222222/u);
   assert.doesNotMatch(forB.appendContext, /att_1111111111/u);
 });
 
-test("a later message with no usable file clears the previous reference", async () => {
+test("a later text confirmation retains the previous material and reference", async () => {
   const workspace = await createWorkspace([{ name: "a.pdf", content: Buffer.from("a") }]);
   let harness;
 
@@ -345,7 +424,7 @@ test("a later message with no usable file clears the previous reference", async 
     },
   );
   assert.equal(firstCalls.length, 1);
-  assert.ok(harness.emitBeforePromptBuild({ sessionKey: "session-1" }));
+  assert.ok(await harness.emitBeforePromptBuild({ sessionKey: "session-1" }));
 
   // The user has moved on: the next message carries no file.
   const secondCalls = await withFetch(
@@ -355,7 +434,7 @@ test("a later message with no usable file clears the previous reference", async 
     },
   );
   assert.equal(secondCalls.length, 0, "a message without media must not call the ingress");
-  assert.equal(harness.emitBeforePromptBuild({ sessionKey: "session-1" }), undefined);
+  assert.match((await harness.emitBeforePromptBuild({ sessionKey: "session-1" })).appendContext, /att_/u);
 });
 
 test("a run outside the WeCom channel is left completely alone", async () => {
@@ -509,7 +588,7 @@ test("a file the channel staged outside the workspace still reaches the ingress"
   );
   assert.equal(harness.warnings().length, 0, "a staged file is not a warning");
 
-  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  const context = await harness.emitBeforePromptBuild({ sessionKey: "session-1" });
   assert.ok(context && context.appendContext.includes("att_"), "the reference reaches the model");
 });
 
@@ -538,7 +617,7 @@ test("a file below no configured root reports why instead of staying silent", as
   assert.equal(calls.length, 0, "no ingress call for a path outside every root");
   assert.match(harness.warnings().join("\n"), /MEDIA_PATH_REJECTED/u);
 
-  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  const context = await harness.emitBeforePromptBuild({ sessionKey: "session-1" });
   assert.ok(context && typeof context.appendContext === "string");
   assert.match(context.appendContext, /MEDIA_PATH_REJECTED/u);
   assert.equal(context.appendContext.includes("a.pdf"), false, "no file name in the prompt");
@@ -568,14 +647,14 @@ test("an ingress refusal leaves the model with no reference and the log with no 
 
   // The model gets the reason and the prohibition — never a reference it could
   // act on, and never the user's own document title.
-  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  const context = await harness.emitBeforePromptBuild({ sessionKey: "session-1" });
   assert.ok(context && typeof context.appendContext === "string", "the refusal must reach the model");
   assert.match(context.appendContext, /MCP_ATTACHMENT_TOO_LARGE/u);
-  assert.match(context.appendContext, /Do not call `upload_files_to_record`/u);
+  assert.match(context.appendContext, /NO_UPLOAD_REF/u);
   assert.equal(
     context.appendContext.includes("confidential-restructuring.pdf"),
-    false,
-    "no file name in the prompt",
+    true,
+    "the requester sees which material failed; gateway logs remain title-free",
   );
   assert.equal(context.appendContext.includes(workspace.mediaRoot), false, "no staged path in the prompt");
 
@@ -608,7 +687,7 @@ test("a runtime that is not reachable costs the turn nothing", async () => {
 
   // The turn still runs. The model is told the file could not be staged rather
   // than being left to guess why a file message carried no reference.
-  const context = harness.emitBeforePromptBuild({ sessionKey: "session-1" });
+  const context = await harness.emitBeforePromptBuild({ sessionKey: "session-1" });
   assert.ok(context && typeof context.appendContext === "string");
   assert.match(context.appendContext, /INGRESS_UNREACHABLE/u);
 });
@@ -651,7 +730,7 @@ test("only the usable files of a multi-file message are staged", async () => {
   assert.equal(calls[1].init.headers["x-sfoa-file-name"], "photo.png");
   assert.equal(calls[1].init.headers["x-sfoa-file-mime"], "image/png");
 
-  const text = harness.emitBeforePromptBuild({ sessionKey: "session-1" }).appendContext;
+  const text = (await harness.emitBeforePromptBuild({ sessionKey: "session-1" })).appendContext;
   assert.match(text, /att_1111111111/u);
   assert.match(text, /att_2222222222/u);
   assert.match(text, /ok\.pdf/u);
@@ -678,7 +757,7 @@ test("one unusable file does not stop the others", async () => {
   );
 
   assert.equal(calls.length, 1, "only the readable file is sent");
-  assert.match(harness.emitBeforePromptBuild({ sessionKey: "session-1" }).appendContext, /att_okokokokok/u);
+  assert.match((await harness.emitBeforePromptBuild({ sessionKey: "session-1" })).appendContext, /att_okokokokok/u);
 });
 
 test("no log line ever carries a staged path, a file byte, or the credential", async () => {
