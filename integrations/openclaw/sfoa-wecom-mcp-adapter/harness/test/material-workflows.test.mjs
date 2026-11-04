@@ -61,7 +61,7 @@ test('verified CLI surface uses isolated local sessions for natural turns, never
 
 test('exec and local envelopes preserve actual model/session, failures never gain a fabricated successful result', () => {
   assert.deepEqual(normalizeTurnResult({ status: 'ok', sessionId: 'real-id', model: 'real-model', final: 'done' }),
-    { runId: 'NOT_AVAILABLE', sessionId: 'real-id', model: 'real-model', reply: 'done', executionStatus: 'ok', usage: null, durationMs: null });
+    { runId: 'NOT_AVAILABLE', sessionId: 'real-id', model: 'real-model', reply: 'done', replayInvalid: null, executionStatus: 'ok', usage: null, durationMs: null });
   assert.equal(normalizeTurnResult({ payloads: [{ text: 'done' }], meta: { agentMeta: { sessionId: 'session', provider: 'provider', model: 'model' } } }).sessionId, 'session');
   assert.equal(normalizeTurnResult({ runId: 'actual-run', sessionId: 'actual-session' }).runId, 'actual-run');
   assert.equal(normalizeTurnResult({ payloads: [], meta: { aborted: true, agentMeta: {} } }).executionStatus, 'aborted');
