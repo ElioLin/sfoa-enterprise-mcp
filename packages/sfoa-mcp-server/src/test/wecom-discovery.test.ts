@@ -408,6 +408,10 @@ function unusedStagingRepository(): AttachmentStagingRepository {
   return {
     create: async () => refuse(),
     getByRef: async () => refuse(),
+    claimUpload: async () => refuse(),
+    releaseUpload: async () => refuse(),
+    markOutcomeUnknown: async () => refuse(),
+    markBytesRemoved: async () => refuse(),
     markConsumed: async () => refuse(),
     markFailed: async () => refuse(),
     markExpired: async () => refuse(),

@@ -100,7 +100,7 @@ export type DmlPolicyRecord = Readonly<{
   updatedAt: string;
 }>;
 
-export const ATTACHMENT_STAGING_STATES = ['STAGED', 'CONSUMED', 'EXPIRED', 'FAILED'] as const;
+export const ATTACHMENT_STAGING_STATES = ['STAGED', 'CONSUMED', 'EXPIRED', 'FAILED', 'UPLOADING', 'OUTCOME_UNKNOWN', 'RETRYABLE'] as const;
 export type AttachmentStagingState = (typeof ATTACHMENT_STAGING_STATES)[number];
 
 /**
@@ -129,6 +129,8 @@ export type AttachmentStagingRecord = Readonly<{
   createdAt: string;
   expiresAt: string;
   consumedAt: string | null;
+  /** Removing retained bytes must not erase an unknown publication outcome. */
+  bytesRemovedAt: string | null;
 }>;
 
 export const MANAGED_DML_FIELD_STRATEGIES = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const;

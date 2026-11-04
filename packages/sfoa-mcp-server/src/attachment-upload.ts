@@ -34,6 +34,8 @@ export type AttachmentFileResult = Readonly<{
   salesforceErrorCode: string | null;
   salesforceMessage: string | null;
   durationMs: number;
+  /** Same-ref recovery is available after correcting a proven refusal; never automatic. */
+  retryable?: boolean;
 }>;
 
 export type AttachmentUploadOutcome = Readonly<{
@@ -63,13 +65,15 @@ export type SalesforceAttachmentUploaderOptions = Readonly<{
   platformUserId: string;
   uploadTimeoutMs: number;
   redactionSecrets?: readonly string[];
+  /** Host deadline/disconnect. Stops later dispatch; cancellation is not a rollback. */
+  signal?: AbortSignal;
   /**
    * Called as each file reaches a terminal state, so a host deadline that fires
    * mid-request can still report what actually happened instead of guessing.
    */
   onFileResult?: (result: AttachmentFileResult) => void;
   /** Called immediately before the first ContentVersion POST is issued. */
-  onUploadStarted?: () => void;
+  onUploadStarted?: (file: AttachmentFileResult) => void;
 }>;
 
 /**
@@ -98,7 +102,7 @@ export class SalesforceAttachmentUploader {
     let mediaUploaded = false;
 
     for (const [index, attachmentRef] of request.attachmentRefs.entries()) {
-      if (stopped) {
+      if (stopped || this.options.signal?.aborted) {
         push(notAttempted(index, attachmentRef));
         continue;
       }
@@ -107,7 +111,9 @@ export class SalesforceAttachmentUploader {
       try {
         record = await this.options.ingress.resolveForOwner(attachmentRef, this.options.platformUserId);
       } catch (error) {
-        push(fileFailure(index, attachmentRef, null, error, elapsed(started)));
+        const failure = fileFailure(index, attachmentRef, null, error, elapsed(started));
+        push(failure);
+        if (failure.status === 'OUTCOME_UNKNOWN') stopped = true;
         continue;
       }
       // The target is proven on the first file that is actually about to be sent, not
@@ -138,7 +144,7 @@ export class SalesforceAttachmentUploader {
       response = await fetch(url, {
         method: 'GET',
         headers: { authorization: `Bearer ${accessTokenOf(connection)}`, accept: 'application/json' },
-        signal: AbortSignal.timeout(this.options.uploadTimeoutMs),
+        signal: this.requestSignal(),
       });
     } catch (error) {
       recordApiCall({
@@ -179,130 +185,163 @@ export class SalesforceAttachmentUploader {
   ): Promise<{ result: AttachmentFileResult }> {
     const startedAt = new Date();
     const started = performance.now();
-    let opened: Awaited<ReturnType<AttachmentIngress['openForUpload']>>;
+    if (this.options.signal?.aborted) return { result: notAttempted(index, attachmentRef) };
     try {
-      opened = await this.options.ingress.openForUpload(record);
+      await this.options.ingress.claimUpload(record, this.options.platformUserId);
     } catch (error) {
-      await this.options.ingress.fail(record, errorCodeOf(error));
       return { result: fileFailure(index, attachmentRef, record.fileName, error, elapsed(started)) };
     }
-
-    const connection = await this.options.connectionProvider.getConnection();
-    const url = `${salesforceBaseUrl(connection)}/services/data/v${apiVersionOf(connection)}/sobjects/ContentVersion`;
-    // `PathOnClient` is the channel's own file name. The runtime does not read an
-    // extension or a MIME type from configuration and does not reject on one:
-    // Salesforce is the final authority on which files it accepts, and a local mirror
-    // of those rules would drift from it and start refusing valid files.
-    const entityContent = Buffer.from(JSON.stringify({
-      Title: titleFor(record.fileName),
-      PathOnClient: record.fileName,
-      FirstPublishLocationId: recordId,
-    }), 'utf8');
-    const multipart = buildMultipartBody([
-      { name: 'entity_content', contentType: 'application/json', content: entityContent },
-      {
-        name: 'VersionData',
-        ...(opened.mimeType ? { contentType: opened.mimeType } : {}),
-        fileName: opened.fileName,
-        content: { stream: opened.stream, byteSize: opened.byteSize },
-      },
-    ]);
-
-    let response: Response;
+    let dispatched = false;
+    let opened: Awaited<ReturnType<AttachmentIngress['openForUpload']>> | undefined;
     try {
-      // Past this point Salesforce may publish the file even if the runtime never sees
-      // the answer, so the host deadline can no longer treat the request as unsent.
-      this.options.onUploadStarted?.();
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${accessTokenOf(connection)}`,
-          accept: 'application/json',
-          'content-type': multipart.contentType,
-          'content-length': String(multipart.contentLength),
+      try {
+        opened = await this.options.ingress.openForUpload(record);
+      } catch (error) {
+        await this.options.ingress.fail(record, errorCodeOf(error));
+        return { result: fileFailure(index, attachmentRef, record.fileName, error, elapsed(started)) };
+      }
+
+      if (this.options.signal?.aborted || Date.parse(record.expiresAt) <= Date.now()) {
+        opened.stream.destroy();
+        return { result: notAttempted(index, attachmentRef) };
+      }
+
+      const connection = await this.options.connectionProvider.getConnection();
+      const url = `${salesforceBaseUrl(connection)}/services/data/v${apiVersionOf(connection)}/sobjects/ContentVersion`;
+      const accessToken = accessTokenOf(connection);
+      // `PathOnClient` is the channel's own file name. The runtime does not read an
+      // extension or a MIME type from configuration and does not reject on one:
+      // Salesforce is the final authority on which files it accepts, and a local mirror
+      // of those rules would drift from it and start refusing valid files.
+      const entityContent = Buffer.from(JSON.stringify({
+        Title: titleFor(record.fileName),
+        PathOnClient: record.fileName,
+        FirstPublishLocationId: recordId,
+      }), 'utf8');
+      const multipart = buildMultipartBody([
+        { name: 'entity_content', contentType: 'application/json', content: entityContent },
+        {
+          name: 'VersionData',
+          ...(opened.mimeType ? { contentType: opened.mimeType } : {}),
+          fileName: opened.fileName,
+          content: { stream: opened.stream, byteSize: opened.byteSize },
         },
-        // The file part is streamed from the staged file, so the request body is an
-        // async iterable rather than a buffer. Node requires `duplex: 'half'` for that,
-        // and the encoder has already computed an exact `Content-Length` from the part
-        // sizes, so the request is not sent chunked.
-        body: multipart.body,
-        duplex: 'half',
-        signal: AbortSignal.timeout(this.options.uploadTimeoutMs),
-      });
-    } catch (error) {
-      // No HTTP response came back at all. The file may still have been published —
-      // a reset after the server accepted the body is indistinguishable from one
-      // before it — so this is reported as UNKNOWN and is never retried automatically.
+      ]);
+
+      let response: Response;
+      try {
+        // Past this point Salesforce may publish the file even if the runtime never sees
+        // the answer, so the host deadline can no longer treat the request as unsent.
+        if (this.options.signal?.aborted) {
+          opened.stream.destroy();
+          return { result: notAttempted(index, attachmentRef) };
+        }
+        dispatched = true;
+        this.options.onUploadStarted?.(fileResult(index, attachmentRef, opened.fileName, 'OUTCOME_UNKNOWN'));
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            accept: 'application/json',
+            'content-type': multipart.contentType,
+            'content-length': String(multipart.contentLength),
+          },
+          // The file part is streamed from the staged file, so the request body is an
+          // async iterable rather than a buffer. Node requires `duplex: 'half'` for that,
+          // and the encoder has already computed an exact `Content-Length` from the part
+          // sizes, so the request is not sent chunked.
+          body: multipart.body,
+          duplex: 'half',
+          signal: this.requestSignal(),
+        });
+      } catch (error) {
+        opened.stream.destroy();
+        // If persistence is unavailable, the prior UPLOADING claim still blocks replay.
+        await this.options.ingress.outcomeUnknown(record).catch(() => undefined);
+        // No HTTP response came back at all. The file may still have been published —
+        // a reset after the server accepted the body is indistinguishable from one
+        // before it — so this is reported as UNKNOWN and is never retried automatically.
+        recordApiCall({
+          startedAt, httpMethod: 'POST', url,
+          purpose: 'ATTACHMENT_UPLOAD', httpStatus: null, result: 'FAILED',
+          salesforceErrorCode: null, salesforceErrorMessage: safeMessage(error), responseSizeBytes: null,
+          contentType: multipart.contentType, requestSizeBytes: multipart.contentLength,
+          objectApiName, recordId,
+        });
+        return {
+          result: {
+            ...fileResult(index, attachmentRef, opened.fileName, 'OUTCOME_UNKNOWN'),
+            errorCode: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+            salesforceMessage: safeMessage(error),
+            durationMs: elapsed(started),
+          },
+        };
+      }
+
+      const body = await readBoundedText(response);
+      const parsed = parseJson(body);
+      const contentVersionId = typeof parsed?.id === 'string' && /^068[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/u.test(parsed.id) ? parsed.id : null;
+      const succeeded = response.ok && parsed?.success === true && contentVersionId !== null;
+
       recordApiCall({
         startedAt, httpMethod: 'POST', url,
-        purpose: 'ATTACHMENT_UPLOAD', httpStatus: null, result: 'FAILED',
-        salesforceErrorCode: null, salesforceErrorMessage: safeMessage(error), responseSizeBytes: null,
-        contentType: multipart.contentType, requestSizeBytes: multipart.contentLength,
-        objectApiName, recordId,
-      });
-      return {
-        result: {
-          ...fileResult(index, attachmentRef, opened.fileName, 'OUTCOME_UNKNOWN'),
-          errorCode: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
-          salesforceMessage: safeMessage(error),
-          durationMs: elapsed(started),
-        },
-      };
-    }
-
-    const body = await readBoundedText(response);
-    const parsed = parseJson(body);
-    const contentVersionId = typeof parsed?.id === 'string' ? parsed.id : null;
-    const succeeded = response.ok && parsed?.success === true;
-
-    recordApiCall({
-      startedAt, httpMethod: 'POST', url,
-      purpose: 'ATTACHMENT_UPLOAD', httpStatus: response.status,
-      result: succeeded ? 'SUCCESS' : 'FAILED',
-      salesforceErrorCode: parseSalesforceErrorCode(body),
-      salesforceErrorMessage: parseSalesforceErrorMessage(body),
-      responseSizeBytes: body.length, requestSizeBytes: multipart.contentLength,
-      contentType: multipart.contentType, objectApiName,
-      recordId: contentVersionId ?? recordId,
-    });
-
-    if (succeeded && contentVersionId) {
-      const contentDocumentId = await this.readContentDocumentId(connection, contentVersionId);
-      // The file is published: this is a proven success even if the follow-up lookup
-      // for the document id failed. An unknown document id is missing evidence, not an
-      // unknown outcome.
-      await this.options.ingress.complete(record);
-      return {
-        result: {
-          ...fileResult(index, attachmentRef, opened.fileName, 'SUCCESS'),
-          contentVersionId,
-          contentDocumentId,
-          httpStatus: response.status,
-          durationMs: elapsed(started),
-        },
-      };
-    }
-
-    // A response arrived but did not say the file was created. Salesforce answers a
-    // refusal with a JSON *array* (`[{ message, errorCode, fields }]`), so asking "did the
-    // body parse as a JSON object" would miss every real rejection and report an
-    // unambiguous size or type refusal as an unknown outcome — stopping the call and
-    // sending an operator to reconcile a file the platform plainly rejected. The question
-    // is therefore only whether Salesforce answered in its own format at all: anything
-    // else (a gateway page, an empty body) is not Salesforce speaking, and there the
-    // honest answer is UNKNOWN rather than a failure we cannot actually prove.
-    const status: AttachmentFileStatus = isJsonDocument(body) ? 'FAILED' : 'OUTCOME_UNKNOWN';
-    if (status === 'FAILED') await this.options.ingress.fail(record, 'MCP_ATTACHMENT_UPLOAD_FAILED');
-    return {
-      result: {
-        ...fileResult(index, attachmentRef, opened.fileName, status),
-        httpStatus: response.status,
-        errorCode: status === 'FAILED' ? 'MCP_ATTACHMENT_UPLOAD_FAILED' : 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+        purpose: 'ATTACHMENT_UPLOAD', httpStatus: response.status,
+        result: succeeded ? 'SUCCESS' : 'FAILED',
         salesforceErrorCode: parseSalesforceErrorCode(body),
-        salesforceMessage: parseSalesforceErrorMessage(body),
-        durationMs: elapsed(started),
-      },
-    };
+        salesforceErrorMessage: parseSalesforceErrorMessage(body),
+        responseSizeBytes: body.length, requestSizeBytes: multipart.contentLength,
+        contentType: multipart.contentType, objectApiName,
+        recordId: contentVersionId ?? recordId,
+      });
+
+      if (succeeded && contentVersionId) {
+        const confirmed: AttachmentFileResult = {
+          ...fileResult(index, attachmentRef, opened.fileName, 'SUCCESS'),
+          contentVersionId, httpStatus: response.status, durationMs: elapsed(started),
+        };
+        // Preserve the observed success before cleanup or a secondary lookup can time out.
+        this.options.onFileResult?.(confirmed);
+        await this.options.ingress.complete(record).catch(() => undefined);
+        const contentDocumentId = this.options.signal?.aborted ? null : await this.readContentDocumentId(connection, contentVersionId);
+        // The file is published: this is a proven success even if the follow-up lookup
+        // for the document id failed. An unknown document id is missing evidence, not an
+        // unknown outcome.
+        return {
+          result: {
+            ...confirmed,
+            contentDocumentId,
+            httpStatus: response.status,
+            durationMs: elapsed(started),
+          },
+        };
+      }
+
+      // JSON alone proves nothing: gateways also return JSON and 5xx may follow a
+      // committed write. Only a structured Salesforce client-error rejection is retryable.
+      const status: AttachmentFileStatus = isProvenRejection(response.status, body) ? 'FAILED' : 'OUTCOME_UNKNOWN';
+      let retryable = false;
+      if (status === 'FAILED') {
+        try {
+          retryable = await this.options.ingress.fail(record, 'MCP_ATTACHMENT_UPLOAD_FAILED', true);
+        } catch { /* The durable UPLOADING claim still blocks replay if persistence failed. */ }
+      } else await this.options.ingress.outcomeUnknown(record).catch(() => undefined);
+      return {
+        result: {
+          ...fileResult(index, attachmentRef, opened.fileName, status),
+          httpStatus: response.status,
+          errorCode: status === 'FAILED' ? 'MCP_ATTACHMENT_UPLOAD_FAILED' : 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+          salesforceErrorCode: parseSalesforceErrorCode(body),
+          salesforceMessage: parseSalesforceErrorMessage(body),
+          durationMs: elapsed(started),
+          retryable,
+        },
+      };
+    } finally {
+      opened?.stream.destroy();
+      // This release is only reachable before dispatch. After dispatch UPLOADING
+      // remains a durable replay barrier even if recording the final state failed.
+      if (!dispatched) await this.options.ingress.releaseUpload(record);
+    }
   }
 
   private async readContentDocumentId(connection: unknown, contentVersionId: string): Promise<string | null> {
@@ -312,7 +351,7 @@ export class SalesforceAttachmentUploader {
       const response = await fetch(url, {
         method: 'GET',
         headers: { authorization: `Bearer ${accessTokenOf(connection)}`, accept: 'application/json' },
-        signal: AbortSignal.timeout(this.options.uploadTimeoutMs),
+        signal: this.requestSignal(),
       });
       const body = await readBoundedText(response);
       const parsed = parseJson(body);
@@ -333,6 +372,11 @@ export class SalesforceAttachmentUploader {
       // failure or an unknown outcome.
       return null;
     }
+  }
+
+  private requestSignal(): AbortSignal {
+    const timeout = AbortSignal.timeout(this.options.uploadTimeoutMs);
+    return this.options.signal ? AbortSignal.any([this.options.signal, timeout]) : timeout;
   }
 }
 
@@ -374,7 +418,8 @@ export function aggregateAttachmentOutcome(
     : counts.succeeded === results.length && results.length > 0
       ? 'SUCCESS'
       : counts.succeeded > 0 ? 'PARTIAL_SUCCESS' : 'FAILED');
-  const firstFailure = results.find((result) => result.status === 'FAILED' || result.status === 'OUTCOME_UNKNOWN');
+  const firstFailure = results.find((result) => result.status === 'OUTCOME_UNKNOWN')
+    ?? results.find((result) => result.status === 'FAILED');
   return Object.freeze({
     status,
     objectApiName: request.objectApiName,
@@ -398,7 +443,7 @@ function fileResult(
   return {
     index, attachmentRef, fileName, status,
     contentVersionId: null, contentDocumentId: null, httpStatus: null,
-    errorCode: null, salesforceErrorCode: null, salesforceMessage: null, durationMs: 0,
+    errorCode: null, salesforceErrorCode: null, salesforceMessage: null, durationMs: 0, retryable: false,
   };
 }
 
@@ -410,7 +455,7 @@ function fileFailure(
   durationMs: number,
 ): AttachmentFileResult {
   return {
-    ...fileResult(index, attachmentRef, fileName, 'FAILED'),
+    ...fileResult(index, attachmentRef, fileName, errorCodeOf(error) === 'MCP_ATTACHMENT_OUTCOME_UNKNOWN' ? 'OUTCOME_UNKNOWN' : 'FAILED'),
     errorCode: errorCodeOf(error),
     salesforceMessage: safeMessage(error),
     durationMs,
@@ -502,9 +547,13 @@ function parseJsonValue(body: string): unknown {
   }
 }
 
-/** Whether Salesforce answered in its own format at all — an object or an array. */
-function isJsonDocument(body: string): boolean {
-  return parseJsonValue(body) !== undefined;
+function isProvenRejection(httpStatus: number, body: string): boolean {
+  if (httpStatus < 400 || httpStatus >= 500 || httpStatus === 408) return false;
+  const value = parseJsonValue(body);
+  const errors: unknown[] = Array.isArray(value) ? value
+    : isRecord(value) && value.success === false && Array.isArray(value.errors) ? value.errors : [];
+  return errors.length > 0 && errors.every((error) => isRecord(error) && typeof error.errorCode === 'string'
+    && /^[A-Z][A-Z0-9_]+$/u.test(error.errorCode) && typeof error.message === 'string');
 }
 
 /** The body when it is a JSON object, for reading named fields off a success response. */

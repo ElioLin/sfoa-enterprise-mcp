@@ -137,10 +137,17 @@ export type AttachmentStagingCreateInput = Readonly<{
 export interface AttachmentStagingRepository {
   create(input: AttachmentStagingCreateInput): Promise<AttachmentStagingRecord>;
   getByRef(attachmentRef: string): Promise<AttachmentStagingRecord | undefined>;
+  /** Atomic owner/state/expiry check immediately before publishing; exactly one caller wins. */
+  claimUpload(id: string, platformUserId: string, now: Date): Promise<boolean>;
+  /** Only for a claimed file whose POST has demonstrably not been dispatched. */
+  releaseUpload(id: string): Promise<void>;
   markConsumed(id: string, consumedAt: Date): Promise<void>;
-  markFailed(id: string, failureCode: string): Promise<void>;
-  markExpired(id: string): Promise<void>;
-  /** Rows past `expiresAt` that are still STAGED, oldest first. Bounded by `limit`. */
+  markFailed(id: string, failureCode: string, retryable?: boolean): Promise<boolean>;
+  markOutcomeUnknown(id: string): Promise<void>;
+  /** Disable reuse before unlinking. A live upload may only be reaped after its original TTL. */
+  markExpired(id: string, now: Date): Promise<boolean>;
+  markBytesRemoved(id: string, now: Date): Promise<void>;
+  /** Retained bytes past `expiresAt`, including failed/unknown attempts. Bounded by `limit`. */
   listExpired(now: Date, limit: number): Promise<readonly AttachmentStagingRecord[]>;
   /** Staged rows for one owner, oldest first — used to bound a single owner's footprint. */
   listStagedByOwner(platformUserId: string): Promise<readonly AttachmentStagingRecord[]>;

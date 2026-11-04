@@ -205,6 +205,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
             createdAt: input.createdAt.toISOString(),
             expiresAt: input.expiresAt.toISOString(),
             consumedAt: null,
+            bytesRemovedAt: null,
           });
           this.attachmentStaging.set(record.id, record);
           return record;
@@ -212,32 +213,57 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
         getByRef: async (attachmentRef) => [...this.attachmentStaging.values()].find(
           (record) => record.attachmentRef === attachmentRef,
         ),
+        claimUpload: async (id, owner, now) => {
+          const current = this.attachmentStaging.get(id);
+          if (!current || current.platformUserId !== owner || !['STAGED', 'RETRYABLE'].includes(current.state)
+            || current.bytesRemovedAt || Date.parse(current.expiresAt) <= now.getTime()) return false;
+          this.attachmentStaging.set(id, Object.freeze({ ...current, state: 'UPLOADING', failureCode: null }));
+          return true;
+        },
+        releaseUpload: async (id) => {
+          const current = this.attachmentStaging.get(id);
+          if (current?.state === 'UPLOADING') this.attachmentStaging.set(id, Object.freeze({ ...current, state: 'STAGED' }));
+        },
         markConsumed: async (id, consumedAt) => {
           const current = this.attachmentStaging.get(id);
-          if (!current || current.state !== 'STAGED') return;
+          if (!current || !['UPLOADING', 'OUTCOME_UNKNOWN'].includes(current.state)) return;
           this.attachmentStaging.set(id, Object.freeze({
             ...current, state: 'CONSUMED', failureCode: null, consumedAt: consumedAt.toISOString(),
           }));
         },
-        markFailed: async (id, failureCode) => {
+        markFailed: async (id, failureCode, retryable = false) => {
           const current = this.attachmentStaging.get(id);
-          if (!current || current.state !== 'STAGED') return;
-          this.attachmentStaging.set(id, Object.freeze({ ...current, state: 'FAILED', failureCode }));
+          if (!current || !['STAGED', 'RETRYABLE', 'UPLOADING'].includes(current.state)) return false;
+          this.attachmentStaging.set(id, Object.freeze({ ...current, state: retryable ? 'RETRYABLE' : 'FAILED', failureCode }));
+          return true;
         },
-        markExpired: async (id) => {
+        markOutcomeUnknown: async (id) => {
           const current = this.attachmentStaging.get(id);
-          if (!current || current.state !== 'STAGED') return;
-          this.attachmentStaging.set(id, Object.freeze({ ...current, state: 'EXPIRED' }));
+          if (current?.state === 'UPLOADING') this.attachmentStaging.set(id, Object.freeze({
+            ...current, state: 'OUTCOME_UNKNOWN', failureCode: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+          }));
+        },
+        markExpired: async (id, now) => {
+          const current = this.attachmentStaging.get(id);
+          if (!current || current.bytesRemovedAt || (current.state === 'UPLOADING' && Date.parse(current.expiresAt) > now.getTime())) return false;
+          this.attachmentStaging.set(id, Object.freeze({ ...current,
+            state: current.state === 'UPLOADING' ? 'OUTCOME_UNKNOWN' : ['STAGED', 'RETRYABLE'].includes(current.state) ? 'EXPIRED' : current.state,
+          }));
+          return true;
+        },
+        markBytesRemoved: async (id, now) => {
+          const current = this.attachmentStaging.get(id);
+          if (current) this.attachmentStaging.set(id, Object.freeze({ ...current, bytesRemovedAt: now.toISOString() }));
         },
         listExpired: async (now, limit) => Object.freeze(
           [...this.attachmentStaging.values()]
-            .filter((record) => record.state === 'STAGED' && Date.parse(record.expiresAt) <= now.getTime())
+            .filter((record) => !record.bytesRemovedAt && Date.parse(record.expiresAt) <= now.getTime())
             .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt) || Number(a.id) - Number(b.id))
             .slice(0, limit),
         ),
         listStagedByOwner: async (platformUserId) => Object.freeze(
           [...this.attachmentStaging.values()]
-            .filter((record) => record.state === 'STAGED' && record.platformUserId === platformUserId)
+            .filter((record) => !record.bytesRemovedAt && record.platformUserId === platformUserId)
             .sort((a, b) => Number(a.id) - Number(b.id)),
         ),
         deleteById: async (id) => { this.attachmentStaging.delete(id); },

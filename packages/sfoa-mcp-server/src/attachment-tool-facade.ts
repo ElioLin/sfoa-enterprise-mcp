@@ -74,14 +74,16 @@ export class AttachmentToolFacade {
     return this.options.tool.getConfig();
   }
 
-  public async execute(input: Record<string, unknown>, _extra: ToolExtra): Promise<CallToolResult> {
+  public async execute(input: Record<string, unknown>, extra: ToolExtra): Promise<CallToolResult> {
     const started = performance.now();
     const correlationId = this.options.context.correlationId;
     // Every terminal state below is built from results the uploader actually observed.
     // It reports each file as it settles, so a host deadline that fires mid-request
     // still describes what happened instead of guessing it.
-    const results: AttachmentFileResult[] = [];
-    let uploadStarted = false;
+    const results = new Map<number, AttachmentFileResult>();
+    let inFlight: AttachmentFileResult | undefined;
+    const cancellation = new AbortController();
+    const signal = extra.signal ? AbortSignal.any([cancellation.signal, extra.signal]) : cancellation.signal;
     let request: AttachmentUploadRequest | undefined;
 
     if (this.options.route.connectionRole !== 'USER') {
@@ -110,9 +112,13 @@ export class AttachmentToolFacade {
         policy: this.options.attachmentPolicy,
         platformUserId: this.options.platformUserId,
         uploadTimeoutMs: this.options.toolTimeoutMs,
+        signal,
         ...(this.options.redactionSecrets ? { redactionSecrets: this.options.redactionSecrets } : {}),
-        onFileResult: (result) => { results.push(result); },
-        onUploadStarted: () => { uploadStarted = true; },
+        onFileResult: (result) => {
+          results.set(result.index, result);
+          if (inFlight?.index === result.index) inFlight = undefined;
+        },
+        onUploadStarted: (file) => { inFlight = file; },
       });
       const outcome = await withTimeout(
         uploader.upload(request),
@@ -135,14 +141,25 @@ export class AttachmentToolFacade {
       );
       return result;
     } catch (error) {
-      if (request && uploadStarted) {
-        // At least one ContentVersion POST was issued and the request did not run to
-        // completion, so the file in flight may or may not have been published. That is
-        // an unknown outcome regardless of how many files had already succeeded, and it
-        // is never retried automatically.
-        const outcome = aggregateAttachmentOutcome(request, results, 'OUTCOME_UNKNOWN');
+      // withTimeout only stops waiting. Abort the active fetch and prevent any later
+      // file from being sent; the uploader retains its durable claim until settled.
+      cancellation.abort(error);
+      if (request && (results.size > 0 || inFlight || error instanceof RemoteRuntimeError && error.code === 'MCP_TOOL_TIMEOUT')) {
+        const files = request.attachmentRefs.map((attachmentRef, index): AttachmentFileResult => results.get(index)
+          ?? (inFlight?.index === index ? {
+            ...inFlight, errorCode: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+          } : {
+            index, attachmentRef, fileName: null, status: 'NOT_ATTEMPTED',
+            contentVersionId: null, contentDocumentId: null, httpStatus: null,
+            errorCode: null, salesforceErrorCode: null, salesforceMessage: null, durationMs: 0,
+          }));
+        const aggregate = aggregateAttachmentOutcome(request, files);
+        const outcome = aggregate.notAttempted > 0 && !aggregate.errorCode ? {
+          ...aggregate, errorCode: error instanceof RemoteRuntimeError ? error.code : 'MCP_ATTACHMENT_UPLOAD_FAILED',
+          message: 'The remaining files were not submitted because this invocation stopped.',
+        } : aggregate;
         const result = uploadFilesToolResult(outcome);
-        await this.log('ERROR', elapsed(started), outcome.errorCode ?? undefined, input, outcome, result);
+        await this.log(result.isError === true ? 'ERROR' : 'PASS', elapsed(started), outcome.errorCode ?? undefined, input, outcome, result);
         return result;
       }
       const normalized = error instanceof RemoteRuntimeError
@@ -182,9 +199,7 @@ export class AttachmentToolFacade {
       ? input.attachmentRefs.filter((value): value is string => typeof value === 'string')
         .map((value) => value.slice(0, 128))
       : [];
-    const unknown = outcome?.status === 'OUTCOME_UNKNOWN'
-      || errorCode === 'MCP_ATTACHMENT_OUTCOME_UNKNOWN'
-      || errorCode === 'MCP_TOOL_TIMEOUT';
+    const unknown = outcome ? outcome.status === 'OUTCOME_UNKNOWN' : errorCode === 'MCP_ATTACHMENT_OUTCOME_UNKNOWN';
     try {
       await Promise.resolve(this.options.logger.log({
         correlationId: this.options.context.correlationId,
@@ -232,6 +247,7 @@ export class AttachmentToolFacade {
                 salesforceErrorCode: file.salesforceErrorCode,
                 salesforceMessage: file.salesforceMessage,
                 durationMs: file.durationMs,
+                retryable: file.retryable === true,
               })),
               ...(errorCode ? { errorCode } : {}),
               ...(recordId ? { recordId } : {}),

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test, { after, beforeEach } from 'node:test';
@@ -53,6 +53,102 @@ if (!setup) {
   });
   await migrateDatabase(store.database);
   beforeEach(() => cleanTestData(store));
+
+  async function stagedAttachment(ref: string, owner = 'attachment-owner', expiresAt = new Date(Date.now() + 60_000)) {
+    return store.repositories.attachmentStaging.create({
+      attachmentRef: ref, platformUserId: owner, sourceChannel: 'TEST', runId: null,
+      fileName: 'fixture.pdf', mimeType: 'application/pdf', byteSize: 3,
+      contentSha256: 'a'.repeat(64), stagedPath: '/controlled/fixture',
+      createdAt: new Date(Date.now() - 60_000), expiresAt,
+    });
+  }
+
+  test('attachment repository atomically claims owner-scoped live refs and cannot replay consumed or unknown attempts', async () => {
+    const repository = store.repositories.attachmentStaging;
+    const row = await stagedAttachment('attachment-concurrent');
+    assert.equal(await repository.claimUpload(row.id, 'Attachment-owner', new Date()), false);
+    assert.deepEqual((await Promise.all([
+      repository.claimUpload(row.id, row.platformUserId, new Date()),
+      repository.claimUpload(row.id, row.platformUserId, new Date()),
+    ])).sort(), [false, true]);
+    await repository.markOutcomeUnknown(row.id);
+    await repository.markFailed(row.id, 'MCP_ATTACHMENT_UPLOAD_FAILED', true);
+    await repository.releaseUpload(row.id);
+    assert.equal((await repository.getByRef(row.attachmentRef))?.state, 'OUTCOME_UNKNOWN');
+    assert.equal(await repository.claimUpload(row.id, row.platformUserId, new Date()), false);
+    // The original worker may still observe a definite late success; no new POST is involved.
+    await repository.markConsumed(row.id, new Date());
+    assert.equal((await repository.getByRef(row.attachmentRef))?.state, 'CONSUMED');
+    assert.equal(await repository.claimUpload(row.id, row.platformUserId, new Date()), false);
+  });
+
+  test('attachment recovery is explicit, expiry-bounded, and never revives legacy/local FAILED rows', async () => {
+    const repository = store.repositories.attachmentStaging;
+    const row = await stagedAttachment('attachment-retry');
+    assert.equal(await repository.claimUpload(row.id, row.platformUserId, new Date()), true);
+    await repository.releaseUpload(row.id);
+    assert.equal((await repository.getByRef(row.attachmentRef))?.state, 'STAGED');
+    assert.equal(await repository.claimUpload(row.id, row.platformUserId, new Date()), true);
+    await repository.markFailed(row.id, 'MCP_ATTACHMENT_UPLOAD_FAILED', true);
+    assert.equal((await repository.getByRef(row.attachmentRef))?.state, 'RETRYABLE');
+    assert.equal(await repository.claimUpload(row.id, row.platformUserId, new Date()), true);
+    await repository.markFailed(row.id, 'MCP_ATTACHMENT_PATH_INVALID');
+    await repository.markFailed(row.id, 'MCP_ATTACHMENT_UPLOAD_FAILED', true);
+    assert.equal((await repository.getByRef(row.attachmentRef))?.state, 'FAILED');
+    assert.equal(await repository.claimUpload(row.id, row.platformUserId, new Date()), false);
+    const expired = await stagedAttachment('attachment-expired', row.platformUserId, new Date(Date.now() - 1));
+    assert.equal(await repository.claimUpload(expired.id, row.platformUserId, new Date()), false);
+  });
+
+  test('attachment cleanup includes failed and unknown bytes while preserving outcome facts and live claims', async () => {
+    const repository = store.repositories.attachmentStaging;
+    const failed = await stagedAttachment('attachment-failed');
+    const unknown = await stagedAttachment('attachment-unknown');
+    const active = await stagedAttachment('attachment-active');
+    await repository.markFailed(failed.id, 'MCP_ATTACHMENT_PATH_INVALID');
+    await repository.claimUpload(unknown.id, unknown.platformUserId, new Date());
+    await repository.markOutcomeUnknown(unknown.id);
+    await repository.claimUpload(active.id, active.platformUserId, new Date());
+    assert.equal(await repository.markExpired(active.id, new Date()), false);
+    assert.equal((await repository.listStagedByOwner(failed.platformUserId)).length, 3);
+    const future = new Date(Date.now() + 120_000);
+    assert.equal((await repository.listExpired(future, 2)).length, 2);
+    for (const row of await repository.listExpired(future, 10)) {
+      assert.equal(await repository.markExpired(row.id, future), true);
+      await repository.markBytesRemoved(row.id, future);
+    }
+    assert.equal((await repository.listExpired(future, 10)).length, 0);
+    assert.equal((await repository.listStagedByOwner(failed.platformUserId)).length, 0);
+    assert.equal((await repository.getByRef(failed.attachmentRef))?.state, 'FAILED');
+    assert.equal((await repository.getByRef(unknown.attachmentRef))?.state, 'OUTCOME_UNKNOWN');
+    assert.equal((await repository.getByRef(active.attachmentRef))?.state, 'OUTCOME_UNKNOWN');
+    assert.equal((await repository.getByRef(active.attachmentRef))?.failureCode, 'MCP_ATTACHMENT_OUTCOME_UNKNOWN');
+  });
+
+  test('017 preserves existing staged, consumed and failed rows without making historical failures retryable', async () => {
+    await withIsolatedDatabase(config, 'attachments', async (database) => {
+      await installP6Schema(database);
+      const directory = defaultMigrationsDirectory();
+      const names = (await readdir(directory)).filter((name) => /^\d{3}_.+\.sql$/u.test(name)
+        && Number(name.slice(0, 3)) > 4 && Number(name.slice(0, 3)) <= 15).sort();
+      for (const name of names) {
+        const text = await readFile(path.join(directory, name), 'utf8');
+        for (const statement of splitSqlStatements(text)) await sql.raw(statement).execute(database);
+        await database.insertInto('sfoa_schema_migration').values({
+          version: name.slice(0, -4), checksum_sha256: migrationChecksumSha256(text),
+        }).execute();
+      }
+      for (const state of ['STAGED', 'CONSUMED', 'FAILED']) {
+        await sql`INSERT INTO sfoa_attachment_staging
+          (attachment_ref, platform_user_id, source_channel, file_name, byte_size, content_sha256, staged_path, state, created_at, expires_at)
+          VALUES (${state}, 'owner', 'TEST', 'existing.pdf', 3, ${'a'.repeat(64)}, '/controlled/existing', ${state}, NOW(3), DATE_ADD(NOW(3), INTERVAL 1 HOUR))`.execute(database);
+      }
+      await migrateDatabase(database);
+      const rows = await database.selectFrom('sfoa_attachment_staging').select(['state', 'bytes_removed_at']).orderBy('id').execute();
+      assert.deepEqual(rows.map((row) => row.state), ['STAGED', 'CONSUMED', 'FAILED']);
+      assert.ok(rows.every((row) => row.bytes_removed_at === null));
+    });
+  });
 
   test('P8-06 discovery snapshot shares global governance and never queries identity routes', async () => {
     let queries = 0;
@@ -149,6 +245,9 @@ if (!setup) {
       '011_managed_fallback_create_only',
       '012_p8_ui_snapshot',
       '013_p8_05_wecom_identity_channel',
+      '014_skill02c_attachment_upload',
+      '015_admin_audit_actor_index',
+      '017_attachment_attempt_lifecycle',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
@@ -170,6 +269,9 @@ if (!setup) {
       '011_managed_fallback_create_only',
       '012_p8_ui_snapshot',
       '013_p8_05_wecom_identity_channel',
+      '014_skill02c_attachment_upload',
+      '015_admin_audit_actor_index',
+      '017_attachment_attempt_lifecycle',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -186,7 +288,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '013_p8_05_wecom_identity_channel');
+      assert.equal(migrations.at(-1)?.version, '017_attachment_attempt_lifecycle');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
@@ -1077,6 +1179,7 @@ async function dropIsolatedDatabase(config: DatabaseConfig): Promise<void> {
 
 async function cleanTestData(store: MySqlControlPlaneStore): Promise<void> {
   await store.database.transaction().execute(async (transaction) => {
+    await transaction.deleteFrom('sfoa_attachment_staging').execute();
     await transaction.deleteFrom('sfoa_ui_snapshot').execute();
     await transaction.deleteFrom('sfoa_audit_log').execute();
     await transaction.deleteFrom('sfoa_identity_credential').execute();

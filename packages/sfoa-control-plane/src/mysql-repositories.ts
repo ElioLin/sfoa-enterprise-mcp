@@ -623,31 +623,64 @@ export class MySqlAttachmentStagingRepository implements AttachmentStagingReposi
   public async markConsumed(id: string, consumedAt: Date): Promise<void> {
     await this.database.updateTable('sfoa_attachment_staging')
       .set({ state: 'CONSUMED', consumed_at: consumedAt, failure_code: null })
-      .where('id', '=', id).where('state', '=', 'STAGED').executeTakeFirst();
+      .where('id', '=', id).where('state', 'in', ['UPLOADING', 'OUTCOME_UNKNOWN']).executeTakeFirst();
   }
 
-  public async markFailed(id: string, failureCode: string): Promise<void> {
-    await this.database.updateTable('sfoa_attachment_staging')
-      .set({ state: 'FAILED', failure_code: failureCode })
-      .where('id', '=', id).where('state', '=', 'STAGED').executeTakeFirst();
+  public async claimUpload(id: string, platformUserId: string, now: Date): Promise<boolean> {
+    const result = await this.database.updateTable('sfoa_attachment_staging')
+      .set({ state: 'UPLOADING', failure_code: null })
+      .where('id', '=', id).where('platform_user_id', '=', platformUserId)
+      .where('state', 'in', ['STAGED', 'RETRYABLE']).where('expires_at', '>', now)
+      .where('bytes_removed_at', 'is', null).executeTakeFirst();
+    return result.numUpdatedRows === 1n;
   }
 
-  public async markExpired(id: string): Promise<void> {
+  public async releaseUpload(id: string): Promise<void> {
+    await this.database.updateTable('sfoa_attachment_staging').set({ state: 'STAGED' })
+      .where('id', '=', id).where('state', '=', 'UPLOADING').executeTakeFirst();
+  }
+
+  public async markFailed(id: string, failureCode: string, retryable = false): Promise<boolean> {
+    const result = await this.database.updateTable('sfoa_attachment_staging')
+      .set({ state: retryable ? 'RETRYABLE' : 'FAILED', failure_code: failureCode })
+      .where('id', '=', id).where('state', 'in', ['STAGED', 'RETRYABLE', 'UPLOADING']).executeTakeFirst();
+    return result.numUpdatedRows === 1n;
+  }
+
+  public async markOutcomeUnknown(id: string): Promise<void> {
     await this.database.updateTable('sfoa_attachment_staging')
-      .set({ state: 'EXPIRED' })
-      .where('id', '=', id).where('state', '=', 'STAGED').executeTakeFirst();
+      .set({ state: 'OUTCOME_UNKNOWN', failure_code: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN' })
+      .where('id', '=', id).where('state', '=', 'UPLOADING').executeTakeFirst();
+  }
+
+  public async markExpired(id: string, now: Date): Promise<boolean> {
+    const result = await this.database.updateTable('sfoa_attachment_staging')
+      .set({
+        failure_code: sql`CASE WHEN state = 'UPLOADING' THEN 'MCP_ATTACHMENT_OUTCOME_UNKNOWN' ELSE failure_code END`,
+        state: sql`CASE WHEN state = 'UPLOADING' THEN 'OUTCOME_UNKNOWN'
+          WHEN state IN ('STAGED', 'RETRYABLE') THEN 'EXPIRED' ELSE state END`,
+      })
+      .where('id', '=', id).where('bytes_removed_at', 'is', null)
+      .where((eb) => eb.or([eb('state', '!=', 'UPLOADING'), eb('expires_at', '<=', now)]))
+      .executeTakeFirst();
+    return result.numUpdatedRows === 1n;
+  }
+
+  public async markBytesRemoved(id: string, now: Date): Promise<void> {
+    await this.database.updateTable('sfoa_attachment_staging').set({ bytes_removed_at: now })
+      .where('id', '=', id).executeTakeFirst();
   }
 
   public async listExpired(now: Date, limit: number): Promise<readonly AttachmentStagingRecord[]> {
     const rows = await this.database.selectFrom('sfoa_attachment_staging').selectAll()
-      .where('state', '=', 'STAGED').where('expires_at', '<=', now)
+      .where('bytes_removed_at', 'is', null).where('expires_at', '<=', now)
       .orderBy('expires_at').orderBy('id').limit(limit).execute();
     return Object.freeze(rows.map(mapAttachmentStaging));
   }
 
   public async listStagedByOwner(platformUserId: string): Promise<readonly AttachmentStagingRecord[]> {
     const rows = await this.database.selectFrom('sfoa_attachment_staging').selectAll()
-      .where('platform_user_id', '=', platformUserId).where('state', '=', 'STAGED')
+      .where('platform_user_id', '=', platformUserId).where('bytes_removed_at', 'is', null)
       .orderBy('id').execute();
     return Object.freeze(rows.map(mapAttachmentStaging));
   }
@@ -798,6 +831,7 @@ function mapAttachmentStaging(row: Selectable<AttachmentStagingTable>): Attachme
     createdAt: toIso(row.created_at),
     expiresAt: toIso(row.expires_at),
     consumedAt: row.consumed_at ? toIso(row.consumed_at) : null,
+    bytesRemovedAt: row.bytes_removed_at ? toIso(row.bytes_removed_at) : null,
   });
 }
 

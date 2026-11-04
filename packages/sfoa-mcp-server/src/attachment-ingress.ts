@@ -175,7 +175,15 @@ export class AttachmentIngress {
     if (!ATTACHMENT_REF_PATTERN.test(attachmentRef)) throw notOwned();
     const record = await this.store.getByRef(attachmentRef);
     if (!record || !constantTimeEquals(record.platformUserId, platformUserId)) throw notOwned();
-    if (record.state !== 'STAGED') {
+    if (record.state === 'UPLOADING' || record.state === 'OUTCOME_UNKNOWN') {
+      throw new RemoteRuntimeError('MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+        'This reference has an in-progress or unresolved publication attempt. Reconcile that attempt before any new upload.');
+    }
+    if (record.state === 'FAILED') {
+      throw new RemoteRuntimeError('MCP_ATTACHMENT_STAGING_FAILED',
+        'This reference is not recoverable. Correct the original-file problem before submitting a new source.');
+    }
+    if (!['STAGED', 'RETRYABLE'].includes(record.state) || record.bytesRemovedAt) {
       throw new RemoteRuntimeError(
         'MCP_ATTACHMENT_EXPIRED',
         `Attachment ${attachmentRef} is no longer available for upload.`,
@@ -188,6 +196,22 @@ export class AttachmentIngress {
       );
     }
     return record;
+  }
+
+  /** The database claim closes the gap between resolve/open and concurrent dispatch. */
+  public async claimUpload(record: AttachmentStagingRecord, platformUserId: string): Promise<void> {
+    if (await this.store.claimUpload(record.id, platformUserId, new Date())) return;
+    // Re-read for the precise owner-safe reason (expired, consumed, or in flight).
+    await this.resolveForOwner(record.attachmentRef, platformUserId);
+    throw new RemoteRuntimeError('MCP_ATTACHMENT_OUTCOME_UNKNOWN', 'Another publication attempt owns this reference.');
+  }
+
+  public async releaseUpload(record: AttachmentStagingRecord): Promise<void> {
+    await this.store.releaseUpload(record.id);
+  }
+
+  public async outcomeUnknown(record: AttachmentStagingRecord): Promise<void> {
+    await this.store.markOutcomeUnknown(record.id);
   }
 
   /**
@@ -230,14 +254,17 @@ export class AttachmentIngress {
   public async complete(record: AttachmentStagingRecord): Promise<void> {
     await this.store.markConsumed(record.id, new Date());
     await this.removeStagedFile(record);
+    await this.store.markBytesRemoved(record.id, new Date());
   }
 
   /**
-   * A known, proven failure. The staged copy is kept for a short retention so a
-   * caller can retry the same reference, and the reaper removes it at `expiresAt`.
+   * Only a proven Salesforce refusal allows an explicit later call with the same
+   * ref. Local corruption and legacy FAILED rows are never reset for retry.
    */
-  public async fail(record: AttachmentStagingRecord, failureCode: string): Promise<void> {
-    await this.store.markFailed(record.id, failureCode);
+  public async fail(record: AttachmentStagingRecord, failureCode: string, retryable = false): Promise<boolean> {
+    const reusable = retryable && Date.parse(record.expiresAt) > Date.now();
+    const updated = await this.store.markFailed(record.id, failureCode, reusable);
+    return retryable ? reusable && updated : updated;
   }
 
   /** Deletes expired staged files and marks their rows EXPIRED. Bounded by `limit`. */
@@ -245,8 +272,9 @@ export class AttachmentIngress {
     const rows = await this.store.listExpired(now, limit);
     let reaped = 0;
     for (const row of rows) {
+      if (!await this.store.markExpired(row.id, now)) continue;
       await this.removeStagedFile(row);
-      await this.store.markExpired(row.id);
+      await this.store.markBytesRemoved(row.id, now);
       reaped += 1;
     }
     return reaped;
@@ -259,9 +287,16 @@ export class AttachmentIngress {
   private async evictOwnerOverflow(platformUserId: string): Promise<void> {
     const staged = await this.store.listStagedByOwner(platformUserId);
     const overflow = staged.length - this.config.maxFilesPerOwner + 1;
-    for (const record of staged.slice(0, Math.max(0, overflow))) {
+    let removed = 0;
+    for (const record of staged) {
+      if (removed >= overflow) break;
+      if (!await this.store.markExpired(record.id, new Date())) continue;
       await this.removeStagedFile(record);
-      await this.store.markExpired(record.id);
+      await this.store.markBytesRemoved(record.id, new Date());
+      removed += 1;
+    }
+    if (removed < overflow) {
+      throw new RemoteRuntimeError('MCP_ATTACHMENT_STAGING_FAILED', 'The requester staging capacity is occupied by active uploads. Try receiving this file after they finish.');
     }
   }
 
@@ -274,7 +309,9 @@ export class AttachmentIngress {
       // still transitions state; the file is simply left for an operator to inspect.
       return;
     }
-    await unlink(resolved).catch(() => undefined);
+    await unlink(resolved).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
   }
 
   /** Resolves `candidate` and refuses anything that escapes `parent`. */

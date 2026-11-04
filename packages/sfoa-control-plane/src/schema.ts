@@ -211,11 +211,12 @@ export interface AttachmentStagingTable {
   byte_size: ColumnType<number, number, number>;
   content_sha256: string;
   staged_path: string;
-  state: 'STAGED' | 'CONSUMED' | 'EXPIRED' | 'FAILED';
+  state: 'STAGED' | 'CONSUMED' | 'EXPIRED' | 'FAILED' | 'UPLOADING' | 'OUTCOME_UNKNOWN' | 'RETRYABLE';
   failure_code: string | null;
   created_at: GeneratedTimestamp;
   expires_at: Timestamp;
   consumed_at: Timestamp | null;
+  bytes_removed_at: Timestamp | null;
 }
 
 export interface SchemaMigrationTable {

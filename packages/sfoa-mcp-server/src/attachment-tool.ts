@@ -60,6 +60,7 @@ const uploadFilesOutputShape = {
     salesforceErrorCode: z.string().nullable(),
     salesforceMessage: z.string().nullable(),
     durationMs: z.number().int(),
+    retryable: z.boolean().optional().describe('True only when a proven refusal left this same original reference available after correcting the cause. Never an instruction to retry automatically.'),
   })),
 } as const;
 
@@ -121,7 +122,8 @@ export function uploadFilesToolConfig(): McpToolConfig<UploadFilesInputShape, Up
       'Files arrive from the conversation channel as opaque attachmentRef values; pass them through unchanged and never invent one.',
       'The object must be configured for attachment upload in SFoA governance, and the target record must already exist — create the record first and only upload once the create is known to have succeeded.',
       'This tool reports one result per file, so a partial upload is reported as PARTIAL_SUCCESS rather than as a clean success or a clean failure.',
-      'If a file comes back OUTCOME_UNKNOWN the runtime stops and reports the remaining files as NOT_ATTEMPTED; do not replay them, because Salesforce may already have published the file.',
+      'If a file comes back OUTCOME_UNKNOWN the runtime stops and reports the remaining files as NOT_ATTEMPTED. Never replay UNKNOWN or SUCCESS files. Unsent files may be submitted later for the still-authorized target.',
+      'For FAILED files, reuse the same reference only when retryable is true and the reported cause has been corrected; ownership, content and the original expiry are checked again.',
     ].join(' '),
     inputSchema: uploadFilesInputSchema.shape,
     outputSchema: uploadFilesOutputShape,

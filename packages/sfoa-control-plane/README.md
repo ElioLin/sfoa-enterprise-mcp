@@ -30,3 +30,17 @@ yarn workspace @sfoa/control-plane lint
 ```
 
 Real database values belong in the ignored `.env.local` or current shell. Production uses `SFOA_CONTROL_PLANE_MODE=mysql`; the default `env` mode remains the P0-P4 compatibility path.
+
+Migration `017_attachment_attempt_lifecycle` adds `UPLOADING`, `OUTCOME_UNKNOWN`
+and `RETRYABLE` staging states plus `bytes_removed_at`. Apply it before deploying
+the matching runtime. `claimUpload` atomically checks the owner, original expiry
+and reusable state, so concurrent calls cannot publish the same ref twice. Only a
+proven Salesforce refusal may become `RETRYABLE`; historical `FAILED` rows stay
+non-retryable. Pre-dispatch cancellation can release its claim. Unknown attempts
+retain their outcome after the original bytes are cleaned up; cleanup also covers
+failed/retryable and abandoned uploading rows. No migration rewrites an existing
+attempt or extends its expiry. Rolling back application code can retain this
+additive schema; never convert unknown/in-flight refs back to `STAGED` for rollback.
+An older runtime does not reap the added states. Preserve the new cleanup routine
+or arrange bounded operator cleanup of their retained bytes at the original expiry,
+keeping the attempt rows and unresolved outcome facts intact.

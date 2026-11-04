@@ -67,3 +67,15 @@ Run `validate:upstream` after every Salesforce upstream sync. Any difference ret
 Managed DML fields distinguish strict platform identity / AI marker from user-overridable platform Lookup fallback. See [managed field contract](../../docs/sfoa/P6_DML_01_MANAGED_FIELDS.md) for strategy priority and CREATE/UPDATE interaction.
 
 Playbook 1.12.0 supersedes the historical field-by-field interaction rules above. get_agent_playbook returns its full structured result as the SDK-style text mirror, including guidance; text-only consumers no longer receive only a summary pointer. ScopedFieldAccessExplainer reuses the existing Describe for objectLabel without adding an API call or using DIAGNOSTIC flags as USER authorization. See docs/sfoa/OPENCLAW_BUSINESS_AUTONOMY_DELIVERY.md for exact validation boundaries.
+
+Attachment recovery uses control-plane migration `017_attachment_attempt_lifecycle`.
+The existing `upload_files_to_record(objectApiName, recordId, attachmentRefs)` input
+and independent USER/Tool/object gates remain unchanged. A durable claim precedes
+each POST. Host cancellation stops later files and reports completed results, the
+in-flight unknown, and unsent files separately; it does not cancel a Salesforce
+transaction. An additive per-file `retryable` fact is true only after a structured
+Salesforce 4xx refusal and a successful transition to `RETRYABLE`. Correcting that
+cause permits a later explicit call with the original ref, rechecking requester,
+expiry and bytes. Valid JSON, a 5xx, a missing success id, and connection loss do
+not prove rejection. Such unknown attempts remain non-replayable even after byte
+cleanup; local missing/corrupt files and old `FAILED` rows are not reset for retry.

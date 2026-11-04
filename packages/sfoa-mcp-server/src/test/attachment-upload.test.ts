@@ -108,6 +108,7 @@ class MemoryStagingRepository implements AttachmentStagingRepository {
       state: 'STAGED',
       failureCode: null,
       consumedAt: null,
+      bytesRemovedAt: null,
       ...input,
       createdAt: input.createdAt.toISOString(),
       expiresAt: input.expiresAt.toISOString(),
@@ -124,23 +125,52 @@ class MemoryStagingRepository implements AttachmentStagingRepository {
     this.transition(id, { state: 'CONSUMED', consumedAt: consumedAt.toISOString() });
   }
 
-  public async markFailed(id: string, failureCode: string): Promise<void> {
-    this.transition(id, { state: 'FAILED', failureCode });
+  public async claimUpload(id: string, owner: string, now: Date): Promise<boolean> {
+    const row = [...this.rows.values()].find((item) => item.id === id);
+    if (!row || row.platformUserId !== owner || !['STAGED', 'RETRYABLE'].includes(row.state)
+      || row.bytesRemovedAt || Date.parse(row.expiresAt) <= now.getTime()) return false;
+    this.transition(id, { state: 'UPLOADING', failureCode: null });
+    return true;
   }
 
-  public async markExpired(id: string): Promise<void> {
-    this.transition(id, { state: 'EXPIRED' });
+  public async releaseUpload(id: string): Promise<void> {
+    if ([...this.rows.values()].find((row) => row.id === id)?.state === 'UPLOADING') this.transition(id, { state: 'STAGED' });
+  }
+
+  public async markOutcomeUnknown(id: string): Promise<void> {
+    if ([...this.rows.values()].find((row) => row.id === id)?.state === 'UPLOADING') {
+      this.transition(id, { state: 'OUTCOME_UNKNOWN', failureCode: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN' });
+    }
+  }
+
+  public async markFailed(id: string, failureCode: string, retryable = false): Promise<boolean> {
+    const row = [...this.rows.values()].find((item) => item.id === id);
+    if (!row || !['STAGED', 'RETRYABLE', 'UPLOADING'].includes(row.state)) return false;
+    this.transition(id, { state: retryable ? 'RETRYABLE' : 'FAILED', failureCode });
+    return true;
+  }
+
+  public async markExpired(id: string, now: Date): Promise<boolean> {
+    const row = [...this.rows.values()].find((item) => item.id === id);
+    if (!row || row.bytesRemovedAt || row.state === 'UPLOADING' && Date.parse(row.expiresAt) > now.getTime()) return false;
+    this.transition(id, { state: row.state === 'UPLOADING' ? 'OUTCOME_UNKNOWN'
+      : ['STAGED', 'RETRYABLE'].includes(row.state) ? 'EXPIRED' : row.state });
+    return true;
+  }
+
+  public async markBytesRemoved(id: string, now: Date): Promise<void> {
+    this.transition(id, { bytesRemovedAt: now.toISOString() });
   }
 
   public async listExpired(now: Date, limit: number): Promise<readonly AttachmentStagingRecord[]> {
     return [...this.rows.values()]
-      .filter((row) => row.state === 'STAGED' && Date.parse(row.expiresAt) <= now.getTime())
+      .filter((row) => !row.bytesRemovedAt && Date.parse(row.expiresAt) <= now.getTime())
       .slice(0, limit);
   }
 
   public async listStagedByOwner(platformUserId: string): Promise<readonly AttachmentStagingRecord[]> {
     return [...this.rows.values()].filter(
-      (row) => row.state === 'STAGED' && row.platformUserId === platformUserId,
+      (row) => !row.bytesRemovedAt && row.platformUserId === platformUserId,
     );
   }
 
@@ -182,6 +212,7 @@ type RecordedCall = Readonly<{
   method: string;
   headers: Record<string, string>;
   body: Buffer;
+  signal: AbortSignal | undefined;
 }>;
 
 type Responder = (call: RecordedCall) => Response | Promise<Response>;
@@ -209,6 +240,7 @@ async function withSalesforce(responder: Responder, body: (calls: RecordedCall[]
         Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]),
       )) as Record<string, string>,
       body: await consumeBody(init?.body),
+      signal: init?.signal ?? undefined,
     });
     calls.push(call);
     return responder(call);
@@ -797,10 +829,8 @@ describe('gate: Salesforce access (fixtures only)', () => {
   });
 
   test('a JSON refusal is a proven failure with the platform reason intact; an unintelligible answer is unknown', async () => {
-    // Salesforce rejects with a JSON *array* and accepts with a JSON *object*. Both are
-    // Salesforce answering, so both are definite: a body Salesforce wrote can never be
-    // reported as an unknown outcome, and the platform's own errorCode and message must
-    // survive into the result. Only a body Salesforce did not write leaves it unknown.
+    // Both the HTTP status and the error structure must prove rejection. JSON from a
+    // gateway, a malformed success, or an error after a possible commit stays unknown.
     const cases = [
       {
         name: 'a refusal shaped as an array of errors',
@@ -825,6 +855,21 @@ describe('gate: Salesforce access (fixtures only)', () => {
         respond: () => new Response('', { status: 200 }),
         status: 'OUTCOME_UNKNOWN', httpStatus: 200, code: null, message: null,
       },
+      {
+        name: 'arbitrary JSON is not a Salesforce refusal',
+        respond: () => Response.json({ message: 'proxy failed' }, { status: 502 }),
+        status: 'OUTCOME_UNKNOWN', httpStatus: 502, code: null, message: null,
+      },
+      {
+        name: 'a server error may follow a commit',
+        respond: () => Response.json([{ errorCode: 'INTERNAL_ERROR', message: 'Failed after processing.' }], { status: 500 }),
+        status: 'OUTCOME_UNKNOWN', httpStatus: 500, code: 'INTERNAL_ERROR', message: 'Failed after processing.',
+      },
+      {
+        name: 'a success without a valid ContentVersion id is unresolved',
+        respond: () => Response.json({ id: 'not-an-id', success: true }),
+        status: 'OUTCOME_UNKNOWN', httpStatus: 200, code: null, message: null,
+      },
     ] as const;
 
     for (const scenario of cases) {
@@ -844,6 +889,7 @@ describe('gate: Salesforce access (fixtures only)', () => {
         assert.equal(result?.salesforceErrorCode, scenario.code, scenario.name);
         assert.equal(result?.salesforceMessage, scenario.message, scenario.name);
       });
+      assert.equal(harness.store.rows.get(ref)?.state, scenario.status === 'FAILED' ? 'RETRYABLE' : 'OUTCOME_UNKNOWN');
     }
   });
 });
@@ -1013,7 +1059,9 @@ describe('gate: multiple files', () => {
   });
 
   test('a reference may not be replayed once it has been consumed, and expires on its own clock', async () => {
-    const harness = await createHarness({ ttlMs: 1_000 });
+    // Expiry is set explicitly below; wall-clock build/CI contention must not expire
+    // the separate consumed-ref scenario before its first publish is exercised.
+    const harness = await createHarness();
     const ref = await stageOne(harness, 'bytes');
 
     await withSalesforce(successfulSalesforce(), async () => {
@@ -1058,6 +1106,243 @@ describe('gate: multiple files', () => {
     // Another owner is untouched by one user's overflow.
     const other = await stageOne(harness, 'other', { platformUserId: OTHER });
     assert.equal(harness.store.rows.get(other)?.state, 'STAGED');
+  });
+});
+
+describe('gate: attachment attempt lifecycle and real dispatcher', () => {
+  test('an earlier known failure cannot hide the aggregate unknown error code', () => {
+    const result = aggregateAttachmentOutcome({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID }, [
+      { ...stagedFileResult(0, 'FAILED'), errorCode: 'MCP_ATTACHMENT_UPLOAD_FAILED' },
+      { ...stagedFileResult(1, 'OUTCOME_UNKNOWN'), errorCode: 'MCP_ATTACHMENT_OUTCOME_UNKNOWN' },
+    ]);
+    assert.equal(result.status, 'OUTCOME_UNKNOWN');
+    assert.equal(result.errorCode, 'MCP_ATTACHMENT_OUTCOME_UNKNOWN');
+  });
+
+  test('only a proven refusal can reuse the same original ref, with owner and hash rechecked', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'original');
+    const request = { objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] };
+    await withSalesforce((call) => call.method === 'POST'
+      ? Response.json([{ errorCode: 'FIELD_INTEGRITY_EXCEPTION', message: 'Correct the target.' }], { status: 400 })
+      : Response.json({ Id: TARGET_ID }), async () => {
+      const failed = await uploader(harness, fixtureProvider()).upload(request);
+      assert.equal(failed.status, 'FAILED');
+      assert.equal(failed.results[0]?.retryable, true);
+      assert.equal(harness.store.rows.get(ref)?.state, 'RETRYABLE');
+      assert.equal((await refusal(harness.ingress.resolveForOwner(ref, OTHER))).code, 'MCP_ATTACHMENT_NOT_OWNED');
+    });
+    await withSalesforce(successfulSalesforce(), async (calls) => {
+      assert.equal((await uploader(harness, fixtureProvider()).upload(request)).status, 'SUCCESS');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+    });
+
+    const damaged = await stageOne(harness, 'original');
+    await harness.ingress.fail(harness.store.rows.get(damaged)!, 'MCP_ATTACHMENT_UPLOAD_FAILED', true);
+    await writeFile(harness.store.rows.get(damaged)!.stagedPath, 'tampered');
+    await withSalesforce(successfulSalesforce(), async (calls) => {
+      const result = await uploader(harness, fixtureProvider()).upload({ ...request, attachmentRefs: [damaged] });
+      assert.equal(result.results[0]?.errorCode, 'MCP_ATTACHMENT_PATH_INVALID');
+      assert.equal(result.results[0]?.retryable, false);
+      assert.equal(harness.store.rows.get(damaged)?.state, 'FAILED');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 0);
+    });
+  });
+
+  test('unknown attempts block replay across uploader instances and retain their fact after byte cleanup', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'original');
+    const request = { objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] };
+    await withSalesforce((call) => {
+      if (call.method === 'POST') throw new Error('connection reset after dispatch');
+      return Response.json({ Id: TARGET_ID });
+    }, async (calls) => {
+      assert.equal((await uploader(harness, fixtureProvider()).upload(request)).status, 'OUTCOME_UNKNOWN');
+      assert.equal((await uploader(harness, fixtureProvider()).upload(request)).status, 'OUTCOME_UNKNOWN');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+    });
+    const row = harness.store.rows.get(ref)!;
+    assert.equal(await harness.ingress.reapExpired(new Date(Date.parse(row.expiresAt) + 1), 10), 1);
+    await assert.rejects(stat(row.stagedPath));
+    assert.equal(harness.store.rows.get(ref)?.state, 'OUTCOME_UNKNOWN');
+    assert.ok(harness.store.rows.get(ref)?.bytesRemovedAt);
+    assert.equal((await refusal(harness.ingress.resolveForOwner(ref, OWNER))).code, 'MCP_ATTACHMENT_OUTCOME_UNKNOWN');
+    assert.equal(await harness.ingress.reapExpired(new Date(Date.parse(row.expiresAt) + 1), 10), 0);
+  });
+
+  test('two concurrent calls issue at most one ContentVersion POST for one ref', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'original');
+    const request = { objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] };
+    await withSalesforce(successfulSalesforce(), async (calls) => {
+      const outcomes = await Promise.all([
+        uploader(harness, fixtureProvider()).upload(request), uploader(harness, fixtureProvider()).upload(request),
+      ]);
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+      assert.equal(outcomes.filter((result) => result.status === 'SUCCESS').length, 1);
+      assert.equal(harness.store.rows.get(ref)?.state, 'CONSUMED');
+    });
+  });
+
+  test('cancellation after claim but before POST releases only that unsent claim', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'original');
+    const controller = new AbortController();
+    const originalOpen = harness.ingress.openForUpload.bind(harness.ingress);
+    const originalRelease = harness.ingress.releaseUpload.bind(harness.ingress);
+    let releases = 0;
+    harness.ingress.releaseUpload = async (record) => { releases += 1; await originalRelease(record); };
+    harness.ingress.openForUpload = async (record) => {
+      assert.equal(harness.store.rows.get(ref)?.state, 'UPLOADING');
+      const opened = await originalOpen(record);
+      controller.abort();
+      return opened;
+    };
+    await withSalesforce(successfulSalesforce(), async (calls) => {
+      const client = new SalesforceAttachmentUploader({
+        connectionProvider: fixtureProvider(), ingress: harness.ingress,
+        policy: new StaticAttachmentPolicy([{ objectApiName: TARGET_OBJECT }]), platformUserId: OWNER,
+        uploadTimeoutMs: 5_000, signal: controller.signal,
+      });
+      const result = await client.upload({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] });
+      assert.equal(result.results[0]?.status, 'NOT_ATTEMPTED');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 0);
+      assert.equal(harness.store.rows.get(ref)?.state, 'STAGED');
+      assert.equal(releases, 1, 'a second release could unlock a new caller that claimed after the first release');
+      harness.ingress.openForUpload = originalOpen;
+      assert.equal((await uploader(harness, fixtureProvider()).upload({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] })).status, 'SUCCESS');
+    });
+  });
+
+  test('owner capacity removes retained unknown bytes without erasing or reopening that attempt', async () => {
+    const harness = await createHarness({ maxFilesPerOwner: 1 });
+    const ref = await stageOne(harness, 'original');
+    const row = harness.store.rows.get(ref)!;
+    await harness.ingress.claimUpload(row, OWNER);
+    await harness.ingress.outcomeUnknown(row);
+    const next = await stageOne(harness, 'next');
+    assert.equal(harness.store.rows.get(ref)?.state, 'OUTCOME_UNKNOWN');
+    assert.ok(harness.store.rows.get(ref)?.bytesRemovedAt);
+    assert.equal(harness.store.rows.get(next)?.state, 'STAGED');
+    await assert.rejects(stat(row.stagedPath));
+  });
+
+  test('failed and retryable originals are reaped with their outcome distinction retained', async () => {
+    const harness = await createHarness();
+    for (const retryable of [false, true]) {
+      const ref = await stageOne(harness, 'bytes');
+      const row = harness.store.rows.get(ref)!;
+      await harness.ingress.fail(row, retryable ? 'MCP_ATTACHMENT_UPLOAD_FAILED' : 'MCP_ATTACHMENT_PATH_INVALID', retryable);
+      assert.equal(await harness.ingress.reapExpired(new Date(Date.parse(row.expiresAt) + 1), 10), 1);
+      await assert.rejects(stat(row.stagedPath));
+      assert.ok(harness.store.rows.get(ref)?.bytesRemovedAt);
+    }
+  });
+
+  function facade(harness: Harness, timeout: number, events: LoggedEvent[] = []): AttachmentToolFacade {
+    return new AttachmentToolFacade({
+      tool: createUploadFilesToRecordTool(),
+      context: { platformUserId: OWNER, correlationId: 'lifecycle-test', workspaceRoot: root },
+      route: { platformUserId: OWNER, salesforceUsername: 'fixture@example.test', credentialProfile: 'USER', connectionRole: 'USER', aliases: [] },
+      toolTimeoutMs: timeout, logger: { log: (event) => { events.push(event); } }, clientId: 'fixture',
+      connectionProvider: fixtureProvider(), ingress: harness.ingress,
+      attachmentPolicy: new StaticAttachmentPolicy([{ objectApiName: TARGET_OBJECT }]), platformUserId: OWNER,
+    });
+  }
+
+  test('a POST response body that breaks mid-stream is unknown, retained and never replayed', async () => {
+    const harness = await createHarness();
+    const refs = [await stageOne(harness, 'one'), await stageOne(harness, 'two'), await stageOne(harness, 'three')];
+    let posts = 0;
+    await withSalesforce((call) => {
+      if (call.method === 'POST' && ++posts === 2) {
+        let chunks = 0;
+        return new Response(new ReadableStream<Uint8Array>({
+          pull(controller) {
+            if (chunks++ === 0) controller.enqueue(new TextEncoder().encode('{"success":true,"id":"068'));
+            else controller.error(new Error('response body connection reset'));
+          },
+        }), { status: 201, headers: { 'content-type': 'application/json' } });
+      }
+      return successfulSalesforce()(call);
+    }, async (calls) => {
+      const result = await facade(harness, 5_000).execute({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: refs }, {} as never);
+      const content = result.structuredContent as { status: string; results: AttachmentFileResult[] };
+      assert.equal(content.status, 'OUTCOME_UNKNOWN');
+      assert.deepEqual(content.results.map((item) => item.status), ['SUCCESS', 'OUTCOME_UNKNOWN', 'NOT_ATTEMPTED']);
+      assert.equal(harness.store.rows.get(refs[1]!)?.state, 'OUTCOME_UNKNOWN');
+      assert.equal((await uploader(harness, fixtureProvider()).upload({
+        objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [refs[1]!],
+      })).status, 'OUTCOME_UNKNOWN');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 2);
+    });
+  });
+
+  test('facade timeout preserves prior success, names the in-flight unknown and never dispatches the remaining file', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const harness = await createHarness();
+    const refs = [await stageOne(harness, 'one'), await stageOne(harness, 'two'), await stageOne(harness, 'three')];
+    let posts = 0;
+    let abortSeen = false;
+    await withSalesforce((call) => {
+      if (call.method === 'POST' && ++posts === 2) {
+        return new Promise<Response>((_resolve, reject) => {
+          call.signal!.addEventListener('abort', () => { abortSeen = true; reject(new Error('aborted')); }, { once: true });
+          queueMicrotask(() => context.mock.timers.tick(5_000));
+        });
+      }
+      return successfulSalesforce()(call);
+    }, async (calls) => {
+      const result = await facade(harness, 5_000).execute({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: refs }, {} as never);
+      const content = result.structuredContent as { status: string; totalCount: number; results: AttachmentFileResult[] };
+      assert.equal(content.status, 'OUTCOME_UNKNOWN');
+      assert.equal(content.totalCount, 3);
+      assert.deepEqual(content.results.map((item) => item.status), ['SUCCESS', 'OUTCOME_UNKNOWN', 'NOT_ATTEMPTED']);
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(abortSeen, true);
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 2);
+      assert.equal(harness.store.rows.get(refs[1]!)?.state, 'OUTCOME_UNKNOWN');
+      assert.equal(harness.store.rows.get(refs[2]!)?.state, 'STAGED');
+    });
+  });
+
+  test('facade timeout during target verification cannot dispatch after the delayed read returns', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'one');
+    let finishRead: (value: Response) => void = () => undefined;
+    await withSalesforce((call) => call.method === 'GET'
+      ? new Promise<Response>((resolve) => {
+          finishRead = resolve;
+          queueMicrotask(() => context.mock.timers.tick(5_000));
+        })
+      : successfulSalesforce()(call), async (calls) => {
+      const result = await facade(harness, 5_000).execute({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] }, {} as never);
+      assert.equal((result.structuredContent as { results: AttachmentFileResult[] }).results[0]?.status, 'NOT_ATTEMPTED');
+      finishRead(Response.json({ Id: TARGET_ID }));
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 0);
+      assert.equal(harness.store.rows.get(ref)?.state, 'STAGED');
+    });
+  });
+
+  test('a known publish remains SUCCESS if the facade expires during the optional document lookup', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'one');
+    const events: LoggedEvent[] = [];
+    await withSalesforce((call) => call.url.includes('/query')
+      ? new Promise<Response>((_resolve, reject) => {
+          call.signal!.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          queueMicrotask(() => context.mock.timers.tick(5_000));
+        })
+      : successfulSalesforce()(call), async () => {
+      const result = await facade(harness, 5_000, events).execute({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] }, {} as never);
+      assert.equal((result.structuredContent as { status: string }).status, 'SUCCESS');
+      assert.equal(harness.store.rows.get(ref)?.state, 'CONSUMED');
+      assert.equal(events.at(-1)?.result, 'PASS');
+      assert.equal(events.at(-1)?.outcome, 'SUCCESS');
+    });
   });
 });
 
