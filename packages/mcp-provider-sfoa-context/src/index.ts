@@ -30,4 +30,5 @@ export * from './effective-ui-contracts.js';
 export * from './effective-ui-resolver.js';
 export * from './ui-snapshot-refresh.js';
 export * from './create-initial-state.js';
+export * from './create-value-assessment.js';
 export * from './presentation-relationship.js';

@@ -2,6 +2,7 @@ import type { Connection } from '@salesforce/core';
 import type { OrgService } from '@salesforce/mcp-provider-api';
 import { z } from 'zod';
 import { ContextRuntimeError } from './errors.js';
+import { assessCreateValues } from './create-value-assessment.js';
 import type { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
 import {
@@ -124,7 +125,11 @@ type CreateResolution =
 export class RecordActionContextExecutor {
   public constructor(private readonly orgService: OrgService, private readonly effectiveUi?: EffectiveRecordUiContextResolver) {}
 
-  public async execute(input: RecordActionContextInput): Promise<RecordActionContextOutput> {
+  public async execute(requested: RecordActionContextInput): Promise<RecordActionContextOutput> {
+    // The optional assessment includes its requiredness basis. This adds only
+    // projections of facts already read; legacy calls keep their exact path.
+    const input = requested.includeValueAssessment === true
+      ? { ...requested, includeRequiredness: true } : requested;
     const started = performance.now();
     try {
       const connection = await this.getRequestConnection();
@@ -164,6 +169,10 @@ export class RecordActionContextExecutor {
             recordType: resolution.recordType, layout: resolution.layout, defaults: resolution.defaults,
             picklists: resolution.picklists, sources: resolution.sources,
           }, output);
+        }
+        if (input.includeValueAssessment === true) {
+          output = { ...output, valueAssessment: assessCreateValues(output, input.draftFields ?? {},
+            resolution.kind === 'ready' ? resolution.defaults : undefined) };
         }
       } else {
         const resolved = await this.resolveUpdate(connection, apiVersion, input, objectInfo, metrics);

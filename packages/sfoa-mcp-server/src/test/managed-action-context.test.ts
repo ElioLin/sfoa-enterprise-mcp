@@ -11,6 +11,7 @@ import {
 } from '@sfoa/identity-runtime';
 import { z } from 'zod';
 import { ContextToolFacade } from '../context-tool-facade.js';
+import { createValueAssessmentSchema, type CreateValueAssessment } from '@sfoa/mcp-provider-sfoa-context';
 import type { RuntimeManagedDmlFieldRule } from '../dml-managed-fields.js';
 
 for (const objectApiName of ['Order__c', 'order__c', 'ORDER__C']) {
@@ -100,6 +101,7 @@ test('the server never wires a runtime-default provider into Dynamic Forms resol
 });
 
 const emptySchema = z.object({});class ActionContextTool extends McpTool<typeof emptySchema.shape> {
+  public constructor(private readonly valueAssessment?: CreateValueAssessment) { super(); }
   public getReleaseState(): ReleaseState { return ReleaseState.GA; }
   public getToolsets(): Toolset[] { return [Toolset.DATA]; }
   public getName(): string { return 'get_record_action_context'; }
@@ -107,7 +109,8 @@ const emptySchema = z.object({});class ActionContextTool extends McpTool<typeof 
     return { description: 'test action context', inputSchema: emptySchema.shape, outputSchema: emptySchema.shape };
   }
   public async exec(): Promise<CallToolResult> {
-    const structuredContent = { success: true, fields: [{ apiName: 'City__c', label: '公司城市', inlineHelpText: '公司所在地城市', length: 255 }] };
+    const structuredContent = { success: true, fields: [{ apiName: 'City__c', label: '公司城市', inlineHelpText: '公司所在地城市', length: 255 }],
+      ...(this.valueAssessment ? { valueAssessment: this.valueAssessment } : {}) };
     return { content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }], structuredContent };
   }
 }
@@ -115,3 +118,34 @@ const emptySchema = z.object({});class ActionContextTool extends McpTool<typeof 
 function extra(): RequestHandlerExtra<ServerRequest, ServerNotification> {
   return Object.freeze({}) as RequestHandlerExtra<ServerRequest, ServerNotification>;
 }
+
+test('optional CREATE assessment gains strict/fallback managed facts and keeps one exact final JSON mirror', async () => {
+  const valueAssessment = createValueAssessmentSchema.parse({ coverage: 'COMPLETE', requirednessSource: 'PAGE_LAYOUT_REQUIRED', warnings: [],
+    fields: ['Requested_By__c', 'Order_Owner__c', 'Created_By_AI__c'].map(apiName => ({ apiName, required: false,
+      status: 'EMPTY', source: 'DRAFT', draftState: 'EMPTY', defaultPresent: false, defaultState: 'ABSENT' })) });
+  const before = JSON.stringify(valueAssessment);
+  let connectionCalls = 0;
+  const facade = new ContextToolFacade({
+    tool: new ActionContextTool(valueAssessment),
+    context: createRequestContext({ platformUserId: 'action-user', correlationId: 'assessment-managed' }, process.cwd()),
+    route: createSalesforceIdentityRoute({ platformUserId: 'action-user', salesforceUsername: 'user@example.invalid',
+      credentialProfile: 'test', connectionRole: 'USER', aliases: [] }),
+    toolTimeoutMs: 1000, logger: new NoopRuntimeLogger(), clientId: 'context-test',
+    connectionProvider: { getConnection: async () => { connectionCalls++; return {}; } } as unknown as import('@sfoa/identity-runtime').SalesforceConnectionProvider,
+    managedDmlFieldRules: [rule('Order__c', 'Requested_By__c', true, true),
+      rule('Order__c', 'Order_Owner__c', true, false, 'PLATFORM_USER_LOOKUP_FALLBACK'),
+      rule('Order__c', 'Created_By_AI__c', true, false, 'AI_CREATED_MARKER')],
+  });
+  const result = await facade.execute({ objectApiName: 'Order__c', action: 'CREATE', includeValueAssessment: true,
+    draftFields: { Requested_By__c: null, Order_Owner__c: null, Created_By_AI__c: null } }, extra());
+  const assessment = createValueAssessmentSchema.parse(result.structuredContent?.valueAssessment);
+  assert.deepEqual(assessment.fields.map(field => [field.status, field.managedStrategy]), [
+    ['MANAGED_ON_WRITE', 'PLATFORM_IDENTITY'], ['EMPTY', 'PLATFORM_IDENTITY_FALLBACK'], ['MANAGED_ON_WRITE', 'AI_CREATED_MARKER'],
+  ]);
+  assert.equal(connectionCalls, 1, 'only the pre-existing request Connection initialization, no managed Lookup');
+  assert.equal(result.content.length, 1);
+  assert.equal(result.content[0]?.type, 'text');
+  if (result.content[0]?.type === 'text') assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
+  assert.equal(JSON.stringify(valueAssessment), before);
+  assert.doesNotMatch(JSON.stringify(assessment), /action-user|003000|lookup|Contact|Platform_User_Id/u);
+});

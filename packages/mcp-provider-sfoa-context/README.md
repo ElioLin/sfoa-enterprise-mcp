@@ -20,6 +20,25 @@ Private Provider API extension for deterministic Salesforce facts:
 
 The Provider contains no identity selector, business reasoning, DML, arbitrary REST URL or client filesystem path. Tool visibility remains controlled by the remote Host's explicit configuration.
 
+`get_record_action_context` optionally accepts `includeValueAssessment: true` for
+CREATE. It defaults to off; omitted/false calls retain the previous output and
+Salesforce call count. When enabled it also includes `requiredChecklist` and
+`coverage.requirednessSource`, then calculates `valueAssessment` from the bounded
+`draftFields`, the already loaded raw Create Defaults and the effective form facts.
+No additional Salesforce query or managed Lookup is performed. Each field keeps
+draft/default presence separately, so explicit null/empty is not replaced by a
+default and false/zero remains PROVIDED. Missing Record Type or relevant facts
+remain PARTIAL/UNKNOWN. The host adds strict/fallback managed-policy provenance
+without treating future injection as an initial page value.
+
+The assessment is not a missing-user-input checklist, business validation or a
+DML gate. Existing CREATE/UPDATE/batch calls need no new argument or token. UPDATE
+does not accept the enabled option. The existing 4096-character draft bound is
+unchanged and does not constrain the final DML field value: long business text
+can go directly to the existing DML contract. `requiredChecklist` still describes
+requiredness, not which facts the user has provided. UPDATE continues to use UI
+API action facts; effective Dynamic Forms resolution remains CREATE-only.
+
 CREATE uses current USER `available=true` Record Types and excludes Master if any
 available non-Master type exists. The returned candidates, automatic selection and
 explicit `recordTypeId` validation use this same list. One candidate loads its full

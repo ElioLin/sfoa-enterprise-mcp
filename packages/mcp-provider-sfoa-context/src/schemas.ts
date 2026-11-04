@@ -33,11 +33,15 @@ export const recordActionContextInputObjectSchema = z.object({
       .optional().describe('CREATE only: task draft values for conditional visibility, including faithful extraction and verified related values; USER_EXPLICIT is a draft-source tag, not proof of authorship or verification; missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
     refinement: z.number().int().min(0).max(3).optional().describe('CREATE only: Dynamic Context refinement number, 0 initially, at most 3. Stop asking for refinements at 3.'),
     includeRequiredness: z.boolean().optional().describe('Opt in to the additive coverage.requirednessSource and requiredChecklist projection. Default false preserves the legacy response. The projection never changes visibility, permissions or DML scope.'),
+    includeValueAssessment: z.boolean().optional().describe('CREATE only, default false: assess the bounded draft against already loaded requiredness and raw Salesforce defaults, without additional Salesforce reads. Also includes requiredness facts. PROVIDED is not validation, ABSENT is not proof the user omitted a fact, and defaults/managed values are not writes. Keep final long DML values outside the bounded draft when necessary.'),
   }).strict();
 
 export const recordActionContextInputSchema = recordActionContextInputObjectSchema.superRefine((input, context) => {
     if (input.action === 'UPDATE' && (input.draftFields !== undefined || input.refinement !== undefined)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'draftFields and refinement are CREATE-only' });
+    }
+    if (input.action === 'UPDATE' && input.includeValueAssessment === true) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['includeValueAssessment'], message: 'includeValueAssessment is CREATE-only' });
     }
     if (input.action === 'CREATE' && input.recordId) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['recordId'], message: 'recordId is forbidden for CREATE' });
@@ -193,6 +197,23 @@ const requiredChecklistItemSchema = z
   })
   .strict();
 
+export const createValueAssessmentSchema = z.object({
+  coverage: z.enum(['COMPLETE', 'PARTIAL']),
+  requirednessSource: requirednessSourceSchema,
+  fields: z.array(z.object({
+    apiName: z.string(),
+    required: z.boolean().nullable(),
+    status: z.enum(['PROVIDED', 'EMPTY', 'ABSENT', 'DEFAULT_AVAILABLE', 'MANAGED_ON_WRITE', 'UNKNOWN']),
+    source: z.enum(['DRAFT', 'SALESFORCE_CREATE_DEFAULT', 'MANAGED_POLICY', 'NONE', 'UNKNOWN']),
+    draftState: z.enum(['PROVIDED', 'EMPTY', 'ABSENT']),
+    defaultPresent: z.boolean().nullable(),
+    defaultState: z.enum(['VALUE', 'EMPTY', 'ABSENT', 'UNKNOWN']),
+    managedStrategy: z.enum(['PLATFORM_IDENTITY', 'PLATFORM_IDENTITY_FALLBACK', 'AI_CREATED_MARKER']).optional(),
+  }).strict()).max(400),
+  warnings: z.array(z.string()),
+}).strict();
+export type CreateValueAssessment = z.infer<typeof createValueAssessmentSchema>;
+
 const picklistValueSchema = z
   .object({
     label: z.string(),
@@ -288,6 +309,7 @@ export const recordActionContextOutputSchema = z
     uiContextResolutionId: z.string().uuid().optional(),
     fields: z.array(recordFieldContextSchema).optional(),
     requiredChecklist: z.array(requiredChecklistItemSchema).optional(),
+    valueAssessment: createValueAssessmentSchema.optional(),
     coverage: z
       .object({
         sources: z.array(z.enum(['UI_API_OBJECT_INFO', 'UI_API_LAYOUT', 'UI_API_CREATE_DEFAULTS', 'UI_API_RECORD', 'UI_API_PICKLIST_VALUES_BY_RECORD_TYPE'])),

@@ -15,6 +15,8 @@ import {
   SFOA_CONTEXT_TOOL_ROLES,
   contextExecutionErrorToolResult,
   isSfoaContextToolName,
+  assessManagedCreateValues,
+  createValueAssessmentSchema,
   type SfoaContextToolName,
 } from '@sfoa/mcp-provider-sfoa-context';
 import type {
@@ -426,6 +428,9 @@ function enrichManagedDmlFields(
   const structuredContent = {
     ...result.structuredContent,
     managedDmlFields: Object.freeze(managedDmlFields),
+    ...(input.includeValueAssessment === true && action === 'CREATE' && result.structuredContent.valueAssessment
+      ? { valueAssessment: assessManagedCreateValues(createValueAssessmentSchema.parse(result.structuredContent.valueAssessment), managedDmlFields) }
+      : {}),
   };
   // Keep the host's final JSON mirror in sync after enrichment. Native OpenClaw
   // suppresses only an exact mirror; stale provider JSON duplicates the context.
