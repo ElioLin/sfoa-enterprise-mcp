@@ -2,6 +2,30 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-05 — Agent material workflows and attachment recovery
+
+The OpenClaw adapter now retains bounded requester/session/task material state,
+actual read coverage, source versions, proven record targets and per-file outcomes.
+Basic DOCX/XLSX/CSV reading uses the host Python standard library; existing native
+vision/PDF/audio capabilities remain separate from staging. Context adds optional,
+default-off CREATE value assessment without extra Salesforce requests or a DML
+gate. Attachment migration 017 supports atomic upload claims, controlled recovery
+after an explicit Salesforce refusal, retained unknown outcomes and original-byte
+cleanup without replaying successful or uncertain writes.
+
+Playbook 1.13.1 and canonical business Skills guide task synthesis, relevant optional
+fields, event-aware duplicate checks, minimal UPDATE and one optional archive
+invitation. This supersedes the older blanket name-match question and area-code
+geography guidance below: a name is a candidate, and a phone area code alone does
+not prove a company's location. An initial CREATE request does not resolve a later
+same-event conflict. Actual validation errors determine the unresolved business
+choice; repeated equivalent diagnostics do not replace that question.
+
+Test deployment, deterministic tests, repeated real-model comparisons, real-file
+reading, channel verification and Salesforce results are recorded separately in
+[the delivery report](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md). Test deployment is not
+production or complete business acceptance. See [ADR-0035](adr/ADR-0035-agent-material-workflows.md).
+
 ## 2026-11-03 — CREATE duplicate check for sensitive identity fields
 
 `sfoa-record-change` now requires a bounded pre-CREATE duplicate read for values the user supplied that will be written directly onto the new record: name, phone, mobile, email, tax/identity numbers and business external IDs. Descriptive, process, default and managed fields are not checked; a value used only to resolve a Lookup is not treated as the new record's identity key. A strong-key match or a name match is reported before DML with the matched field and record, and the user chooses continue-create, update-existing or cancel; `0 rows` only means not visible in the current sharing/permission scope. An incomplete check is not reported as "no duplicate", batch CREATE also checks in-batch identity values, and Salesforce Duplicate Rules remain authoritative. The executable gate model and tests cover no identity value, no match, strong vs name matches, user decisions and incomplete evidence.

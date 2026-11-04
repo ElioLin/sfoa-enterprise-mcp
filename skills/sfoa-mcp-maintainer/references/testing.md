@@ -103,6 +103,20 @@ separately. Real New UI/Agent accuracy remains [post-implementation UAT](p8-04-e
 
 Live Salesforce, Inspector, stdio, HTTP, A/B identity, Diagnostic, and mutation gates are required when their boundary changes and credentials are available. Missing external conditions are `NOT TESTED`.
 
+Material-workflow real-model runs use the adapter harness `--suite material --repeats 3`.
+Record the executed Provider runtime roots separately from before/after guidance:
+a shared runtime with synthetic SDK rows is a guidance comparison, not a runtime
+or Salesforce end-to-end comparison. Keep all repetitions and semantic failures.
+Fixture queries must reject unsupported fields/predicates; selected unset fields
+return null. The process runner preserves actual exit code/signal: a complete
+terminal result can precede a lingering CLI process, but a partial/error envelope
+or a nonzero exit is not success. Use terminalReceipt.runId, never sessionId as runId.
+
+On Windows, a loaded aggregate run can exceed the unchanged HTTP/P7 2s/1s budgets.
+An isolated rerun or Linux pass is separate evidence and does not turn the failed
+aggregate into a clean full pass. Do not weaken budgets or conflate load diagnosis
+with real Salesforce/WeCom validation.
+
 For Console authorization changes, three levels must all move together. The endpoint
 table is unit-tested (`packages/sfoa-admin-api/src/test/module-paths.test.ts`): ids in
 parity with `ADMIN_MODULE_IDS`, every module reaching at least one endpoint, method

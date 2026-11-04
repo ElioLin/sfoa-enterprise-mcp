@@ -50,6 +50,20 @@ Use `SFOA_CONTROL_PLANE_MODE=mysql`; missing DB governance fails closed. Back up
 
 Audit health may be `DEGRADED` while Tool/Salesforce results remain correct. Restore persistence without replaying mutations. Prefer forward-compatible rollback; never rewrite `sfoa_schema_migration` manually.
 
+For material-workflow migration 017, check the ledger and actual column before
+rollback. If deployment stopped before applying it, move the newly introduced SQL
+file into the task backup before starting the old runtime; otherwise its startup
+migration check can reject the restored version. If applied, retain the additive
+schema and upload/unknown outcome facts, never restore an old table snapshot to
+make a reference reusable. The old runtime does not reap newly added statuses;
+retain compatible cleanup or arrange original-byte expiry housekeeping.
+
+203 can load the adapter from `/data/openclaw/plugins/sfoa-wecom-mcp-adapter`,
+independent of the app checkout. Verify the actual loaded path and hashes after
+deployment, canonical/runtime business Skills, and the independent `sfoa` export;
+preserve that export's existing `mcp.json`. Never publish maintainer Skills to the
+business runtime. A successful reload/discovery does not prove a fresh model read.
+
 WeCom native MCP plugins require MCP_WECOM_CHANNEL_ENABLED=true and an independent
 MCP_WECOM_CLIENT_TOKEN (32+ random characters, no USER_BOUND prefix, not equal to
 MCP_CLIENT_TOKEN). Keep MCP_PLATFORM_USER_HEADER=X-Platform-User-Id and
