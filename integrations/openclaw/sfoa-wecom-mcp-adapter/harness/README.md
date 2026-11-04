@@ -2,7 +2,7 @@
 
 这些是开发验收工具，不随四个业务 Skill 发布，不进入 MCP 生产请求路径。使用合成材料和 loopback mock DML，不访问 Salesforce，不伪造企微 requester，也不把 CLI 回合算成企微端到端。
 
-`business-cases.json` 包含 18 个固定样本与语义复核标准：材料/转写、否定与主体、厦门/杭州地域、迁址、拜访地点、限定只改总结、同名/冲突/截断、不同 API 值/Record Type/Lookup、Owner fallback、类型选择、业务/技术诊断，以及过大字段上下文的任务投影。`candidateFields` / `candidateReply` 是手写 fixture，不是真实模型输出，也不会进入 Agent 输入包。
+`business-cases.json` 包含 24 个固定样本与语义复核标准：材料/转写、否定与主体、厦门/杭州地域、迁址、拜访地点、限定只改总结、同名/冲突/截断、不同 API 值/Record Type/Lookup、Owner fallback、类型选择、业务/技术诊断，以及过大字段上下文的任务投影。`candidateFields` / `candidateReply` 是手写 fixture，不是真实模型输出，也不会进入 Agent 输入包。旧 corpus 仍包含预解析材料和预置 metadata，只用于保留既有回归，不代表从自然任务完成对象/字段发现。
 
 在仓库根目录构建 Provider 和 Playbook 后执行：
 
@@ -46,3 +46,26 @@ node integrations/openclaw/sfoa-wecom-mcp-adapter/harness/business-autonomy.mjs 
 ```
 
 报告逐例给出最终 DML 参数、Tool 次数、问题次数、业务回复与语义复核状态，可直接并列比较。无实际模型/Run/上下文证据或未复核语义，始终 `businessAcceptance=NOT_VERIFIED`，即使确定性参数测试通过。词句检查不是 Agent 行为效果证明。
+
+## 材料任务自然入口与多轮重复（2026-11）
+
+`--suite material` 运行 `material-workflows.mjs` 的六条路径：多源综合来访申请、分轮等待后创建纪要、已有记录两次限定补充、同一事件查重后明确选择更新、可选归档确认续作、附件部分失败后只恢复失败原件。每例默认重复 3 次，每个 before/after/例子/重复均有独立 workspace 和 session；同一例子的连续轮次使用同一 session。提示只包含自然任务及宿主原件文件清单，不包含正确对象、字段或期望 payload。模型通过实际 `list_sobjects`、`describe_sobject`、`get_record_action_context`、`query_records` 等 Provider 获取合成 SDK 返回的 facts，DML 进入真实 Provider 的内存终点。
+
+```text
+node integrations/openclaw/sfoa-wecom-mcp-adapter/harness/run-openclaw.mjs --config <actual-private-config> --output <new-evidence-dir> --before-source <baseline-source> --after-source <candidate-source> --before-runtime <built-baseline-checkout> --after-runtime <built-candidate-checkout> --suite material --repeats 3 --concurrency 2 --observe-provider-input
+node --test integrations/openclaw/sfoa-wecom-mcp-adapter/harness/test/*.test.mjs
+```
+
+两个 `--*-runtime` 必须同时给出，指向分别构建过的 Context、DML、Data、Server dist 和依赖；runner 读取指定版本的 JS 并记录整组 dist SHA-256。若省略，则明确记为 `SHARED_PROVIDER_RUNTIME_GUIDANCE_COMPARISON_ONLY`：两组指导使用同一个 Provider runtime，不能声称已比较旧/新运行时。该隔离终点也没有生产请求身份、实际附件存储或 Salesforce 权限，指定不同 runtime 不会把模拟升级为生产链路验收。
+
+203 已核实的 OpenClaw 2026.9.5 `agent exec --help` 没有续会话参数。自然多轮因此使用实际支持的 `agent --local --session-id --session-key --message-file`，由独立 `OPENCLAW_CONFIG_PATH`/`OPENCLAW_STATE_DIR` 指向隔离配置，禁用 channel/plugin 和真实 MCP，永不 `--deliver`。旧单轮默认 `--suite legacy`，仍走 `agent exec`。runner 保存每轮原始结果、stderr、工具参数/返回、最终 SDK dispatch、模型/usage/实际 session ID；`runId` 与 `sessionId` 分开，CLI 未返回真实 runId 时明确记为 `NOT_AVAILABLE`，不能拿 sessionId 冒充。任何失败保留，不挑最好一次。先可用 `--cases natural-optional-archive --repeats 1` 做环境烟测，再运行完整重复矩阵。
+
+新增原始材料样本仅为本地 TXT/CSV 文件，要求模型真实 `read`，没有把正文预解析塞进 prompt。`provider-input.jsonl` 记录实际 read 返回进入模型请求的文件名、长度/hash 等证据，仍需核对是否失败/截断。`materialReview` 初始 `NOT_VERIFIED`，审阅实际工具/模型轨迹后填写 `readingEvidence: OBSERVED_NATIVE_READ` 与 `evidence` 位置。宿主 staging refs、附件返回及恢复条件是**明确合成**，不证明真实 Adapter、原件入库、PDF/扫描件/图片/ASR/DOCX/XLSX 或企微入口；这些由 Adapter 行为测试及 203 原始材料/真实渠道验证分别证明。
+
+`transcriptReview.blockingQuestionCount` 只计实质澄清；`optionalArchiveInvitations` 独立记录原件邀请，不用它触发 `maxQuestions=0`。逐项语义复核仍须有具体证据，不能由关键词自动判定。然后执行：
+
+```text
+node integrations/openclaw/sfoa-wecom-mcp-adapter/harness/material-workflows.mjs --captures <reviewed-after-captures.json> --out <after-report.json>
+```
+
+报告保留每个重复的结果与波动；六条核心路径各至少 3 次、每次实际同一 session 全轮成功、参数/归档断言通过、原始文本读取与语义复核完成，才报告本层 `coreRepeatedCoverage=PASS`。`realSalesforce`、`wecom`、`pdfImageAudio` 始终另列 `NOT_TESTED`，附件 backend 始终 `SIMULATED`。不要打包或下载 `config.private.json`；其他模型/会话原始输出亦须脱敏后才导出。

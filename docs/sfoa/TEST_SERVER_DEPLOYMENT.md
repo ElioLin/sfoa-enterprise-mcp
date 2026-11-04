@@ -560,17 +560,20 @@ scp D:/GitProject/sfoa-enterprise-mcp/private.pem root@192.168.156.203:/data/sfo
 
 > 若本机配置了 SSH 别名（如 `crm-test02`），把 `root@192.168.156.203` 换成别名即可。
 
-### 3.3 服务器解压
+### 3.3 服务器解压（采用 staging，禁止删除同步）
 
 ```bash
-mkdir -p /data/sfoa-enterprise-mcp/app
-tar -xzf /tmp/sfoa-deploy.tar.gz -C /data/sfoa-enterprise-mcp/app
+STAGE=/data/sfoa-enterprise-mcp/staging-$(date +%Y%m%d-%H%M%S)
+mkdir -p "$STAGE"
+tar -xzf /tmp/sfoa-deploy.tar.gz -C "$STAGE"
+# 依 §3.5 先备份，校验清单后覆盖；保持 app 根目录原有可遍历权限。
+rsync -a --omit-dir-times --no-perms "$STAGE"/ /data/sfoa-enterprise-mcp/app/
 ```
 
-> 仅更新代码时，可增量 rsync（本机已装 rsync 时最方便）：
+> 更新也必须来自已提交 LF 归档并经 staging。旧版直接工作区 `--delete` 示例已废止；不得删除服务器独有配置、依赖或运行文件。
 
 ```bash
-rsync -avz --delete \
+rsync -avz \
   --exclude node_modules --exclude .git --exclude dist --exclude tmp \
   --exclude secrets --exclude .env.local --exclude '*.pem' --exclude '*.key' \
   --exclude '*.tsbuildinfo' --exclude '.wireit' \
@@ -758,6 +761,7 @@ yarn workspace @salesforce/mcp-provider-api build        # 最底层，最容易
 yarn workspace @salesforce/mcp-provider-dx-core build
 yarn workspace @sfoa/mcp-provider-sfoa-context build
 yarn workspace @sfoa/mcp-provider-sfoa-dml build
+yarn workspace @sfoa/mcp-provider-sfoa-data build         # MCP Server 也依赖 Data Provider
 yarn workspace @sfoa/identity-runtime build              # 依赖 provider-api / dx-core
 yarn workspace @sfoa/control-plane build                 # 依赖 identity-runtime
 yarn workspace @sfoa/mcp-server build                    # 依赖上述全部

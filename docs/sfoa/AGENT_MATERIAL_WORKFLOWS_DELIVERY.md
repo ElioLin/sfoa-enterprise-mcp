@@ -17,8 +17,8 @@
 | 1 | 宿主真实读取、覆盖、任务材料连续性 | 实现冻结，Adapter 90/90 PASS | `1762f87` |
 | 2 | 业务理解、字段映射、适用查重、指导分发 | Playbook 46/46、Skill 80/80 PASS | `76ab86e` |
 | 2 可选增强 | CREATE includeValueAssessment，默认关闭，纯事实计算 | Context 237/237、Host 5/5 PASS | `d02e603` |
-| 3 | 附件状态、明确失败恢复、并发与未知结果保护 | Control Plane 38/38、附件/HTTP 61/61、MySQL 18/18 PASS | 本提交 |
-| 4 | 客户端分发、部署、真实模型/材料/渠道与回归 | 环境基线已读取 | 待提交 |
+| 3 | 附件状态、明确失败恢复、并发与未知结果保护 | Control Plane 38/38、附件/HTTP 61/61、MySQL 18/18 PASS | `9e02fd0` |
+| 4 | 客户端分发、部署、真实模型/材料/渠道与回归 | 自然多轮 harness 16/16；真实环境执行中 | 本提交：验收工具；部署结果后补 |
 
 ## 已取得证据
 
@@ -26,6 +26,7 @@
 - 批次 2：Playbook 1.13.0 收敛材料任务、选填字段、国家/区号语境、API 必填、适用查重、最小 UPDATE 及可选归档指导。Playbook 46/46、Skill toolkit 80/80 PASS；canonical Skill sync/check/validate PASS，生成副本无漂移。日志分别为 `batch2-playbook-final.log`、`skill-test-final.log`、`skill-check-final.log`、`skill-validate-final.log`（`.temp/agent-material-workflows/`）。
 - 可选 Context 增强：省略 `includeValueAssessment` 时保持输出与 Salesforce 调用数；CREATE 显式启用才增加已知值/默认值/必填事实，不形成写入门槛。Context 237/237、managed host 5/5 PASS；独立源码审阅未发现须修复项。保留 null/false/0/空值与不存在的区别，不把原始 defaults 的 UNKNOWN 猜成已满足。
 - 批次 3：原子 claim、明确拒绝后受控恢复、UNKNOWN 不重放、超时停止后续文件、已成功结果保留、响应体断流和过期原件清理。最终串行 Control Plane 38/38、附件/企微 HTTP 61/61、真实 MySQL 18/18 PASS（`.temp/attachment-lifecycle/server-frozen.log`、`mysql-frozen.log`）。先前并行运行的时间争用失败日志保留，未算入通过数。迁移 017 采用追加状态/索引；回滚保留 schema 与 UNKNOWN 元数据，旧 runtime 不清理新增状态，须保留新版清理逻辑或按原 TTL 清理原件。
+- 批次 4 工具：六条自然入口路径，实际 metadata/query/DML Provider 与合成 SDK、跨轮独立 session、三次重复、真实读取 TXT/CSV、逐次失败保留。独立评审修正 sessionId/runId 混淆和附件恢复判定前提，新旧 harness 16/16 PASS（`.temp/material-workflows/harness-review-tests.log`）。这是确定性工具验证，真实模型结果尚未计入。该隔离 harness 禁用插件/渠道，实际 Adapter、图片/PDF/ASR、企微和 Salesforce 另验。
 
 - 本地 `yarn ai:snapshot`、`yarn ai:doctor`：PASS；Node 24.13.0 / Yarn 1.22.22 / MySQL 8.0.30。业务服务本地未启动。
 - 真实数据库 ledger 已存在 `016_crm_openclaw_chat`，本分支未包含该迁移；保留既有表与迁移，新增迁移避开编号，不重置共享库。

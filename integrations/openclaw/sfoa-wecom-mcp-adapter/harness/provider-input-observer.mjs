@@ -7,11 +7,19 @@ import { appendFile } from 'node:fs/promises';
 export function projectProviderInput(body) {
   const toolNames = new Map((body.messages ?? []).flatMap(message =>
     (message.tool_calls ?? []).map(call => [call.id, call.function?.name])));
+  const materialReads = new Map((body.messages ?? []).flatMap(message => (message.tool_calls ?? []).flatMap(call => {
+    if (!/(?:^|__)read$/u.test(call.function?.name ?? '')) return [];
+    let args; try { args = JSON.parse(call.function.arguments); } catch { return []; }
+    const fileName = /(?:^|[/\\])materials[/\\]([^/\\]+)$/u.exec(args?.path ?? args?.file_path ?? '')?.[1];
+    return fileName ? [[call.id, fileName]] : [];
+  })));
   return { model: body.model, messages: (body.messages ?? []).map((message, index) => {
     const text = typeof message.content === 'string' ? message.content
       : (message.content ?? []).filter(part => part.type === 'text').map(part => part.text).join('\n');
     let data; try { data = JSON.parse(text.replace(/^structuredContent:\n/, '')); } catch { /* Non-JSON Tool result. */ }
     return { index, role: message.role, ...(message.role === 'tool' ? { tool: toolNames.get(message.tool_call_id) } : {}),
+      ...(message.role === 'tool' && materialReads.has(message.tool_call_id)
+        ? { materialFile: materialReads.get(message.tool_call_id), materialReadEvidence: 'TOOL_RESULT_OBSERVED_REQUIRES_REVIEW' } : {}),
       bytes: Buffer.byteLength(text), sha256: createHash('sha256').update(text).digest('hex'),
       clipped: /more characters truncated|Oversized diagnostic JSON redacted/.test(text),
       ...(message.role === 'tool' && /name: (sfoa-[a-z-]+)/.test(text) ? { skillRead: text.match(/name: (sfoa-[a-z-]+)/)[1] } : {}),

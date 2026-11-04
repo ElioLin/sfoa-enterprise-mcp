@@ -43,7 +43,8 @@ export function evaluateCapture(fixture, capture) {
   if (fixture.requiredFieldProjection && !calls.some(call => call.name === 'get_record_action_context' &&
     fixture.requiredFieldProjection.every(name => call.arguments?.fieldApiNames?.includes(name)))) failures.push('missing actual task context projection');
   // Questions are annotated from the actual transcript, never the model's own claimed count.
-  const questions = capture.transcriptReview?.questionCount;
+  const questions = capture.transcriptReview?.blockingQuestionCount ?? capture.transcriptReview?.questionCount;
+  const optionalArchiveInvitations = capture.transcriptReview?.optionalArchiveInvitations ?? null;
   if (typeof questions !== 'number') failures.push('question count not reviewed from transcript');
   else {
     if (fixture.maxQuestions !== undefined && questions > fixture.maxQuestions) failures.push('unnecessary clarification');
@@ -52,7 +53,8 @@ export function evaluateCapture(fixture, capture) {
   const reviews = fixture.review ?? [];
   const semantic = capture.transcriptReview?.criteria ?? [];
   const reviewComplete = semantic.length === reviews.length && semantic.every((item, index) => item.criterion === reviews[index] && item.verdict === 'PASS' && item.evidence);
-  const actualModelRun = capture.origin === 'OPENCLAW_RUN' && Boolean(capture.runId && capture.model && capture.contextEvidence)
+  const actualModelRun = capture.origin === 'OPENCLAW_RUN'
+    && Boolean(((capture.sessionId && capture.sessionId !== 'NOT_AVAILABLE') || (capture.runId && capture.runId !== 'NOT_AVAILABLE')) && capture.model && capture.contextEvidence)
     && capture.executionStatus === 'ok' && capture.exitCode === 0;
   if (capture.origin === 'OPENCLAW_RUN') {
     if (!actualModelRun) failures.push('model execution not successfully captured');
@@ -67,7 +69,7 @@ export function evaluateCapture(fixture, capture) {
     }
   }
   return { id: fixture.id, evidence: actualModelRun ? 'MODEL_CAPTURE' : capture.origin === 'OPENCLAW_RUN' ? 'FAILED_MODEL_CAPTURE' : 'FIXTURE_ONLY',
-    deterministic: failures.length ? 'FAIL' : 'PASS', failures, questions,
+    deterministic: failures.length ? 'FAIL' : 'PASS', failures, questions, optionalArchiveInvitations,
     mutationCount: mutations.length, toolCallCount: calls.length,
     finalPayloads: mutations.map(call => ({ name: call.name, arguments: call.arguments })),
     reply: capture.reply ?? null, semanticReview: reviewComplete ? 'REVIEWED' : 'REQUIRED', reviewCriteria: reviews,
@@ -95,17 +97,17 @@ export async function prepareEvaluation(output, sourceRoot = root) {
 }
 
 /** Serve one synthetic case through the real generic DML Tools and SDK; no production identity/runtime. */
-export async function serveFixture({ caseId, sourceRoot = root, tracePath, port = 0 }) {
+export async function serveFixture({ caseId, sourceRoot = root, runtimeRoot = root, tracePath, port = 0 }) {
   const fixture = businessCases.find(item => item.id === caseId);
   if (!fixture) throw new Error('Unknown fixture');
-  const require = createRequire(resolve(root, 'packages/sfoa-mcp-server/package.json'));
+  const require = createRequire(resolve(runtimeRoot, 'packages/sfoa-mcp-server/package.json'));
   const { McpServer } = await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/server/mcp.js')).href);
   const { StreamableHTTPServerTransport } = await import(pathToFileURL(require.resolve('@modelcontextprotocol/sdk/server/streamableHttp.js')).href);
   const { z } = require('zod');
-  const dml = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-dml/dist/index.js')).href);
-  const contextProvider = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-context/dist/index.js')).href);
-  const { PresentationRelationshipMcpTool } = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-context/dist/tools/presentation-relationship.js')).href);
-  const dataProvider = await import(pathToFileURL(resolve(root, 'packages/mcp-provider-sfoa-data/dist/index.js')).href);
+  const dml = await import(pathToFileURL(resolve(runtimeRoot, 'packages/mcp-provider-sfoa-dml/dist/index.js')).href);
+  const contextProvider = await import(pathToFileURL(resolve(runtimeRoot, 'packages/mcp-provider-sfoa-context/dist/index.js')).href);
+  const { PresentationRelationshipMcpTool } = await import(pathToFileURL(resolve(runtimeRoot, 'packages/mcp-provider-sfoa-context/dist/tools/presentation-relationship.js')).href);
+  const dataProvider = await import(pathToFileURL(resolve(runtimeRoot, 'packages/mcp-provider-sfoa-data/dist/index.js')).href);
   const generated = await readFile(resolve(sourceRoot, 'docs/agent/DIFY_AGENT_INSTRUCTION.md'), 'utf8');
   const heading = generated.indexOf('# SFoA Salesforce Agent Playbook');
   if (heading < 0) throw new Error('Generate the Playbook first: yarn agent:sync');
