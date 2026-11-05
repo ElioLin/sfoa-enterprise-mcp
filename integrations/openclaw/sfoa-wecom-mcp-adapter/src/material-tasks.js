@@ -121,8 +121,10 @@ export function mergeMaterialReading(task, material, incoming, current, messageI
   }
   const previous = material.reading;
   const rank = (value) => ({ READ: 3, PARTIAL: 2, UNKNOWN: 1, FAILED: 0 })[value?.status] ?? -1;
+  const fullerReread = reading.status === "READ" && reading.source && reading.source === previous?.source &&
+    typeof reading.text === "string" && reading.text.length > (previous.text?.length ?? 0);
   if (!previous || rank(reading) > rank(previous) || (rank(reading) === rank(previous) &&
-    (!previous.text || typeof reading.text === "string" && reading.text.includes(previous.text)))) {
+    (fullerReread || !previous.text || typeof reading.text === "string" && reading.text.includes(previous.text)))) {
     material.reading = { ...reading, observedAt: current, ...(messageId ? { sourceMessageId: messageId } : {}) };
   }
 }

@@ -25,6 +25,13 @@ test("same hash improves failed reading, retains successful text after later fai
   assert.equal(task.materials[0].upload.status, "NOT_ATTEMPTED");
 });
 
+test("a fuller trusted reread can insert previously omitted content between existing paragraphs", async () => {
+  const task = await setup();
+  task.materials[0].reading = { status: "READ", source: "OFFICE_BASIC_READER", text: "来访资料\n结尾" };
+  addMaterials(task, [receipt({ reading: { status: "READ", source: "OFFICE_BASIC_READER", text: "来访资料\n尚未承诺采购\n结尾" } })], 1100, "reread");
+  assert.match(task.materials[0].reading.text, /尚未承诺采购/u);
+});
+
 test("genuine resend replaces an expired retryable ref without changing the proven rejection or archive choice", async () => {
   const task = await setup();
   updateTaskNote(task, { operation: "update", archiveStatus: "ACCEPTED", materialIds: [task.materials[0].materialId] }, 1000);
