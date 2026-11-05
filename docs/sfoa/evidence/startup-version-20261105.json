@@ -1,0 +1,364 @@
+{
+  "capturedAt": "2026-11-05T03:41:41.102Z",
+  "baselineCommit": "b9b6a523544b080b4df751402cd5c07de1641bff",
+  "scope": "LOCAL_STARTUP_AND_203_ADMIN_DISTRIBUTION_REPAIR_NO_SALESFORCE_MUTATION",
+  "local": {
+    "checkedAt": "2026-11-05T03:39:39.254Z",
+    "changedEnvironmentKeys": [
+      "SFOA_DB_NAME"
+    ],
+    "currentDatabase": "sfoa_agent_material_workflows",
+    "originalDatabase": "sfoa_enterprise_mcp",
+    "originalLedgerUnchanged": true,
+    "originalHas016": true,
+    "originalHas017": false,
+    "verificationProcessStopped": true,
+    "copied": [
+      {
+        "table": "sfoa_identity_route",
+        "count": 6,
+        "equal": true
+      },
+      {
+        "table": "sfoa_identity_credential",
+        "count": 6,
+        "equal": true
+      },
+      {
+        "table": "sfoa_tool_control",
+        "count": 30,
+        "equal": true
+      },
+      {
+        "table": "sfoa_dml_policy",
+        "count": 4,
+        "equal": true
+      },
+      {
+        "table": "sfoa_dml_managed_field_rule",
+        "count": 4,
+        "equal": true
+      },
+      {
+        "table": "sfoa_diagnostic_config",
+        "count": 1,
+        "equal": true
+      },
+      {
+        "table": "sfoa_runtime_setting",
+        "count": 4,
+        "equal": true
+      },
+      {
+        "table": "sfoa_ui_snapshot",
+        "count": 1,
+        "equal": true
+      }
+    ],
+    "migrations": [
+      {
+        "version": "001_p5_control_plane",
+        "state": "APPLIED"
+      },
+      {
+        "version": "002_p5_indexes",
+        "state": "APPLIED"
+      },
+      {
+        "version": "003_p6_identity_credential",
+        "state": "APPLIED"
+      },
+      {
+        "version": "004_p6_dml_managed_field_rule",
+        "state": "APPLIED"
+      },
+      {
+        "version": "005_p7_end_to_end_audit",
+        "state": "APPLIED"
+      },
+      {
+        "version": "006_p7_salesforce_api_observability",
+        "state": "APPLIED"
+      },
+      {
+        "version": "007_p7_soql_dml_audit_evidence",
+        "state": "APPLIED"
+      },
+      {
+        "version": "008_p7_payload_evidence_runtime",
+        "state": "APPLIED"
+      },
+      {
+        "version": "009_identity_route_user_name",
+        "state": "APPLIED"
+      },
+      {
+        "version": "010_managed_platform_user_lookup_fallback",
+        "state": "APPLIED"
+      },
+      {
+        "version": "011_managed_fallback_create_only",
+        "state": "APPLIED"
+      },
+      {
+        "version": "012_p8_ui_snapshot",
+        "state": "APPLIED"
+      },
+      {
+        "version": "013_p8_05_wecom_identity_channel",
+        "state": "APPLIED"
+      },
+      {
+        "version": "014_skill02c_attachment_upload",
+        "state": "APPLIED"
+      },
+      {
+        "version": "015_admin_audit_actor_index",
+        "state": "APPLIED"
+      },
+      {
+        "version": "017_attachment_attempt_lifecycle",
+        "state": "APPLIED"
+      }
+    ],
+    "browser": {
+      "scope": "ACTUAL_LOCAL_ADMIN_BROWSER",
+      "checkedAt": "2026-11-05T03:33:33.434Z",
+      "origin": "http://127.0.0.1:5173",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "playbookVersion": "1.13.2",
+      "canonicalTitleVisible": true,
+      "canonicalBodyVisible": true,
+      "generatedDifyCurrent": true,
+      "generatedWeComCurrent": true,
+      "loadedAgentChunks": [
+        "/src/pages/AgentIntegrationPage.tsx"
+      ],
+      "health": {
+        "/admin/api/health": 200,
+        "/admin/api/ready": 200,
+        "mcp": 200
+      },
+      "logout": 200,
+      "pass": true
+    }
+  },
+  "server": {
+    "before": {
+      "http://127.0.0.1:9000": {
+        "status": 200,
+        "index": "/assets/index-DEVRE_9D.js",
+        "chunks": [
+          "AgentIntegrationPage-CI34N_E8.js"
+        ],
+        "playbookVersions": [
+          "1.12.0"
+        ]
+      },
+      "http://crmmcptest.runner-corp.com.cn:9000": {
+        "status": 200,
+        "index": "/assets/index-DEVRE_9D.js",
+        "chunks": [
+          "AgentIntegrationPage-CI34N_E8.js"
+        ],
+        "playbookVersions": [
+          "1.12.0"
+        ]
+      }
+    },
+    "after": {
+      "http://127.0.0.1:9000": {
+        "status": 200,
+        "index": "/assets/index-3O0UrNe6.js",
+        "chunks": [
+          "AgentIntegrationPage-C9ZxVunh.js"
+        ],
+        "playbookVersions": [
+          "1.13.2"
+        ]
+      },
+      "http://crmmcptest.runner-corp.com.cn:9000": {
+        "status": 200,
+        "index": "/assets/index-3O0UrNe6.js",
+        "chunks": [
+          "AgentIntegrationPage-C9ZxVunh.js"
+        ],
+        "playbookVersions": [
+          "1.13.2"
+        ]
+      }
+    },
+    "mcp": {
+      "scope": "IDENTITY_LESS_WECOM_DISCOVERY_ONLY_NO_SALESFORCE",
+      "checkedAt": "2026-11-05T03:28:03.755Z",
+      "protocolVersion": "2025-06-18",
+      "playbookVersions": [
+        "1.13.2"
+      ],
+      "toolsCount": 29
+    },
+    "skills": {
+      "sfoa-crm-core": {
+        "files": 10,
+        "drift": []
+      },
+      "sfoa-data-analysis": {
+        "files": 8,
+        "drift": []
+      },
+      "sfoa-org-diagnostics": {
+        "files": 7,
+        "drift": []
+      },
+      "sfoa-record-change": {
+        "files": 13,
+        "drift": []
+      }
+    },
+    "gatewaySkills": [
+      {
+        "name": "sfoa-crm-core",
+        "source": "openclaw-workspace",
+        "filePath": "/data/openclaw/workspace/skills/sfoa-crm-core/SKILL.md",
+        "baseDir": "/data/openclaw/workspace/skills/sfoa-crm-core",
+        "skillKey": "sfoa-crm-core",
+        "disabled": false,
+        "eligible": true,
+        "modelVisible": true
+      },
+      {
+        "name": "sfoa-data-analysis",
+        "source": "openclaw-workspace",
+        "filePath": "/data/openclaw/workspace/skills/sfoa-data-analysis/SKILL.md",
+        "baseDir": "/data/openclaw/workspace/skills/sfoa-data-analysis",
+        "skillKey": "sfoa-data-analysis",
+        "disabled": false,
+        "eligible": true,
+        "modelVisible": true
+      },
+      {
+        "name": "sfoa-org-diagnostics",
+        "source": "openclaw-workspace",
+        "filePath": "/data/openclaw/workspace/skills/sfoa-org-diagnostics/SKILL.md",
+        "baseDir": "/data/openclaw/workspace/skills/sfoa-org-diagnostics",
+        "skillKey": "sfoa-org-diagnostics",
+        "disabled": false,
+        "eligible": true,
+        "modelVisible": true
+      },
+      {
+        "name": "sfoa-record-change",
+        "source": "openclaw-workspace",
+        "filePath": "/data/openclaw/workspace/skills/sfoa-record-change/SKILL.md",
+        "baseDir": "/data/openclaw/workspace/skills/sfoa-record-change",
+        "skillKey": "sfoa-record-change",
+        "disabled": false,
+        "eligible": true,
+        "modelVisible": true
+      }
+    ],
+    "maintainerPublished": false,
+    "independentExport": {
+      "playbookVersion": "1.13.2",
+      "skillBytesEqual": true,
+      "existingMcpConfigUnchanged": true
+    },
+    "browser": {
+      "scope": "ACTUAL_203_ADMIN_BROWSER",
+      "checkedAt": "2026-11-05T03:40:05.695Z",
+      "origin": "http://crmmcptest.runner-corp.com.cn:9000",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "playbookVersion": "1.13.2",
+      "canonicalTitleVisible": true,
+      "canonicalBodyVisible": true,
+      "generatedDifyCurrent": true,
+      "generatedWeComCurrent": true,
+      "loadedAgentChunks": [
+        "/assets/AgentIntegrationPage-C9ZxVunh.js"
+      ],
+      "health": {
+        "/admin/api/health": 200,
+        "/admin/api/ready": 200
+      },
+      "logout": 200,
+      "pass": true
+    },
+    "services": {
+      "sfoa-mcp-server": [
+        "MainPID=3046218",
+        "ActiveState=active"
+      ],
+      "sfoa-admin-api": [
+        "MainPID=3046787",
+        "ActiveState=active"
+      ],
+      "openclaw-gateway": [
+        "MainPID=3759907",
+        "ActiveState=active"
+      ],
+      "nginx": [
+        "MainPID=1267856",
+        "ActiveState=active"
+      ]
+    },
+    "configurationUnchanged": true,
+    "backup": "/data/sfoa-enterprise-mcp/backup/admin-playbook-1132-20261105T033105Z",
+    "rollbackRehearsed": false
+  },
+  "tests": {
+    "windowsAdminTargeted": {
+      "pass": 15,
+      "total": 15
+    },
+    "linuxAdminFull": {
+      "pass": 95,
+      "total": 95
+    },
+    "linuxTypeScript": "PASS",
+    "linuxViteBuild": "PASS_WITH_EXISTING_LARGE_CHUNK_WARNING",
+    "maintainerSkill": {
+      "pass": 80,
+      "total": 80
+    },
+    "skillSync": "PASS",
+    "skillCheck": "PASS",
+    "skillDelivery": "PASS"
+  },
+  "retainedFailures": [
+    {
+      "phase": "original local startup",
+      "result": "MISSING_017_AND_FOREIGN_016"
+    },
+    {
+      "phase": "first config copy",
+      "result": "GENERATED_COLUMN_INSERT_REJECTED_TRANSACTION_ROLLED_BACK"
+    },
+    {
+      "phase": "second config copy",
+      "result": "DEFAULT_TIMESTAMP_VALUES_MISMATCH_TRANSACTION_ROLLED_BACK"
+    },
+    {
+      "phase": "Windows targeted initial",
+      "pass": 14,
+      "fail": 1,
+      "reason": "STALE_GUIDANCE_ASSERTION"
+    },
+    {
+      "phase": "Linux full initial",
+      "pass": 94,
+      "fail": 1,
+      "reason": "STALE_1_11_0_MARKER_ASSERTION"
+    },
+    {
+      "phase": "Edge headless initial",
+      "result": "BROWSER_LAUNCH_FAILED"
+    },
+    {
+      "phase": "web publication first",
+      "result": "RESTORECON_NOT_ON_SCRIPT_PATH_ENTRY_NOT_REPLACED"
+    }
+  ],
+  "overallMaterialBusinessAcceptance": "PARTIAL_UNCHANGED"
+}

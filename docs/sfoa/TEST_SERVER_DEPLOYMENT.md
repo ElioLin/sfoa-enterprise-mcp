@@ -6,6 +6,8 @@
 
 ## 2026-11-05 材料工作流测试部署（203）
 
+后续核对发现 Admin Web 仍在提供 10 月 29 日的 Playbook 1.12.0 静态包；此前的 1.13.2 证明覆盖服务端和运行 Skill，未覆盖管理前端。已补发 `index-3O0UrNe6.js` / `AgentIntegrationPage-C9ZxVunh.js`，11:40 实际浏览器确认页面与 Dify/WeCom 生成文本均为 1.13.2；Linux 全量 95/95，四服务 PID 未变。备份及回滚：`/data/sfoa-enterprise-mcp/backup/admin-playbook-1132-20261105T033105Z/rollback.sh`，未演练。四业务 Skill 38 文件与 Git 一致，独立 sfoa 导出正文一致。完整遗漏、失败保留、本地跨分支开发库处理及验证/回滚见[启动与版本修复记录](STARTUP_AND_PLAYBOOK_REPAIR_20261105.md)。历史记录保留，不能将服务端版本视为前端已同步的证明。
+
 10:44:41 最新 Adapter `9c4fda90815e924040ab3c5e6439f5cfa5f39776` 已通过官方 `plugins reload` 热加载，generation=3，source digest `f73640bebc71158d6e3e659e1443e0b284cb122f2530dd954aaa7536231937f3`，无需重启，PID 仍 3759907。app/plugin `src/material-tasks.js` SHA256 `3813eee90b764f216562cd34499ffb9a212331b6e7a38f74d199a0e73fb21618`。首次因缺少 capability consent 被拒绝并恢复旧源码；审阅新旧 declared surface 完全相同后，在已有部署授权内用官方选项登记，未新增危险标志或更改会话访问配置。备份及回滚 `/data/sfoa-enterprise-mcp/backup/adapter-task-notes-20261105T024435Z-9c4fda9/rollback.sh`，含私密配置和插件登记库在线备份。配置/凭据文件校验未变。10:47 真人 E3 证明同任务九材料保留、阶段 COMPLETE、拒绝归档及目标隔离；不能据此宣称 Gateway 重启持久化。详见续测报告。
 
 09:58:59 后续状态观察修复：实际 Adapter 为 `72eeb22512ebb29f0c275097836b88eafba060d9`，app/plugin `src/index.js` SHA256 均为 `5fdd2febdb9a13cbb7fb30a4612bb15f4fac53643cd1948828d133755c81278c`；Gateway PID `3759907`。备份及回滚 `/data/sfoa-enterprise-mcp/backup/adapter-prompt-run-20261105T015858Z-72eeb22/rollback.sh`，回到连接有效但状态观察失败的 20ea，未演练。新实现用提示词阶段的可信身份绑定完成事件，09:59 实际注册、10:01 真人企微只读查询/记目标/再读回均已核对；后者有 2 次 USER/WECOM_HEADER P7 成功，无 Salesforce 变更。20ea 于 09:28 部署后的 09:35 状态失败保留。当前安装方式仍无可用 keyed store，跨重启原材料 ledger 不算恢复。新源码归档显式关闭 autocrlf；预检曾因未覆盖测试文件的换行 hash 差异拦下，未改变服务，核实旧 Git blob 后再部署。配置、凭据、核心、Playbook 保持原值。

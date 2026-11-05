@@ -28,6 +28,17 @@ Default development endpoints:
 
 `yarn ai:doctor` checks runtime/tooling/configured state, DB connectivity/schema, service reachability, and Git state without printing secret values.
 
+Before applying migrations after switching branches, run `yarn db:status` and
+compare the ledger with this checkout. `ai:doctor` connectivity/core-table PASS
+does not prove every required migration is applied. A database can both lack a
+new migration and contain a migration from a different feature branch. Do not
+remove ledger rows or disable unknown-version rejection to make startup pass.
+For an authorized separate local development database, migrate the new schema,
+copy only the needed governance/configuration rows in dependency order, excluding
+computed columns but retaining ordinary defaulted timestamps, then verify the
+copied values. Keep the original database and back up `.env.local` before changing
+only its database name; historical Audit remains in the original database.
+
 ## Deployment
 
 For material workflows, apply migration 017_attachment_attempt_lifecycle before
@@ -43,6 +54,15 @@ Keep business runtime Skills separate from generated development copies and the
 independent skill:export package. Config/protocol/health checks are not business
 acceptance. The test-server deployment guide and current task delivery report
 contain the actual version and rollback evidence.
+
+Playbook upgrades also require rebuilding and publishing `sfoa-admin-web`: the
+browser imports the canonical package at build time. Restarting MCP/Admin API or
+synchronizing runtime Skills cannot update an already-built web bundle. Validate
+the served Agent Integration page/version and generated instruction text, the MCP
+initialize/resource version, and canonical/runtime Skill hashes independently.
+Back up existing web assets, stage the new build, publish hashed assets before
+`index.html`, and verify HTTP access and SELinux labels. This static-only publish
+does not require restarting Gateway or discarding its in-memory task state.
 
 Production uses two Node processes (MCP/Admin API), static Admin Web files, MySQL 8, and an HTTPS reverse proxy. Vite does not run in production. Keep Node listeners and MySQL off the public network. Apply reviewed migrations before application restart, verify `/ready` and `/health`, then shift traffic.
 

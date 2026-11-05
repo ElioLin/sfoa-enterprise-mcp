@@ -1,6 +1,12 @@
 # SFoA P6 Admin Web
 
-The React Admin Console manages SFoA-owned identity routing, Tool enablement, CREATE/UPDATE policy, Diagnostic configuration, safe settings, Audit and system status. Its Agent Integration page renders canonical Playbook `1.6.0`, distinguishes Buntu, USER_BOUND and Internal/Inspector setup, and previews Dify/WorkBuddy guidance. It never receives Salesforce tokens, JWT keys, database credentials or the MCP client secret.
+The React Admin Console manages SFoA-owned identity routing, Tool enablement, CREATE/UPDATE policy, Diagnostic configuration, safe settings, Audit and system status. Its Agent Integration page renders canonical Playbook `1.13.2`, distinguishes Buntu, USER_BOUND, Internal/Inspector and WeCom setup, and previews Dify/WorkBuddy guidance. It never receives Salesforce tokens, JWT keys, database credentials or the MCP client secret.
+
+The Playbook is bundled into the browser assets. After a Playbook upgrade, rebuild
+and publish this package as well as the server Playbook package; restarting the
+MCP/Admin API or synchronizing OpenClaw Skills does not update an existing web
+bundle. Verify the version through the served Agent Integration page and its
+generated guidance, separately from the MCP resource and runtime Skill hashes.
 
 P8-04 `/ui-context` edits exact per-object OFF/SHADOW/ENFORCE/default App settings
 and displays/refreshes lightweight current snapshots. Audit detail adds 页面上下文

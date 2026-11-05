@@ -1,3 +1,9 @@
+# Local branch database and Admin Playbook distribution repair (2026-11-05)
+
+- Diagnose the missing local 017 migration together with a foreign-branch 016 ledger; preserve the original database and use an explicitly selected isolated development database with verified configuration copies.
+- Correct stale Admin distribution tests and document that Playbook upgrades require rebuilding the browser bundle independently of MCP and OpenClaw Skills. Retain the observed 203 web 1.12.0 omission and the separate 1.13.2 server/Skill evidence.
+- Verification, deployment and rollback: [repair record](docs/sfoa/STARTUP_AND_PLAYBOOK_REPAIR_20261105.md). No Salesforce mutation, runtime permission or migration-guard relaxation.
+
 # Agent materials, continuity and attachment outcomes (2026-11-04)
 
 - Host task materials retain actual source/reading/original coverage across turns with requester/session isolation; Office basic reading stays in a thin host adapter.

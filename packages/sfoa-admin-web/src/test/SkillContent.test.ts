@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { AGENT_PLAYBOOK_VERSION } from '@sfoa/agent-playbook';
 
 const SKILL_ROOT = resolve(process.cwd(), '..', '..', '.codebuddy', 'skills', 'sfoa-salesforce-assistant');
 
@@ -17,7 +18,7 @@ describe('WorkBuddy / CodeBuddy Skill content', () => {
     expect(frontmatter).not.toMatch(/^allowed-tools:/mu);
     expect(skill).toContain('[references/tool-workflows.md](references/tool-workflows.md)');
     expect(skill).toContain('[references/safety-boundaries.md](references/safety-boundaries.md)');
-    expect(skill).toContain('GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.11.0');
+    expect(skill).toContain(`GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) ${AGENT_PLAYBOOK_VERSION}`);
     expect(skill).toContain('Bearer <USER_BOUND_TOKEN>');
     expect(skill).toContain('Do not configure `X-Platform-User-Id`');
 
