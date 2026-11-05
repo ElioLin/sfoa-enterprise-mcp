@@ -43,11 +43,12 @@ never a prerequisite for MCP DML. The Agent starts a new task when the business
 client/event changes, selects relevant material IDs and avoids inheriting old
 targets or consent. CREATE/UPDATE/batch results observed through `after_tool_call`
 bind actual record IDs; notes cannot invent a confirmed target. OpenClaw's
-embedded completion hook omits requester identity, so `before_tool_call` captures
-the trusted scope against the exact session/run/call/tool tuple. Completion
-consumes that bounded, expiring binding; missing or conflicting bindings do not
-infer identity from a session name or Tool arguments. This hook does not change
-parameters, authorize, or gate the call. Per-file outcomes
+embedded completion hook omits requester identity. The existing prompt lifecycle
+captures the trusted sender against the exact session/run tuple, including native
+MCP calls without a generic before-tool hook. These bindings expire, are bounded
+to 128 runs, and clear on agent end or session reset. Missing or conflicting
+bindings never infer identity from a session name or Tool arguments; the observer
+does not change parameters, authorize, or gate a call. Per-file outcomes
 remain separate, and SUCCESS/OUTCOME_UNKNOWN must not be replayed. Record and
 attachment authorization stay independent. Full business behavior requires
 actual model/channel validation, beyond these host contracts.

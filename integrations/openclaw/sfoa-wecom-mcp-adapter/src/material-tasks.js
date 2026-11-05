@@ -8,12 +8,9 @@ const MAX_TASK_TEXT = 64000;
 const MAX_SESSIONS = 128;
 const recordIdPattern = /^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/u;
 
-function toolCallScopeKey(event, context) {
-  const runId = context?.runId ?? event?.runId;
-  const toolCallId = context?.toolCallId ?? event?.toolCallId;
-  if (![runId, toolCallId, context?.sessionKey, event?.toolName].every(value => typeof value === "string" && value.length > 0)) return undefined;
-  if ((event.runId && event.runId !== runId) || (event.toolCallId && event.toolCallId !== toolCallId)) return undefined;
-  return JSON.stringify([context.sessionKey, context.sessionId ?? "", runId, toolCallId, event.toolName]);
+function runScopeKey(context) {
+  if (![context?.runId, context?.sessionKey].every(value => typeof value === "string" && value.length > 0)) return undefined;
+  return JSON.stringify([context.sessionKey, context.sessionId ?? "", context.runId]);
 }
 
 export function materialScope(context, kind = "agent") {
@@ -44,7 +41,7 @@ export function createMaterialTaskRegistry(options = {}) {
   const now = options.now ?? Date.now;
   const memory = new Map();
   const queues = new Map();
-  const toolScopes = new Map();
+  const runScopes = new Map();
   const store = options.store;
   async function change(scope, update) {
     if (!scope) return undefined;
@@ -75,30 +72,30 @@ export function createMaterialTaskRegistry(options = {}) {
   return {
     change,
     read: (scope) => change(scope),
-    // OpenClaw's before hook carries the trusted requester; its embedded after
-    // hook carries only run/session/call identifiers. Bind those exact host facts,
-    // never infer a requester from a session name or model-supplied arguments.
-    bindToolScope(event, context) {
-      if (!event?.toolName?.startsWith("sfoa-enterprise-mcp__")) return;
-      const key = toolCallScopeKey(event, context), scope = materialScope(context, "tool");
-      if (!key || !scope) return;
+    // The prompt lifecycle carries the trusted sender even when native MCP does
+    // not enter the generic before-tool wrapper. Completion carries the same run
+    // and session identifiers. Never infer identity from their string contents.
+    bindRunScope(context) {
+      const key = runScopeKey(context), scope = materialScope(context);
+      if (!key) return;
       const current = now();
-      for (const [id, entry] of toolScopes) if (entry.expiresAt <= current) toolScopes.delete(id);
-      const previous = toolScopes.get(key);
-      if (!previous && toolScopes.size >= 512) toolScopes.delete(toolScopes.keys().next().value);
-      toolScopes.set(key, { scope: previous && previous.scope?.key !== scope.key ? undefined : scope,
+      for (const [id, entry] of runScopes) if (entry.expiresAt <= current) runScopes.delete(id);
+      const previous = runScopes.get(key);
+      if (!previous && runScopes.size >= MAX_SESSIONS) runScopes.delete(runScopes.keys().next().value);
+      runScopes.set(key, { scope: !scope || (previous && previous.scope?.key !== scope.key) ? undefined : scope,
         sessionKey: context.sessionKey, expiresAt: current + MATERIAL_TASK_TTL_MS });
     },
     takeToolScope(event, context) {
-      const key = toolCallScopeKey(event, context), entry = key && toolScopes.get(key);
-      if (key) toolScopes.delete(key);
+      if (event?.runId && context?.runId && event.runId !== context.runId) return undefined;
+      const key = runScopeKey(context), entry = key && runScopes.get(key);
       const direct = materialScope(context, "tool");
       if (!entry) return direct;
       if (entry.expiresAt <= now() || !entry.scope || (direct && direct.key !== entry.scope.key)) return undefined;
       return entry.scope;
     },
+    clearRunScope(context) { const key = runScopeKey(context); if (key) runScopes.delete(key); },
     async clearSession(sessionKey) {
-      for (const [id, entry] of toolScopes) if (entry.sessionKey === sessionKey) toolScopes.delete(id);
+      for (const [id, entry] of runScopes) if (entry.sessionKey === sessionKey) runScopes.delete(id);
       const entries = store ? await store.entries() : [...memory].map(([key, value]) => ({ key, value }));
       for (const entry of entries) if (entry.value?.sessionKey === sessionKey) {
         memory.delete(entry.key);

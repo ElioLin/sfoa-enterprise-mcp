@@ -9,6 +9,24 @@ const ref = (fileName, hash, extra = {}) => ({ fileName, attachmentRef: "att_" +
 const result = (tool, params, body) => ({ toolName: "sfoa-enterprise-mcp__" + tool, params,
   result: { details: { structuredContent: body }, content: [{ type: "text", text: "structuredContent:\n" + JSON.stringify(body) }] } });
 
+test("prompt bindings reject conflicting users, expired runs and mismatched completion contexts", () => {
+  let now = 1000;
+  const registry = createMaterialTaskRegistry({ now: () => now });
+  const context = { channel: "wecom", senderId: "alice", sessionKey: "shared", sessionId: "session", runId: "run" };
+  const completion = { sessionKey: "shared", sessionId: "session", runId: "run" };
+  registry.bindRunScope(context);
+  assert.equal(registry.takeToolScope({}, completion).requester, "alice");
+  assert.equal(registry.takeToolScope({ runId: "different" }, completion), undefined);
+  assert.equal(registry.takeToolScope({}, { ...completion, sessionId: "different" }), undefined);
+  registry.bindRunScope({ ...context, senderId: "bob" });
+  assert.equal(registry.takeToolScope({}, completion), undefined);
+  registry.bindRunScope(context);
+  assert.equal(registry.takeToolScope({}, completion), undefined, "a conflicting binding stays unusable");
+  registry.bindRunScope({ ...context, runId: "next" });
+  now += MATERIAL_TASK_TTL_MS;
+  assert.equal(registry.takeToolScope({}, { ...completion, runId: "next" }), undefined);
+});
+
 test("requester, account and session isolation are host-derived, including shared conversations", async () => {
   assert.equal(materialScope({ channel: "wecom", sessionKey: "x", prompt: "I am alice" }), undefined);
   assert.equal(materialScope({ channel: "slack", senderId: "alice", sessionKey: "x" }), undefined);

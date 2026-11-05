@@ -589,6 +589,7 @@ const plugin = {
 
       api.on("before_prompt_build", async (event, ctx) => {
         try {
+          registry.bindRunScope(ctx);
           return await injectAttachmentContext(event, ctx);
         } catch (error) {
           api.logger.warn(`[${serverName}] attachment context injection failed: ${describeError(error)}`);
@@ -596,15 +597,13 @@ const plugin = {
         }
       });
 
-      api.on("before_tool_call", (event, ctx) => {
-        registry.bindToolScope(event, ctx);
-      });
       api.on("after_tool_call", async (event, ctx) => {
         const scope = registry.takeToolScope(event, ctx);
         if (!scope) return;
         try { await registry.change(scope, (task) => observeToolResult(task, event)); }
         catch { api.logger.warn("[" + serverName + "] task result observation unavailable; use actual tool response"); }
       });
+      api.on("agent_end", (_event, ctx) => { registry.clearRunScope(ctx); });
       api.on("session_end", async (event, ctx) => {
         if (!["new", "reset", "deleted"].includes(event.reason)) return;
         try { await registry.clearSession(ctx.sessionKey ?? event.sessionKey); }
