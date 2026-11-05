@@ -92,7 +92,7 @@ CLI `plugins list` 使用持久化 registry，曾显示 `loaded`，但实际 fre
 | Linux 72eeb22 harness 目录 | 24/24；`harness-linux-prompt-run-final.log`，与 Adapter 分次运行，不合成为同一次聚合 |
 | 72eeb22 实际 SDK + 保存结果重放 | 候选和实际插件目录均 PASS；使用真实 SDK 的上下文构造函数及已保存的 309 号查询返回，证明结果解析和目标绑定；未发起 Salesforce 请求，不计作新渠道验收 |
 | 9c4fda9 指导修正专项 | Windows 37/37、Linux 候选 37/37；真实 SDK 注册/结果衔接通过；真实阶段收尾另见 E3 |
-| Skill 同步/一致性/测试/交付 | sync/check/delivery PASS；已执行 80/80；最新热加载引用随后以 committed HEAD smoke 单独验证 |
+| Skill 同步/一致性/测试/交付 | 最新引用 sync/check/delivery PASS；Linux committed HEAD `6afa55a` 的 validate/sync/check/test/snapshot/缺环境 doctor 全部 PASS，含 80/80；未加载 .env，DB/服务检查跳过，不计业务验收 |
 
 服务器第一次部署预检发现实际插件目录没有 README，备份复制失败；第二次临时脚本因 CRLF 解析失败，均发生在覆盖/重启前。修正为 LF 的第三次脚本成功。三个版本和失败日志都保留，没有将失败脚本的退出状态解释为已部署。
 

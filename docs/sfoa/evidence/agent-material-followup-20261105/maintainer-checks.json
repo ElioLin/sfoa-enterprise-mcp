@@ -23,9 +23,74 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "result": "PASS",
       "scope": "SERVER_TYPESCRIPT_NO_EMIT"
+    },
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-sync-hot-reload.log",
+      "sha256": "221f8ba75bcd978c75729c737521be7466860d62308e37d946cc62b425f050ee",
+      "result": "PASS",
+      "scope": "FINAL_CANONICAL_REFERENCE"
+    },
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-check-hot-reload.log",
+      "sha256": "0fcff44eed3244c433040940851677507bfe906aa945a1936bd4acf7c34affaa",
+      "result": "PASS",
+      "scope": "FINAL_CANONICAL_REFERENCE"
+    },
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-delivery-hot-reload.log",
+      "sha256": "c44b320f9401797b61c883694b3ad3476c83b0b4c086f9bb77761c06f0bfdd95",
+      "result": "PASS",
+      "scope": "FINAL_CANONICAL_REFERENCE"
     }
   ],
   "cleanHeadSmoke": {
+    "result": "PASS",
+    "sourceCommit": "6afa55aee12e969474924778228e6e564136e2ec",
+    "sha256": "e296897a591838325ede885dbe1b87f9dafefc87c0be2cf180e378ae1c385b10",
+    "committedFileCount": 1450,
+    "gates": [
+      {
+        "name": "skill:validate",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:sync",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:check",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:test",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "ai:snapshot",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "ai:doctor (missing-env)",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "doctorMissingEnv": {
+      "ok": true,
+      "exists": false
+    },
+    "skillTests": {
+      "pass": 80,
+      "fail": 0
+    },
+    "scope": "FINAL_CODE_AND_SKILL_COMMITTED_HEAD; subsequent commit records evidence only"
+  },
+  "previousCleanHeadSmoke": {
     "result": "PASS",
     "sourceCommit": "1b17fb091185b4ad565cf9344824a46613bbb31b",
     "sha256": "3d0ce68ba8abcdfc8574234b98792721681325f8a183bc2fd77f53dd7fb496d0",
