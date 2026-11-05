@@ -1250,6 +1250,174 @@ describe('gate: attachment attempt lifecycle and real dispatcher', () => {
     });
   }
 
+  test('HOTFIX-01: a proven 400 remains FAILED while rejection persistence outlives the facade deadline', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const harness = await createHarness();
+    const refs = [await stageOne(harness, 'rejected original'), await stageOne(harness, 'unsent original')];
+    const request = { objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: refs };
+    const markFailed = harness.store.markFailed.bind(harness.store);
+    let releasePersistence: () => void = () => undefined;
+    const persistence = new Promise<void>((resolve) => { releasePersistence = resolve; });
+    let persistenceDone: () => void = () => undefined;
+    const settled = new Promise<void>((resolve) => { persistenceDone = resolve; });
+    harness.store.markFailed = async (id, code, retryable) => {
+      queueMicrotask(() => context.mock.timers.tick(5_000));
+      await persistence;
+      const result = await markFailed(id, code, retryable);
+      persistenceDone();
+      return result;
+    };
+    const events: LoggedEvent[] = [];
+    await withSalesforce((call) => call.method === 'POST'
+      ? Response.json([{ errorCode: 'FIELD_INTEGRITY_EXCEPTION', message: 'Correct the target.' }], { status: 400 })
+      : Response.json({ Id: TARGET_ID }), async (calls) => {
+      try {
+        const result = await facade(harness, 5_000, events).execute(request, {} as never);
+        const content = result.structuredContent as { status: string; results: AttachmentFileResult[] };
+        assert.equal(content.status, 'FAILED');
+        assert.deepEqual(content.results.map((row) => row.status), ['FAILED', 'NOT_ATTEMPTED']);
+        assert.equal(content.results[0]?.httpStatus, 400);
+        assert.equal(content.results[0]?.salesforceErrorCode, 'FIELD_INTEGRITY_EXCEPTION');
+        assert.equal(content.results[0]?.salesforceMessage, 'Correct the target.');
+        assert.equal(content.results[0]?.retryable, false, 'persistence has not confirmed recovery');
+        assert.equal(harness.store.rows.get(refs[0]!)?.state, 'UPLOADING');
+        assert.equal((await uploader(harness, fixtureProvider()).upload({ ...request, attachmentRefs: [refs[0]!] })).status, 'OUTCOME_UNKNOWN');
+        assert.equal(events.at(-1)?.outcome, 'FAILED');
+        releasePersistence();
+        await settled;
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(harness.store.rows.get(refs[0]!)?.state, 'RETRYABLE');
+        assert.equal(harness.store.rows.get(refs[1]!)?.state, 'STAGED');
+        assert.equal(content.results[0]?.retryable, false, 'late settlement cannot mutate the already returned answer');
+        assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+      } finally {
+        releasePersistence();
+        await settled;
+      }
+    });
+  });
+
+  test('HOTFIX-01: rejected persistence failure retains the Salesforce refusal and a non-retryable claim', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'rejected original');
+    harness.store.markFailed = async () => { throw new Error('fixture persistence unavailable'); };
+    await withSalesforce((call) => call.method === 'POST'
+      ? Response.json([{ errorCode: 'FIELD_INTEGRITY_EXCEPTION', message: 'Correct the target.' }], { status: 400 })
+      : Response.json({ Id: TARGET_ID }), async (calls) => {
+      const result = await facade(harness, 5_000).execute({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] }, {} as never);
+      const content = result.structuredContent as { status: string; results: AttachmentFileResult[] };
+      assert.equal(content.status, 'FAILED');
+      assert.equal(content.results[0]?.retryable, false);
+      assert.equal(content.results[0]?.httpStatus, 400);
+      assert.equal(content.results[0]?.salesforceErrorCode, 'FIELD_INTEGRITY_EXCEPTION');
+      assert.equal(content.results[0]?.salesforceMessage, 'Correct the target.');
+      assert.equal(harness.store.rows.get(ref)?.state, 'UPLOADING');
+      assert.equal((await refusal(harness.ingress.resolveForOwner(ref, OWNER))).code, 'MCP_ATTACHMENT_OUTCOME_UNKNOWN');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+    });
+  });
+
+  test('HOTFIX-01: refusal is observed before persistence, and only a successful transition enables recovery', async () => {
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'rejected original');
+    const observations: AttachmentFileResult[] = [];
+    const markFailed = harness.store.markFailed.bind(harness.store);
+    harness.store.markFailed = async (id, code, retryable) => {
+      assert.equal(observations.at(-1)?.status, 'FAILED');
+      assert.equal(observations.at(-1)?.retryable, false);
+      assert.equal(observations.at(-1)?.httpStatus, 400);
+      return markFailed(id, code, retryable);
+    };
+    await withSalesforce((call) => call.method === 'POST'
+      ? Response.json([{ errorCode: 'FIELD_INTEGRITY_EXCEPTION', message: 'Correct the target.' }], { status: 400 })
+      : Response.json({ Id: TARGET_ID }), async () => {
+      const client = new SalesforceAttachmentUploader({
+        connectionProvider: fixtureProvider(), ingress: harness.ingress,
+        policy: new StaticAttachmentPolicy([{ objectApiName: TARGET_OBJECT }]), platformUserId: OWNER,
+        uploadTimeoutMs: 5_000, onFileResult: (row) => observations.push(row),
+      });
+      const result = await client.upload({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] });
+      assert.equal(result.results[0]?.retryable, true);
+      assert.deepEqual(observations.map((row) => [row.status, row.retryable]), [['FAILED', false], ['FAILED', true]]);
+      assert.equal(harness.store.rows.get(ref)?.state, 'RETRYABLE');
+    });
+  });
+
+  test('HOTFIX-01: known publication survives cleanup persistence exceeding the deadline and stops later files', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const harness = await createHarness();
+    const refs = [await stageOne(harness, 'published original'), await stageOne(harness, 'unsent original')];
+    const markConsumed = harness.store.markConsumed.bind(harness.store);
+    const markBytesRemoved = harness.store.markBytesRemoved.bind(harness.store);
+    let releasePersistence: () => void = () => undefined;
+    const persistence = new Promise<void>((resolve) => { releasePersistence = resolve; });
+    let cleanupDone: () => void = () => undefined;
+    const settled = new Promise<void>((resolve) => { cleanupDone = resolve; });
+    harness.store.markConsumed = async (id, time) => {
+      queueMicrotask(() => context.mock.timers.tick(5_000));
+      await persistence;
+      await markConsumed(id, time);
+    };
+    harness.store.markBytesRemoved = async (id, time) => { await markBytesRemoved(id, time); cleanupDone(); };
+    await withSalesforce(successfulSalesforce(), async (calls) => {
+      try {
+        const result = await facade(harness, 5_000).execute({ objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: refs }, {} as never);
+        const content = result.structuredContent as { status: string; results: AttachmentFileResult[] };
+        assert.equal(content.status, 'PARTIAL_SUCCESS');
+        assert.deepEqual(content.results.map((row) => row.status), ['SUCCESS', 'NOT_ATTEMPTED']);
+        assert.equal(content.results[0]?.contentVersionId, '068000000000001AAA');
+        assert.equal(harness.store.rows.get(refs[0]!)?.state, 'UPLOADING');
+      } finally {
+        releasePersistence();
+        await settled;
+      }
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+      assert.equal(calls.filter((call) => call.url.includes('/query')).length, 0);
+      assert.equal(harness.store.rows.get(refs[0]!)?.state, 'CONSUMED');
+      assert.equal(harness.store.rows.get(refs[1]!)?.state, 'STAGED');
+    });
+  });
+
+  test('HOTFIX-01: the Adapter retains a publication when the real ingress refuses its consumed ref', async () => {
+    // Variable URL keeps this integration-only import outside the server tsc
+    // source graph. Execute the shipped Adapter helper, not a second observer.
+    const adapterUrl = new URL('../../../../integrations/openclaw/sfoa-wecom-mcp-adapter/src/material-tasks.js', import.meta.url).href;
+    type MaterialTask = {
+      materials: { upload: { status: string; contentVersionId?: string; latestAttempt?: { status: string; errorCode?: string } } }[];
+    };
+    const adapter = await import(adapterUrl) as {
+      createMaterialTaskRegistry: () => { change: (scope: unknown, update?: (task: MaterialTask, now: number) => void) => Promise<MaterialTask> };
+      materialScope: (context: unknown) => unknown;
+      addMaterials: (task: MaterialTask, materials: unknown[], now: number, messageId: string) => void;
+      observeToolResult: (task: MaterialTask, event: unknown) => void;
+    };
+    const harness = await createHarness();
+    const ref = await stageOne(harness, 'original with observed publication');
+    const row = harness.store.rows.get(ref)!;
+    const registry = adapter.createMaterialTaskRegistry();
+    const scope = adapter.materialScope({ channel: 'wecom', senderId: OWNER, sessionKey: 'consumed-ref-contract' });
+    await registry.change(scope, (task, now) => adapter.addMaterials(task, [{ attachmentRef: ref,
+      fileName: row.fileName, contentSha256: row.contentSha256, expiresAt: row.expiresAt }], now, 'original-message'));
+    const params = { objectApiName: TARGET_OBJECT, recordId: TARGET_ID, attachmentRefs: [ref] };
+    await withSalesforce(successfulSalesforce(), async (calls) => {
+      const first = await facade(harness, 5_000).execute(params, {} as never);
+      assert.equal(harness.store.rows.get(ref)?.state, 'CONSUMED');
+      await registry.change(scope, (task) => adapter.observeToolResult(task, { toolName: 'sfoa-enterprise-mcp__upload_files_to_record', params, result: first }));
+      const duplicate = await facade(harness, 5_000).execute(params, {} as never);
+      const duplicateRow = (duplicate.structuredContent as { results: AttachmentFileResult[] }).results[0];
+      assert.equal(duplicateRow?.status, 'FAILED');
+      assert.equal(duplicateRow?.errorCode, 'MCP_ATTACHMENT_EXPIRED');
+      assert.equal(duplicateRow?.contentVersionId, null);
+      const task = await registry.change(scope, (value) => adapter.observeToolResult(value, { toolName: 'sfoa-enterprise-mcp__upload_files_to_record', params, result: duplicate }));
+      assert.equal(task.materials[0]?.upload.status, 'SUCCESS');
+      assert.equal(task.materials[0]?.upload.contentVersionId, '068000000000001AAA');
+      assert.equal(task.materials[0]?.upload.latestAttempt?.status, 'FAILED');
+      assert.equal(task.materials[0]?.upload.latestAttempt?.errorCode, 'MCP_ATTACHMENT_EXPIRED');
+      assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+    });
+  });
+
   test('a POST response body that breaks mid-stream is unknown, retained and never replayed', async () => {
     const harness = await createHarness();
     const refs = [await stageOne(harness, 'one'), await stageOne(harness, 'two'), await stageOne(harness, 'three')];

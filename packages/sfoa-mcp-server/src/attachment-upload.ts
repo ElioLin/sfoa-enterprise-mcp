@@ -319,19 +319,28 @@ export class SalesforceAttachmentUploader {
       // JSON alone proves nothing: gateways also return JSON and 5xx may follow a
       // committed write. Only a structured Salesforce client-error rejection is retryable.
       const status: AttachmentFileStatus = isProvenRejection(response.status, body) ? 'FAILED' : 'OUTCOME_UNKNOWN';
+      const observed: AttachmentFileResult = {
+        ...fileResult(index, attachmentRef, opened.fileName, status),
+        httpStatus: response.status,
+        errorCode: status === 'FAILED' ? 'MCP_ATTACHMENT_UPLOAD_FAILED' : 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
+        salesforceErrorCode: parseSalesforceErrorCode(body),
+        salesforceMessage: parseSalesforceErrorMessage(body),
+        durationMs: elapsed(started),
+        retryable: false,
+      };
       let retryable = false;
       if (status === 'FAILED') {
+        // Rejection is already known even if recording recovery eligibility stalls.
+        // Keep the durable UPLOADING claim and report retryable=false until the
+        // repository confirms its transition; a deadline must not erase the refusal.
+        this.options.onFileResult?.(observed);
         try {
           retryable = await this.options.ingress.fail(record, 'MCP_ATTACHMENT_UPLOAD_FAILED', true);
         } catch { /* The durable UPLOADING claim still blocks replay if persistence failed. */ }
       } else await this.options.ingress.outcomeUnknown(record).catch(() => undefined);
       return {
         result: {
-          ...fileResult(index, attachmentRef, opened.fileName, status),
-          httpStatus: response.status,
-          errorCode: status === 'FAILED' ? 'MCP_ATTACHMENT_UPLOAD_FAILED' : 'MCP_ATTACHMENT_OUTCOME_UNKNOWN',
-          salesforceErrorCode: parseSalesforceErrorCode(body),
-          salesforceMessage: parseSalesforceErrorMessage(body),
+          ...observed,
           durationMs: elapsed(started),
           retryable,
         },
