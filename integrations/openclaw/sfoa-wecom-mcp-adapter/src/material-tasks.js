@@ -110,6 +110,12 @@ export function createMaterialTaskRegistry(options = {}) {
 // Repeated bytes can improve the first two without authorizing another publish.
 export function mergeMaterialReading(task, material, incoming, current, messageId) {
   const reading = structuredClone(incoming ?? { status: "UNKNOWN", coverage: "UNKNOWN" });
+  const previous = material.reading;
+  // Compare full reread evidence before limiting stored text. A capacity limit
+  // must not restore an older READ that omitted newly observed body content.
+  const fullerReread = reading.status === "READ" && previous?.status === "READ" && reading.source &&
+    reading.source === previous.source && typeof reading.text === "string" &&
+    reading.text.length > (previous.text?.length ?? 0);
   const remaining = Math.max(0, MAX_TASK_TEXT - task.materials.reduce((sum, entry) =>
     sum + (entry === material ? 0 : entry.reading?.text?.length ?? 0), 0));
   if (reading.text?.length > remaining) {
@@ -119,12 +125,9 @@ export function mergeMaterialReading(task, material, incoming, current, messageI
     reading.coverage = { ...(typeof reading.coverage === "object" ? reading.coverage : {}),
       textCharactersProvided: reading.text.length, taskTextTruncated: true };
   }
-  const previous = material.reading;
   const rank = (value) => ({ READ: 3, PARTIAL: 2, UNKNOWN: 1, FAILED: 0 })[value?.status] ?? -1;
-  const fullerReread = reading.status === "READ" && reading.source && reading.source === previous?.source &&
-    typeof reading.text === "string" && reading.text.length > (previous.text?.length ?? 0);
-  if (!previous || rank(reading) > rank(previous) || (rank(reading) === rank(previous) &&
-    (fullerReread || !previous.text || typeof reading.text === "string" && reading.text.includes(previous.text)))) {
+  if (!previous || fullerReread || rank(reading) > rank(previous) || (rank(reading) === rank(previous) &&
+    (!previous.text || typeof reading.text === "string" && reading.text.includes(previous.text)))) {
     material.reading = { ...reading, observedAt: current, ...(messageId ? { sourceMessageId: messageId } : {}) };
   }
 }

@@ -32,6 +32,27 @@ test("a fuller trusted reread can insert previously omitted content between exis
   assert.match(task.materials[0].reading.text, /尚未承诺采购/u);
 });
 
+test("a fuller successful reread stays partial when the task capacity truncates its new evidence", async () => {
+  const task = await setup();
+  task.materials[0].reading = { status: "READ", source: "OFFICE_BASIC_READER", text: "来访资料\n结尾" };
+  task.materials.push({ materialId: "filler", reading: { status: "READ", text: "x".repeat(64000 - 16) } });
+  const text = "来访资料\n客户尚未承诺采购，数量未定。\n结尾";
+  addMaterials(task, [receipt({ reading: { status: "READ", source: "OFFICE_BASIC_READER", text,
+    coverage: { textCharactersExtracted: text.length } } })], 1100, "fuller-reread");
+  const reading = task.materials[0].reading;
+  assert.equal(reading.status, "PARTIAL");
+  assert.equal(reading.text, text.slice(0, 16));
+  assert.match(reading.text, /尚未承诺/u);
+  assert.ok(reading.reasons.includes("TASK_TEXT_LIMIT"));
+  assert.equal(reading.coverage.textCharactersExtracted, text.length);
+  assert.equal(reading.coverage.textCharactersProvided, 16);
+  assert.equal(reading.sourceMessageId, "fuller-reread");
+  assert.equal(task.materials.reduce((total, material) => total + (material.reading.text?.length ?? 0), 0), 64000);
+  const retained = structuredClone(reading);
+  addMaterials(task, [receipt({ reading: { status: "FAILED" } })], 1200, "failed-again");
+  assert.deepEqual(task.materials[0].reading, retained);
+});
+
 test("genuine resend replaces an expired retryable ref without changing the proven rejection or archive choice", async () => {
   const task = await setup();
   updateTaskNote(task, { operation: "update", archiveStatus: "ACCEPTED", materialIds: [task.materials[0].materialId] }, 1000);
