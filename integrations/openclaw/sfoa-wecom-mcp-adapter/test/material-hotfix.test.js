@@ -45,6 +45,36 @@ test("a repeated ref cannot extend the known original TTL", async () => {
   assert.equal(task.materials[0].originals[0].expiresAt, new Date(2000).toISOString());
 });
 
+test("a consumed ref remains unavailable after selecting another target", async () => {
+  const task = await setup();
+  observe(task, { attachmentRef: "old", status: "SUCCESS", contentVersionId: "068000000000001AAA" });
+  const other = { ...target, recordId: "a01000000000002AAA" };
+  task.observedTargets.push(other);
+  updateTaskNote(task, { operation: "update", targetRecordId: other.recordId }, 1000);
+  const view = JSON.parse(renderMaterialTask(task, 1100).split("\n")[1]);
+  assert.equal(view.materials[0].currentUpload.status, "NOT_ATTEMPTED");
+  assert.equal(view.materials[0].original, "CONSUMED_UPLOAD_REF");
+});
+
+test("target tracking capacity keeps its confirmed overflow result and never implies untracked means unsent", async () => {
+  const task = await setup();
+  for (let index = 1; index <= 33; index++) {
+    const params = { ...target, recordId: `a01${String(index).padStart(12, "0")}AAA` };
+    observe(task, { attachmentRef: "old", status: "SUCCESS", contentVersionId: "068000000000001AAA" }, params);
+    task.target = params;
+  }
+  observe(task, { attachmentRef: "old", status: "FAILED", errorCode: "MCP_ATTACHMENT_EXPIRED" }, task.target);
+  let view = JSON.parse(renderMaterialTask(task, 1100).split("\n")[1]);
+  assert.equal(view.materials[0].currentUpload.status, "SUCCESS");
+  assert.equal(view.materials[0].currentUpload.contentVersionId, "068000000000001AAA");
+  assert.equal(task.materials[0].uploads.length, 32);
+  task.target = { ...target, recordId: "a01000000000034AAA" };
+  observe(task, { attachmentRef: "old", status: "FAILED", errorCode: "MCP_ATTACHMENT_EXPIRED" }, task.target);
+  view = JSON.parse(renderMaterialTask(task, 1100).split("\n")[1]);
+  assert.equal(view.materials[0].currentUpload.status, "HISTORY_UNAVAILABLE");
+  assert.equal(task.materials[0].upload.status, "SUCCESS", "the overflow confirmation is not discarded for another target");
+});
+
 test("UNKNOWN or unqualified FAILED cannot activate a new ref; later NOT_ATTEMPTED does not erase UNKNOWN", async () => {
   for (const status of ["OUTCOME_UNKNOWN", "UPLOADING", "FAILED"]) {
     const task = await setup();

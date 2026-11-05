@@ -134,9 +134,22 @@ function sameTarget(left, right) {
 
 function uploadForTask(material, task) {
   const uploads = material.uploads ?? (material.upload?.recordId ? [material.upload] : []);
-  if (task.target) return uploads.find((entry) => sameTarget(entry, task.target)) ?? { status: "NOT_ATTEMPTED" };
+  if (task.target) return (sameTarget(material.upload, task.target) ? material.upload : uploads.find((entry) => sameTarget(entry, task.target)))
+    ?? (material.uploadTrackingLimited ? { status: "HISTORY_UNAVAILABLE", reason: "TASK_UPLOAD_TARGET_LIMIT" } : { status: "NOT_ATTEMPTED" });
   if (material.upload?.taskId && material.upload.taskId !== task.taskId) return { status: "NOT_ATTEMPTED" };
   return material.upload ?? { status: "NOT_ATTEMPTED" };
+}
+
+function originalState(material, task, current) {
+  if (!material.attachmentRef) return "NO_UPLOAD_REF";
+  const outcomes = [...(material.uploads ?? []), material.upload].filter(Boolean);
+  const facts = outcomes.flatMap((entry) => [entry, entry.latestAttempt, entry.confirmedPublication]).filter(Boolean)
+    .filter((entry) => (entry.attachmentRef ?? material.attachmentRef) === material.attachmentRef);
+  if (facts.some((entry) => entry.status === "SUCCESS")) return uploadForTask(material, task).status === "SUCCESS" ? "UPLOADED" : "CONSUMED_UPLOAD_REF";
+  if (facts.some((entry) => ["UPLOADING", "OUTCOME_UNKNOWN"].includes(entry.status))) return "OUTCOME_UNKNOWN_DO_NOT_REPLAY";
+  if (Date.parse(material.expiresAt) <= current) return "EXPIRED";
+  if (material.uploadTrackingLimited) return "TRACKING_LIMIT_REVALIDATE";
+  return Number.isFinite(Date.parse(material.expiresAt)) ? "AVAILABLE_UNTIL_EXPIRY" : "EXPIRY_UNKNOWN";
 }
 
 function rememberOriginal(material, incoming, task, current, messageId) {
@@ -287,7 +300,8 @@ export function observeToolResult(task, event) {
           ...(typeof row.retryable === "boolean" ? { retryable: row.retryable } : {}),
           ...(row.contentVersionId ? { contentVersionId: row.contentVersionId } : {}),
           ...(row.contentDocumentId ? { contentDocumentId: row.contentDocumentId } : {}) };
-        const previous = material.uploads.find((entry) => sameTarget(entry, attempt));
+        const previous = material.uploads.find((entry) => sameTarget(entry, attempt))
+          ?? (sameTarget(material.upload, attempt) ? material.upload : undefined);
         const uncertain = ["UPLOADING", "OUTCOME_UNKNOWN"].includes(previous?.status);
         const retain = previous?.status === "SUCCESS" || uncertain &&
           (attempt.status !== "SUCCESS" || attempt.attachmentRef !== previous.attachmentRef);
@@ -295,10 +309,16 @@ export function observeToolResult(task, event) {
         const outcome = { ...(retain ? known : attempt),
           ...(uncertain && attempt.status === "SUCCESS" && attempt.attachmentRef !== previous.attachmentRef
             ? { confirmedPublication: attempt } : {}), latestAttempt: attempt };
-        if (previous) material.uploads[material.uploads.indexOf(previous)] = outcome;
+        if (previous && material.uploads.includes(previous)) material.uploads[material.uploads.indexOf(previous)] = outcome;
         else if (material.uploads.length < 32) material.uploads.push(outcome);
         else material.uploadTrackingLimited = true;
-        material.upload = outcome;
+        // The compatibility slot can retain one overflow confirmation. Further
+        // untracked targets are explicitly unknown history, never inferred unsent.
+        const protectedOverflow = material.uploadTrackingLimited && !previous &&
+          ["SUCCESS", "UPLOADING", "OUTCOME_UNKNOWN"].includes(material.upload?.status) &&
+          !material.uploads.some((entry) => sameTarget(entry, material.upload));
+        if (protectedOverflow) material.latestUntrackedAttempt = attempt;
+        else material.upload = outcome;
       }
     }
   } else {
@@ -320,8 +340,7 @@ export function renderMaterialTask(task, current, options = {}) {
   if (!task) return "";
   const materials = task.materials.map(({ reading, ...entry }) => ({ ...entry,
     currentUpload: uploadForTask(entry, task),
-    original: uploadForTask(entry, task).status === "SUCCESS" ? "UPLOADED" : ["UPLOADING", "OUTCOME_UNKNOWN"].includes(uploadForTask(entry, task).status) ? "OUTCOME_UNKNOWN_DO_NOT_REPLAY"
-      : entry.attachmentRef ? (Date.parse(entry.expiresAt) <= current ? "EXPIRED" : Number.isFinite(Date.parse(entry.expiresAt)) ? "AVAILABLE_UNTIL_EXPIRY" : "EXPIRY_UNKNOWN") : "NO_UPLOAD_REF",
+    original: originalState(entry, task, current),
     reading: { ...reading, text: undefined } }));
   const view = { ...task, materials, persistence: options.persistence };
   const lines = ["SFOA current task context (host observations and Agent notes; not a write credential):", JSON.stringify(view),
