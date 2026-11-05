@@ -46,23 +46,84 @@ def text_nodes(node, namespace):
 
 def docx(archive):
     document = xml(archive, "word/document.xml")
-    lines, paragraphs, rows = [], 0, 0
+    paragraphs, rows, unsupported, reasons = 0, 0, set(), set()
     body = document.find(W + "body")
     if body is None:
         raise BoundedReadError("OFFICE_BODY_MISSING")
-    for block in body:
-        if block.tag == W + "p":
-            paragraphs += 1
-            lines.append(text_nodes(block, W))
-        elif block.tag == W + "tbl":
-            for row in block.findall(W + "tr"):
-                rows += 1
-                lines.append("\t".join(text_nodes(cell, W) for cell in row.findall(W + "tc")))
+    wrappers = {W + tag for tag in ("sdt", "sdtContent", "customXml", "ins", "moveTo")}
+    # Properties and range markers contain no current business text. Unsupported
+    # content (including drawings/altChunk/alternate content) is never flattened
+    # using .iter(t): that would duplicate alternatives or silently omit content.
+    ignored = {W + tag for tag in (
+        "sdtPr", "sdtEndPr", "customXmlPr", "pPr", "rPr", "tblPr", "tblGrid",
+        "trPr", "tcPr", "sectPr", "bookmarkStart", "bookmarkEnd", "proofErr",
+        "commentRangeStart", "commentRangeEnd", "commentReference", "permStart", "permEnd",
+        "lastRenderedPageBreak",
+    )}
+
+    def unknown(node):
+        reasons.add("DOCX_UNSUPPORTED_BODY_STRUCTURE")
+        if len(unsupported) < 16:
+            unsupported.add(node.tag.rsplit("}", 1)[-1][:80])
+
+    def children(node, depth):
+        if depth > 128:
+            reasons.add("DOCX_NESTING_LIMIT")
+            return
+        for child in node:
+            if child.tag in ignored:
+                continue
+            if child.tag in wrappers:
+                yield from children(child, depth + 1)
+            else:
+                yield child
+
+    def inline(node, depth):
+        parts = []
+        for child in children(node, depth):
+            if child.tag == W + "t":
+                parts.append(child.text or "")
+            elif child.tag == W + "tab":
+                parts.append("\t")
+            elif child.tag in (W + "br", W + "cr"):
+                parts.append("\n")
+            elif child.tag in (W + "r", W + "hyperlink"):
+                parts.append(inline(child, depth + 1))
+            else:
+                unknown(child)
+        return "".join(parts)
+
+    def blocks(node, depth=0):
+        nonlocal paragraphs, rows
+        lines = []
+        for block in children(node, depth):
+            if block.tag == W + "p":
+                paragraphs += 1
+                lines.append(inline(block, depth + 1))
+            elif block.tag == W + "tbl":
+                for row in children(block, depth + 1):
+                    if row.tag != W + "tr":
+                        unknown(row)
+                        continue
+                    rows += 1
+                    cells = []
+                    for cell in children(row, depth + 2):
+                        if cell.tag == W + "tc":
+                            cells.append("\n".join(blocks(cell, depth + 3)))
+                        else:
+                            unknown(cell)
+                    lines.append("\t".join(cells))
+            else:
+                unknown(block)
+        return lines
+
+    lines = blocks(body)
     return "\n".join(lines), {
         "unit": "body-paragraphs-and-basic-table-rows", "paragraphs": paragraphs,
         "tableRows": rows, "pages": "UNKNOWN",
+        "unsupportedStructures": sorted(unsupported),
         "excluded": ["headers", "footers", "drawings", "comments", "layout"],
-    }, []
+    }, list(reasons)
 
 
 def xlsx(archive):
@@ -178,7 +239,8 @@ def read_document(file_path, kind):
             content, coverage, reasons = docx(archive) if kind == "docx" else xlsx(archive)
     if len(content) > MAX_CHARS:
         reasons.append("OFFICE_TEXT_LIMIT")
-    coverage["textCharactersTotal"] = len(content)
+    # This is the extracted text, not a denominator for unread source content.
+    coverage["textCharactersExtracted"] = len(content)
     coverage["textCharactersProvided"] = min(len(content), MAX_CHARS)
     return {"status": "PARTIAL" if reasons else "READ", "text": content[:MAX_CHARS],
             "contentSha256": sha, "coverage": coverage, "reasons": sorted(set(reasons))}

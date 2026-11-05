@@ -17,7 +17,9 @@ async function fixture(kind, body) {
   if (kind === "csv") await writeFile(filePath, body);
   else {
     // Produce actual standard ZIP bytes independently of the reader.
-    await run(python, ["-c", "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED); [(z.writestr(k,v)) for k,v in json.loads(sys.argv[2]).items()]; z.close()", filePath, JSON.stringify(body)], { windowsHide: true });
+    const source = path.join(root, "source.json");
+    await writeFile(source, JSON.stringify(body));
+    await run(python, ["-c", "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED); [(z.writestr(k,v)) for k,v in json.load(open(sys.argv[2],encoding='utf-8')).items()]; z.close()", filePath, source], { windowsHide: true });
   }
   return { filePath, fileName: path.basename(filePath), close: () => rm(root, { recursive: true, force: true }) };
 }
@@ -32,6 +34,54 @@ test("real DOCX basic paragraphs/tables preserve source text and known coverage"
     assert.equal(value.coverage.pages, "UNKNOWN");
     assert.match(value.contentSha256, /^[0-9a-f]{64}$/u);
   } finally { await file.close(); }
+});
+
+test("DOCX content controls and nested wrappers keep negative facts in document order once", async () => {
+  const p = (text) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const file = await fixture("docx", { "word/document.xml": `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${p("来访资料")}<w:sdt><w:sdtPr/><w:sdtContent>${p("客户尚未承诺采购，数量未定。")}<w:customXml><w:ins>${p("随后")}<w:tbl><w:sdt><w:sdtContent><w:tr><w:tc><w:sdt><w:sdtContent>${p("表内事实")}</w:sdtContent></w:sdt></w:tc></w:tr></w:sdtContent></w:sdt></w:tbl></w:ins></w:customXml></w:sdtContent></w:sdt>${p("结尾")}</w:body></w:document>` });
+  try {
+    const value = await readMaterial(file, { python });
+    assert.equal(value.status, "READ");
+    assert.equal(value.text, "来访资料\n客户尚未承诺采购，数量未定。\n随后\n表内事实\n结尾");
+    assert.equal(value.coverage.tableRows, 1);
+    assert.equal(value.coverage.textCharactersExtracted, value.text.length);
+  } finally { await file.close(); }
+});
+
+test("unsupported DOCX body structures remain partial with bounded reasons", async () => {
+  const file = await fixture("docx", { "word/document.xml": '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>已知正文</w:t><w:drawing/></w:r></w:p><w:altChunk/><w:future><w:p><w:r><w:t>不能证明覆盖</w:t></w:r></w:p></w:future></w:body></w:document>' });
+  try {
+    const value = await readMaterial(file, { python });
+    assert.equal(value.status, "PARTIAL");
+    assert.equal(value.text, "已知正文");
+    assert.ok(value.reasons.includes("DOCX_UNSUPPORTED_BODY_STRUCTURE"));
+    assert.equal(value.coverage.textCharactersTotal, undefined);
+    assert.equal(value.coverage.textCharactersExtracted, 4);
+    assert.ok(value.coverage.unsupportedStructures.length <= 16);
+  } finally { await file.close(); }
+});
+
+test("DOCX retains text, member, expanded ZIP and XML declaration limits", async () => {
+  for (const [body, status, reason] of [
+    [`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sdt><w:sdtContent><w:p><w:r><w:t>${"x".repeat(25000)}</w:t></w:r></w:p></w:sdtContent></w:sdt></w:body></w:document>`, "PARTIAL", "OFFICE_TEXT_LIMIT"],
+    ['<!DOCTYPE document [<!ENTITY x "unsafe">]><document/>', "FAILED", "OFFICE_XML_DECLARATION_UNSUPPORTED"],
+    ["x".repeat(8 * 1024 * 1024 + 1), "FAILED", "OFFICE_MEMBER_LIMIT"],
+  ]) {
+    // Write large fixtures through stdin-sized files, never OS command-line arguments.
+    const file = await fixture("docx", { "word/document.xml": body });
+    try {
+      const value = await readMaterial(file, { python });
+      assert.equal(value.status, status);
+      assert.ok(value.reason === reason || value.reasons?.includes(reason));
+      if (value.text) assert.equal(value.text.length, 24000);
+    } finally { await file.close(); }
+  }
+  const expanded = await fixture("docx", { "word/document.xml": "<document/>", "unused.bin": "x".repeat(32 * 1024 * 1024) });
+  try { assert.equal((await readMaterial(expanded, { python })).reason, "OFFICE_EXPANDED_LIMIT"); }
+  finally { await expanded.close(); }
+  const oversized = await fixture("csv", Buffer.alloc(16 * 1024 * 1024 + 1, 120));
+  try { assert.equal((await readMaterial(oversized, { python })).reason, "OFFICE_FILE_LIMIT"); }
+  finally { await oversized.close(); }
 });
 
 test("real XLSX reads shared/inline/numeric/cached-formula cells and flags missing caches", async () => {
