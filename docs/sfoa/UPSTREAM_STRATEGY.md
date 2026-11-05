@@ -16,6 +16,14 @@ The repository was cloned with full Git history. It was not downloaded as a ZIP 
 
 ## Integration policy
 
+2026-11-05 HOTFIX-01 changes the root `package.json` build entry to the small
+SFoA-owned `scripts/build-workspaces.mjs` and adds `test:build`. Yarn Classic's
+resolved dependency graph orders existing workspace scripts and propagates failures;
+unordered workspace iteration cannot supply SFoA dependency declarations on a clean
+checkout. The existing package.json matrix row covers this necessary upstream-file
+change. No official Salesforce implementation, dependency version, lockfile or CI
+workflow is changed. Merge risk LOW; a new build-system dependency was unnecessary.
+
 2026-09-13 Skill Foundation changes no official Salesforce implementation, MCP
 contract, dependency or lockfile. The required upstream-owned `CHANGELOG.md`
 preface is covered by its existing modification-matrix row; alternative report-only
