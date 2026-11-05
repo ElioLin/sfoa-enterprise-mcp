@@ -1,5 +1,17 @@
 # Development and review
 
+## Workspace build
+
+Run root `yarn build` after a frozen-lockfile install. The SFoA root runner uses
+Yarn Classic's resolved workspace dependency graph and invokes each existing build
+script after its dependencies, stopping with a nonzero exit on failure. A package
+without a build script is reported explicitly; its dependencies are still built.
+Do not replace this with unordered `yarn workspaces run build`: SFoA packages
+consume dependency declarations from dist. `yarn test:build` covers ordering,
+missing scripts and failure propagation with actual Yarn workspace dispatch.
+On Windows the retained upstream Code Analyzer script also requires `cp` from
+the existing Git Unix tools on the validation process PATH.
+
 ## Change workflow
 
 1. Clarify the behavior and affected authority boundary.

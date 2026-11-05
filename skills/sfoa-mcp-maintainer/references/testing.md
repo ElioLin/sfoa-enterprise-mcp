@@ -2,6 +2,21 @@
 
 Select gates from the changed boundary and record actual output. Never claim an unrun or credential-blocked gate passed.
 
+Material HOTFIX regressions cover DOCX wrappers/unsupported-body coverage, bounded
+same-content reading/ref merges, per-target confirmed uploads versus latest attempts,
+and known Salesforce rejection before slow persistence. Native evidence tests use
+the actual OpenClaw version's hook/result shapes and unique requester/session/task/
+source bindings. A native image input is not completed semantic analysis; unknown
+page/audio coverage stays unknown. Test contracts are not model/channel UAT.
+Keep original Windows spawn/cleanup/deadline failures when a later isolated run
+passes. Do not increase production deadlines to make a loaded test host pass.
+
+Root `yarn test:build` exercises real workspace dispatch, ordering and nonzero
+failure propagation. A clean `yarn install --frozen-lockfile` and root `yarn build`
+must not depend on old dist/lib outputs. Database integration tests are separate:
+some P5 tests auto-load repository .env.local, so inspect their config loader
+before running; no approved isolated database means explicitly skip that leg.
+
 Material workflows additionally require actual Adapter hooks, original Office
 files, requester/session/task isolation, coverage and expiry tests, plus real
 attachment repository CAS/cleanup and timeout dispatcher tests. An optional

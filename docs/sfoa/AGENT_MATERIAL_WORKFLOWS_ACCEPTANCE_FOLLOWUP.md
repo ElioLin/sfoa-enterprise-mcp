@@ -1,5 +1,7 @@
 # 材料工作流验收续测与企微连接修复
 
+后续 [HOTFIX-01](AGENT_MATERIAL_WORKFLOWS_HOTFIX_01.md) 修复材料读取、证据合并、附件已知结果及指导，并接入现有宿主能提供的原生读取证据；只做本地验证，本轮真实业务 UAT 按用户要求后置。以下真实渠道记录和历史限制保留。
+
 日期：2026-11-05（北京时间）。分支：`feature/agent-material-workflows`。接续基线：`3cb73536e230cd894d435ef18154122490681a06`，已有交付和失败证据保留在[原报告](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md)。本次没有回退分支或覆盖既有未提交工作。
 
 **真实企微连接、CSV 多轮创建、定点编辑、CSV/DOCX 归档及后续目标/逐份结果同步已通过。** 09:35 的状态失败保留；E/E2 九原件读取和新任务隔离已核对，9c4fda9 热加载后 E3 同任务材料保留、阶段 COMPLETE。整体保持 PARTIAL；服务健康、插件清单、真实模型与模拟 Salesforce 的测试，均不替代真实渠道和 Salesforce 结果。

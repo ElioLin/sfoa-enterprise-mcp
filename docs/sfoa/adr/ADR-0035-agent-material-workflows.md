@@ -22,4 +22,6 @@ Context 的 CREATE `includeValueAssessment` 默认 false。开启后复用已有
 
 ## 验证边界
 
+2026-11-05 HOTFIX-01 补正：同内容的读取证据、原件引用、按目标的确认发布结果与最新尝试分别保留，旧任务 version=1 惰性兼容且结构有界。明确 Salesforce 拒绝先向 facade 观察 FAILED，恢复资格仍等持久化成功；没有提前释放 claim。原生覆盖仅从当前宿主真实工具结果/转写事件及唯一用户、会话、任务、来源绑定更新；图片输入不等于语义读取完成。任务完成/归档选择仍沿可选备注，不从成功工具或 agent_end 推导。自动预处理没有逐原件证据时保留 UNKNOWN；跨重启 MEMORY_ONLY_REVALIDATE_AFTER_RESTART 不变。见 [HOTFIX-01 报告](../AGENT_MATERIAL_WORKFLOWS_HOTFIX_01.md)。
+
 确定性 hooks/dispatcher/repository、真实模型、实际材料读取、企微入口、Salesforce 最终状态分别取证。配置文件、tool 可见、服务健康及脚本退出 0 不代替业务验收。隔离合成 harness 的内存 SDK 结果不是 Salesforce 结果；before/after 指导比较与独立 runtime 比较分别标识。

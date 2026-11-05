@@ -1,3 +1,10 @@
+# Agent Material Workflows HOTFIX-01 (2026-11-05)
+
+- Preserve DOCX wrapped body facts and truthful partial coverage; merge genuine same-content receipts without losing stronger reading or confirmed per-target upload outcomes.
+- Observe proven Salesforce rejection before staging persistence; retain non-replayable uncertainty, cancellation and successful publication facts.
+- Align Critical dependency guidance and Playbook 1.13.3; observe supported native host reading/transcription evidence with source/task isolation and retain optional task notes.
+- Order existing workspace builds through Yarn's dependency graph without changing dependencies, strictness or CI. See [implementation and validation record](docs/sfoa/AGENT_MATERIAL_WORKFLOWS_HOTFIX_01.md); no deployment or real business UAT in this hotfix.
+
 # Local branch database and Admin Playbook distribution repair (2026-11-05)
 
 - Diagnose the missing local 017 migration together with a foreign-branch 016 ledger; preserve the original database and use an explicitly selected isolated development database with verified configuration copies.

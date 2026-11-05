@@ -56,7 +56,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.13.2`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts; Admin Web must be rebuilt when this bundled contract changes |
+| Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.13.3`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts; Admin Web must be rebuilt when this bundled contract changes |
 | Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. P6-DML-01 adds one constrained managed-field child table. P7-01 compatibly evolves the Audit master and adds ordered Event/API and bounded Payload Evidence children. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions, except the default-off, maintainer-authorized Buntu validation raw-token troubleshooting evidence defined by ADR-0016. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |
@@ -99,6 +99,18 @@ Phase order may change only with a same-change update to this file, `CHANGELOG.m
 - Build, test, lint, and integration results must be rerun after material implementation changes.
 
 ## Current phase
+
+2026-11-05: **Agent Material Workflows HOTFIX-01** continues the fetched feature
+branch at `28f17d1`, preserving its p0 ancestry. Source changes address bounded DOCX
+body coverage, independent reading/original/publication merges, known attachment
+rejection before persistence, Playbook 1.13.3 Critical dependency consistency, and
+trusted OpenClaw native-evidence/task-note continuity. Root builds follow Yarn's
+resolved workspace dependency graph. No runtime identity/DML input gate, database
+migration, deployment or remote configuration change is added. Local verification,
+historical failures, exact commits and host limits are tracked in the
+[HOTFIX report](AGENT_MATERIAL_WORKFLOWS_HOTFIX_01.md). Real WeCom, model business
+flows and Salesforce writes are NOT_RUN_BY_REQUEST in this hotfix; the deployed
+versions and historical partial business acceptance below remain historical facts.
 
 2026-11-05: **Agent material workflows** is implemented on
 `feature/agent-material-workflows` from fetched `61f8a0c11f7acb9d56f95762014335fd0c2aab05`.
