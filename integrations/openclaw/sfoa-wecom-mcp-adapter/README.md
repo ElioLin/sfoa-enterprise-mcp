@@ -53,6 +53,12 @@ remain separate, and SUCCESS/OUTCOME_UNKNOWN must not be replayed. Record and
 attachment authorization stay independent. Full business behavior requires
 actual model/channel validation, beyond these host contracts.
 
+Task phase and archive selection are Agent notes of existing user intent. Guidance
+asks the Agent to leave COLLECTING after the completion signal, mark finished work
+COMPLETE, and retain explicit archive acceptance/refusal and selected materials.
+The observer does not infer consent from a successful upload. These notes add no
+MCP prerequisite, extra confirmation, or permission to replay a file.
+
 ## Deployment and verification
 
 Enable the existing `attachmentBridgeEnabled` and backend ingress switches;
