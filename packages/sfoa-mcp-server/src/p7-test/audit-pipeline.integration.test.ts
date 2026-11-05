@@ -97,11 +97,14 @@ test('identity failure and governance block retain MCP request/response evidence
   assert.equal(governance.snapshot.salesforceApiCalls.length, 0);
 });
 
-test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit binding', { timeout: 180_000 }, async () => {
+test('HTTP OFF/ON 50/100/200 Gate preserves outcomes and zero cross-audit binding', { timeout: 180_000 }, async (t) => {
   const entries: AuditQueueEntry[] = [];
   const pipeline = new AsyncAuditPipeline({ persist: async (batch) => { entries.push(...batch); } }, new NoopRuntimeLogger(), {
     capacity: 1_000, batchSize: 50, flushIntervalMs: 100,
   });
+  // A rejected HTTP round must also stop the writer; otherwise its wait timer
+  // keeps a failed test process alive and hides the actual timeout result.
+  t.after(() => pipeline.close(10_000));
   const offFixture = await startLoadFixture('OFF', new NoopRuntimeLogger());
   const onFixture = await startLoadFixture('ON', asyncLogger(pipeline));
   const heapBefore = process.memoryUsage().heapUsed;
