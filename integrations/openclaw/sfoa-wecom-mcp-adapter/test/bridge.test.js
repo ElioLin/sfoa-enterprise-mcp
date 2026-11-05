@@ -83,6 +83,7 @@ function createHarness(options = {}) {
   /** @type {Map<string, Function>} */
   const hooks = new Map();
   const tools = new Map();
+  let resolver;
   /** @type {Array<[string, string]>} */
   const lines = [];
   const config = {
@@ -105,7 +106,7 @@ function createHarness(options = {}) {
       warn: (message) => lines.push(["warn", message]),
       debug: (message) => lines.push(["debug", message]),
     },
-    registerMcpServerConnectionResolver() {},
+    registerMcpServerConnectionResolver(value) { resolver = value; },
     registerTool(factory, options) { tools.set(options.name, factory); },
     runtime: options.runtime,
     on(hookName, handler) {
@@ -118,6 +119,7 @@ function createHarness(options = {}) {
   return {
     hooks,
     tools,
+    resolver,
     lines,
     warnings: () => lines.filter(([level]) => level === "warn").map(([, message]) => message),
     async emitMessageReceived(event, context = { channelId: CHANNEL }) {
@@ -133,6 +135,31 @@ function createHarness(options = {}) {
     },
   };
 }
+
+test("host-denied persistent storage retains requester binding and material continuity without leaking the error", async () => {
+  const workspace = await createWorkspace([{ name: "facts.csv", content: "客户,事实\n合成客户,尚未通过测试" }]);
+  let opens = 0;
+  let harness;
+  await withFetch(async () => stagedResponse("att_aaaaaaaaaa"), async () => {
+    harness = createHarness({ attachmentRoots: workspace, runtime: { state: {
+      openKeyedStore() { opens += 1; throw new Error(`host trust denied; private detail ${TOKEN}`); },
+    } } });
+    const connection = await harness.resolver.resolve({ messageChannel: CHANNEL, requesterSenderId: "user-a" });
+    assert.equal(connection.headers["X-WeCom-User-Id"], "user-a");
+    assert.equal(connection.headers.Authorization, `Bearer ${TOKEN}`);
+    assert.equal(await harness.resolver.resolve({ messageChannel: CHANNEL }), null);
+    await harness.emitMessageReceived({ senderId: "user-a", sessionKey: "session-1",
+      media: [mediaFact(workspace.files[0].path, "text/csv")] });
+    await harness.emitMessageReceived({ senderId: "user-a", sessionKey: "session-1", content: "继续" });
+  });
+  const context = (await harness.emitBeforePromptBuild({ sessionKey: "session-1" })).appendContext;
+  assert.match(context, /att_aaaaaaaaaa/u);
+  assert.match(context, /MEMORY_ONLY_REVALIDATE_AFTER_RESTART/u);
+  assert.equal(opens, 1);
+  assert.ok(harness.tools.has("sfoa_material_task"));
+  assert.match(harness.warnings().join("\n"), /MATERIAL_TASK_STORE_UNAVAILABLE/u);
+  assert.equal(harness.lines.some(([, message]) => message.includes(TOKEN)), false);
+});
 
 test("real CSV body and failed original staging remain independent across text confirmation", async () => {
   const workspace = await createWorkspace([{ name: "facts.csv", content: "客户,事实\n合成客户,尚未通过测试" }]);

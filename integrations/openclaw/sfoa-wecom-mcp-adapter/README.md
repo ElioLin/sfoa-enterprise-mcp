@@ -28,8 +28,11 @@ Set `officePython` only if the host executable is not `python3`.
 Task state is isolated by trusted account + requester + session, with an absolute
 two-hour task lifetime, at most 128 session entries, 64 materials and 64,000 stored
 text characters per task. On OpenClaw 2026.9.5, `api.runtime.state.openKeyedStore`
-persists the bounded state using the host's existing plugin store; older hosts
-without this API use memory and explicitly require revalidation after restart.
+persists the bounded state using the host's existing plugin store when the host
+grants access. Local-path plugins on 2026.9.5 can expose this API but reject its
+use. An absent or rejected store falls back to bounded process memory, keeps the
+requester resolver and material hooks registered, and explicitly requires
+revalidation after restart. No host trust policy is bypassed.
 Session new/reset/delete clears task state; ordinary text and restart do not
 renew original refs. Native conversation history retains earlier messages; only
 the latest material message's Office body is injected again.
@@ -50,7 +53,10 @@ Enable the existing `attachmentBridgeEnabled` and backend ingress switches;
 retain `hooks.allowConversationAccess: true` for prompt hooks. Deploy this entire
 plugin directory, including the Python file, to the **actual configured plugin
 load path**. Updating only the app checkout does not update the loaded plugin.
-No OpenClaw Core or third-party WeCom source patch is required. Task-tool factory
+No OpenClaw Core or third-party WeCom source patch is required. A persisted CLI
+plugin inventory marked `loaded` does not prove full registration: inspect a
+fresh registry and Gateway startup for the resolver and hooks, then verify an
+actual WeCom call has request-scoped identity. Task-tool factory
 and hook context types were checked against installed OpenClaw 2026.9.5; verify
 the Tool is allowed and appears in real model input after deployment.
 

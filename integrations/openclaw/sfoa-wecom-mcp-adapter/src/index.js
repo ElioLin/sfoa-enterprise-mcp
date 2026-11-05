@@ -536,8 +536,16 @@ const plugin = {
         readConfigString(api, "attachmentIngressPath", ATTACHMENT_INGRESS_PATH),
       );
       const { registry, shared: registryShared } = resolveSharedAttachmentRegistry(() => {
-        const store = api.runtime?.state?.openKeyedStore?.({ namespace: "material-tasks-v1",
-          maxEntries: 128, overflowPolicy: "evict-oldest", defaultTtlMs: MATERIAL_TASK_TTL_MS });
+        let store;
+        try {
+          // The API may exist while the host denies persistent state to local-path
+          // plugins. Optional task persistence must not roll back identity binding.
+          store = api.runtime?.state?.openKeyedStore?.({ namespace: "material-tasks-v1",
+            maxEntries: 128, overflowPolicy: "evict-oldest", defaultTtlMs: MATERIAL_TASK_TTL_MS });
+        } catch {
+          api.logger.warn(`[${serverName}] persistent material task store unavailable ` +
+            "(code=MATERIAL_TASK_STORE_UNAVAILABLE); using bounded process memory, revalidate after restart.");
+        }
         return createMaterialTaskRegistry({ store });
       });
       // Two roots, because two layers stage the same file: OpenClaw's sandbox
