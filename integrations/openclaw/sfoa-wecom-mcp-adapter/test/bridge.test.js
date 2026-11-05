@@ -165,6 +165,43 @@ test("host-denied persistent storage retains requester binding and material cont
   assert.equal(harness.lines.some(([, message]) => message.includes(TOKEN)), false);
 });
 
+test("actual host before/after context shapes retain the successful target without a requester on completion", async () => {
+  const workspace = await createWorkspace([]);
+  const harness = createHarness({ attachmentRoots: workspace });
+  const tool = harness.tools.get("sfoa_material_task")({ messageChannel: "wecom", requesterSenderId: "alice", sessionKey: "native-task", sessionId: "session-id" });
+  const event = { toolName: "sfoa-enterprise-mcp__create_record", runId: "run-a", toolCallId: "call-1", params: { objectApiName: "Event__c" } };
+  const context = { sessionKey: "native-task", sessionId: "session-id", runId: "run-a", toolCallId: "call-1" };
+  assert.equal(await harness.hooks.get("before_tool_call")(event, { ...context, requester: { channel: "wecom", senderId: "alice" } }), undefined);
+  await harness.hooks.get("after_tool_call")({ ...event, result: { details: { structuredContent: { success: true, recordId: "a01000000000001AAA" } } } }, context);
+  const noted = await tool.execute("note", { operation: "update", objectApiName: "Event__c", targetRecordId: "a01000000000001AAA" });
+  assert.equal(noted.isError, undefined);
+  assert.equal(noted.details.target.recordId, "a01000000000001AAA");
+  assert.equal(noted.details.results.length, 1);
+  await harness.hooks.get("after_tool_call")({ ...event, result: { structuredContent: { success: true, recordId: "a01000000000002AAA" } } }, context);
+  const inspected = await tool.execute("inspect", { operation: "inspect" });
+  assert.equal(inspected.details.results.length, 1, "a consumed host call binding cannot be replayed");
+});
+
+test("host call bindings isolate interleaved requesters, reject unbound results, and clear on session reset", async () => {
+  const harness = createHarness({ attachmentRoots: await createWorkspace([]) });
+  const event = { toolName: "sfoa-enterprise-mcp__run_soql_query", toolCallId: "same-call-id", params: { requesterSenderId: "mallory" } };
+  const context = { sessionKey: "shared", sessionId: "session-id", toolCallId: "same-call-id" };
+  for (const sender of ["alice", "bob"]) await harness.hooks.get("before_tool_call")({ ...event, runId: sender }, { ...context, runId: sender, requester: { channel: "wecom", senderId: sender } });
+  const result = id => ({ content: [{ type: "text", text: 'SOQL query results:\n\n' + JSON.stringify({ records: [{ Id: id, attributes: { type: "Event__c" } }] }) }] });
+  await harness.hooks.get("after_tool_call")({ ...event, runId: "bob", result: result("a01000000000002AAA") }, { ...context, runId: "bob" });
+  await harness.hooks.get("after_tool_call")({ ...event, runId: "alice", result: result("a01000000000001AAA") }, { ...context, runId: "alice" });
+  await harness.hooks.get("after_tool_call")({ ...event, runId: "unbound", result: result("a01000000000003AAA") }, { ...context, runId: "unbound" });
+  for (const [sender, expected] of [["alice", "a01000000000001AAA"], ["bob", "a01000000000002AAA"]]) {
+    const tool = harness.tools.get("sfoa_material_task")({ messageChannel: "wecom", requesterSenderId: sender, sessionKey: "shared", sessionId: "session-id" });
+    assert.deepEqual((await tool.execute("inspect", { operation: "inspect" })).details.observedTargets.map(x => x.recordId), [expected]);
+  }
+  await harness.hooks.get("before_tool_call")({ ...event, runId: "late" }, { ...context, runId: "late", requester: { channel: "wecom", senderId: "alice" } });
+  await harness.hooks.get("session_end")({ reason: "reset" }, { sessionKey: "shared" });
+  await harness.hooks.get("after_tool_call")({ ...event, runId: "late", result: result("a01000000000003AAA") }, { ...context, runId: "late" });
+  const tool = harness.tools.get("sfoa_material_task")({ messageChannel: "wecom", requesterSenderId: "alice", sessionKey: "shared", sessionId: "session-id" });
+  assert.deepEqual((await tool.execute("inspect", { operation: "inspect" })).details.observedTargets, []);
+});
+
 test("real CSV body and failed original staging remain independent across text confirmation", async () => {
   const workspace = await createWorkspace([{ name: "facts.csv", content: "客户,事实\n合成客户,尚未通过测试" }]);
   let harness;

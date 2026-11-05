@@ -596,8 +596,11 @@ const plugin = {
         }
       });
 
+      api.on("before_tool_call", (event, ctx) => {
+        registry.bindToolScope(event, ctx);
+      });
       api.on("after_tool_call", async (event, ctx) => {
-        const scope = materialScope(ctx, "tool");
+        const scope = registry.takeToolScope(event, ctx);
         if (!scope) return;
         try { await registry.change(scope, (task) => observeToolResult(task, event)); }
         catch { api.logger.warn("[" + serverName + "] task result observation unavailable; use actual tool response"); }
