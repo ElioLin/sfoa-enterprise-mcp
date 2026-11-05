@@ -17,9 +17,11 @@ import {
   buildIngressRequest,
   normalizeStagedMediaRoots,
   resolveIngressUrl,
+  resolveStagedMediaPath,
   selectInboundMedia,
 } from "./attachments.js";
 import { readMaterial } from "./material-reader.js";
+import { nativeEvidenceObserver, inboundNativeReading, observeNativeToolResult } from "./native-reading.js";
 import { MATERIAL_TASK_TTL_MS, MAX_TASK_MATERIALS, createMaterialTaskRegistry, materialScope, addMaterials, renderMaterialTask, observeToolResult, taskNoteTool } from "./material-tasks.js";
 import { WECOM_CHANNEL_ID, buildRequesterConnection, SFOA_MCP_SERVER_NAME } from "./resolver.js";
 
@@ -176,14 +178,17 @@ function createInboundAttachmentStager(params) {
     }
     const before = await params.registry.read(scope);
     if (messageId && before.materials.some((entry) => entry.sourceMessages.includes(messageId))) return;
+    params.nativeEvidence.bindReceipt(scope, before, messageId, selection.files);
     const materials = [];
     const token = typeof params.ingressUrl === "string" ? await params.resolveToken() : undefined;
     for (const file of selection.files) {
       // Reject symlinks in any path component before either stream or reader use.
       let local = false;
       try { local = path.resolve(await realpath(file.filePath)) === path.resolve(file.filePath); } catch { /* missing file */ }
-      const reading = local ? await readMaterial(file, { python: params.officePython })
+      let reading = local ? await readMaterial(file, { python: params.officePython })
         : { status: "FAILED", reason: "STAGED_FILE_UNREADABLE", coverage: "UNKNOWN" };
+      if (local && reading.status === "UNKNOWN") reading = inboundNativeReading(event, file.filePath,
+        (source) => resolveStagedMediaPath(source, { workspaceRoot: params.workspaceRoot, mediaRoots: params.mediaRoots })) ?? reading;
       const result = !local ? { failure: "STAGED_FILE_UNREADABLE" }
         : typeof params.ingressUrl !== "string" ? { failure: "INGRESS_URL_UNAVAILABLE" }
         : await stageOne({ api: params.api, fetchImpl, ingressUrl: params.ingressUrl, token,
@@ -194,17 +199,22 @@ function createInboundAttachmentStager(params) {
         delete reading.text;
       }
       materials.push({ fileName: file.fileName, ...(file.mimeType ? { mimeType: file.mimeType } : {}),
+        ...(local ? { sourcePaths: [{ path: file.filePath, messageId }] } : {}),
+        ownerRequester: scope.requester,
         ...result.staged, staging: result.staged ? "STAGED" : "FAILED",
         ...(result.failure ? { stagingFailure: result.failure } : {}),
         ...(result.staged?.contentSha256 || reading.contentSha256 ? { contentSha256: result.staged?.contentSha256 ?? reading.contentSha256 } : {}), reading });
     }
     await params.registry.change(scope, (task, current) => {
+      // A delayed ingress result belongs to the task that received the message.
+      if (task.taskId !== before.taskId) return;
       addMaterials(task, materials, current, messageId);
       task.lastMessageId = messageId;
       task.lastBatch = { received: selection.receivedCount ?? 0, staged: materials.filter((entry) => entry.attachmentRef).length,
         processed: materials.length, notProcessed: selection.rejected ?? [] };
       if (selection.withheld) task.lastBatch.failure = selection.withheld;
     });
+    await params.nativeEvidence.receiptReady(scope, messageId);
     params.api.logger.info(
       "[" + params.serverName + "] staged " + materials.filter((entry) => entry.attachmentRef).length +
       " of " + (selection.receivedCount ?? 0) + " inbound attachment(s); material coverage retained",
@@ -548,6 +558,7 @@ const plugin = {
         }
         return createMaterialTaskRegistry({ store });
       });
+      const nativeEvidence = nativeEvidenceObserver(registry);
       // Two roots, because two layers stage the same file: OpenClaw's sandbox
       // copies it under the workspace (`staged-inputs-*`) while the WeCom
       // channel plugin writes its own copy under the state directory and is
@@ -573,6 +584,7 @@ const plugin = {
         ingressUrl,
         resolveToken,
         registry,
+        nativeEvidence,
         serverName,
         workspaceRoot: readConfigString(api, "attachmentWorkspaceRoot", DEFAULT_WORKSPACE_ROOT),
         mediaRoots,
@@ -590,6 +602,7 @@ const plugin = {
       api.on("before_prompt_build", async (event, ctx) => {
         try {
           registry.bindRunScope(ctx);
+          await nativeEvidence.bindPrompt(ctx);
           return await injectAttachmentContext(event, ctx);
         } catch (error) {
           api.logger.warn(`[${serverName}] attachment context injection failed: ${describeError(error)}`);
@@ -598,20 +611,54 @@ const plugin = {
       });
 
       api.on("after_tool_call", async (event, ctx) => {
-        const scope = registry.takeToolScope(event, ctx);
-        if (!scope) return;
-        try { await registry.change(scope, (task) => observeToolResult(task, event)); }
+        try {
+          const binding = await nativeEvidence.takeBinding(event, ctx);
+          if (!binding) return;
+          await registry.change(binding.scope, (task, current) => {
+            if (task.taskId !== binding.taskId) return;
+            observeToolResult(task, event);
+            observeNativeToolResult(task, event, current);
+          });
+        }
         catch { api.logger.warn("[" + serverName + "] task result observation unavailable; use actual tool response"); }
       });
-      api.on("agent_end", (_event, ctx) => { registry.clearRunScope(ctx); });
+      api.on("before_tool_call", async (event, ctx) => {
+        try { await nativeEvidence.beforeTool(event, ctx); }
+        catch { api.logger.warn("[" + serverName + "] task call binding unavailable; use actual tool response"); }
+      });
+      // This existing SDK hook supplies actual ASR output, unlike model prose or
+      // message_received metadata. Denial leaves the reader UNKNOWN/PARTIAL.
+      try {
+        // The legacy hook registrar does not apply the typed conversation-access
+        // policy itself. Honor that same explicit opt-in before observing text.
+        const conversationAccess = api.config?.plugins?.entries?.[plugin.id]?.hooks?.allowConversationAccess === true;
+        if (conversationAccess && api.config?.hooks?.internal?.enabled !== false && typeof api.registerHook === "function") api.registerHook("message:transcribed", async (event) => {
+          try { await nativeEvidence.transcribed(event); }
+          catch { api.logger.warn("[" + serverName + "] native transcript observation unavailable"); }
+        }, { name: "sfoa-material-transcript", description: "Observe source-bound native material transcription" });
+      } catch {
+        api.logger.warn("[" + serverName + "] native transcript hook unavailable (code=NATIVE_TRANSCRIPT_HOOK_UNAVAILABLE)");
+      }
+      api.on("agent_end", (_event, ctx) => { registry.clearRunScope(ctx); nativeEvidence.clearRun(ctx); });
       api.on("session_end", async (event, ctx) => {
         if (!["new", "reset", "deleted"].includes(event.reason)) return;
-        try { await registry.clearSession(ctx.sessionKey ?? event.sessionKey); }
+        try {
+          const sessionKey = ctx.sessionKey ?? event.sessionKey;
+          nativeEvidence.clearSession(sessionKey);
+          await registry.clearSession(sessionKey);
+        }
         catch { api.logger.warn("[" + serverName + "] task session cleanup unavailable"); }
       });
       api.registerTool?.((ctx) => {
         const scope = materialScope(ctx);
-        return scope ? taskNoteTool(registry, scope) : null;
+        if (!scope) return null;
+        const tool = taskNoteTool(registry, scope);
+        return { ...tool, async execute(id, note) {
+          const result = await tool.execute(id, note);
+          if (!result.isError && note.operation === "new_task" && result.details?.taskId)
+            nativeEvidence.taskChanged(scope, result.details.taskId);
+          return result;
+        } };
       }, { name: "sfoa_material_task" });
 
       api.logger.info(

@@ -25,6 +25,66 @@ not evaluate formulas, macros, external relationships or page layout. Limits:
 24,000 text characters. Failed/partial coverage and omitted content are explicit.
 Set `officePython` only if the host executable is not `python3`.
 
+### Native reading observations (HOTFIX-01)
+
+The adapter now observes existing OpenClaw 2026.9.5 contracts. It binds each
+received original's exact local path and source message to the requester/session
+task. `pdf` and `view_image` completion results use the host's resolved
+`details.pdf` / `details.pdfs` and `details.image` / `details.images` references,
+including an absolute `rewrittenFrom` mapping when supplied. Filenames, tool
+arguments, plain assistant claims and an unbound old task never establish a read.
+Same-content resend retains the new actual source-path binding.
+
+Successful PDF or fallback image analysis records a completed reading operation
+with **PARTIAL** coverage: the result does not prove exhaustive pages/content.
+Multi-source analysis text is not assigned separately to each original. Native
+`view_image` output records `nativeInput=PROVIDED_TO_MODEL`; semantic reading
+remains **UNKNOWN**. This is the host tool's returned input evidence, not inspection
+of the eventual provider request. An available image is not proof of analysis.
+
+`message_received.media[].transcribed=true` records the host's transcription
+fact without inventing a transcript. The existing optional
+`api.registerHook("message:transcribed", ...)` supplies actual ASR text. Since its
+transcript is message-level and the event lacks accountId, updating one material
+requires exactly one matching prior account/requester/session/message/path
+binding and one audio source. ASR remains **PARTIAL**, with unknown timecodes,
+speakers, confidence and source extent. Queued transcription stays within the
+task's bounds and cannot cross a task switch during ingress staging. These
+observations neither create an upload ref nor grant archive consent.
+The legacy registrar does not enforce the typed conversation-access switch itself,
+so the adapter explicitly requires the already configured
+`hooks.allowConversationAccess=true` for this plugin and respects
+`hooks.internal.enabled=false`. It never changes either setting. Registration
+uses the SDK's required named-hook options; no new manifest contract is invented.
+
+Limitations: automatic PDF preprocessing exposes no per-original completion
+contract here; `llm_input.imagesCount` is only a total, so prompt images without
+an attributable tool result keep UNKNOWN. Ambiguous multi-audio transcripts,
+unmapped sandbox paths, missing source identifiers and denied/absent transcript
+hooks keep existing evidence. Supporting these needs a host event carrying the
+trusted requester/session, original reference mapping, result and actual coverage;
+it does not require a new OCR/ASR service. A host hook denied by policy is not
+bypassed. Process restart still requires revalidation of the memory-only ledger.
+The inspected SDK [hook registrar](https://github.com/openclaw/openclaw/blob/v2026.9.5/src/plugins/registry-registrars-tools-hooks.ts)
+requires no additional manifest contract for these two hook APIs. Reloading a
+changed plugin may still require the host's normal capability/consent review;
+deployment must follow that process without bypassing it.
+
+Tool results also retain the task captured at `before_tool_call` when available.
+After a same-run `new_task`, an old native MCP completion without a start hook
+cannot be distinguished from a new one; it is conservatively left unassociated
+until a new prompt binding. Calls with their own start snapshot work normally.
+This affects optional notes only, never the underlying MCP call or its result.
+
+The contract fixtures in `test-support/openclaw-native-contracts.mjs` cite the
+inspected [PDF tool](https://github.com/openclaw/openclaw/blob/v2026.9.5/src/agents/tools/pdf-tool.ts),
+[image result](https://github.com/openclaw/openclaw/blob/v2026.9.5/src/agents/tools/image-tool.result.ts),
+[message mapper](https://github.com/openclaw/openclaw/blob/v2026.9.5/src/hooks/message-hook-mappers.ts)
+and [transcription dispatch](https://github.com/openclaw/openclaw/blob/v2026.9.5/src/auto-reply/reply/message-preprocess-hooks.ts).
+Local SDK declaration snapshots independently confirm registration/event shapes.
+Tests register the actual adapter and exercise its hooks with these fixtures;
+they are contract validation, not an installed Gateway, real channel or model UAT.
+
 Task state is isolated by trusted account + requester + session, with an absolute
 two-hour task lifetime, at most 128 session entries, 64 materials and 64,000 stored
 text characters per task. On OpenClaw 2026.9.5, `api.runtime.state.openKeyedStore`
