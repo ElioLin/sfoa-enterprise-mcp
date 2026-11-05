@@ -19,6 +19,18 @@ import {
 } from '../index.js';
 
 describe('canonical SFoA Agent Playbook', () => {
+  it('distributes submission-specific critical evidence and business Record Type meaning', () => {
+    // Contract/distribution assertions do not demonstrate actual model compliance.
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
+      assert.match(output, /Critical Dynamic Dependency.*cannot be resolved by existing reliable evidence/u);
+      assert.match(output, /Unrelated, unsubmitted, non-required fields with PENDING display conditions do not block/u);
+      assert.match(output, /already satisfied.*not missing merely because UI visibility is UNKNOWN/u);
+      assert.match(output, /Preserve actual missing API requirements, unresolved applicable Lookup\/Picklist and explicit API non-writeability/u);
+      assert.match(output, /Never change a correct business Record Type merely to fit a Picklist value/u);
+      assert.match(output, /current selection is wrong or multiple types genuinely fit the business task/u);
+      assert.doesNotMatch(output, /try another valid candidate type or ask/u);
+    }
+  });
   it('distributes the bounded effective CREATE workflow without asking Agents to parse metadata', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
       for (const token of ['draftFields', 'PENDING', 'UNKNOWN', 'optionalCandidate', 'uiContextResolutionId', 'effectiveRequired']) assert.ok(output.includes(token), token);
@@ -51,7 +63,7 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderWorkBuddySkill(), /action-context referenceTo target object.*never substitute OwnerId/iu);
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.2');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.3');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
       'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
@@ -351,7 +363,7 @@ describe('P9 data-completeness contract', () => {
   });
 
   it('stamps the version on the Dify instruction head', () => {
-    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.13\.2$/mu);
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.13\.3$/mu);
   });
 });
 
@@ -486,7 +498,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.2');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.3');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.

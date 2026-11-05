@@ -1,6 +1,6 @@
 # Dynamic Forms Doctrine
 
-本文件处理 CREATE 的字段可见性与条件必填。它是本 Skill 最重要的专业部分：此前真人 UAT 的字段遗漏，根因不是没有调用 Action Context，而是**看见了 PENDING / VISIBLE 却没有继续解析**。
+本文件处理 CREATE 的字段可见性与条件必填。按本次提交需要判断关键依赖，保留真实覆盖限制，不把整张页面解析完成当成统一写入前提。
 
 ## 先确认这次是否真的用了 Dynamic Forms
 
@@ -14,7 +14,7 @@ CREATE 输出里的 `uiContext` 与 `coverage.dynamicFormsEvaluated` 才能说�
 
 | 状态 | 含义 | 允许的动作 |
 | --- | --- | --- |
-| `VISIBLE` | 当前规则判定为可见 | 可以询问、可以推荐、可以提交 |
+| `VISIBLE` | 当前规则判定为可见 | 结合实际缺口询问、推荐；提交仍需 API 写权限与合法值 |
 | `HIDDEN` | 当前规则判定为隐藏 | 仅页面要求不询问、不推荐；API-required 仍独立必需 |
 | `PENDING` | 存在当前已知的 dependency，但依赖值还不在 draft 中 | 影响本次必填、提交合法性或业务事实时继续解析；仍缺关键事实才问 |
 | `UNKNOWN` | 当前 Runtime 无法判定 | **MUST NOT** 猜测成 VISIBLE 或 HIDDEN |
@@ -27,6 +27,8 @@ CREATE 输出里的 `uiContext` 与 `coverage.dynamicFormsEvaluated` 才能说�
 field.visibilityState == PENDING && dependsOn == [...]
 ```
 
+以下补证与 refinement 仅用于确实影响本次所需值或提交合法性的依赖。
+
 - `dependsOn` 对应的事实**已从提示、实际已读材料、上下文或可靠关联中确定** → 自动写入 `draftFields`，带同一 `recordTypeId` 执行下一次 refinement，不要询问用户第二次。
 - `dependsOn` 对应的事实**还不知道** → 先利用已有信息与可用读取补证，仍缺关键事实才问依赖字段，不先问依赖它的字段。
 - 用户回答后 → 更新 draft → refinement → 重新获取 Effective Context → 重新判断。
@@ -36,7 +38,7 @@ field.visibilityState == PENDING && dependsOn == [...]
 仅无关选填字段的显示条件 PENDING → 保留覆盖限制，不阻断已充分确定的写入
 ```
 
-`conditionalRequired=true` 表示该字段在 PENDING 状态下曾经是必填。它只有在可见性解析为 `VISIBLE` 之后才变成问题。
+`conditionalRequired=true` 表示存在条件必填可能性，不代表当前已经缺值。条件可能改变本次所需值且现有可靠证据无法消解时，才按 Critical Dependency 解析；已合法满足的值不会仅因页面条件未明而再问。
 
 ## UNKNOWN 处理
 
@@ -55,17 +57,9 @@ field.visibilityState == PENDING && dependsOn == [...]
 
 ## Critical Dynamic Dependency
 
-一个 unresolved 状态属于 **Critical Dynamic Dependency**，当且仅当它可能改变：
+未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才属于 **Critical Dynamic Dependency**，此时 `CHANGE_READY=false`。无关、未提交、非必填字段的 PENDING 显示条件不阻断已确定写入。
 
-- 本次字段是否 Required
-- 本次要提交的字段是否具有 API 写权限或是否合法
-- Required Checklist 的内容
-- Lookup 依赖
-- Picklist 依赖
-- 当前字段是否合法
-
-且缺口不能由已有 API、默认值、材料或其他可靠事实消解时，`CHANGE_READY=false`。
-单纯页面显隐或页面只读未知，不等于 API 无写权限，也不新增所有 DML 都必须通过的页面门槛。
+合法草案值或现有适用默认/managed 已满足 API 必填时，UI UNKNOWN 不新增缺口；真正缺 API 必填、关键 Lookup/Picklist 未解或明确 API 不可写仍需解决。单纯页面显隐或页面只读未知，不等于 API 无写权限，也不新增所有 DML 都必须通过的页面门槛。开发测试 oracle 只验证指导契约，不能接入服务端作为 DML 门禁。
 
 反之，如果只是与本次 mutation 无关的 non-critical UNKNOWN，并且 Runtime 已经足够证明：
 

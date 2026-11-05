@@ -5,7 +5,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 
 # SFOA Record Change
 
-指导修订：1.13.2 — 材料工作流、任务连续性、适用查重与可选原件归档。
+指导修订：1.13.3 — 按本次提交判断关键依赖，保留材料提炼与业务类型语义。
 
 按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/字段事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → 执行和回执。复用仍适用的上下文；这不是查询、普通 UPDATE、纯附件或诊断的固定调用清单。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
 
@@ -43,7 +43,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 16. **Required Checklist（CREATE）** — `visibilityState=VISIBLE` 且 `effectiveRequired=true` 且没有合规任务草稿值（直接提供、忠实提炼或可靠关联）且没有可信默认值满足，先用可用读取补足，真正缺关键事实时，**MUST** 进入 Missing Required Checklist 并询问。`apiRequired=true` 与 UI 可见性无关，始终必需。
 17. **PENDING 继续解析** — 与任务相关的依赖，优先复用材料、上下文与可用工具；已知值进入 draftFields 后 refinement，真正仍缺失且关键时再问。不要忽略影响本次提交的未决依赖。
 18. **UNKNOWN 不得猜测** — `UNKNOWN` 不等于 `PENDING`，也不等于 `VISIBLE` 或 `HIDDEN`。**MUST NOT** 把 UNKNOWN 推断成任何一种可见状态。
-19. **Critical Dependency** — 影响本次字段是否 Required / Editable / Visible、Required Checklist、Lookup 或 Picklist 依赖、当前字段是否合法的 unresolved 依赖属于 Critical Dynamic Dependency；未稳定时 `CHANGE_READY=false`。
+19. **Critical Dependency** — 未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才属于 Critical Dynamic Dependency，保持 `CHANGE_READY=false`。无关、未提交、非必填字段的 PENDING 显示条件不阻断；合法草案、适用默认/managed 已满足 API 必填时，UI UNKNOWN 不新增缺口。页面显隐/只读与 API 权限分别判断。
 20. **HIDDEN 与 API 必填** — `visibilityState=HIDDEN` 的仅页面必填字段不追问、不推荐；`apiRequired=true` 仍须由草案、可信默认或适用 managed 满足，真实缺口才问。UNKNOWN/PARTIAL 是覆盖事实，不可当成完整空清单。
 21. **Refinement 上限** — 遵守当前 Runtime 的真实 contract（`refinement` 0..3、`refinementLimitReached`）。达到上限仍存在影响本次 mutation 的关键 unresolved dependency 时 **MUST** 保持 `CHANGE_READY=false`，并如实说明当前页面条件无法充分解析。
 22. **Initial Facts 不重复询问** — 从提示、实际已读材料、适用上下文提炼业务事实，可靠关联结果也可进入当前真实字段的 draft/Patch。已知信息不重复问；附件引用或上传成功不证明已读正文。
@@ -63,7 +63,7 @@ description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增
 36. **不硬编码** — **MUST NOT** 硬编码 Salesforce Required Fields、Record Type ID / DeveloperName、Picklist API Value、Lookup ID、Record ID、Owner ID 或公司字段业务规则；一切从当前 Runtime / Salesforce 实时发现。
 37. **Salesforce 最终权威** — 尊重 Validation Rule、FLS、Sharing、Lookup Filter、Flow、Trigger、CRUD 与 Native Permission 的最终裁决。Skill 与 Playbook 都不能提升权限。
 38. **Requiredness Source** — `includeRequiredness` / `requiredChecklist` 表示必填定义，不是用户未提供清单。CREATE 按当前 USER、Record Type 与 active page：DYNAMIC_FORMS/MIXED 用 effectiveRequired/requiredSource；PAGE_LAYOUT 用该动作 apiRequired/layoutRequired；PAGE_LAYOUT_FALLBACK 说明限制。UPDATE 只提供其当前真实动作事实，不宣称完整 Edit Dynamic Forms。综合材料、草案、原始 defaults、managed 和已知当前值后只问真正缺失的必要信息；false/0/null/空字符串/属性缺失分别处理。系统、不可写、严格托管字段不反复索要；页面隐藏/只读不扩成 DML 权限。FIELD_CUSTOM_VALIDATION_EXCEPTION 按实际错误区分字段、跨字段或业务规则，不一律当缺必填或无限重试。
-39. **Explicit Fact Coverage** — 提示词、已读材料与可信关联中的每个明确业务事实，**MUST** 先映射到当前 Record Type 的可写字段（按 label、section、inlineHelpText、类型与依赖），或明确标记 `NO_FIELD` / `NO_LEGAL_VALUE` / `LOOKUP_UNRESOLVED`。使用 `fieldApiNames` 投影后，**MUST** 检查 `coverage.fieldProjection.omittedFieldCatalog`；被省略字段不代表不存在，label/section 命中明确事实时必须补取。**MUST NOT** 把已能映射到结构化字段的事实只写进 Description；当前类型没有合法 Picklist 值时，换候选类型或集中追问一次，不得静默降级。
+39. **Explicit Fact Coverage** — 提示词、已读材料与可信关联中的每个明确业务事实，**MUST** 先映射到当前 Record Type 的可写字段（按 label、section、inlineHelpText、类型与依赖），或明确标记 `NO_FIELD` / `NO_LEGAL_VALUE` / `LOOKUP_UNRESOLVED`。使用 `fieldApiNames` 投影后，**MUST** 检查 `coverage.fieldProjection.omittedFieldCatalog`；被省略字段不代表不存在，label/section 命中明确事实时必须补取。**MUST NOT** 把已能映射到结构化字段的事实只写进 Description。不得仅为匹配 Picklist 值改变业务类型；当前类型确实选错或多个类型在业务上都成立时，可结合事实重新选择。类型正确但没有合法值时说明限制，剩余实质选择集中询问，不静默降级。
 40. **Phone / Mobile 与地域** — 按当前字段 label/help、明确用途及号码所属国家地区分类。中国大陆规则仅适用于大陆号码，不作为全球校验器；保留国际国家码、分机和数字，不截断、补位、编造或静默换字段。座机区号本身不证明公司城市/省份/国家；明确公司地点可可靠补全行政层级，手机号不推断地址。详见 [phone-and-mobile.md](references/phone-and-mobile.md)。
 41. **指定归属人意图** — 用户说「以 X 的账号/名义创建」「归属给 X」时，**MUST NOT** 切换认证身份。先看当前 `managedDmlFields` 与字段 label：若配置了可用户指定的归属人/归属 Managed 字段（如 `PLATFORM_USER_LOOKUP_FALLBACK`），**MUST** 先调用 `get_record_action_context` 获取该对象/动作的字段描述，读取该托管字段对应字段的 `referenceTo` 确定目标对象（**MUST NOT** 默认按 `User` 解析），再在该目标对象上按姓名/工号等业务字段做有界查询，把唯一 Salesforce ID 写入该托管字段；**MUST NOT** 改用 `OwnerId` 或其他非托管字段代替。若 action context 不可用、字段描述缺失或 `referenceTo` 为空，**MUST** 先问，不得猜。若没有可用户指定的归属字段，或策略是 strict `PLATFORM_IDENTITY`，**MUST** 明确告知用户无法指定归属人/身份，只能按当前认证身份执行（获得用户确认后）。目标对象存在重名时先问哪一条，不得取第一条或猜 ID。详见 [managed-lookups.md](references/managed-lookups.md)。
 42. **适用查重** — CREATE 围绕当前真实对象的业务身份/事件键，UPDATE 仅对实际变化且适用的身份值做有界 USER 查询；名称、共享电话、模糊匹配是候选，不直接证明重复。拜访结合客户、时间和事件，历史拜访不阻止新事件。先用已有事实消歧；实质同记录冲突或继续新建/改为更新/取消的独立选择才集中问，已有决定不重问；普通初始“新建”不代表已知后来发现的同记录证据后仍决定再建一份，未解选择应在保存前问；不能静默覆盖旧记录。无适用键、查询失败或截断如实说明限制，不统一阻断，也不声称全库唯一。见 [duplicate-check.md](references/duplicate-check.md)。

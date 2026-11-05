@@ -71,12 +71,12 @@ VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠
 → 先用已有材料、上下文与可用读取解决，仍缺关键事实时进入 Missing Required Checklist
 ```
 
-`apiRequired=true` 与 UI 可见性无关：即使字段在 UI 上 HIDDEN，API 必填语义仍然存在。
+`apiRequired=true` 与 UI 可见性无关：即使字段在 UI 上 HIDDEN，API 必填语义仍然存在。合法草案值或现有适用默认/managed 已满足 API 必填时，UI UNKNOWN 不新增缺口；真正缺 API 必填仍不就绪。未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才属于 Critical Dynamic Dependency。
 
 同时要区分：
 
 - `layoutRequired` 与 `apiRequired` 是两套独立来源，`requiredSource` 会同时列出 `API`、`PAGE_LAYOUT`、`DYNAMIC_FORM`。
-- `conditionalRequired=true` 表示该字段在某个 PENDING 状态下曾经是必填；它只有在可见性解析为 VISIBLE 之后才成为问题。
+- `conditionalRequired=true` 表示存在条件必填可能性，不代表当前已经缺值；如果条件可能改变本次所需值且现有可靠证据无法消解，则按 Critical Dependency 解析。已合法满足的值不会仅因页面条件未明而再问。
 - `fieldCreateable=false` 的字段不能作为用户可写项；`effectiveEditable=false` 仅表示页面状态，不能单独否定已有 API 写权限。**MUST NOT** 通过反复试写去发现字段。
 - 系统字段、公式字段、自动编号字段、只读字段不是用户问题。
 
@@ -106,7 +106,7 @@ fact → target field (label/section/inlineHelpText/type/dependency)
 - 使用 `fieldApiNames` 投影前，先看当前 Record Type 的字段目录；投影后检查 `coverage.fieldProjection.omittedFieldCatalog`。
 - 被省略字段不代表不存在；omitted catalog 中 label/section 命中明确事实时，必须补取该字段的 Picklist/default/layout facts。
 - 已经能映射到结构化字段的事实 **MUST NOT** 只写进 Description。
-- 当前 Record Type 没有合法 Picklist 值时，换一个可用候选 Record Type 或集中追问一次；不得静默降级。
+- 不得仅为匹配 Picklist 值改变业务类型；当前类型确实选错或多个类型在业务上都成立时，可结合事实重新选择。当前类型正确但没有合法值时说明限制，剩余实质选择集中询问，不静默降级。
 - 无法解析的 Lookup 按 [lookup-and-picklist.md](lookup-and-picklist.md) 处理；不要把姓名直接写入 Lookup Id 字段。
 
 ## Phone / Mobile
@@ -164,15 +164,15 @@ UPDATE 的写入工具选择同理（singular `update_record` / plural `update_r
 当前 Action Context 表现为：
 
 - 「计划交谈事项」类字段：`visibilityState=VISIBLE`、`effectiveRequired=true`、`effectiveEditable=true`、无默认值。
-- 「客户」类字段：`visibilityState=PENDING`，`dependsOn` 返回「来源」类字段。
+- 「客户」类字段：`visibilityState=PENDING`、`conditionalRequired=true`，尚无合法草案或适用默认满足，`dependsOn` 返回「来源」类字段；该条件确实可能改变本次所需值。
 - 「来源」类字段：初始未知。
 - 「归属人」类字段：可见必填，受 `PLATFORM_IDENTITY_FALLBACK` 管理。
 
 正确行为必须同时满足：
 
 1. 不能漏掉可见必填的「计划交谈事项」类字段。
-2. 不能忽略 `dependsOn` 返回的「来源」类字段依赖直接 CREATE。
-3. 「来源」类字段得到之后必须 refinement，再重新判断「客户」类字段。
+2. 不能忽略仍影响本次所需值的 `dependsOn` 返回的「来源」类字段依赖直接 CREATE；无关选填 PENDING 不套用本例。
+3. 「来源」类字段得到之后 refinement，再判断尚未满足的「客户」类字段是否确实需要。
 4. Owner 必须遵守 explicit > fallback。
 5. 所有 blocking condition 消失后才允许 CREATE。
 

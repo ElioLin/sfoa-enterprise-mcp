@@ -218,7 +218,13 @@ export function evaluateRecordTypeIntent({ recordTypeRequested = false, candidat
  * CREATE readiness: "is this new record complete enough to exist?"
  *
  * `visibilityState` uses the Dynamic Forms vocabulary. `apiRequired` survives independently of UI
- * visibility. A PENDING field is only stable once every `dependsOn` fact is known.
+ * visibility. UI coverage alone never decides readiness. `criticalDependency` is an oracle-only
+ * input: current evidence proves an unresolved dependency can affect this submission's legality,
+ * Lookup or Picklist; it is not a Runtime field. Requiredness uncertainty matters only while the
+ * potentially needed value remains unsatisfied. knownValues are already validated draft facts;
+ * runtimeSatisfiedFields names applicable default/managed semantics, not guessed post-save values.
+ * lookupAmbiguity, picklistNormalized and evidenceComplete concern this submission, not unrelated
+ * optional fields or the completeness of an entire Lightning page.
  */
 export function evaluateCreateReadiness({
   intentIsCreate = true,
@@ -241,24 +247,21 @@ export function evaluateCreateReadiness({
     const { apiName, visibilityState = 'VISIBLE', apiRequired = false, effectiveRequired = false,
       dependsOn = [] } = field;
     if (apiName === undefined) continue;
-    if (visibilityState === 'PENDING') {
-      const unresolved = dependsOn.filter((name) => !(name in knownValues));
-      if (unresolved.length > 0) blockers.push(`PENDING_DEPENDENCY_UNRESOLVED:${apiName}`);
-      if (!apiRequired) continue;
-    }
-    // Hidden page-only requiredness disappears; API-required does not.
-    if (visibilityState === 'HIDDEN' && !apiRequired) continue;
-    if (visibilityState === 'UNKNOWN') {
-      if (apiRequired || effectiveRequired) blockers.push(`UNKNOWN_REQUIRED:${apiName}`);
-      continue;
-    }
-    const required = apiRequired || (visibilityState === 'VISIBLE' && effectiveRequired);
     const present = Object.hasOwn(knownValues, apiName);
     const value = knownValues[apiName];
     const hasValue = present && value !== null && value !== undefined && value !== '';
-    if (required && !hasValue && !(runtimeSatisfiedFields.includes(apiName) && !present)) blockers.push(`MISSING_REQUIRED:${apiName}`);
+    const satisfied = hasValue || (runtimeSatisfiedFields.includes(apiName) && !present);
     // UI editability is not FLS. This development oracle does not add a DML permission rule.
     if (field.fieldCreateable === false && present) blockers.push(`FIELD_NOT_EDITABLE:${apiName}`);
+    // API-required survives every UI state; known legal draft/default/managed values satisfy it.
+    const required = apiRequired || (visibilityState === 'VISIBLE' && effectiveRequired);
+    if (required && !satisfied) blockers.push(`MISSING_REQUIRED:${apiName}`);
+    const critical = field.criticalDependency === true
+      || (!satisfied && (effectiveRequired || field.conditionalRequired === true));
+    if (critical && visibilityState === 'PENDING' && dependsOn.some((name) => !Object.hasOwn(knownValues, name) || knownValues[name] === undefined)) {
+      blockers.push(`PENDING_DEPENDENCY_UNRESOLVED:${apiName}`);
+    }
+    if (critical && visibilityState === 'UNKNOWN') blockers.push(`UNKNOWN_DEPENDENCY_UNRESOLVED:${apiName}`);
   }
 
   if (lookupAmbiguity) blockers.push('LOOKUP_AMBIGUOUS');

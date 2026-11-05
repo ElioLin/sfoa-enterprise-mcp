@@ -75,7 +75,7 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
   ['UNKNOWN', '`UNKNOWN` 不等于 `PENDING`'],
   ['UNKNOWN', '把 UNKNOWN 推断成任何一种可见状态'],
   ['Critical Dependency', 'Critical Dynamic Dependency'],
-  ['Critical Dependency', '未稳定时 `CHANGE_READY=false`'],
+  ['Critical Dependency', '且现有可靠证据无法消解'],
   ['HIDDEN', '`visibilityState=HIDDEN` 的仅页面必填字段不追问'],
   ['Refinement Limit', '`refinementLimitReached`'],
   ['Refinement Limit', '并如实说明当前页面条件无法充分解析'],
@@ -1206,16 +1206,74 @@ test('outcome gate — UNKNOWN never auto-retries and never becomes success by s
 // Skill-02A CREATE regression gate.
 // ---------------------------------------------------------------------------------------------
 
+test('HOTFIX readiness — unrelated optional PENDING and satisfied API requirements do not block', () => {
+  const unrelated = evaluateCreateReadiness({
+    fields: [
+      { apiName: 'RequiredValue', apiRequired: true },
+      { apiName: 'OptionalDisplay', visibilityState: 'PENDING', dependsOn: ['UnusedController'] },
+    ],
+    knownValues: { RequiredValue: 'known' },
+  });
+  assert.equal(unrelated.changeReady, true, unrelated.blockers.join(','));
+  assert.equal(evaluateCreateReadiness({
+    fields: [{ apiName: 'OptionalDisplay', visibilityState: 'PENDING', dependsOn: ['UiOnly'] }],
+    knownValues: { OptionalDisplay: 'legal' },
+  }).changeReady, true, 'UI-only dependencies do not invalidate an already legal optional draft value');
+  for (const visibilityState of ['UNKNOWN', 'PENDING', 'HIDDEN']) {
+    const fields = [{ apiName: 'RequiredValue', apiRequired: true, visibilityState, dependsOn: ['UiOnly'] }];
+    for (const value of ['known', false, 0]) {
+      assert.equal(evaluateCreateReadiness({ fields, knownValues: { RequiredValue: value } }).changeReady, true);
+    }
+    assert.equal(evaluateCreateReadiness({ fields, runtimeSatisfiedFields: ['RequiredValue'] }).changeReady, true);
+    assert.ok(evaluateCreateReadiness({ fields }).blockers.includes('MISSING_REQUIRED:RequiredValue'));
+  }
+});
+
+test('HOTFIX readiness — actual required, writable and applicable dependency gaps remain', () => {
+  for (const visibilityState of ['UNKNOWN', 'PENDING']) {
+    const fields = [{ apiName: 'ChosenValue', visibilityState, dependsOn: ['Controller'], criticalDependency: true }];
+    assert.equal(evaluateCreateReadiness({ fields, knownValues: { ChosenValue: 'value' } }).changeReady, false);
+  }
+  assert.equal(evaluateCreateReadiness({
+    fields: [{ apiName: 'ConditionalValue', visibilityState: 'PENDING', conditionalRequired: true, dependsOn: ['Controller'] }],
+  }).changeReady, false);
+  assert.equal(evaluateCreateReadiness({
+    fields: [{ apiName: 'ConditionalValue', visibilityState: 'UNKNOWN', conditionalRequired: true }],
+    runtimeSatisfiedFields: ['ConditionalValue'],
+  }).changeReady, true);
+  for (const visibilityState of ['VISIBLE', 'HIDDEN', 'PENDING', 'UNKNOWN']) {
+    assert.ok(evaluateCreateReadiness({
+      fields: [{ apiName: 'ReadOnly', visibilityState, fieldCreateable: false }], knownValues: { ReadOnly: 'value' },
+    }).blockers.includes('FIELD_NOT_EDITABLE:ReadOnly'));
+  }
+  assert.equal(evaluateCreateReadiness({ lookupAmbiguity: true }).changeReady, false);
+  assert.equal(evaluateCreateReadiness({ picklistNormalized: false }).changeReady, false);
+});
+
+test('HOTFIX guidance — business Record Type meaning takes precedence over Picklist fit', async () => {
+  for (const relative of ['SKILL.md', 'references/create-readiness.md']) {
+    const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
+    assert.ok(text.includes('不得仅为匹配 Picklist 值改变业务类型'), relative);
+    assert.ok(text.includes('当前类型确实选错或多个类型在业务上都成立'), relative);
+    assert.doesNotMatch(text, /换(?:一个可用)?候选(?: Record Type|类型)或集中追问/u);
+  }
+  for (const relative of ['SKILL.md', 'references/create-readiness.md', 'references/dynamic-forms.md', 'references/readiness-gate.md']) {
+    const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
+    assert.ok(text.includes('未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist'), relative);
+    assert.ok(text.includes('且现有可靠证据无法消解'), relative);
+  }
+});
+
 test('CREATE regression — VISIBLE + required, PENDING dependency and refinement still gate CREATE', () => {
   const pending = evaluateCreateReadiness({
-    fields: [{ apiName: 'SourceField' }, { apiName: 'CustomerField', visibilityState: 'PENDING', dependsOn: ['SourceField'] }],
+    fields: [{ apiName: 'SourceField' }, { apiName: 'CustomerField', visibilityState: 'PENDING', conditionalRequired: true, dependsOn: ['SourceField'] }],
     knownValues: {},
   });
   assert.equal(pending.changeReady, false);
   assert.ok(pending.blockers.includes('PENDING_DEPENDENCY_UNRESOLVED:CustomerField'));
 
   const resolved = evaluateCreateReadiness({
-    fields: [{ apiName: 'SourceField' }, { apiName: 'CustomerField', visibilityState: 'PENDING', dependsOn: ['SourceField'] }],
+    fields: [{ apiName: 'SourceField' }, { apiName: 'CustomerField', visibilityState: 'PENDING', conditionalRequired: true, dependsOn: ['SourceField'] }],
     knownValues: { SourceField: 'resolved' },
   });
   assert.equal(resolved.changeReady, true, resolved.blockers.join(','));
@@ -1235,7 +1293,7 @@ test('CREATE regression — VISIBLE + required, PENDING dependency and refinemen
   for (const value of [false, 0]) assert.equal(evaluateCreateReadiness({fields: [{apiName: 'Value', apiRequired: true}], knownValues: {Value: value}}).changeReady, true);
   for (const value of [null, '']) assert.equal(evaluateCreateReadiness({fields: [{apiName: 'Value', apiRequired: true}], knownValues: {Value: value}, runtimeSatisfiedFields: ['Value']}).changeReady, false);
   const unknown = evaluateCreateReadiness({ fields: [{ apiName: 'UnknownField', visibilityState: 'UNKNOWN', apiRequired: true }] });
-  assert.ok(unknown.blockers.includes('UNKNOWN_REQUIRED:UnknownField'));
+  assert.ok(unknown.blockers.includes('MISSING_REQUIRED:UnknownField'));
   // apiRequired survives UI visibility.
   assert.ok(evaluateCreateReadiness({ fields: [{ apiName: 'ApiField', visibilityState: 'VISIBLE', apiRequired: true }] })
     .blockers.includes('MISSING_REQUIRED:ApiField'));

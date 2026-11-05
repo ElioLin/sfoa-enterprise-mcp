@@ -70,6 +70,7 @@ Evidence-Based Mutation Readiness
 - 只因为 Runtime `coverage=PARTIAL`。`coverage` 描述解析范围，不等于本次 mutation 不可行；要看 Critical Dependency 是否受影响。
 - 只因为 `resolutionStatus=RESOLVED` 之外存在与本次 mutation 无关的 UNKNOWN。
 - 只因为 optional 字段为空。Optional 不是必填。
+- 只因为无关、未提交、非必填字段的 PENDING 显示条件未决；或合法草案、适用默认/managed 已满足 API 必填而 UI visibility=UNKNOWN。只有未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才形成关键缺口。
 - 只因为查重 0 行。0 行只说明当前可见 / 查询范围内未发现，不证明全局唯一；它不阻塞 CREATE，但也不得被表述为「没有重复」。
 - 只因为字段是严格 managed。严格 managed 由 Runtime 负责，不是 Agent 的缺口。
 - 只因为多个 Record Type、optional 字段未被点名或值来自忠实提炼/可靠关联；这些不是追问理由。适用 CREATE fallback 可直接省略交由 Runtime，UPDATE 不重放默认。
