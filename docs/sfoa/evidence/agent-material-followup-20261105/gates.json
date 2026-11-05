@@ -1,0 +1,172 @@
+{
+  "gates": [
+    {
+      "label": "WINDOWS_SERVER_AGGREGATE",
+      "sourceLog": ".temp/agent-material-followup-20261105/server-aggregate-timing.log",
+      "sha256": "0099425dd313da3cbc58777e004094c44b8ff91a73139557896b178cb8662069",
+      "tests": 404,
+      "pass": 404,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 551045.6689
+    },
+    {
+      "label": "WINDOWS_P7_AGGREGATE",
+      "sourceLog": ".temp/agent-material-followup-20261105/p7-aggregate-timing.log",
+      "sha256": "7a6a72bc1ecfd78887bac16a7e7e6140192c644ef711d19af219ba532296681e",
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 72697.34
+    },
+    {
+      "label": "ADAPTER_STORE_DENIAL_FIX",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-hotfix-test.log",
+      "sha256": "0d67086dfc5f73a06069fe78b1b99c6cacf1f5e344f5a842e80a8c28dc19963d",
+      "tests": 93,
+      "pass": 93,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 64086.4784
+    },
+    {
+      "label": "ADAPTER_MANIFEST",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-manifest-test.log",
+      "sha256": "1b256a15e86837c288ca0abd850621e0737a18ad735e3c84c550f9011a3824fd",
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 15676.7615
+    },
+    {
+      "label": "WINDOWS_DEFAULT_PARALLEL_ALL_117",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-final-93.log",
+      "sha256": "1f94299e729e988c11e69ead144138d079a9fb9e9c244ceb1b54ce6ae4038e9c",
+      "tests": 117,
+      "pass": 114,
+      "fail": 2,
+      "skipped": 1,
+      "durationMs": 64961.5257
+    },
+    {
+      "label": "WINDOWS_SERIAL_PYTHON_LAUNCHER",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-final-serial.log",
+      "sha256": "e1efebed87e26199cf0f81f5d222882681474e6e73b5e41d8a0cf8bd0c45607b",
+      "tests": 93,
+      "pass": 91,
+      "fail": 2,
+      "skipped": 0,
+      "durationMs": 140670.8153
+    },
+    {
+      "label": "WINDOWS_SERIAL_EXPLICIT_PYTHON_ALL_117",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-harness-direct-python.log",
+      "sha256": "a93f73e7c1c54fced97d25c1aeb5c75f954f78604beebba8b74baa325ac7182f",
+      "tests": 117,
+      "pass": 116,
+      "fail": 0,
+      "skipped": 1,
+      "durationMs": 123383.1354
+    },
+    {
+      "label": "HOST_CALL_BINDING_FOCUSED",
+      "sourceLog": ".temp/agent-material-followup-20261105/host-call-binding-test.log",
+      "sha256": "a89c722406c436409257c37a48f8fc24fd9950b24b0bbfcb5b1ed1b2bb07d9b4",
+      "tests": 36,
+      "pass": 36,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 9025.0571
+    },
+    {
+      "label": "SKILL_TEST_BEFORE_HOST_BINDING_REFERENCE_UPDATE",
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-test.log",
+      "sha256": "c33d189c2b934af75ac66c8201ef6bd3a064bd6808880c9107894c5fe31ec253",
+      "tests": 80,
+      "pass": 80,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 97548.6515
+    },
+    {
+      "label": "WINDOWS_PROMPT_RUN_BINDING_72EEB22",
+      "sourceLog": ".temp/agent-material-followup-20261105/prompt-run-binding-final-test.log",
+      "sha256": "c8f4759d2bb994e403d539825bf3309fa093eddd5f942206f08b83910acc5074",
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 14558.525
+    },
+    {
+      "label": "LINUX_PROMPT_RUN_BINDING_72EEB22",
+      "sourceLog": ".temp/agent-material-followup-20261105/prompt-run-linux-focused.log",
+      "sha256": "9f608951bf13110b9d1deaa580295079dc77a0eff53ea03853d41fcd259f767c",
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 381.213538
+    },
+    {
+      "label": "LINUX_ADAPTER_HARNESS_20EA534_CHANNEL_STATE_FAILED",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-linux-call-scope-final.log",
+      "sha256": "00ed4edbebdb89ff69c54501437d1f6bd91c4e060374b9162b3f8d64da9891db",
+      "tests": 119,
+      "pass": 119,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 64708.706089
+    },
+    {
+      "label": "LINUX_ADAPTER_72EEB22",
+      "sourceLog": ".temp/agent-material-followup-20261105/adapter-linux-prompt-run-final.log",
+      "sha256": "e891d1151d6a3d39a58bd03c3d0498299652ff15046b1e467f74c5fb756eb742",
+      "tests": 96,
+      "pass": 96,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 61808.980591
+    },
+    {
+      "label": "LINUX_HARNESS_72EEB22_SEPARATE_RUN",
+      "sourceLog": ".temp/agent-material-followup-20261105/harness-linux-prompt-run-final.log",
+      "sha256": "1023fddc3028d9c44d959dd1ac650cd2a3092d13472fd7ffa93bfe1c4c19d403",
+      "tests": 24,
+      "pass": 24,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 2883.055338
+    },
+    {
+      "label": "SKILL_TEST_FINAL_REFERENCES",
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-test-final.log",
+      "sha256": "3d812cc1dcd762f3353e4ceca1de194d8f968a62b62cc3455b8d46b0a999e1ca",
+      "tests": 80,
+      "pass": 80,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 91027.0418
+    }
+  ],
+  "originalFailures": [
+    {
+      "sourceLog": ".temp/p8-04-regression/sfoa-mcp-server-test.log",
+      "sha256": "6e2c159df8c10f83bf33e9e9e42d57ec9246e738a9412f3ff9d58e06d1925f1d",
+      "testName": "50 interleaved HTTP requests preserve requester identity",
+      "errorCode": "MCP_REQUEST_TIMEOUT",
+      "preserved": true
+    },
+    {
+      "sourceLog": ".temp/p8-04-regression/sfoa-mcp-server-p7-test.log",
+      "sha256": "dfd7a2cfe48094d4f681cf077ea82509c32c16b8dbd80439ce4931f0b7060630",
+      "testName": "HTTP OFF/ON 50/100/200 Gate",
+      "errorCode": "MCP_REQUEST_TIMEOUT",
+      "preserved": true
+    }
+  ],
+  "allBusinessAcceptance": "PARTIAL",
+  "productionAcceptance": false
+}

@@ -1,0 +1,124 @@
+{
+  "scope": "ACTUAL_USER_WECOM_EDIT_ARCHIVE_AND_READONLY_RECHECK",
+  "sourceAdapter": "20ea53487b5011bede2c0a85d35cac3dbd8ed0c7",
+  "capturedAt": "2026-11-05T01:59:37.439Z",
+  "update": {
+    "callSeq": 294,
+    "resultSeq": 295,
+    "publicAuditId": "92ff0f3f-cdc1-40b3-b69f-7fea0c4fa8c3",
+    "objectApiName": "Account_Visit__c",
+    "recordId": "a0fC5000001AEfRIAW",
+    "fields": {
+      "Start_Time__c": "2026-11-13T10:30:00+08:00",
+      "End_Time__c": "2026-11-13T11:30:00+08:00"
+    },
+    "result": {
+      "success": true,
+      "recordId": "a0fC5000001AEfRIAW"
+    }
+  },
+  "upload": {
+    "callSeq": 297,
+    "resultSeq": 298,
+    "publicAuditId": "87dfdff2-44bc-4800-86d2-8179454790c7",
+    "targetRecordId": "a0fC5000001AEfRIAW",
+    "results": [
+      {
+        "status": "SUCCESS",
+        "fileName": "SFOA-MATERIAL-1105-C.csv",
+        "contentVersionId": "068C50000017tQbIAI",
+        "contentDocumentId": "069C50000015y7pIAA",
+        "errorCode": null
+      }
+    ],
+    "status": "SUCCESS"
+  },
+  "salesforceReadback": {
+    "seq": 309,
+    "recordId": "a0fC5000001AEfRIAW",
+    "name": "Visit-004242",
+    "start": "2026-11-13T02:30:00.000+0000",
+    "end": "2026-11-13T03:30:00.000+0000",
+    "status": "计划中",
+    "lastModifiedAt": "2026-11-05T01:31:11.000+0000",
+    "links": [
+      {
+        "attributes": {
+          "type": "ContentDocumentLink",
+          "url": "/services/data/v68.0/sobjects/ContentDocumentLink/06AC5000001KLkUMAW"
+        },
+        "Id": "06AC5000001KLkUMAW",
+        "ContentDocumentId": "069C50000015y7pIAA",
+        "ContentDocument": {
+          "attributes": {
+            "type": "ContentDocument",
+            "url": "/services/data/v68.0/sobjects/ContentDocument/069C50000015y7pIAA"
+          },
+          "Title": "SFOA-MATERIAL-1105-C",
+          "FileExtension": "csv",
+          "ContentSize": 573,
+          "CreatedDate": "2026-11-05T01:31:14.000+0000",
+          "LatestPublishedVersionId": "068C50000017tQbIAI"
+        },
+        "LinkedEntityId": "a0fC5000001AEfRIAW",
+        "Visibility": "AllUsers"
+      }
+    ]
+  },
+  "stateFailure": {
+    "seq": 308,
+    "taskId": "f46d4922-81a8-4d7a-8dd6-1daa24d2c427",
+    "phase": "ACTIVE",
+    "archive": {
+      "status": "NOT_ASKED",
+      "materialIds": []
+    },
+    "observedTargets": [],
+    "target": null,
+    "results": [],
+    "materials": [
+      {
+        "materialId": "228d3183-cf33-4769-bbe6-01abc642b578",
+        "fileName": "SFOA-MATERIAL-1105-C.csv",
+        "byteSize": 573,
+        "contentSha256": "941f13274917ea2f7cc7af9ecce7acda0dbfd6126c053ca2240fe3f6f42cee24",
+        "staging": "STAGED",
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "expiresAt": "2026-11-05T01:45:53.749Z",
+        "reading": {
+          "status": "READ",
+          "coverage": {
+            "unit": "rows",
+            "rowsRead": 14,
+            "rowsTotal": 14,
+            "encoding": "utf-8",
+            "textCharactersTotal": 238,
+            "textCharactersProvided": 238
+          }
+        }
+      }
+    ],
+    "status": "FAIL_SUCCESSFUL_UPLOAD_NOT_OBSERVED"
+  },
+  "readonlyRecheck": {
+    "firstSeq": 305,
+    "lastSeq": 312,
+    "actualStart": "2026-11-05T01:36:04.297Z",
+    "actualEnd": "2026-11-05T01:36:30.949Z",
+    "mcpCalls": [
+      "sfoa-enterprise-mcp__run_soql_query",
+      "sfoa-enterprise-mcp__run_soql_query"
+    ],
+    "mutations": 0
+  },
+  "verdict": {
+    "recordEdit": "PASS",
+    "originalCsvArchive": "PASS",
+    "localTaskResultSync": "FAIL",
+    "crossGatewayRestartPersistence": "NOT_AVAILABLE_FOR_LOCAL_PLUGIN",
+    "nativeVoiceOriginal": "NOT_OBSERVED",
+    "overall": "PARTIAL"
+  }
+}

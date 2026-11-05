@@ -1,0 +1,29 @@
+{
+  "checks": [
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-sync-final.log",
+      "sha256": "3f3a3260868f951f8200d28bbe029a9685bbbdfba00b18c23a47fef09b2706b7",
+      "result": "PASS",
+      "scope": "MAINTAINER_COMMAND_REVIEWED_OUTPUT"
+    },
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-check-final.log",
+      "sha256": "aac6d4d35df116b2c5b720c5e13ab35757b8d6525d1ce00996bd32a3ffc6de05",
+      "result": "PASS",
+      "scope": "MAINTAINER_COMMAND_REVIEWED_OUTPUT"
+    },
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/skill-delivery-final-precommit.log",
+      "sha256": "559f657a0c8acb1274ae899cefb05143af0ec98d1a2eddc73dcf6e0af9622f9d",
+      "result": "PASS",
+      "scope": "MAINTAINER_COMMAND_REVIEWED_OUTPUT"
+    },
+    {
+      "sourceLog": ".temp/agent-material-followup-20261105/server-lint-correct-command.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS",
+      "scope": "SERVER_TYPESCRIPT_NO_EMIT"
+    }
+  ],
+  "cleanHeadSmoke": "PENDING"
+}

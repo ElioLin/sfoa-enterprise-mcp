@@ -1,0 +1,77 @@
+{
+  "scope": "ACTUAL_WECOM_C_BEFORE_HOST_CALL_BINDING_FIX",
+  "userAuthorizedScope": {
+    "customer": "测试1009",
+    "factory": "上海智家",
+    "marker": "SFOA-MATERIAL-1105-C"
+  },
+  "created": {
+    "recordId": "a0fC5000001AEfRIAW",
+    "name": "Visit-004242",
+    "objectApiName": "Account_Visit__c",
+    "recordTypeId": "012C8000002mVyOIAU",
+    "fields": {
+      "Account__c": "001C5000009HFgbIAG",
+      "Visiting_Plant__c": "21",
+      "Start_Time__c": "2026-11-13T10:00:00+08:00",
+      "End_Time__c": "2026-11-13T11:00:00+08:00",
+      "Visit_Aim__c": "其他",
+      "Other_Item__c": "产品交流",
+      "Address__c": "上海智家",
+      "customer_expectation__c": "希望了解售后响应流程；关注样品耐久性和价格。",
+      "Plan_Chat__c": "产品交流；介绍售后响应流程；了解客户对样品耐久性和价格的反馈。",
+      "Visit_Summary__c": "SFOA-MATERIAL-1105-C｜计划来访（尚未到访）：客户关注样品耐久性尚未通过测试、价格偏高；无采购承诺，采购数量未定；后续等待客户测试反馈，反馈通过后再讨论是否寄样。",
+      "is_Synced_OA__c": false
+    }
+  },
+  "readback": {
+    "recordType": "客户来访",
+    "customer": "测试1009",
+    "factory": "21",
+    "start": "2026-11-13T02:00:00.000+0000",
+    "end": "2026-11-13T03:00:00.000+0000",
+    "status": "计划中",
+    "summary": "SFOA-MATERIAL-1105-C｜计划来访（尚未到访）：客户关注样品耐久性尚未通过测试、价格偏高；无采购承诺，采购数量未定；后续等待客户测试反馈，反馈通过后再讨论是否寄样。",
+    "expectation": "希望了解售后响应流程；关注样品耐久性和价格。",
+    "plannedConversation": "产品交流；介绍售后响应流程；了解客户对样品耐久性和价格的反馈。"
+  },
+  "material": {
+    "name": "SFOA-MATERIAL-1105-C.csv",
+    "byteSize": 573,
+    "localSha256": "941f13274917ea2f7cc7af9ecce7acda0dbfd6126c053ca2240fe3f6f42cee24",
+    "stagedSha256": "941f13274917ea2f7cc7af9ecce7acda0dbfd6126c053ca2240fe3f6f42cee24",
+    "hashMatches": true,
+    "reading": "READ",
+    "coverage": {
+      "unit": "rows",
+      "rowsRead": 14,
+      "rowsTotal": 14,
+      "encoding": "utf-8",
+      "textCharactersTotal": 238,
+      "textCharactersProvided": 238
+    },
+    "archiveAttempted": false,
+    "originalExpiresAt": "2026-11-05T01:30:11.324Z"
+  },
+  "voice": {
+    "availableTranscript": "补充一下，客户这次还想了解售后响应流程，目前只是计划来访，尚未到访，也没有承诺采购。",
+    "rawAudioObservedByAdapter": false,
+    "rawAudioArchiveVerified": false,
+    "asrEngine": "NOT_PROVEN",
+    "hostInputKind": "TEXT",
+    "nativeVoiceSubmission": "NOT_INDEPENDENTLY_PROVEN"
+  },
+  "hostTaskFailure": {
+    "seq": 281,
+    "message": "TARGET_NOT_OBSERVED: use an actual USER read or successful mutation result first",
+    "preserved": true
+  },
+  "diagnosticQueryFailures": {
+    "count": 3,
+    "code": "MCP_DIAGNOSTIC_QUERY_FAILED",
+    "reason": "FieldDefinition has no IsCreateable/IsUpdateable columns; agent corrected after the failed calls"
+  },
+  "recordCreate": "PASS",
+  "hostTaskTargetBinding": "FAIL",
+  "fullBusinessAcceptance": "PARTIAL"
+}

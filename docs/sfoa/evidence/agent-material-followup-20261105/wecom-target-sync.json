@@ -1,0 +1,115 @@
+{
+  "scope": "ACTUAL_USER_WECOM_D2_READONLY",
+  "sourceAdapter": "72eeb22512ebb29f0c275097836b88eafba060d9",
+  "firstSeq": 313,
+  "lastSeq": 326,
+  "firstAt": "2026-11-05T02:01:20.125Z",
+  "lastAt": "2026-11-05T02:01:51.467Z",
+  "runId": "NOT_AVAILABLE",
+  "firstInspection": {
+    "taskId": "437fed63-3d80-405b-9f85-badcddbfded0",
+    "phase": "ACTIVE",
+    "archive": {
+      "status": "NOT_ASKED",
+      "materialIds": []
+    },
+    "observedTargets": [
+      {
+        "objectApiName": "Account_Visit__c",
+        "recordId": "a0fC5000001AEfRIAW",
+        "evidence": "USER_QUERY"
+      },
+      {
+        "objectApiName": "ContentDocumentLink",
+        "recordId": "06AC5000001KLkUMAW",
+        "evidence": "USER_QUERY"
+      }
+    ],
+    "target": null,
+    "materialCount": 0
+  },
+  "targetNote": {
+    "isError": false,
+    "state": {
+      "taskId": "437fed63-3d80-405b-9f85-badcddbfded0",
+      "phase": "ACTIVE",
+      "archive": {
+        "status": "NOT_ASKED",
+        "materialIds": []
+      },
+      "observedTargets": [
+        {
+          "objectApiName": "Account_Visit__c",
+          "recordId": "a0fC5000001AEfRIAW",
+          "evidence": "USER_QUERY"
+        },
+        {
+          "objectApiName": "ContentDocumentLink",
+          "recordId": "06AC5000001KLkUMAW",
+          "evidence": "USER_QUERY"
+        }
+      ],
+      "target": {
+        "objectApiName": "Account_Visit__c",
+        "recordId": "a0fC5000001AEfRIAW",
+        "evidence": "USER_QUERY"
+      },
+      "materialCount": 0
+    }
+  },
+  "finalInspection": {
+    "taskId": "437fed63-3d80-405b-9f85-badcddbfded0",
+    "phase": "ACTIVE",
+    "archive": {
+      "status": "NOT_ASKED",
+      "materialIds": []
+    },
+    "observedTargets": [
+      {
+        "objectApiName": "Account_Visit__c",
+        "recordId": "a0fC5000001AEfRIAW",
+        "evidence": "USER_QUERY"
+      },
+      {
+        "objectApiName": "ContentDocumentLink",
+        "recordId": "06AC5000001KLkUMAW",
+        "evidence": "USER_QUERY"
+      }
+    ],
+    "target": {
+      "objectApiName": "Account_Visit__c",
+      "recordId": "a0fC5000001AEfRIAW",
+      "evidence": "USER_QUERY"
+    },
+    "materialCount": 0
+  },
+  "finalText": "查询和本地任务状态同步均已完成。本次只进行了只读查询，没有修改、创建或再次上传 Salesforce 记录。\n\n**Salesforce 复核结果**\n- **Visit-004242**：客户为测试1009，记录类型为客户来访；计划时间为 **2026-11-13 10:30–11:30（Asia/Shanghai）**；状态为计划中；最后修改时间为 2026-11-05 09:31:11\n- **CSV**：`SFOA-MATERIAL-1105-C.csv`，573 bytes，已归档到 Visit-004242\n  - ContentDocumentLink：`06AC5000001KLkUMAW`\n  - ContentDocumentId：`069C50000015y7pIAA`\n  - 归档创建时间：2026-11-05 09:31:14\n\n**本地任务状态同步结果**\n- 初次读取时，`observedTargets` 已包含以下两条记录：\n  - Account_Visit__c：`a0fC5000001AEfRIAW`（依据：USER_QUERY）\n  - ContentDocumentLink：`06AC5000001KLkUMAW`（依据：USER_QUERY）\n- 但本地任务状态中的 `target` 字段在初次读取时为空。\n- 随后已将 **Visit-004242** 记为本次任务目标：\n  - `target = Account_Visit__c / a0fC5000001AEfRIAW`\n- 再次读取本地任务状态后确认：`target` 已保留，`observedTargets` 仍包含上述两条记录。\n\n**同步成功。** 本地任务状态已把 Visit-004242 识别并记录为本次任务目标。\n\n补充：本地任务状态中的 `archive.status` 仍为 `NOT_ASKED`，`materials` 为空；本次没有改动归档状态，只完成了目标同步。",
+  "mcpToolCalls": [
+    "sfoa-enterprise-mcp__run_soql_query",
+    "sfoa-enterprise-mcp__run_soql_query"
+  ],
+  "result": "PASS",
+  "crossRestartLedgerRestored": false,
+  "audits": [
+    {
+      "publicAuditId": "479922df-1574-4fc3-bbea-ad2157a80606",
+      "startedAt": "2026-11-05T02:01:29.501Z",
+      "toolName": "run_soql_query",
+      "result": "PASS",
+      "outcome": "SUCCESS",
+      "executionRole": "USER",
+      "identitySource": "WECOM_HEADER",
+      "platformUserId": "61***79"
+    },
+    {
+      "publicAuditId": "f7eda032-b71d-470f-91de-28ffc7f46a79",
+      "startedAt": "2026-11-05T02:01:28.526Z",
+      "toolName": "run_soql_query",
+      "result": "PASS",
+      "outcome": "SUCCESS",
+      "executionRole": "USER",
+      "identitySource": "WECOM_HEADER",
+      "platformUserId": "61***79"
+    }
+  ]
+}

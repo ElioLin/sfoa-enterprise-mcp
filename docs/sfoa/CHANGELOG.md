@@ -2,6 +2,23 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-05 — OpenClaw registration compatibility and acceptance follow-up
+
+The optional material task store now tolerates a host trust denial without rolling
+back the adapter's requester identity resolver. The task tool is declared in the
+OpenClaw manifest. A local-path installation on OpenClaw 2026.9.5 uses bounded
+process memory when keyed storage is unavailable and explicitly requires state
+revalidation after restart. No identity fallback, trust bypass or MCP write gate
+was added. The P7 load test closes its Audit writer even after a failed HTTP round.
+Native MCP result observation now binds the trusted prompt sender to the exact
+host session/run; generic before-tool binding did not work in the actual channel.
+Real WeCom query/target-note/readback passed after this correction. Actual record
+creation, minimal time update and CSV archival are proven separately; the earlier
+task-state failure and unavailable cross-restart local-plugin persistence remain
+explicit acceptance limits.
+See [the acceptance follow-up](AGENT_MATERIAL_WORKFLOWS_ACCEPTANCE_FOLLOWUP.md) for
+the preserved incident, deployment, rerun and channel evidence boundaries.
+
 ## 2026-11-05 — Agent material workflows and attachment recovery
 
 The OpenClaw adapter now retains bounded requester/session/task material state,

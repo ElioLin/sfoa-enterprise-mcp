@@ -1,0 +1,333 @@
+{
+  "scope": "ACTUAL_USER_WECOM_NOT_MAINTAINER_INJECTION",
+  "a": {
+    "sessionId": "1fcc67fa-8eb7-4e0f-a42b-21fc9dcb496e",
+    "firstSeq": 196,
+    "lastSeq": 212,
+    "firstAt": "2026-11-05T01:03:06.415Z",
+    "lastAt": "2026-11-05T01:03:52.780Z",
+    "markerSeen": true,
+    "audits": [
+      {
+        "publicAuditId": "52d94fdf-e694-4bbc-9be4-a88255e17a14",
+        "startedAt": "2026-11-05T01:03:40.279Z",
+        "toolName": "run_soql_query",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "7c54f426-2f1b-4f89-8222-514f0c72f6b5",
+        "startedAt": "2026-11-05T01:03:39.477Z",
+        "toolName": "run_soql_query",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "c23a306c-a026-459f-995d-aa433769f78f",
+        "startedAt": "2026-11-05T01:03:32.292Z",
+        "toolName": "run_soql_query",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "90db760b-1070-4e4b-a862-d17cd1e277b6",
+        "startedAt": "2026-11-05T01:03:31.437Z",
+        "toolName": "run_soql_query",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "d1498760-6f9e-4f65-852d-ed3235fcd6f5",
+        "startedAt": "2026-11-05T01:03:27.985Z",
+        "toolName": "search_records",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "a4716d9f-cfa6-47b3-b950-1b5d07965205",
+        "startedAt": "2026-11-05T01:03:24.298Z",
+        "toolName": "explain_field_access",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "DIAGNOSTIC",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "080a53de-c836-49d9-beec-b7d5b69998ae",
+        "startedAt": "2026-11-05T01:03:15.557Z",
+        "toolName": "run_soql_query",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      },
+      {
+        "publicAuditId": "f1ce48bb-a855-41a7-b01d-215979802291",
+        "startedAt": "2026-11-05T01:03:15.513Z",
+        "toolName": "get_username",
+        "result": "PASS",
+        "outcome": "SUCCESS",
+        "executionRole": "USER",
+        "identitySource": "WECOM_HEADER",
+        "platformUserId": "61***79"
+      }
+    ],
+    "mutations": 0,
+    "customerExactResultCount": 0,
+    "userConfirmedCorrectIdentity": true,
+    "runId": "NOT_AVAILABLE"
+  },
+  "b": {
+    "firstSeq": 213,
+    "lastSeq": 229,
+    "customers": {
+      "records": [
+        {
+          "name": "测试1009",
+          "recordType": "1_客户（售达方）",
+          "descriptionPresent": false
+        },
+        {
+          "name": "英仕迁移测试客户-泰国",
+          "recordType": "2_客户（送达方）",
+          "descriptionPresent": false
+        },
+        {
+          "name": "Genimex_ 测试0518_送达方",
+          "recordType": "2_客户（送达方）",
+          "descriptionPresent": false
+        },
+        {
+          "name": "Solventum US-测试1",
+          "recordType": "2_客户（送达方）",
+          "descriptionPresent": false
+        },
+        {
+          "name": "康丽根迁移测试送",
+          "recordType": "2_客户（送达方）",
+          "descriptionPresent": false
+        }
+      ],
+      "totalSize": 5,
+      "done": true
+    },
+    "leads": {
+      "records": [
+        {
+          "name": "22",
+          "company": "测试评分规则",
+          "isConverted": false,
+          "recordType": "SHRN",
+          "descriptionPresent": false
+        }
+      ],
+      "totalSize": 1,
+      "done": true
+    },
+    "context": {
+      "recordType": {
+        "available": true,
+        "defaultForUser": false,
+        "id": "012C8000002mVyOIAU",
+        "name": "客户来访"
+      },
+      "availableRecordTypes": [
+        {
+          "available": true,
+          "defaultForUser": true,
+          "id": "012C8000002mVyRIAU",
+          "name": "拜访主计划"
+        },
+        {
+          "available": true,
+          "defaultForUser": false,
+          "id": "012C8000002mVySIAU",
+          "name": "在线会议"
+        },
+        {
+          "available": true,
+          "defaultForUser": false,
+          "id": "012C8000002mVyPIAU",
+          "name": "客户拜访"
+        },
+        {
+          "available": true,
+          "defaultForUser": false,
+          "id": "012C8000002mVyOIAU",
+          "name": "客户来访"
+        }
+      ],
+      "factory": {
+        "apiName": "Visiting_Plant__c",
+        "apiRequired": false,
+        "dataType": "MultiPicklist",
+        "defaultValue": null,
+        "defaultValueTruncated": false,
+        "fieldCreateable": true,
+        "fieldUpdateable": true,
+        "inlineHelpText": null,
+        "inlineHelpTextTruncated": false,
+        "label": "来访厂别",
+        "layoutEditableForCreate": true,
+        "layoutEditableForUpdate": true,
+        "layoutMember": true,
+        "layoutOrder": 7,
+        "layoutRequired": true,
+        "length": 4099,
+        "picklist": {
+          "controllerName": null,
+          "controllerValues": {},
+          "dependenciesTruncated": false,
+          "nextValueOffset": null,
+          "returnedValues": 18,
+          "totalValues": 18,
+          "truncated": false,
+          "valueOffset": 0,
+          "values": [
+            {
+              "default": false,
+              "label": "灌一厂",
+              "validFor": [],
+              "value": "3"
+            },
+            {
+              "default": false,
+              "label": "灌三厂",
+              "validFor": [],
+              "value": "10"
+            },
+            {
+              "default": false,
+              "label": "灌五厂",
+              "validFor": [],
+              "value": "5"
+            },
+            {
+              "default": false,
+              "label": "灌六厂",
+              "validFor": [],
+              "value": "19"
+            },
+            {
+              "default": false,
+              "label": "漳州厂",
+              "validFor": [],
+              "value": "6"
+            },
+            {
+              "default": false,
+              "label": "集美厂",
+              "validFor": [],
+              "value": "1"
+            },
+            {
+              "default": false,
+              "label": "宁波厂",
+              "validFor": [],
+              "value": "7"
+            },
+            {
+              "default": false,
+              "label": "台湾厂",
+              "validFor": [],
+              "value": "8"
+            },
+            {
+              "default": false,
+              "label": "百霖厂",
+              "validFor": [],
+              "value": "12"
+            },
+            {
+              "default": false,
+              "label": "匠仕厂",
+              "validFor": [],
+              "value": "15"
+            },
+            {
+              "default": false,
+              "label": "THRN",
+              "validFor": [],
+              "value": "18"
+            },
+            {
+              "default": false,
+              "label": "上海智家",
+              "validFor": [],
+              "value": "21"
+            },
+            {
+              "default": false,
+              "label": "杏林湾",
+              "validFor": [],
+              "value": "81"
+            },
+            {
+              "default": false,
+              "label": "USRN",
+              "validFor": [],
+              "value": "101"
+            },
+            {
+              "default": false,
+              "label": "北京",
+              "validFor": [],
+              "value": "141"
+            },
+            {
+              "default": false,
+              "label": "MXRN",
+              "validFor": [],
+              "value": "161"
+            },
+            {
+              "default": false,
+              "label": "上海瑞摩",
+              "validFor": [],
+              "value": "41"
+            },
+            {
+              "default": false,
+              "label": "辉美厂",
+              "validFor": [],
+              "value": "121"
+            }
+          ]
+        },
+        "precision": 5,
+        "referenceTo": [],
+        "relationshipName": null,
+        "scale": 0,
+        "section": "来访基本信息"
+      },
+      "requirednessSource": "PAGE_LAYOUT_FALLBACK",
+      "warnings": [
+        "Coverage is the effective Salesforce Page Layout/UI API action context, not a complete Dynamic Forms or Lightning component-visibility evaluation.",
+        "Requiredness source is PAGE_LAYOUT_REQUIRED: this action's Record Type page layout is authoritative for this USER.",
+        "Dynamic Forms resolution fell back to PAGE_LAYOUT (APP_CONTEXT_REQUIRED); requiredness source is PAGE_LAYOUT_FALLBACK.",
+        "Task field projection; omitted fields are not evidence of absent metadata or permission. The omittedFieldCatalog is bounded metadata only; request the relevant fields to load their Picklist/default/layout facts."
+      ],
+      "fieldProjectionUnresolved": []
+    },
+    "mutations": 0,
+    "userConfirmedNormalResult": true,
+    "runId": "NOT_AVAILABLE"
+  }
+}

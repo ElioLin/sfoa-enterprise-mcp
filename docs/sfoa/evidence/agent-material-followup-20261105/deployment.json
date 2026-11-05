@@ -1,0 +1,76 @@
+{
+  "sourceAdapter": "72eeb22512ebb29f0c275097836b88eafba060d9",
+  "sourceCore": "1f060ed5bd5104ebb7b1b7995bd58a8b9988aa32",
+  "guidanceSource": "94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9",
+  "playbookVersion": "1.13.2",
+  "gatewayPid": 3759907,
+  "gatewayStartedAt": "2026-11-05T09:58:59+08:00",
+  "actualRegistrationAt": "2026-11-05T09:59:08+08:00",
+  "archiveSha256": "7d8ccbc019e28c4eea27738cb14abf494d82e75c0c5312df21fc78b21eecd497",
+  "indexSha256": "5fdd2febdb9a13cbb7fb30a4612bb15f4fac53643cd1948828d133755c81278c",
+  "pluginRoot": "/data/openclaw/plugins/sfoa-wecom-mcp-adapter",
+  "backup": "/data/sfoa-enterprise-mcp/backup/adapter-prompt-run-20261105T015858Z-72eeb22",
+  "configUnchanged": true,
+  "credentialsUnchanged": true,
+  "rollbackRehearsed": false,
+  "persistence": "MEMORY_ONLY_REVALIDATE_AFTER_RESTART",
+  "sdkProbes": [
+    {
+      "time": "2026-11-05T01:57:00.652Z",
+      "source": "/data/sfoa-enterprise-mcp/evidence/material-followup-20261105/candidate-72eeb22/integrations/openclaw/sfoa-wecom-mcp-adapter",
+      "scope": "ISOLATED_REAL_SDK_REGISTRATION_NOT_CHANNEL_UAT",
+      "status": "loaded",
+      "actualSource": "/data/sfoa-enterprise-mcp/evidence/material-followup-20261105/candidate-72eeb22/integrations/openclaw/sfoa-wecom-mcp-adapter/src/index.js",
+      "resolverCount": 1,
+      "typedHookNames": [
+        "message_received",
+        "before_prompt_build",
+        "after_tool_call",
+        "agent_end",
+        "session_end"
+      ],
+      "toolNames": [
+        "sfoa_material_task"
+      ],
+      "tokenMatchesRuntime": true,
+      "requesterHeaderCorrect": true,
+      "missingRequesterWithheld": true,
+      "nonWecomWithheld": true,
+      "memoryFallbackObserved": true,
+      "error": null,
+      "replayedActualQueryObserved": true,
+      "replayedActualQueryTargetBound": true,
+      "actualSdkPromptIdentityAvailable": true,
+      "observerProbe": "ACTUAL_SDK_WITH_REPLAYED_RETURN_NO_SALESFORCE_CALL"
+    },
+    {
+      "time": "2026-11-05T01:58:59.342Z",
+      "source": "/data/openclaw/plugins/sfoa-wecom-mcp-adapter",
+      "scope": "ISOLATED_REAL_SDK_REGISTRATION_NOT_CHANNEL_UAT",
+      "status": "loaded",
+      "actualSource": "/data/openclaw/plugins/sfoa-wecom-mcp-adapter/src/index.js",
+      "resolverCount": 1,
+      "typedHookNames": [
+        "message_received",
+        "before_prompt_build",
+        "after_tool_call",
+        "agent_end",
+        "session_end"
+      ],
+      "toolNames": [
+        "sfoa_material_task"
+      ],
+      "tokenMatchesRuntime": true,
+      "requesterHeaderCorrect": true,
+      "missingRequesterWithheld": true,
+      "nonWecomWithheld": true,
+      "memoryFallbackObserved": true,
+      "error": null,
+      "replayedActualQueryObserved": true,
+      "replayedActualQueryTargetBound": true,
+      "actualSdkPromptIdentityAvailable": true,
+      "observerProbe": "ACTUAL_SDK_WITH_REPLAYED_RETURN_NO_SALESFORCE_CALL"
+    }
+  ],
+  "priorTaskSyncFailurePreserved": true
+}

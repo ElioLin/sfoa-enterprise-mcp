@@ -6,6 +6,10 @@
 
 ## 2026-11-05 材料工作流测试部署（203）
 
+09:58:59 后续状态观察修复：实际 Adapter 为 `72eeb22512ebb29f0c275097836b88eafba060d9`，app/plugin `src/index.js` SHA256 均为 `5fdd2febdb9a13cbb7fb30a4612bb15f4fac53643cd1948828d133755c81278c`；Gateway PID `3759907`。备份及回滚 `/data/sfoa-enterprise-mcp/backup/adapter-prompt-run-20261105T015858Z-72eeb22/rollback.sh`，回到连接有效但状态观察失败的 20ea，未演练。新实现用提示词阶段的可信身份绑定完成事件，09:59 实际注册、10:01 真人企微只读查询/记目标/再读回均已核对；后者有 2 次 USER/WECOM_HEADER P7 成功，无 Salesforce 变更。20ea 于 09:28 部署后的 09:35 状态失败保留。当前安装方式仍无可用 keyed store，跨重启原材料 ledger 不算恢复。新源码归档显式关闭 autocrlf；预检曾因未覆盖测试文件的换行 hash 差异拦下，未改变服务，核实旧 Git blob 后再部署。配置、凭据、核心、Playbook 保持原值。
+
+08:54 后续 Adapter 修复：实际插件与 app 已加载 `b613ae47832cfbeb1e5b11781f18c77df849f804`，`src/index.js` SHA256 `5e33fd6944e09d6515f412da34621eaeb2103e08e845d6f49e9b47bfc13a03c8`。本地路径插件打开 keyed store 被 OpenClaw 拒绝时，不再回滚请求身份解析器；宿主任务工具补齐 manifest 合约。只重启 Gateway，新 PID `3298469`，实际注册日志与 09:03、09:07 真人企微只读请求均已核对。配置和 `.env.local` 保持一致，核心及 Playbook 未改。备份 `/data/sfoa-enterprise-mcp/backup/adapter-store-denial-20261105T005439Z-b613ae4`；该回滚恢复旧故障版本，未演练。完整原因、内存状态限制和后续验收见[续测报告](AGENT_MATERIAL_WORKFLOWS_ACCEPTANCE_FOLLOWUP.md)。下面的 PID 为早先部署时记录。
+
 最新状态：`94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9` 的 Playbook **1.13.2** 已加载。18/18 文件预检及落盘匹配，LF 归档 SHA256 `9c439f00cf91afa48494424e657db0600d7f618d00e4d44b4d5773181acf7b8f`；备份及回滚 `/data/sfoa-enterprise-mcp/backup/guidance-1132-20261104T175035Z-94aa6612/rollback.sh`。MCP/Admin/Gateway PID `3040205 / 3040291 / 3040184`，健康/ready UP，配置/依赖/DB 未改。实际 tools/list 仍 29 项；四业务 Skill hash 匹配，新 Gateway run `614c7c46-32a6-42e4-9eaa-7da30fe2c943` 读回完整 Skill/材料引用。下列 1.13.1 部署记录作为历史保留。
 
 - 核心 runtime `1f060ed5bd5104ebb7b1b7995bd58a8b9988aa32` 已加载，迁移 017 已应用；备份 `/data/sfoa-enterprise-mcp/backup/material-workflows-20261104T162153Z-1f060ed5`。

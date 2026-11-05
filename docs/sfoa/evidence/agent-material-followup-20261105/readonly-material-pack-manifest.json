@@ -1,0 +1,51 @@
+{
+  "scope": "EXISTING_SYNTHETIC_ORIGINALS_READONLY_CHANNEL_UAT",
+  "files": [
+    {
+      "fileName": "synthetic-agenda.pdf",
+      "byteSize": 809,
+      "sha256": "b68fa0a4a9f608a596aa5d9231db729b5e2d801dba7dc0310c7c564d7bfaa166"
+    },
+    {
+      "fileName": "synthetic-attendees.xlsx",
+      "byteSize": 1473,
+      "sha256": "226ac0114e5d3d8b0cf25af805e996c87c85d05a8bc90240da1c59b483d61716"
+    },
+    {
+      "fileName": "synthetic-audio.wav",
+      "byteSize": 684562,
+      "sha256": "6d6464889c2937795a7d170a31f7b5ab078042606786d100ce01ab3776dd1b99"
+    },
+    {
+      "fileName": "synthetic-file-audio.m4a",
+      "byteSize": 112928,
+      "sha256": "37d12a33f656b1380684ee4ca925c44c9287a338e811252967ba6d512acb3e3b"
+    },
+    {
+      "fileName": "synthetic-followup.csv",
+      "byteSize": 231,
+      "sha256": "5dd9f8d5fdf6a6dfb5073bfceaa010812953939eb370169b4541fe6cc279965f"
+    },
+    {
+      "fileName": "synthetic-scanned.pdf",
+      "byteSize": 75453,
+      "sha256": "08926c2f15f77c77e337352e3faa30804b685c0e9ef3343f715fc8f2ac222e3a"
+    },
+    {
+      "fileName": "synthetic-site.jpg",
+      "byteSize": 74770,
+      "sha256": "53c780577c2a7c529139f5d72d27da68b14d6494f3e39a9fca82406ee4bef2b4"
+    },
+    {
+      "fileName": "synthetic-site.png",
+      "byteSize": 21634,
+      "sha256": "4651447e36b693409d06356cf39e8a4aa32ea4f6aec3b07dd404dbc9aae04e75"
+    },
+    {
+      "fileName": "synthetic-visit-brief.docx",
+      "byteSize": 1103,
+      "sha256": "0ddfa16400c467b3d088b64fe5176503869b409ee422f24a0be0ab0326e16477"
+    }
+  ],
+  "zipSha256": "6f230a96bb534e51cd8980061bd17a29e526b376a438071a026a240cfb012fbe"
+}

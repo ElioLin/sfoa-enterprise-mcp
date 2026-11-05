@@ -120,6 +120,13 @@ An isolated rerun or Linux pass is separate evidence and does not turn the faile
 aggregate into a clean full pass. Do not weaken budgets or conflate load diagnosis
 with real Salesforce/WeCom validation.
 
+For that load diagnosis, capture workspace creation/cleanup latency and event-loop
+delay separately from Tool latency; workspace work is real even when Salesforce is
+a fixture. Register Audit writer cleanup before starting load fixtures so a failed
+round cannot leave its timer alive. Keep the original failed run and record the
+exact concurrency and budgets of each rerun. A later pass bounds reproducibility;
+it does not identify the historical scheduler or filesystem culprit by itself.
+
 For Console authorization changes, three levels must all move together. The endpoint
 table is unit-tested (`packages/sfoa-admin-api/src/test/module-paths.test.ts`): ids in
 parity with `ADMIN_MODULE_IDS`, every module reaching at least one endpoint, method

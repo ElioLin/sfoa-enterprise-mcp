@@ -1,0 +1,160 @@
+{
+  "scope": "ACTUAL_USER_WECOM_D3_DOCX_READ_ARCHIVE_AND_STATE",
+  "sourceAdapter": "72eeb22512ebb29f0c275097836b88eafba060d9",
+  "firstSeq": 327,
+  "lastSeq": 341,
+  "firstAt": "2026-11-05T02:06:24.348Z",
+  "lastAt": "2026-11-05T02:07:11.661Z",
+  "runId": "NOT_AVAILABLE",
+  "actualRead": {
+    "tool": "exec",
+    "callSeq": 331,
+    "resultSeq": 332,
+    "text": "客户来访验收补充原件\n验收标记：SFOA-MATERIAL-1105-D3\n关联来访：Visit-004242；客户：测试1009；厂别：上海智家。\n计划时间：2026年11月13日10:30至11:30（Asia/Shanghai）。\n业务状态：计划来访，尚未到访；没有采购承诺，采购数量未定。\n材料用途：本次附件读取、归档和任务状态同步的专用测试原件。",
+    "textSha256": "43147eaab801d88455915f2801112d8fbe0b8f195ab805e843f2ad5993d647f3"
+  },
+  "upload": {
+    "seq": 335,
+    "status": "SUCCESS",
+    "results": [
+      {
+        "fileName": "SFOA-MATERIAL-1105-D3.docx",
+        "status": "SUCCESS",
+        "contentVersionId": "068C50000017twrIAA",
+        "contentDocumentId": "069C50000015ycTIAQ",
+        "errorCode": null
+      }
+    ]
+  },
+  "task": {
+    "taskId": "437fed63-3d80-405b-9f85-badcddbfded0",
+    "phase": "ACTIVE",
+    "archive": {
+      "status": "NOT_ASKED",
+      "materialIds": []
+    },
+    "target": {
+      "objectApiName": "Account_Visit__c",
+      "recordId": "a0fC5000001AEfRIAW",
+      "evidence": "USER_QUERY"
+    },
+    "observedTargets": [
+      {
+        "objectApiName": "Account_Visit__c",
+        "recordId": "a0fC5000001AEfRIAW",
+        "evidence": "USER_QUERY"
+      },
+      {
+        "objectApiName": "ContentDocumentLink",
+        "recordId": "06AC5000001KLkUMAW",
+        "evidence": "USER_QUERY"
+      }
+    ],
+    "materials": [
+      {
+        "fileName": "SFOA-MATERIAL-1105-D3.docx",
+        "materialId": "b503dfce-4ad0-4da0-9ac4-82edf565ff47",
+        "byteSize": 1151,
+        "contentSha256": "3e784f98665a8aca5b73ce06528a947242126c72a7c6b1c0d2b810e5304d9eba",
+        "reading": {
+          "status": "READ",
+          "contentSha256": "3e784f98665a8aca5b73ce06528a947242126c72a7c6b1c0d2b810e5304d9eba",
+          "coverage": {
+            "unit": "body-paragraphs-and-basic-table-rows",
+            "paragraphs": 6,
+            "tableRows": 0,
+            "pages": "UNKNOWN",
+            "excluded": [
+              "headers",
+              "footers",
+              "drawings",
+              "comments",
+              "layout"
+            ],
+            "textCharactersTotal": 178,
+            "textCharactersProvided": 178
+          },
+          "reasons": [],
+          "source": "OFFICE_BASIC_READER"
+        },
+        "upload": {
+          "status": "SUCCESS",
+          "objectApiName": "Account_Visit__c",
+          "recordId": "a0fC5000001AEfRIAW",
+          "retryable": false,
+          "contentVersionId": "068C50000017twrIAA"
+        },
+        "staging": "STAGED"
+      }
+    ]
+  },
+  "links": [
+    {
+      "attributes": {
+        "type": "ContentDocumentLink",
+        "url": "/services/data/v68.0/sobjects/ContentDocumentLink/06AC5000001KMS2MAO"
+      },
+      "Id": "06AC5000001KMS2MAO",
+      "ContentDocumentId": "069C50000015ycTIAQ",
+      "ContentDocument": {
+        "attributes": {
+          "type": "ContentDocument",
+          "url": "/services/data/v68.0/sobjects/ContentDocument/069C50000015ycTIAQ"
+        },
+        "Title": "SFOA-MATERIAL-1105-D3",
+        "FileExtension": "docx",
+        "ContentSize": 1151,
+        "CreatedDate": "2026-11-05T02:06:30.000+0000"
+      },
+      "LinkedEntityId": "a0fC5000001AEfRIAW"
+    },
+    {
+      "attributes": {
+        "type": "ContentDocumentLink",
+        "url": "/services/data/v68.0/sobjects/ContentDocumentLink/06AC5000001KLkUMAW"
+      },
+      "Id": "06AC5000001KLkUMAW",
+      "ContentDocumentId": "069C50000015y7pIAA",
+      "ContentDocument": {
+        "attributes": {
+          "type": "ContentDocument",
+          "url": "/services/data/v68.0/sobjects/ContentDocument/069C50000015y7pIAA"
+        },
+        "Title": "SFOA-MATERIAL-1105-C",
+        "FileExtension": "csv",
+        "ContentSize": 573,
+        "CreatedDate": "2026-11-05T01:31:14.000+0000"
+      },
+      "LinkedEntityId": "a0fC5000001AEfRIAW"
+    }
+  ],
+  "finalText": "已完成补充 DOCX 的读取与归档；未修改业务字段，也未重传 CSV。\n\n**DOCX 正文读取**\n已实际读取 `SFOA-MATERIAL-1105-D3.docx`：6 段正文、0 个表格行。要点如下：\n- 验收标记：SFOA-MATERIAL-1105-D3\n- 关联来访：Visit-004242；客户：测试1009；厂别：上海智家\n- 计划时间：2026-11-13 10:30–11:30（Asia/Shanghai）\n- 业务状态：计划来访，尚未到访；无采购承诺，采购数量未定\n- 材料用途：本次附件读取、归档和任务状态同步的专用测试原件\n\n**归档结果**\nDOCX 已成功归档到 Visit-004242：\n- 文件：`SFOA-MATERIAL-1105-D3.docx`，1151 bytes\n- ContentDocumentLink：`06AC5000001KMS2MAO`\n- ContentDocumentId：`069C50000015ycTIAQ`\n- ContentVersionId：`068C50000017twrIAA`\n- 归档创建时间：2026-11-05 10:06:30（Asia/Shanghai）\n\n**本地任务逐份上传状态**\n- DOCX：`upload.status = SUCCESS`，目标为 Account_Visit__c / `a0fC5000001AEfRIAW`，contentVersionId 为 `068C50000017twrIAA`\n- CSV：当前本地任务的材料清单中没有 CSV 条目，只有 `observedTargets` 中保留的旧 CSV ContentDocumentLink（`06AC5000001KLkUMAW`）。因此，本地任务无法提供 CSV 的逐份 `upload.status`。\n- 新 DOCX 的 ContentDocumentLink 尚未进入本地 `observedTargets`；但它的上传状态已经记录为 SUCCESS。\n\n**Salesforce 附件核对**\nVisit-004242 下现有 2 个附件：\n1. `SFOA-MATERIAL-1105-D3.docx`：1151 bytes，ContentDocumentLink `06AC5000001KMS2MAO`，创建于 2026-11-05 10:06:30\n2. `SFOA-MATERIAL-1105-C.csv`：573 bytes，ContentDocumentLink `06AC5000001KLkUMAW`，创建于 2026-11-05 09:31:14\n\n结论：新 DOCX 已读取、归档，并在本地任务中记录为上传成功；CSV 未重传，仍保留在 Salesforce。本地任务缺少 CSV 的逐份材料条目，因此 CSV 的本地上传状态无法核对，只能以 Salesforce 附件为准。",
+  "mcpToolCalls": [
+    "sfoa-enterprise-mcp__upload_files_to_record",
+    "sfoa-enterprise-mcp__run_soql_query"
+  ],
+  "result": "PASS",
+  "audits": [
+    {
+      "publicAuditId": "ee1bdad4-a5b4-42f2-80f1-d56607e02be0",
+      "startedAt": "2026-11-05T02:06:54.894Z",
+      "toolName": "run_soql_query",
+      "result": "PASS",
+      "outcome": "SUCCESS",
+      "executionRole": "USER",
+      "identitySource": "WECOM_HEADER",
+      "platformUserId": "61***79"
+    },
+    {
+      "publicAuditId": "5d8fc130-de13-428c-9d68-a71189866465",
+      "startedAt": "2026-11-05T02:06:49.569Z",
+      "toolName": "upload_files_to_record",
+      "result": "PASS",
+      "outcome": "SUCCESS",
+      "executionRole": "USER",
+      "identitySource": "WECOM_HEADER",
+      "platformUserId": "61***79"
+    }
+  ],
+  "taskArchiveChoiceRecorded": false
+}

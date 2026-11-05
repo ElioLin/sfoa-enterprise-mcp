@@ -8,6 +8,36 @@ containing its frontmatter to the same run/session. A refreshed snapshot can
 coexist with skipped instructions; compare isolated runs with already configured
 models before attributing that to the loader. Never forge a WeCom requester for CLI UAT.
 
+For the OpenClaw adapter, persisted `plugins list` inventory can report `loaded`
+even when a fresh registration fails. Check the running Gateway registration log
+and actual requester-scoped MCP call; a fresh SDK registry is a separate useful
+contract probe, not channel acceptance. In OpenClaw 2026.9.5, local-path plugins
+can expose `runtime.state.openKeyedStore` but deny opening it because of host trust.
+The adapter catches that optional storage failure, keeps identity binding and
+hooks registered, and reports `MEMORY_ONLY_REVALIDATE_AFTER_RESTART`. Same-process
+task state remains bounded; restart recovery is not proven without a usable store.
+Do not grant trust or invent a fallback requester to hide this limitation. The
+host also requires `openclaw.plugin.json` to declare `contracts.tools` for
+`sfoa_material_task`; successful resolver registration alone does not prove that
+the task tool registered.
+
+When P7 shows `MCP_PLATFORM_USER_REQUIRED` with null identity, first distinguish
+a missing adapter resolver from network or Salesforce login failures. Preserve
+the failed Audit IDs and join a new real channel request to the corrected
+`WECOM_HEADER` identity. A maintainer read using the same credential is transport
+evidence only and must remain labelled separately.
+
+For `TARGET_NOT_OBSERVED` after a proven mutation, inspect the installed host's
+hook context, not only the MCP response. OpenClaw 2026.9.5's embedded
+`after_tool_call` omits requester identity. Do not assume native MCP enters the
+generic before-tool wrapper: the first call-binding fix passed isolated tests but
+failed actual WeCom observation. The adapter now binds the trusted prompt context
+to the exact session/run tuple, bounded and expiring, and clears it on agent end
+or session reset. This is observation state, not MCP authorization. Never derive
+a user from the session-key string or Tool args. Validate the installed SDK's
+context construction, actual returned result shape, then a fresh channel read;
+an isolated replay of a saved result does not count as a new channel pass.
+
 For CREATE field omissions, compare protected P7 `MCP_RESPONSE` / `UI_CONTEXT`
 with the Agent Tool text and final question. An untruncated MCP response can still
 be truncated in the Agent context or diagnostic export. Distinguish PENDING from

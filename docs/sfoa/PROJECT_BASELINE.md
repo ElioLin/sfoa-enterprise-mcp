@@ -111,8 +111,18 @@ the actual 29-tool set and direct mutation schemas are retained. Repeated-model
 verification passed 18/18 candidate journeys versus the frozen baseline 15/18, with
 identical old Provider runtime and synthetic SDK scope. It is recorded separately
 from real-material reading and channel/Salesforce
-acceptance. The live Salesforce fixture was rejected by active business rules;
-dedicated test entity/factory data and real WeCom UAT remain outstanding. See
+acceptance. The first live Salesforce fixture was rejected by active business rules.
+Follow-up `b613ae4` fixes local-path OpenClaw plugin registration when optional
+keyed storage is denied, and declares the host task tool contract. Actual WeCom
+identity/read-only UAT passed. In the user-selected customer/factory scope,
+actual WeCom created Visit-004242, applied a two-field time patch and archived the
+573-byte CSV. The 20ea task observer still failed live; 72eeb22 uses trusted prompt
+run bindings and passed the subsequent real WeCom query/target-note/readback.
+Fresh DOCX reading/archive/result observation also passed in actual WeCom;
+task-level archive-choice notes remain incomplete. Adapter
+state on this installation is memory-only and requires revalidation after Gateway
+restart; restored targets are not a restored material ledger. See the
+[acceptance follow-up](AGENT_MATERIAL_WORKFLOWS_ACCEPTANCE_FOLLOWUP.md),
 [delivery record](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md) and
 [ADR-0035](adr/ADR-0035-agent-material-workflows.md). Overall business acceptance
 remains PARTIAL; this is not a production release.
