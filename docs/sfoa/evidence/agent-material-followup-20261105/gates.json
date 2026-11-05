@@ -149,6 +149,26 @@
       "fail": 0,
       "skipped": 0,
       "durationMs": 91027.0418
+    },
+    {
+      "label": "WINDOWS_TASK_NOTES_9C4FDA9",
+      "sourceLog": ".temp/agent-material-followup-20261105/task-note-guidance-test.log",
+      "sha256": "8c81b652f992c69ccfa1b6d2278b2e3769611c2b2ca0234295e864890b31a657",
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 47506.9763
+    },
+    {
+      "label": "LINUX_TASK_NOTES_9C4FDA9_WITH_SDK_PROBE",
+      "sourceLog": ".temp/agent-material-followup-20261105/task-notes-candidate.log",
+      "sha256": "63970317023a0ae479e86797a9015d7e681be7718e6247e85dfe0e688c84f9ea",
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "skipped": 0,
+      "durationMs": 385.633153
     }
   ],
   "originalFailures": [

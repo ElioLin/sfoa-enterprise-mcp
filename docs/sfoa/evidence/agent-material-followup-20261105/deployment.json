@@ -1,15 +1,15 @@
 {
-  "sourceAdapter": "72eeb22512ebb29f0c275097836b88eafba060d9",
+  "sourceAdapter": "9c4fda90815e924040ab3c5e6439f5cfa5f39776",
   "sourceCore": "1f060ed5bd5104ebb7b1b7995bd58a8b9988aa32",
   "guidanceSource": "94aa6612c72a8ba0d8a6fff3ad3548cf67a5d2a9",
   "playbookVersion": "1.13.2",
   "gatewayPid": 3759907,
   "gatewayStartedAt": "2026-11-05T09:58:59+08:00",
   "actualRegistrationAt": "2026-11-05T09:59:08+08:00",
-  "archiveSha256": "7d8ccbc019e28c4eea27738cb14abf494d82e75c0c5312df21fc78b21eecd497",
+  "archiveSha256": "27f592187742392fdab72eeeb3aac34d4c67ceae93803e33690cb994b83486ef",
   "indexSha256": "5fdd2febdb9a13cbb7fb30a4612bb15f4fac53643cd1948828d133755c81278c",
   "pluginRoot": "/data/openclaw/plugins/sfoa-wecom-mcp-adapter",
-  "backup": "/data/sfoa-enterprise-mcp/backup/adapter-prompt-run-20261105T015858Z-72eeb22",
+  "backup": "/data/sfoa-enterprise-mcp/backup/adapter-task-notes-20261105T024435Z-9c4fda9",
   "configUnchanged": true,
   "credentialsUnchanged": true,
   "rollbackRehearsed": false,
@@ -72,5 +72,48 @@
       "observerProbe": "ACTUAL_SDK_WITH_REPLAYED_RETURN_NO_SALESFORCE_CALL"
     }
   ],
-  "priorTaskSyncFailurePreserved": true
+  "priorTaskSyncFailurePreserved": true,
+  "previousAdapter": "72eeb22512ebb29f0c275097836b88eafba060d9",
+  "previousArchiveSha256": "7d8ccbc019e28c4eea27738cb14abf494d82e75c0c5312df21fc78b21eecd497",
+  "materialTasksSha256": "3813eee90b764f216562cd34499ffb9a212331b6e7a38f74d199a0e73fb21618",
+  "previousBackup": "/data/sfoa-enterprise-mcp/backup/adapter-prompt-run-20261105T015858Z-72eeb22",
+  "hotReload": {
+    "at": "2026-11-05T10:44:41+08:00",
+    "generation": 3,
+    "operationId": "58f2b928-4888-4ab0-a114-d8cf92a54f5f",
+    "sourceDigest": "f73640bebc71158d6e3e659e1443e0b284cb122f2530dd954aaa7536231937f3",
+    "restartRequired": false,
+    "sameGatewayPid": true,
+    "sameTaskAndMaterialsConfirmedByRealWecom": true
+  },
+  "capabilityConsent": {
+    "firstAttempt": "REJECTED_CONSENT_REQUIRED",
+    "oldFilesRestored": true,
+    "newAndOldDeclaredSurfaceEqual": true,
+    "review": {
+      "sameDeclaredSurface": true,
+      "declared": {
+        "channels": [],
+        "providers": [],
+        "tools": [
+          "sfoa_material_task"
+        ],
+        "contracts": [
+          "tools: sfoa_material_task"
+        ],
+        "hooks": [],
+        "mcpServers": [],
+        "cliCommands": [],
+        "cliBackends": [],
+        "skills": [],
+        "dangerousConfigFlags": []
+      },
+      "configuredHooks": {
+        "allowConversationAccess": true
+      }
+    },
+    "acknowledgement": "OFFICIAL_CLI_ACCEPT_CAPABILITIES_WITHIN_EXISTING_DEPLOYMENT_AUTHORIZATION",
+    "registryBackup": "openclaw-registry.sqlite",
+    "officialPluginTrustGranted": false
+  }
 }

@@ -1,0 +1,90 @@
+{
+  "scope": "ACTUAL_WECOM_TASK_COMPLETION_AFTER_OFFICIAL_HOT_RELOAD",
+  "sourceAdapter": "9c4fda90815e924040ab3c5e6439f5cfa5f39776",
+  "firstSeq": 389,
+  "lastSeq": 394,
+  "firstAt": "2026-11-05T02:46:58.578Z",
+  "lastAt": "2026-11-05T02:47:17.267Z",
+  "runId": "NOT_AVAILABLE",
+  "taskId": "bb0d9087-5720-44f7-b295-74192bcd36a0",
+  "phase": "COMPLETE",
+  "archive": {
+    "status": "DECLINED",
+    "materialIds": []
+  },
+  "target": null,
+  "observedTargets": [],
+  "materials": [
+    {
+      "materialId": "a67fd93c-7e85-452f-bc85-efca1e174e3c",
+      "fileName": "synthetic-file-audio.m4a",
+      "sha256": "37d12a33f656b1380684ee4ca925c44c9287a338e811252967ba6d512acb3e3b",
+      "reading": "UNKNOWN",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "832aba08-56d5-464a-ab15-5d5d0da45c10",
+      "fileName": "synthetic-followup.csv",
+      "sha256": "5dd9f8d5fdf6a6dfb5073bfceaa010812953939eb370169b4541fe6cc279965f",
+      "reading": "READ",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "4f9ac8be-fd9b-4dee-9173-c9a3828edb7f",
+      "fileName": "synthetic-scanned.pdf",
+      "sha256": "08926c2f15f77c77e337352e3faa30804b685c0e9ef3343f715fc8f2ac222e3a",
+      "reading": "UNKNOWN",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "350e2961-6f99-4adf-a448-ef5c95266e6c",
+      "fileName": "synthetic-site.jpg",
+      "sha256": "53c780577c2a7c529139f5d72d27da68b14d6494f3e39a9fca82406ee4bef2b4",
+      "reading": "UNKNOWN",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "182df60b-5030-46db-b758-124ab0f33cbe",
+      "fileName": "synthetic-site.png",
+      "sha256": "4651447e36b693409d06356cf39e8a4aa32ea4f6aec3b07dd404dbc9aae04e75",
+      "reading": "UNKNOWN",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "4a514edd-fab5-43f1-83c1-8a84ae8691a0",
+      "fileName": "synthetic-visit-brief.docx",
+      "sha256": "0ddfa16400c467b3d088b64fe5176503869b409ee422f24a0be0ab0326e16477",
+      "reading": "READ",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "5e292ebc-49f1-4eea-867d-44208e179213",
+      "fileName": "synthetic-agenda.pdf",
+      "sha256": "b68fa0a4a9f608a596aa5d9231db729b5e2d801dba7dc0310c7c564d7bfaa166",
+      "reading": "UNKNOWN",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "6685c4af-27f4-4bd3-b34e-618e1102c716",
+      "fileName": "synthetic-attendees.xlsx",
+      "sha256": "226ac0114e5d3d8b0cf25af805e996c87c85d05a8bc90240da1c59b483d61716",
+      "reading": "READ",
+      "upload": "NOT_ATTEMPTED"
+    },
+    {
+      "materialId": "b1fd6ce7-372f-4c88-a14b-660fedfd418c",
+      "fileName": "synthetic-audio.wav",
+      "sha256": "6d6464889c2937795a7d170a31f7b5ab078042606786d100ce01ab3776dd1b99",
+      "reading": "UNKNOWN",
+      "upload": "NOT_ATTEMPTED"
+    }
+  ],
+  "sameTask": true,
+  "sameMaterials": true,
+  "toolCalls": [
+    "sfoa_material_task"
+  ],
+  "finalText": "最终任务状态回执如下。本次只更新并复核任务状态，没有创建新任务，没有重新读取或暂存文件，也没有调用任何 Salesforce 写入或上传。\n\n**任务状态**\n- 任务 ID：`bb0d9087-5720-44f7-b295-74192bcd36a0`（沿用原 E 任务）\n- 阶段：**COMPLETE**\n- 任务类型：`READ`（只读）\n- 材料总数：**9 份**\n- 归档状态：**DECLINED**，归档材料列表为空\n- 已观察目标：**空**\n- 与 Visit-004242 隔离：**是**\n- Salesforce 写入/上传：**无**\n- 9 份材料的 `upload.status` 全部为 `NOT_ATTEMPTED`\n\n**逐份材料读取状态**\n\n1. `synthetic-file-audio.m4a`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n2. `synthetic-followup.csv`\n   - 读取状态：`READ`\n   - 覆盖情况：`rows 5/5`，UTF-8，文本 80/80 字符\n   - 上传状态：`NOT_ATTEMPTED`\n\n3. `synthetic-scanned.pdf`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n4. `synthetic-site.jpg`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n5. `synthetic-site.png`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n6. `synthetic-visit-brief.docx`\n   - 读取状态：`READ`\n   - 覆盖情况：正文段落 + 基础表格行；段落 2、表格行 1；页数 `UNKNOWN`；已排除页眉、页脚、图形、批注、版式；文本 136/136 字符\n   - 上传状态：`NOT_ATTEMPTED`\n\n7. `synthetic-agenda.pdf`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n8. `synthetic-attendees.xlsx`\n   - 读取状态：`READ`\n   - 覆盖情况：基础单元格；1 个工作表「合成参与人」，读取 3/3 行；无缓存值缺失的公式；文本 64/64 字符；已排除图表、绘图、公式计算、复杂格式\n   - 上传状态：`NOT_ATTEMPTED`\n\n9. `synthetic-audio.wav`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n说明：`UNKNOWN` 表示任务保存状态中未记录自动读取覆盖，不代表文件无法读取；本次未重新读取这些材料。\n\nE 任务已标记完成，九份材料及逐份读取状态保留，继续保持不归档，并与 Visit-004242 隔离。",
+  "gatewayRestarted": false,
+  "result": "PASS"
+}

@@ -38,6 +38,23 @@ a user from the session-key string or Tool args. Validate the installed SDK's
 context construction, actual returned result shape, then a fresh channel read;
 an isolated replay of a saved result does not count as a new channel pass.
 
+Separate observed execution results from Agent task notes. A proven upload can be
+SUCCESS while the Agent has not saved archive selection, or a finished summary
+can still have phase COLLECTING. Guidance should record existing user choices and
+phase transitions without turning local notes into a DML gate or extra approval.
+Native PDF/image/audio evidence can exist while the Adapter coverage remains
+UNKNOWN; report both layers rather than manufacturing a coverage update.
+
+For a plugin-only change, OpenClaw 2026.9.5 supports `plugins reload <id> --json`.
+It may require declared-surface consent. Review old/candidate surfaces and existing
+grants within the user's authorized deployment scope before using the official
+`--accept-capabilities` option; preserve the rejection and back up the local plugin
+registry. This records the reviewed surface, not official-plugin trust. Verify the
+reported runtime generation, source digest, unchanged Gateway PID and a fresh
+channel task. Shared process state survived the tested reload; that is not proof
+of persistence across a Gateway restart. Do not restore the entire registry DB
+over later unrelated plugin changes just to undo this adapter's source patch.
+
 For CREATE field omissions, compare protected P7 `MCP_RESPONSE` / `UI_CONTEXT`
 with the Agent Tool text and final question. An untruncated MCP response can still
 be truncated in the Agent context or diagnostic export. Distinguish PENDING from

@@ -25,5 +25,47 @@
       "scope": "SERVER_TYPESCRIPT_NO_EMIT"
     }
   ],
-  "cleanHeadSmoke": "PENDING"
+  "cleanHeadSmoke": {
+    "result": "PASS",
+    "sourceCommit": "1b17fb091185b4ad565cf9344824a46613bbb31b",
+    "sha256": "3d0ce68ba8abcdfc8574234b98792721681325f8a183bc2fd77f53dd7fb496d0",
+    "committedFileCount": 1447,
+    "gates": [
+      {
+        "name": "skill:validate",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:sync",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:check",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "skill:test",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "ai:snapshot",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "ai:doctor (missing-env)",
+        "ok": true,
+        "exitCode": 0
+      }
+    ],
+    "doctorMissingEnv": {
+      "ok": true,
+      "exists": false
+    },
+    "scope": "COMMITTED_HEAD_SKILL_GATES_NOT_BUSINESS_ACCEPTANCE"
+  }
 }

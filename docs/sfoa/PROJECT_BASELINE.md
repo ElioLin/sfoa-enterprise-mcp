@@ -119,7 +119,11 @@ actual WeCom created Visit-004242, applied a two-field time patch and archived t
 573-byte CSV. The 20ea task observer still failed live; 72eeb22 uses trusted prompt
 run bindings and passed the subsequent real WeCom query/target-note/readback.
 Fresh DOCX reading/archive/result observation also passed in actual WeCom;
-task-level archive-choice notes remain incomplete. Adapter
+task-level archive-choice notes remain incomplete in that run. Nine-original actual
+WeCom reading and new-task isolation were then verified. Guidance 9c4fda9 uses the
+official plugin hot reload; E3 retained the same nine materials and marked the task
+COMPLETE without Salesforce writes. Native coverage feedback, accepted-archive
+selection retest and full live batch/compound acceptance remain incomplete. Adapter
 state on this installation is memory-only and requires revalidation after Gateway
 restart; restored targets are not a restored material ledger. See the
 [acceptance follow-up](AGENT_MATERIAL_WORKFLOWS_ACCEPTANCE_FOLLOWUP.md),

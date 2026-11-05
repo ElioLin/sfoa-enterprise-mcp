@@ -1,0 +1,22 @@
+{
+  "sameDeclaredSurface": true,
+  "declared": {
+    "channels": [],
+    "providers": [],
+    "tools": [
+      "sfoa_material_task"
+    ],
+    "contracts": [
+      "tools: sfoa_material_task"
+    ],
+    "hooks": [],
+    "mcpServers": [],
+    "cliCommands": [],
+    "cliBackends": [],
+    "skills": [],
+    "dangerousConfigFlags": []
+  },
+  "configuredHooks": {
+    "allowConversationAccess": true
+  }
+}

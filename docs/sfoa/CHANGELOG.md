@@ -16,6 +16,11 @@ Real WeCom query/target-note/readback passed after this correction. Actual recor
 creation, minimal time update and CSV archival are proven separately; the earlier
 task-state failure and unavailable cross-restart local-plugin persistence remain
 explicit acceptance limits.
+Nine actual WeCom originals now have distinct ingress/read evidence, including an
+independent scanned-PDF read. Short task guidance records collection completion
+and explicit archive choices. An official plugin hot reload retained the same
+nine-material task and the subsequent read-only receipt marked it COMPLETE;
+native coverage feedback and accepted-archive selection retesting remain limited.
 See [the acceptance follow-up](AGENT_MATERIAL_WORKFLOWS_ACCEPTANCE_FOLLOWUP.md) for
 the preserved incident, deployment, rerun and channel evidence boundaries.
 

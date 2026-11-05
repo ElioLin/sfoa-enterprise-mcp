@@ -1,0 +1,300 @@
+{
+  "scope": "ACTUAL_USER_WECOM_NINE_ORIGINALS_READONLY_AND_SCANNED_PDF_RECHECK",
+  "sourceAdapter": "72eeb22512ebb29f0c275097836b88eafba060d9",
+  "firstSeq": 342,
+  "lastSeq": 388,
+  "firstAt": "2026-11-05T02:12:43.339Z",
+  "lastAt": "2026-11-05T02:22:15.572Z",
+  "runId": "NOT_AVAILABLE",
+  "task": {
+    "taskId": "bb0d9087-5720-44f7-b295-74192bcd36a0",
+    "phase": "COLLECTING",
+    "archive": {
+      "status": "DECLINED",
+      "materialIds": []
+    },
+    "action": "READ",
+    "target": null,
+    "observedTargets": [],
+    "received": 9,
+    "omissions": [],
+    "materials": [
+      {
+        "materialId": "a67fd93c-7e85-452f-bc85-efca1e174e3c",
+        "fileName": "synthetic-file-audio.m4a",
+        "byteSize": 112928,
+        "sha256": "37d12a33f656b1380684ee4ca925c44c9287a338e811252967ba6d512acb3e3b",
+        "matchedOriginal": "synthetic-file-audio.m4a",
+        "hashMatches": true,
+        "reading": {
+          "status": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "source": "OPENCLAW_NATIVE",
+          "reason": "Use actual host text, transcript or visual input; attachment metadata is not reading evidence."
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "832aba08-56d5-464a-ab15-5d5d0da45c10",
+        "fileName": "synthetic-followup.csv",
+        "byteSize": 231,
+        "sha256": "5dd9f8d5fdf6a6dfb5073bfceaa010812953939eb370169b4541fe6cc279965f",
+        "matchedOriginal": "synthetic-followup.csv",
+        "hashMatches": true,
+        "reading": {
+          "status": "READ",
+          "contentSha256": "5dd9f8d5fdf6a6dfb5073bfceaa010812953939eb370169b4541fe6cc279965f",
+          "coverage": {
+            "unit": "rows",
+            "rowsRead": 5,
+            "rowsTotal": 5,
+            "encoding": "utf-8",
+            "textCharactersTotal": 80,
+            "textCharactersProvided": 80
+          },
+          "reasons": [],
+          "source": "OFFICE_BASIC_READER"
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "4f9ac8be-fd9b-4dee-9173-c9a3828edb7f",
+        "fileName": "synthetic-scanned.pdf",
+        "byteSize": 75453,
+        "sha256": "08926c2f15f77c77e337352e3faa30804b685c0e9ef3343f715fc8f2ac222e3a",
+        "matchedOriginal": "synthetic-scanned.pdf",
+        "hashMatches": true,
+        "reading": {
+          "status": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "source": "OPENCLAW_NATIVE",
+          "reason": "Use actual host text, transcript or visual input; attachment metadata is not reading evidence."
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "350e2961-6f99-4adf-a448-ef5c95266e6c",
+        "fileName": "synthetic-site.jpg",
+        "byteSize": 74770,
+        "sha256": "53c780577c2a7c529139f5d72d27da68b14d6494f3e39a9fca82406ee4bef2b4",
+        "matchedOriginal": "synthetic-site.jpg",
+        "hashMatches": true,
+        "reading": {
+          "status": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "source": "OPENCLAW_NATIVE",
+          "reason": "Use actual host text, transcript or visual input; attachment metadata is not reading evidence."
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "182df60b-5030-46db-b758-124ab0f33cbe",
+        "fileName": "synthetic-site.png",
+        "byteSize": 21634,
+        "sha256": "4651447e36b693409d06356cf39e8a4aa32ea4f6aec3b07dd404dbc9aae04e75",
+        "matchedOriginal": "synthetic-site.png",
+        "hashMatches": true,
+        "reading": {
+          "status": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "source": "OPENCLAW_NATIVE",
+          "reason": "Use actual host text, transcript or visual input; attachment metadata is not reading evidence."
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "4a514edd-fab5-43f1-83c1-8a84ae8691a0",
+        "fileName": "synthetic-visit-brief.docx",
+        "byteSize": 1103,
+        "sha256": "0ddfa16400c467b3d088b64fe5176503869b409ee422f24a0be0ab0326e16477",
+        "matchedOriginal": "synthetic-visit-brief.docx",
+        "hashMatches": true,
+        "reading": {
+          "status": "READ",
+          "contentSha256": "0ddfa16400c467b3d088b64fe5176503869b409ee422f24a0be0ab0326e16477",
+          "coverage": {
+            "unit": "body-paragraphs-and-basic-table-rows",
+            "paragraphs": 2,
+            "tableRows": 1,
+            "pages": "UNKNOWN",
+            "excluded": [
+              "headers",
+              "footers",
+              "drawings",
+              "comments",
+              "layout"
+            ],
+            "textCharactersTotal": 136,
+            "textCharactersProvided": 136
+          },
+          "reasons": [],
+          "source": "OFFICE_BASIC_READER"
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "5e292ebc-49f1-4eea-867d-44208e179213",
+        "fileName": "synthetic-agenda.pdf",
+        "byteSize": 809,
+        "sha256": "b68fa0a4a9f608a596aa5d9231db729b5e2d801dba7dc0310c7c564d7bfaa166",
+        "matchedOriginal": "synthetic-agenda.pdf",
+        "hashMatches": true,
+        "reading": {
+          "status": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "source": "OPENCLAW_NATIVE",
+          "reason": "Use actual host text, transcript or visual input; attachment metadata is not reading evidence."
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "6685c4af-27f4-4bd3-b34e-618e1102c716",
+        "fileName": "synthetic-attendees.xlsx",
+        "byteSize": 1473,
+        "sha256": "226ac0114e5d3d8b0cf25af805e996c87c85d05a8bc90240da1c59b483d61716",
+        "matchedOriginal": "synthetic-attendees.xlsx",
+        "hashMatches": true,
+        "reading": {
+          "status": "READ",
+          "contentSha256": "226ac0114e5d3d8b0cf25af805e996c87c85d05a8bc90240da1c59b483d61716",
+          "coverage": {
+            "unit": "basic-cells",
+            "sheetsTotal": 1,
+            "sheets": [
+              {
+                "sheet": "合成参与人",
+                "rowsRead": 3,
+                "rowsTotal": 3,
+                "formulasWithoutCachedValue": 0
+              }
+            ],
+            "values": "stored/cached values; basic date-formatted serials use the workbook date system without a timezone",
+            "excluded": [
+              "charts",
+              "drawings",
+              "formula evaluation",
+              "complex formatting"
+            ],
+            "textCharactersTotal": 64,
+            "textCharactersProvided": 64
+          },
+          "reasons": [],
+          "source": "OFFICE_BASIC_READER"
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      },
+      {
+        "materialId": "b1fd6ce7-372f-4c88-a14b-660fedfd418c",
+        "fileName": "synthetic-audio.wav",
+        "byteSize": 684562,
+        "sha256": "6d6464889c2937795a7d170a31f7b5ab078042606786d100ce01ab3776dd1b99",
+        "matchedOriginal": "synthetic-audio.wav",
+        "hashMatches": true,
+        "reading": {
+          "status": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "source": "OPENCLAW_NATIVE",
+          "reason": "Use actual host text, transcript or visual input; attachment metadata is not reading evidence."
+        },
+        "upload": {
+          "status": "NOT_ATTEMPTED"
+        },
+        "staging": "STAGED"
+      }
+    ]
+  },
+  "nativeAudioTranscripts": [
+    {
+      "seq": 348,
+      "text": "[Audio]\nUser text:\n<media:document>\nTranscript:\nSynthetic acceptance recording The sample is still under testing The customer thinks the price is high; there is no confirmed order and the quantity is undecided Follow up after the laboratory feedback next week."
+    },
+    {
+      "seq": 371,
+      "text": "[Audio]\nUser text:\n<media:document>\nTranscript:\nSynthetic acceptance recording The sample is still under testing The customer thinks the price is high; There is no confirmed order and the quantity is undecided Foow up after the laboratory feedback next week."
+    }
+  ],
+  "originalOfficeReads": [
+    {
+      "seq": 363,
+      "text": "合成测试材料，仅用于验收。客户：材料工作流测试客户甲。计划于2026年11月13日13:30到访厦门研发中心；此为事前申请，尚未发生。\n目的：评估新品试验方案。客户有兴趣但尚未承诺采购；若测试合格，再讨论寄样。不要将地点当成客户注册地址。\n议程\n\t展厅参观、样品测试条件讨论"
+    },
+    {
+      "seq": 375,
+      "text": "姓名\t角色\n合成陈经理\t客户技术负责人\n合成李工程师\t我方测试协调"
+    }
+  ],
+  "scannedPdfRecheck": {
+    "tool": "pdf",
+    "callSeq": 384,
+    "resultSeq": 385,
+    "result": "Page Count: 1\n\nSYNTHETIC ACCEPTANCE MATERIAL\nVisit location: Exhibition Hall B\nThe visit is planned, not completed.\nAttendees: two visitors and one host.\nNo order or quantity is committed.",
+    "pdfInspection": "Tagged:         no\nUserProperties: no\nSuspects:       no\nForm:           none\nJavaScript:     no\nPages:          1\nEncrypted:      no\nPage size:      750 x 800 pts\nPage rot:       0\nFile size:      75453 bytes\nOptimized:      no\nPDF version:    1.4\n---TEXT---\n\\x0c---IMAGES---\npage   num  type   width height color comp bpc  enc interp  object ID x-ppi y-ppi size ratio\n--------------------------------------------------------------------------------------------\n   1     0 image    1400   650  rgb     3   8  jpeg   no         4  0   144   144 73.0K 2.7%",
+    "currentInboundOriginal": true,
+    "originalPathSha256": "a716b8c2e9615a7c4a677df6133760c40358489512b2c665d217ae697e71b5eb"
+  },
+  "actualToolNames": [
+    "sfoa_material_task",
+    "view_image",
+    "exec",
+    "exec",
+    "sfoa_material_task",
+    "exec",
+    "pdf",
+    "exec"
+  ],
+  "synthesis": "本次仅做只读总结，没有写入或上传 Salesforce，也没有归档任何材料。\n\n**一、按不同来访归纳**\n\n**来访 A：验收议程（2026-11-06 13:30–15:00，Asia/Shanghai）**\n- 来源：`synthetic-agenda.pdf`\n- 性质：计划来访（Planned visit）\n- 目的：产品提案与展厅参观（product proposal and exhibition tour）\n- 议题：样品、价格顾虑、下一次实验室评审\n- 未写明：客户名称、地点、参与人、订单或数量\n\n**来访 B：材料工作流测试客户甲（2026-11-13 13:30，厦门研发中心）**\n- 来源：`synthetic-visit-brief.docx`\n- 性质：合成测试材料，仅用于验收\n- 状态：事前申请，尚未发生；计划来访，不是已到访\n- 目的：评估新品试验方案\n- 采购情况：客户有兴趣，但**尚未承诺采购**\n- 条件：**若测试合格，再讨论寄样**\n- 地点使用：材料明确提醒，**不要把地点当成客户注册地址**\n- 议程：展厅参观、样品测试条件讨论\n- 未写明：参与人、订单或采购数量\n\n**无法确定归属的材料**\n- `synthetic-scanned.pdf`、`synthetic-site.jpg`、`synthetic-site.png`：\n  - Exhibition Hall B\n  - 计划来访，尚未完成\n  - 两名访客、一名接待方\n  - **没有订单或数量承诺**\n  - 没有日期、客户或来访编号；与来访 A 主题接近，但无法证明是同一次来访\n- `synthetic-file-audio.m4a`、`synthetic-audio.wav`：\n  - 两份转写内容基本一致\n  - 样品仍在测试\n  - 客户认为价格偏高\n  - **没有确认订单，数量未定**\n  - 等实验室下周反馈后再跟进\n  - 没有客户、日期、地点或来访编号，无法归属\n- `synthetic-followup.csv`：\n  - 合成测试材料，**不代表真实客户，不直接写入真实客户**\n  - 测试中，**尚未通过**\n  - 若测试合格，再讨论寄样\n  - 客户诉求：需要补充耐久性测试数据，数量暂未确定\n  - 没有来访标识，无法归属\n- `synthetic-attendees.xlsx`：\n  - 合成陈经理 — 客户技术负责人\n  - 合成李工程师 — 我方测试协调\n  - 没有来访标识，无法确定属于来访 A 还是 B\n  - 与站点材料的“两名访客、一名接待方”人数不一致\n\n**二、逐份材料读取情况**\n\n1. `synthetic-file-audio.m4a`\n   - 读到：平台转写内容\n   - 未读到：音频本体的独立转写、说话人身份、时间码等\n   - 要点：样品测试中；价格偏高；无确认订单；数量未定；等实验室下周反馈\n\n2. `synthetic-followup.csv`\n   - 读到：5/5 行，UTF-8\n   - 要点：合成测试材料；不代表真实客户；测试中，尚未通过；若测试合格再讨论寄样；需补充耐久性数据；数量未定\n\n3. `synthetic-scanned.pdf`\n   - 读到：扫描页面渲染后的可见文字\n   - 要点：Exhibition Hall B；计划来访，尚未完成；两名访客、一名接待方；无订单或数量承诺\n   - 未读到：日期、客户、隐藏文本层或元数据\n\n4. `synthetic-site.jpg`\n   - 读到：图片中的可见文字，内容与第 3 份一致\n   - 未读到：日期、客户、文件元数据\n\n5. `synthetic-site.png`\n   - 读到：图片中的可见文字，内容与第 3 份一致\n   - 未读到：日期、客户、文件元数据\n\n6. `synthetic-visit-brief.docx`\n   - 读到：正文段落及基础表格内容\n   - 要点：材料工作流测试客户甲；2026-11-13 13:30 到访厦门研发中心；事前申请，尚未发生；评估新品试验方案；有兴趣但未承诺采购；测试合格后再讨论寄样；地点不是注册地址；议程为展厅参观与样品测试条件讨论\n   - 未读到：页眉、页脚、图形、批注、版式信息\n\n7. `synthetic-agenda.pdf`\n   - 读到：页面文本\n   - 要点：2026-11-06 13:30–15:00；产品提案与展厅参观；讨论样品、价格顾虑和下一次实验室评审\n   - 未读到：客户、地点、参与人、订单或数量\n\n8. `synthetic-attendees.xlsx`\n   - 读到：工作表「合成参与人」，共 3 行（表头 + 2 条数据）\n   - 内容：合成陈经理（客户技术负责人）、合成李工程师（我方测试协调）\n   - 未读到：图表、绘图、公式计算、复杂格式；也未能确定对应哪次来访\n\n9. `synthetic-audio.wav`\n   - 读到：平台转写内容\n   - 未读到：音频本体的独立转写、说话人身份、时间码等\n   - 要点：与第 1 份音频基本一致\n\n**三、未读到或无法确定对应关系的部分**\n- 两份音频只有平台转写，未独立核对音频本身；且缺少客户、日期、地点和来访编号，不能唯一归属。\n- 扫描 PDF 与两张图片只有可见页面文字，缺少日期、客户和隐藏文本/元数据；不能证明与来访 A 是同一次。\n- DOCX 未包含参与人名单，不能与参与人表直接对应。\n- 参与人表没有来访编号，且人数与站点材料不一致，无法确定属于哪次来访。\n- 议程日期为 **2026-11-06**，DOCX 日期为 **2026-11-13**；两处日期冲突，未自行选定，保持分开。\n- 所有材料均为合成/验收材料，未出现真实客户或真实客户写入依据。\n\n以上仅为总结，没有创建、修改、上传或归档任何 Salesforce 记录。",
+  "finalText": "复核完成。本次未创建、修改、上传或重新暂存任何文件。\n\n**E 任务状态**\n- 任务 ID：`bb0d9087-5720-44f7-b295-74192bcd36a0`\n- 阶段：`COLLECTING`\n- 任务目标：只读材料任务 SFOA-只读材料-1105-E，与 Visit-004242 无关\n- 收到材料总数：**9 份**\n- 归档状态：`DECLINED`，归档材料列表为空\n- 已观察目标：**空**（没有 Visit-004242 或任何 Salesforce 目标）\n- 9 份材料的 `upload.status` 全部为 `NOT_ATTEMPTED`\n\n**逐份材料状态**\n\n1. `synthetic-file-audio.m4a`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n   - 原件：`AVAILABLE_UNTIL_EXPIRY`\n\n2. `synthetic-followup.csv`\n   - 读取状态：`READ`\n   - 覆盖情况：`rows 5/5`，UTF-8，文本 80/80 字符\n   - 上传状态：`NOT_ATTEMPTED`\n\n3. `synthetic-scanned.pdf`\n   - 任务保存的读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n   - 原件：`AVAILABLE_UNTIL_EXPIRY`\n\n4. `synthetic-site.jpg`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n5. `synthetic-site.png`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n6. `synthetic-visit-brief.docx`\n   - 读取状态：`READ`\n   - 覆盖情况：正文段落 + 基础表格行；段落 2、表格行 1；页数 `UNKNOWN`；已排除页眉、页脚、图形、批注、版式；文本 136/136 字符\n   - 上传状态：`NOT_ATTEMPTED`\n\n7. `synthetic-agenda.pdf`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n8. `synthetic-attendees.xlsx`\n   - 读取状态：`READ`\n   - 覆盖情况：基础单元格；1 个工作表「合成参与人」，读取 3/3 行；无缓存值缺失的公式；文本 64/64 字符；已排除图表、绘图、公式计算、复杂格式\n   - 上传状态：`NOT_ATTEMPTED`\n\n9. `synthetic-audio.wav`\n   - 读取状态：`UNKNOWN`\n   - 覆盖情况：`UNKNOWN`\n   - 上传状态：`NOT_ATTEMPTED`\n\n**`synthetic-scanned.pdf` 原件核对**\n- 页数：**1 页**\n- 文件大小：75,453 bytes\n- 页面形态：单张 1400×650 JPEG 扫描图，**无嵌入文本层**（`pdftotext` 为空）\n- 实际读取到的页面内容：\n  - `SYNTHETIC ACCEPTANCE MATERIAL`\n  - `Visit location: Exhibition Hall B`\n  - `The visit is planned, not completed.`\n  - `Attendees: two visitors and one host.`\n  - `No order or quantity is committed.`\n- 以上为直接打开该 PDF 原件读取，未根据 `synthetic-site.jpg` 或 `synthetic-site.png` 推定内容。\n\n**隔离与归档核对**\n- 材料共 **9 份**，与任务状态一致。\n- `observedTargets` 为空，没有 Visit-004242 或其他 Salesforce 目标。\n- `archive.status = DECLINED`，归档材料列表为空。\n- 所有材料上传状态均为 `NOT_ATTEMPTED`。\n\n结论：E 任务仍与 Visit-004242 隔离，保持不归档；`synthetic-scanned.pdf` 原件为 **1 页**，页面内容如上。",
+  "actualImageResult": {
+    "seq": 357,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "sha256": "fdb8991e60dcf7ddb4dfe7e312411c58504dfcbba7fcde8e9c537e908a8e440d"
+      },
+      {
+        "mimeType": "image/jpeg",
+        "sha256": "16f78526a6a4e000b10b8b0c4cac8ccc515fa3f585b2cc0bb30840c9e6d7d101"
+      }
+    ]
+  },
+  "mcpCalls": 0,
+  "materialCount": 9,
+  "verifiedOriginalHashes": 9,
+  "newTaskIsolation": true,
+  "verdict": {
+    "originalReceipts": "PASS_9_OF_9_HASH_MATCH",
+    "officeReading": "PASS_BASIC_SCOPE",
+    "nativeImagePdfAudioReading": "PASS_OBSERVED_BASIC_CONTENT",
+    "newTaskIsolation": "PASS",
+    "declinedArchive": "PASS",
+    "salesforceMutations": 0,
+    "phaseAtE2": "FAIL_STILL_COLLECTING",
+    "nativeCoverageLedger": "UNKNOWN_NOT_WRITTEN_BACK",
+    "nativeWecomVoice": "NOT_PROVEN",
+    "overall": "PARTIAL"
+  }
+}
