@@ -4,6 +4,9 @@
   "activation": {
     "onStartup": true
   },
+  "contracts": {
+    "tools": ["sfoa_material_task"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

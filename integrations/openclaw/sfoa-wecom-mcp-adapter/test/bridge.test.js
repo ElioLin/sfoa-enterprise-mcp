@@ -19,7 +19,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -46,6 +46,7 @@ registerHooks({
 
 const { default: plugin } = await import("../src/index.js");
 const secretStub = await import(secretRuntimeUrl);
+const manifest = JSON.parse(await readFile(new URL("../openclaw.plugin.json", import.meta.url), "utf8"));
 
 const SERVER_NAME = "sfoa-enterprise-mcp";
 const MCP_URL = "http://127.0.0.1:8080/mcp";
@@ -107,7 +108,10 @@ function createHarness(options = {}) {
       debug: (message) => lines.push(["debug", message]),
     },
     registerMcpServerConnectionResolver(value) { resolver = value; },
-    registerTool(factory, options) { tools.set(options.name, factory); },
+    registerTool(factory, options) {
+      assert.ok(manifest.contracts?.tools?.includes(options.name), "the host requires a declared tool contract");
+      tools.set(options.name, factory);
+    },
     runtime: options.runtime,
     on(hookName, handler) {
       hooks.set(hookName, handler);
