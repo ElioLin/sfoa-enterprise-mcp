@@ -96,6 +96,10 @@ revalidation after restart. No host trust policy is bypassed.
 Session new/reset/delete clears task state; ordinary text and restart do not
 renew original refs. Native conversation history retains earlier messages; only
 the latest material message's Office body is injected again.
+The model-visible task/material view is an explicit whitelist of business facts.
+Host session keys, absolute staging paths, requester identity, source message IDs
+and internal receipt/attempt bookkeeping remain in the host registry and are not
+included in the prompt or the `sfoa_material_task` result.
 
 The local `sfoa_material_task` tool records task boundaries, collection phase,
 pending questions, selected materials and an optional originals choice. It is

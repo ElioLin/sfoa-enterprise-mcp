@@ -6,6 +6,7 @@ import path from "node:path";
 import { registerHooks } from "node:module";
 import { createHash } from "node:crypto";
 import { pdfResult, imageResult, transcriptEvent } from "../test-support/openclaw-native-contracts.mjs";
+import { materialScope } from "../src/material-tasks.js";
 
 registerHooks({ resolve(specifier, context, next) {
   return specifier === "openclaw/plugin-sdk/secret-input-runtime"
@@ -42,7 +43,9 @@ async function harness(t, options = {}) {
   const completion = { sessionKey: ctx.sessionKey, sessionId: ctx.sessionId, runId: ctx.runId };
   const tool = factory(ctx);
   const inspect = async () => (await tool.execute("inspect", { operation: "inspect" })).details;
-  return { hooks, internal, ctx, completion, tool, inspect, media,
+  const registry = globalThis[Symbol.for("sfoa.enterprise.mcp.material-task-registry.v1")];
+  const inspectState = async () => registry.read(materialScope(ctx));
+  return { hooks, internal, ctx, completion, tool, inspect, inspectState, media,
     pauseIngress() {
       let release, enter;
       const wait = new Promise((resolve) => { release = resolve; });
@@ -164,8 +167,16 @@ test("same content resent from a new real path keeps one material and receives n
   const task = await h.inspect();
   assert.equal(task.materials.length, 1);
   assert.equal(task.materials[0].reading.status, "PARTIAL");
-  assert.equal(task.materials[0].reading.sourceMessageId, "second");
-  assert.equal(task.materials[0].sourcePaths.length, 2);
+  // Host bookkeeping stays in the registry; the model-visible view must not
+  // carry the session key, absolute source paths or internal message identity.
+  assert.equal(task.sessionKey, undefined);
+  assert.equal(task.materials[0].sourcePaths, undefined);
+  assert.equal(task.materials[0].ownerRequester, undefined);
+  assert.equal(task.materials[0].reading.sourceMessageId, undefined);
+  const state = await h.inspectState();
+  assert.equal(state.materials[0].reading.sourceMessageId, "second");
+  assert.equal(state.materials[0].sourcePaths.length, 2);
+  assert.equal(state.materials[0].ownerRequester, "alice");
 });
 
 test("host transcription flag is evidence of transcription with no invented transcript body", async (t) => {
