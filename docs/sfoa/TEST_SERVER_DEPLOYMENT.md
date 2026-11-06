@@ -4,6 +4,10 @@
 
 ---
 
+## 2026-11-06 精确创建/编辑表单测试部署
+
+`codex/record-change-precision@94f1833` 已部署到 203，MCP/Admin Web/四业务 Skill 与独立 `sfoa` 为 Playbook **1.14.0**。服务器源码 1496 文件无漂移，精确表单专项 101/101、Skills 88/88；实际 29 个工具，五个相关工具增加可选 `formContext`，其余工具输入契约不变。Gateway 未重启；新会话完整读取两份新版记录变更指导。没有新增迁移、未执行 Salesforce 写入。发布中因浏览器探针错误输出包含临时 Admin Cookie，已只轮换管理会话签名密钥，旧签名会话 401，新登录/退出 200；后台需要重新登录。详见[部署与回滚记录](RECORD_CHANGE_PRECISION_DEPLOYMENT_20261106.md)，不以部署检查替代真实业务 UAT。
+
 ## 2026-11-06 HOTFIX-01 材料工作流部署（203）
 
 部署 `feature/agent-material-workflows` @ `b459e8b1fb348eeea95f58c9a4c698f19e22f8ba`（HOTFIX-01）。部署前 203 为 core `1f060ed` + Playbook **1.13.2** + Adapter `9c4fda9`；本轮推进到 Playbook **1.13.3**、Adapter `b459e8b`、四业务 Skill 与独立 `sfoa` 1.13.3，并重打 Admin Web。**真实企微 / Salesforce 业务 UAT 本轮未执行**；以下仅为协议、构建、字节与可见性验证。

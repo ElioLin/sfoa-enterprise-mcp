@@ -64,6 +64,14 @@ Back up existing web assets, stage the new build, publish hashed assets before
 `index.html`, and verify HTTP access and SELinux labels. This static-only publish
 does not require restarting Gateway or discarding its in-memory task state.
 
+Include `/usr/sbin` in the deployment PATH (or call `/usr/sbin/restorecon`
+explicitly). If a static publish stops before replacing `index.html`, resume that
+step after fixing the cause; do not restart healthy MCP/Admin processes again.
+Browser verification errors can contain Cookie/Authorization headers. Catch them
+before printing, report only a safe error type/code and request path, and never
+emit raw Playwright request errors. Keep login output in memory. An actual session
+exposure requires invalidation and verification; preserve all unrelated settings.
+
 Production uses two Node processes (MCP/Admin API), static Admin Web files, MySQL 8, and an HTTPS reverse proxy. Vite does not run in production. Keep Node listeners and MySQL off the public network. Apply reviewed migrations before application restart, verify `/ready` and `/health`, then shift traffic.
 
 Use `SFOA_CONTROL_PLANE_MODE=mysql`; missing DB governance fails closed. Back up schema, migration ledger, configuration, credential ciphertext, and Audit together; preserve the matching identity encryption key separately. Do not mount Salesforce CLI auth cache. Production Salesforce uses direct JWT/OAuth through `@salesforce/core`.

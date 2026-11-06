@@ -181,3 +181,11 @@ Native cache trace can itself replace large JSON with a diagnostic redaction
 placeholder. For synthetic isolated evaluation, --observe-provider-input records
 safe metadata from the actual forwarded model HTTP request. It never saves auth
 headers or prompt bodies and must not be applied to production conversations.
+
+For a fresh Gateway read proof, verify the actual session storage contract rather
+than assuming `<state>/agents/main/sessions/<sessionId>.jsonl`. On the current 203
+runtime, `agentMeta.sessionFile` can be a logical `agent:...` key. The live
+`chat.history` RPC for that exact new synthetic session provides the read calls
+and complete results. Compare their bytes with canonical/runtime files; a model's
+claim that it read a Skill is insufficient. Keep histories private and publish
+only bounded file hashes, read-result checks and the synthetic validation scope.

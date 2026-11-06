@@ -2,6 +2,8 @@
 
 状态：实现完成，自动化及真实只读 API 验证完成；原生界面对照和实际写入验收尚未完成。起点 `feature/agent-material-workflows@048eae03`；开发分支 `codex/record-change-precision`。
 
+203 测试部署与 OpenClaw 运行 Skill 已于 2026-11-06 更新到 Playbook 1.14.0，分支已推送、未合并。部署、验证、会话重置及回滚见[测试部署记录](RECORD_CHANGE_PRECISION_DEPLOYMENT_20261106.md)。该部署不替代下述真实业务验收。
+
 ## 已确认范围
 
 桌面标准 New/Edit（Page Layout、Dynamic Forms、混合页面）及明确选择的原生 Create/Update Quick Action。Flow、自定义 LWC/Visualforce 表单、移动端和任意 Apex 表达式解释不在首批支持范围。Skill 负责意图、业务事实整理、追问和建议；MCP 提供可验证的配置事实与确定性计算；Salesforce 保持 CRUD/FLS、共享和最终保存校验权威。

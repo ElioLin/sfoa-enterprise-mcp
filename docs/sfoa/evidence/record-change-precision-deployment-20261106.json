@@ -1,0 +1,316 @@
+{
+  "branch": "codex/record-change-precision",
+  "sourceCommit": "94f1833fc7690a232f39111bbbb09155e5b2ed2f",
+  "target": "192.168.156.203",
+  "mergePerformed": false,
+  "archive": {
+    "name": "sfoa-app-94f1833.tar.gz",
+    "sha256": "2054045cfbac06297b88ca779ee45ce092b5df5f422f36a2a175445809ddc900",
+    "files": 1496
+  },
+  "protocol": {
+    "checkedAt": "2026-11-06T12:29:36.019Z",
+    "scope": "IDENTITY_LESS_PROTOCOL_ONLY_NO_SALESFORCE_NO_DML",
+    "phase": "after",
+    "protocolVersion": "2025-06-18",
+    "playbookVersions": [
+      "1.14.0"
+    ],
+    "toolCount": 29,
+    "tools": [
+      {
+        "name": "create_record",
+        "formContextPresent": true,
+        "formContextRequiredAtRoot": false
+      },
+      {
+        "name": "create_records",
+        "formContextPresent": true,
+        "formContextRequiredAtRoot": false
+      },
+      {
+        "name": "get_record_action_context",
+        "formContextPresent": true,
+        "formContextRequiredAtRoot": false
+      },
+      {
+        "name": "update_record",
+        "formContextPresent": true,
+        "formContextRequiredAtRoot": false
+      },
+      {
+        "name": "update_records",
+        "formContextPresent": true,
+        "formContextRequiredAtRoot": false
+      }
+    ],
+    "sameToolNames": true,
+    "unrelatedSchemaDrift": [],
+    "pass": true
+  },
+  "deployment": {
+    "checkedAt": "2026-11-06T12:48:26.987935+00:00",
+    "sourceCommit": "94f1833fc7690a232f39111bbbb09155e5b2ed2f",
+    "playbookVersion": "1.14.0",
+    "filesVerified": 1496,
+    "appDrift": [],
+    "skills": {
+      "sfoa-crm-core": {
+        "files": 10,
+        "drift": []
+      },
+      "sfoa-data-analysis": {
+        "files": 8,
+        "drift": []
+      },
+      "sfoa-org-diagnostics": {
+        "files": 7,
+        "drift": []
+      },
+      "sfoa-record-change": {
+        "files": 14,
+        "drift": []
+      }
+    },
+    "gatewaySkills": [
+      {
+        "name": "sfoa",
+        "eligible": true,
+        "modelVisible": false,
+        "disabled": false,
+        "filePath": "/data/openclaw/workspace/skills/sfoa/SKILL.md"
+      },
+      {
+        "name": "sfoa-crm-core",
+        "eligible": true,
+        "modelVisible": true,
+        "disabled": false,
+        "filePath": "/data/openclaw/workspace/skills/sfoa-crm-core/SKILL.md"
+      },
+      {
+        "name": "sfoa-data-analysis",
+        "eligible": true,
+        "modelVisible": true,
+        "disabled": false,
+        "filePath": "/data/openclaw/workspace/skills/sfoa-data-analysis/SKILL.md"
+      },
+      {
+        "name": "sfoa-org-diagnostics",
+        "eligible": true,
+        "modelVisible": true,
+        "disabled": false,
+        "filePath": "/data/openclaw/workspace/skills/sfoa-org-diagnostics/SKILL.md"
+      },
+      {
+        "name": "sfoa-record-change",
+        "eligible": true,
+        "modelVisible": true,
+        "disabled": false,
+        "filePath": "/data/openclaw/workspace/skills/sfoa-record-change/SKILL.md"
+      }
+    ],
+    "maintainerPublished": false,
+    "exportMatches": true,
+    "protectedUnchanged": {
+      "environment": false,
+      "gatewayConfig": true,
+      "independentMcp": true
+    },
+    "adminSessionRotationVerified": true,
+    "processes": {
+      "sfoa-mcp-server": {
+        "MainPID": "3848940",
+        "NRestarts": "0",
+        "ActiveState": "active"
+      },
+      "sfoa-admin-api": {
+        "MainPID": "3849530",
+        "NRestarts": "0",
+        "ActiveState": "active"
+      },
+      "openclaw-gateway": {
+        "MainPID": "3759907",
+        "NRestarts": "0",
+        "ActiveState": "active"
+      },
+      "nginx": {
+        "MainPID": "1267856",
+        "NRestarts": "0",
+        "ActiveState": "active"
+      }
+    },
+    "gatewayRestarted": false,
+    "health": {
+      "mcp": {
+        "httpStatus": 200,
+        "status": "UP",
+        "version": null,
+        "auditPersistence": {
+          "status": "UP",
+          "failureCount": 0,
+          "queueDepth": 0,
+          "queueCapacity": 1000,
+          "enqueuedSnapshots": 0,
+          "persistedSnapshots": 0,
+          "droppedSnapshots": 0,
+          "writerFailureCount": 0,
+          "queueFullCount": 0,
+          "lastFailureAt": null,
+          "lastDropAt": null,
+          "lastSuccessAt": "2026-11-06T12:29:36.089Z",
+          "writerState": "IDLE"
+        }
+      },
+      "adminReady": {
+        "httpStatus": 200,
+        "status": "UP",
+        "version": null
+      },
+      "nginxReady": {
+        "httpStatus": 200,
+        "status": "UP",
+        "version": null
+      }
+    },
+    "web": {
+      "http://127.0.0.1:9000": {
+        "httpStatus": 200,
+        "index": "/assets/index-CTp8faou.js",
+        "chunks": [
+          "AgentIntegrationPage-CK_3b5F2.js"
+        ],
+        "versions": [
+          "1.14.0"
+        ]
+      },
+      "http://crmmcptest.runner-corp.com.cn:9000": {
+        "httpStatus": 200,
+        "index": "/assets/index-CTp8faou.js",
+        "chunks": [
+          "AgentIntegrationPage-CK_3b5F2.js"
+        ],
+        "versions": [
+          "1.14.0"
+        ]
+      }
+    },
+    "pass": true
+  },
+  "gatewayRead": {
+    "checkedAt": "2026-11-06T12:44:41.061Z",
+    "scope": "FRESH_GATEWAY_AGENT_READ_ONLY_NO_CHANNEL_DELIVERY_NO_SALESFORCE",
+    "runId": "e1bea8eb-0ab5-4464-9aa2-958df347d2ac",
+    "model": "custom-192-168-155-105-3001/deepseek-flash",
+    "executionStatus": "ok",
+    "processLifecycleStatus": "EXITED",
+    "reads": [
+      {
+        "path": "/data/openclaw/workspace/skills/sfoa-record-change/SKILL.md",
+        "sourceSha256": "337a35d99b0a9a420884363aeae2e5862ce7658155542891ceef93a31190845d",
+        "toolCallObserved": true,
+        "toolResultObserved": true,
+        "isError": false,
+        "fullSourceIncluded": true,
+        "sourceBytes": 25047,
+        "resultBytes": 25047
+      },
+      {
+        "path": "/data/openclaw/workspace/skills/sfoa-record-change/references/precise-forms.md",
+        "sourceSha256": "bc0ef84f2dd1eda24e110af5c1a82a8178c30d8bafe8f22c2c1f1a429cd70529",
+        "toolCallObserved": true,
+        "toolResultObserved": true,
+        "isError": false,
+        "fullSourceIncluded": true,
+        "sourceBytes": 7778,
+        "resultBytes": 7778
+      }
+    ],
+    "observedToolNames": [
+      "read"
+    ],
+    "pass": true,
+    "evidenceCorrection": "agentMeta.sessionFile is a logical session key here; fetched that fresh run using the live Gateway chat.history RPC.",
+    "messageCount": 5
+  },
+  "adminSessionReset": {
+    "checkedAt": "2026-11-06T12:43:03.795Z",
+    "reason": "Invalidate temporary Admin session exposed by a browser probe network-error diagnostic",
+    "changedKeys": [
+      "SFOA_ADMIN_SESSION_SECRET"
+    ],
+    "otherEnvironmentValuesUnchanged": true,
+    "oldSigningKeyRejected": true,
+    "newLoginStatus": 200,
+    "verificationSessionLogoutStatus": 200,
+    "adminReady": true,
+    "pass": true
+  },
+  "backupPath": "/data/sfoa-enterprise-mcp/backup/precision-20261106T122626Z-94f1833",
+  "checks": {
+    "precisionTests": {
+      "tests": 101,
+      "pass": 101,
+      "fail": 0
+    },
+    "skillsTests": {
+      "tests": 88,
+      "pass": 88,
+      "fail": 0
+    }
+  },
+  "databaseStatusSummary": [
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"state\": \"APPLIED\",",
+    "      \"version\": \"017_attachment_attempt_lifecycle\",",
+    "      \"state\": \"APPLIED\","
+  ],
+  "browser": {
+    "scope": "ACTUAL_203_BROWSER_OVER_SSH_PORT_FORWARD",
+    "checkedAt": "2026-11-06T12:52:11.169Z",
+    "origin": "http://127.0.0.1:9000",
+    "consoleErrorCount": 0,
+    "failedRequestCount": 0,
+    "canonicalTitleVisible": true,
+    "canonicalBodyVisible": true,
+    "generatedDifyCurrent": true,
+    "generatedWeComCurrent": true,
+    "auditPageVisible": true,
+    "legacyUiContextVisible": true,
+    "health": {
+      "/admin/api/health": 200,
+      "/admin/api/ready": 200,
+      "/admin/api/auth/me": 200
+    },
+    "pass": true,
+    "logoutStatus": 200
+  },
+  "maintainerDocumentationChecks": {
+    "sync": "PASS",
+    "check": "PASS",
+    "delivery": "PASS",
+    "tests": 88,
+    "passed": 88
+  },
+  "acceptance": {
+    "salesforceWrites": 0,
+    "channelMessagesSent": 0,
+    "nativeLightningFieldParity": "NOT_TESTED_IN_DEPLOYMENT",
+    "nativeQuickActionSave": "NOT_TESTED",
+    "realWeComBusinessUat": "NOT_TESTED",
+    "productionDeploy": false
+  },
+  "evidenceRoot": "/data/sfoa-enterprise-mcp/evidence/precision-deploy-20261106"
+}
