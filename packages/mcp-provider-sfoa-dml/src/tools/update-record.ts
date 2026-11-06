@@ -37,6 +37,7 @@ export class UpdateRecordMcpTool extends McpTool<InputShape, OutputShape> {
     return {
       title: 'Update Salesforce Record',
       description:
+        'Optional formContext requests current selected-form preflight in the Host; pass the selection from get_record_action_context. It checks the full selected Edit form using saved values plus patch. STANDARD retains only actual changes; an explicit unchanged native Quick Action value can override its preset. Critical unknown or missing required values prevent dispatch. uiContextResolutionId is audit correlation only. ' +
         'Updates scalar fields on exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If a Tool/request timeout or transport interruption makes the outcome unknown, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide recordId separately; fields.Id and relationship paths are rejected. This Tool does not perform SOQL, upsert, bulk update, or delete. Returns only success and the updated record ID.',
       inputSchema: updateRecordInputSchema.shape,
       outputSchema: dmlOutputSchema.shape,

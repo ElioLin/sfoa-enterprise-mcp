@@ -5,11 +5,11 @@ description: >
   Picklist handling, record links, and diagnosis through the SFoA MCP service.
 ---
 
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.13.3; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.14.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Salesforce Assistant
 
-Canonical Playbook version: 1.13.3.
+Canonical Playbook version: 1.14.0.
 
 ## When to use
 
@@ -21,15 +21,16 @@ Use this Skill when a user asks for current Salesforce business data, an allowed
 2. Before mutation or diagnosis, read [references/safety-boundaries.md](references/safety-boundaries.md).
 3. Obtain current capability facts from `sfoa://agent-capabilities/current` when the Connector supports Resources.
 4. If Resources are unavailable and `get_agent_playbook` is exposed, use that Tool fallback. Never call an absent Tool.
+For CREATE/UPDATE use formContext: STANDARD by default; QUICK_ACTION only when explicitly selected from reliable context. QUICK_ACTION uses singular tools and preserves explicit preset overrides even when equal to saved values. MCP selects the explicit accessible app or current USER Profile default, evaluates the selected form, and revalidates automatically before DML. Check every applicable Edit required field against saved values plus the minimal patch. Stop on criticalUnknown; never remove formContext to bypass it. Optional statistics never delay an otherwise ready save. Queries, diagnostics and attachments do not enter this workflow.
 # SFoA Salesforce Agent Playbook
 
-Playbook-Version: 1.13.3
+Playbook-Version: 1.14.0
 Workflow: ALL
 
 ## Runtime capabilities
 
 - This is a distribution template. Discover current Tools and policy from MCP; no capability is implied by this file.
-- Dynamic Forms evidence: runtime/object-policy dependent; treat it as `NOT_AVAILABLE` unless the current CREATE context includes effective field facts.
+- Dynamic Forms evidence: context-dependent; inspect returned CREATE/UPDATE formContext and effective field facts. A legacy capability flag is not proof that the selected form has been resolved.
 
 ## DATA_COMPLETENESS — Query at the right scale and state the completeness
 

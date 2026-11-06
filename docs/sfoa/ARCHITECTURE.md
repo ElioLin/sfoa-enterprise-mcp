@@ -6,6 +6,17 @@ Upstream commit: `670234dbdca4d3fcdebd9d58b231e311fd34aeec`
 
 ## System boundary
 
+The opt-in selected CREATE/UPDATE form contract is documented in
+[record-change precision](RECORD_CHANGE_PRECISION_20261106.md). It extends existing
+context/DML seams: current USER business facts, separately scoped DIAGNOSTIC
+configuration reads, deterministic form assessment, and fresh pre-dispatch checks.
+Legacy calls and unrelated Tools bypass this work. Native Quick Actions remain
+limited to explicitly selected Create/Update forms under existing DML governance.
+There is no cross-request draft cache or new authorization token.
+Bounded structural reuse and fresh per-component revision verification are
+specified in [ADR-0036](adr/ADR-0036-selected-record-form-precision.md); initial
+and submission calls never trust an unverified cached readiness result.
+
 The bounded host task-material context, optional pure CREATE assessment and
 attachment attempt states are specified in
 [ADR-0035](adr/ADR-0035-agent-material-workflows.md). They preserve existing MCP

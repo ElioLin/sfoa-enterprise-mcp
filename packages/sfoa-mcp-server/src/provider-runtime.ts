@@ -20,6 +20,7 @@ import {
   isSfoaContextToolName,
   type SfoaContextToolName,
   type EffectiveUiOptions,
+  type PrecisionFormOptions,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
   SfoaDataMcpProvider,
@@ -59,6 +60,7 @@ import {
   OfficialMetadataComponentLister,
 } from './diagnostic-context-adapters.js';
 import { DmlToolFacade } from './dml-tool-facade.js';
+import { FormDmlPreflight } from './form-dml-preflight.js';
 import { ManagedDmlFieldResolver, type RuntimeManagedDmlFieldRule } from './dml-managed-fields.js';
 import { DmlToolGovernancePolicy } from './dml-tool-governance.js';
 import { ScopedOrgLimitsExecutor } from './org-limits-context-executor.js';
@@ -123,6 +125,7 @@ export type CreateGovernedMcpServerOptions = Readonly<{
   lightningBaseUrl?: string;
   requestAuditContext?: RequestAuditContextController;
   effectiveUi?: Omit<EffectiveUiOptions, 'audit' | 'managedFields'>;
+  precision?: Omit<PrecisionFormOptions, 'audit'>;
   auditIdentity: Readonly<{
     identitySource: 'INTERNAL_SERVICE_HEADER' | 'USER_BOUND_TOKEN' | 'BUNTU_TOKEN' | 'WECOM_HEADER';
     identityCredentialId?: string;
@@ -265,6 +268,12 @@ export async function createGovernedMcpServer(
     { instructions: serverInstructions(agentCapabilities) },
   );
   try {
+    const precision: PrecisionFormOptions = { ...options.precision,
+      managedFields: (options.managedDmlFieldRules ?? []).map(({ objectApiName, targetFieldApiName,
+        enabled, applyOnCreate, applyOnUpdate, strategy }) => ({ objectApiName, targetFieldApiName,
+        enabled, applyOnCreate, applyOnUpdate, strategy })),
+      audit: (evidence) => recordUiContextAudit(options.requestAuditContext, evidence) };
+    let formPreflight: FormDmlPreflight | undefined;
     const providerTools = await options.initializedProvider.toolSource.provideTools(options.scope.services);
     const toolsByName = new Map<string, McpTool>();
     for (const tool of providerTools) {
@@ -346,6 +355,7 @@ export async function createGovernedMcpServer(
         );
       }
       const contextProvider = new SfoaContextMcpProvider({
+        precision,
         createAllowedObjects: options.initializedProvider.dmlAllowlist.getRules()
           .filter((rule) => rule.operations.includes('CREATE')).map((rule) => rule.objectApiName),
         effectiveUi: {
@@ -537,6 +547,11 @@ export async function createGovernedMcpServer(
           dmlAllowlist: options.initializedProvider.dmlAllowlist,
           redactionSecrets: options.redactionSecrets,
           mutationStarted: () => options.mutationRequestState.hasStarted(),
+          prepareFormInput: (operation, input, requestedInput) => {
+            formPreflight ??= new FormDmlPreflight(options.scope.services.getOrgService(),
+              () => options.scope.getConnection(), options.mutationRequestState, precision);
+            return formPreflight.prepare(operation, input, requestedInput);
+          },
         });
         server.registerTool(facade.getName(), facade.getConfig(), (input, extra) =>
           runAuditedToolInvocation(options, facade.getName(), input, () => facade.execute(input, extra)));
@@ -605,13 +620,15 @@ function recordUiContextAudit(controller: RequestAuditContextController | undefi
   controller ??= currentRequestAuditContext();
   if (!controller) return;
   try {
-    const { fields, rules, initialFacts, ...summary } = evidence;
+    const { fields, rules, initialFacts, missingRequired, criticalUnknown, recommendations, differences, generatedFieldEvidence, ...summary } = evidence;
     const collector = controller.collector();
     const sequence = collector.recordEvent({ eventCategory: 'TOOL', eventType: evidence.fallbackUsed ? 'UI_CONTEXT_RESOLUTION_FAILED' : 'UI_CONTEXT_RESOLVED',
       eventName: 'UI Context', status: 'SUCCESS', safeSummary: summary });
-    if (sequence !== null && (fields || rules)) collector.recordPayloadEvidence({
+    if (sequence !== null && (fields || rules || missingRequired || criticalUnknown)) collector.recordPayloadEvidence({
       payloadType: 'UI_CONTEXT', contentType: 'application/json',
-      auditEventSequence: sequence, payload: JSON.stringify({ resolutionId: evidence.resolutionId, fields, rules, initialFacts }),
+      auditEventSequence: sequence, payload: JSON.stringify({ resolutionId: evidence.resolutionId,
+        formReadinessStatus: evidence.formReadinessStatus, fields, rules, initialFacts,
+        missingRequired, criticalUnknown, recommendations, differences, generatedFieldEvidence }),
     });
   } catch { /* UI evidence cannot alter CREATE. */ }
 }

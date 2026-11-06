@@ -17,6 +17,9 @@ import {
   SFOA_CONTEXT_TOOL_ROLES,
   isSfoaContextToolName,
   type EffectiveUiOptions,
+  collectPrecisionMetadata,
+  PrecisionComponentCache,
+  type PrecisionMetadataLoader,
 } from '@sfoa/mcp-provider-sfoa-context';
 import {
   buildIdentityRoutes,
@@ -73,6 +76,7 @@ import {
 import { classifyMcpRequest, createDiscoveryMcpServer } from './discovery-server.js';
 import { envFieldAccessTargetUsers, type FieldAccessTargetUsers } from './field-access-target-users.js';
 import { readBoundedJsonBodySource } from './request-body.js';
+import { FormMetadataCache } from './form-metadata-cache.js';
 import { delay, withTimeout } from './timeouts.js';
 import type { RequestToolSource } from '@sfoa/identity-runtime';
 import {
@@ -149,6 +153,8 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
   );
   const identityProvider = options.identityProvider ?? createIdentityProvider(options.config, options.authenticator);
   const activeRequests = new Set<Promise<void>>();
+  const formMetadataCache = new FormMetadataCache();
+  const formComponentCache = new PrecisionComponentCache();
   let totalRequests = 0;
   let cleanupFailures = 0;
   let methodProbes = 0;
@@ -169,6 +175,8 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       policySnapshotSource: options.policySnapshotSource,
       discoveryPolicySnapshotSource: options.discoveryPolicySnapshotSource,
       loadUiSnapshot: options.loadUiSnapshot,
+      formMetadataCache,
+      formComponentCache,
       attachmentIngress: options.attachmentIngress,
       identityProvider,
       allowedHosts,
@@ -234,6 +242,8 @@ export async function startRemoteMcpServer(options: StartRemoteMcpServerOptions)
       ]);
       if (!drainResult) httpServer.closeAllConnections();
       await closed;
+      formMetadataCache.clear();
+      formComponentCache.clear();
       return Object.freeze({ drained: drainResult, forcedConnections: !drainResult });
     })();
     return shutdownPromise;
@@ -275,6 +285,8 @@ function hasWecomIdentityHeaderAlias(config: RemoteRuntimeConfig): boolean {
 }
 
 type HandleRemoteRequestOptions = Readonly<{
+  formMetadataCache: FormMetadataCache;
+  formComponentCache: PrecisionComponentCache;
   request: IncomingMessage;
   response: ServerResponse;
   config: RemoteRuntimeConfig;
@@ -653,6 +665,7 @@ async function executeMcpPost(
   let integrationDefaultApp: string | undefined;
   let uiConfigurationError: string | undefined;
   let scope: RequestScope;
+  let createFormMetadataScope: (() => Promise<RequestScope>) | undefined;
   if (options.policySnapshotSource) {
     const snapshot = await options.policySnapshotSource.load(identity.platformUserId);
     if (snapshot.identityRoute?.enabled === false) {
@@ -691,6 +704,13 @@ async function executeMcpPost(
       await auditDisabledToolAttempt(parsedBody, initializedProvider.enabledTools, principal, options.logger);
     }
     const requestedRole = getRequestedExecutionRole(parsedBody, initializedProvider.enabledTools);
+    if (snapshot.diagnostic?.enabled && snapshot.diagnostic.verificationStatus === 'PASS') {
+      createFormMetadataScope = () => {
+        const formMetadataRoute = snapshotDiagnosticRoute(snapshot, identity.platformUserId);
+        if (!formMetadataRoute) throw new Error('FORM_METADATA_IDENTITY_UNAVAILABLE');
+        return options.identityRuntime.scopeFactory.createForRoute(identity, formMetadataRoute);
+      };
+    }
     if (requestedRole === 'DIAGNOSTIC') {
       const diagnosticRoute = snapshotDiagnosticRoute(snapshot, identity.platformUserId);
       if (!diagnosticRoute) {
@@ -730,6 +750,7 @@ async function executeMcpPost(
       && options.config.enabledTools.includes('run_diagnostic_tooling_query')
       && options.config.enabledTools.includes('get_metadata_component_context');
     const requestedRole = getRequestedExecutionRole(parsedBody, options.config.enabledTools);
+    if (options.identityRuntime.diagnosticScopeFactory) createFormMetadataScope = () => createDiagnosticScope(options.identityRuntime, identity);
     scope = requestedRole === 'DIAGNOSTIC'
       ? await createDiagnosticScope(options.identityRuntime, identity)
       : await options.identityRuntime.scopeFactory.create(identity);
@@ -752,6 +773,36 @@ async function executeMcpPost(
     executionRole: scope.route.connectionRole,
   });
 
+  // Request-local memoization only: a collection reuses the same freshly read
+  // configuration, while separate tasks/submissions always verify it again.
+  const formMetadataReads = new Map<string, ReturnType<PrecisionMetadataLoader>>();
+  const loadFormMetadata: PrecisionMetadataLoader = (request, deadline) => {
+    const owner = JSON.stringify([principal.clientId, identity.platformUserId, scope.route.salesforceUsername]);
+    const cached = options.formMetadataCache.get(owner, request);
+    if (cached) return Promise.resolve(cached);
+    const key = JSON.stringify(request);
+    const existing = formMetadataReads.get(key);
+    if (existing) return existing;
+    const load = async (): ReturnType<PrecisionMetadataLoader> => {
+      if (!createFormMetadataScope) throw new Error('FORM_METADATA_IDENTITY_UNAVAILABLE');
+      resources.assertAvailable(signal);
+      let diagnosticScope: RequestScope | undefined;
+      try {
+        diagnosticScope = await createFormMetadataScope();
+        resources.assertAvailable(signal);
+        const fresh = await collectPrecisionMetadata(await diagnosticScope.getConnection(), request, deadline, options.formComponentCache);
+        return options.formMetadataCache.put(owner, request, fresh);
+      } finally {
+        await diagnosticScope?.close().catch(() => undefined);
+        observation.auditContext?.withSalesforceRoute({ salesforceUsername: scope.route.salesforceUsername,
+          executionRole: scope.route.connectionRole });
+      }
+    };
+    const promise = load();
+    formMetadataReads.set(key, promise);
+    return promise;
+  };
+
   const created = await createGovernedMcpServer({
     scope,
     cwdGuard: options.identityRuntime.cwdGuard,
@@ -768,6 +819,11 @@ async function executeMcpPost(
     mutationRequestState,
     initializedProvider,
     diagnosticReady,
+    precision: { loadMetadata: loadFormMetadata,
+      appDeveloperName: typeof headers['x-salesforce-app-developer-name'] === 'string'
+        ? headers['x-salesforce-app-developer-name'] : undefined,
+      formFactor: headers['x-salesforce-form-factor'] === undefined || headers['x-salesforce-form-factor'] === 'Large'
+        ? 'Large' : headers['x-salesforce-form-factor'] === 'Small' ? 'Small' : 'Medium' },
     ...(options.attachmentIngress ? { attachmentIngress: options.attachmentIngress } : {}),
     managedDmlFieldRules,
     ...(fieldAccessTargetUsers === undefined ? {} : { fieldAccessTargetUsers }),

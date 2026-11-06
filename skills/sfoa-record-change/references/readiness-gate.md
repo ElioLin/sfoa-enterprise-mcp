@@ -2,7 +2,7 @@
 
 `CHANGE_READY` 是 **Evidence-Based Mutation Readiness**，不是 Tool-Call-Count-Based Readiness。它的唯一用途是回答一个问题：**现在可以把这条记录安全地交给 Salesforce 吗？**
 
-`CHANGE_READY` 不是 MCP Tool、不是数据库字段、不是事务状态、不是 Ready Token，也不是新的 Workflow Engine。它是 Agent 在当前证据上的判断结论。当前 Runtime 没有为它增加任何存储或协议；不要向用户或下游声称存在这样的机制。
+`CHANGE_READY` 不是 MCP Tool、不是数据库字段、不是事务状态、不是 Ready Token，也不是新的 Workflow Engine。它是 Agent 在当前证据上的判断结论。`formContext.status` 是 MCP 本次计算的表单就绪事实，不替代业务意图、唯一目标与合法值判断，也不是写入凭证。
 
 CREATE 与 UPDATE 共用这一个逻辑概念，但**判断条件不同**。**MUST NOT** 为 UPDATE 新增 DB 状态、新 Tool、新 Runtime Enum、State Table、Mutation Workflow DB 或 Patch Approval Token。本 Skill 始终只是 Agent Operating Doctrine。
 
@@ -40,6 +40,8 @@ Evidence-Based Mutation Readiness
 | Mutation Intent 与最终 payload 不一致 | payload 超出业务任务或违反用户明确限定 |
 | 用户已显式指定但解析失败 | 例如显式 Owner / Lookup 0 match、multiple match |
 
+未决事实确实可能改变所选表单的适用必填，或影响提交字段合法性及 Lookup/Picklist，且现有可靠证据无法消解时，属于 Critical Dynamic Dependency；`criticalUnknown` 必须先解决，API 已有值不能替代该判断。
+
 ## UPDATE 的 blocking conditions
 
 | Blocking condition | 判定依据 |
@@ -57,10 +59,12 @@ Evidence-Based Mutation Readiness
 | Dependent Picklist controller 未确定 | controller 值未知 |
 | Managed 字段规则未满足 | 要求修改严格 managed 字段，或显式 Owner 解析失败 |
 | Record Type 意图未解析 | 用户要求变更但候选 / 许可未确认 |
+| 所选 Edit 表单必填未满足 | 保存值加 Patch 后 missingRequired 非空，包含历史空值 |
+| 关键表单证据未知 | criticalUnknown 可能改变当前入口适用必填 |
 | Evidence 不足或被截断 | 关键的 UPDATE context 事实缺失 |
 | Mutation Intent 与最终 Patch 不一致 | Patch 超出业务任务或违反用户明确限定 |
 
-`CREATE required` 与 `UPDATE missing required` **不是同一个 blocking condition**。记录已存在时，创建期必填缺口不构成 UPDATE 阻塞。
+`CREATE required` 与 `UPDATE missing required` **不是同一个 blocking condition**。只由创建期定义推导的缺口不阻塞 UPDATE；当前所选 Edit 表单明确要求且保存值为空的字段仍须满足。
 
 全部 blocking condition 为 false 时才可以 `CHANGE_READY=true`，然后才允许调用对应的写入 Tool。
 
@@ -70,7 +74,7 @@ Evidence-Based Mutation Readiness
 - 只因为 Runtime `coverage=PARTIAL`。`coverage` 描述解析范围，不等于本次 mutation 不可行；要看 Critical Dependency 是否受影响。
 - 只因为 `resolutionStatus=RESOLVED` 之外存在与本次 mutation 无关的 UNKNOWN。
 - 只因为 optional 字段为空。Optional 不是必填。
-- 只因为无关、未提交、非必填字段的 PENDING 显示条件未决；或合法草案、适用默认/managed 已满足 API 必填而 UI visibility=UNKNOWN。只有未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才形成关键缺口。
+- 只因为无关、未提交、非必填字段的 PENDING/UNKNOWN 显示条件未决。影响所选表单适用必填的 criticalUnknown 必须停止，不能因 API 必填已有值就忽略 UI 必填的不确定性。
 - 只因为查重 0 行。0 行只说明当前可见 / 查询范围内未发现，不证明全局唯一；它不阻塞 CREATE，但也不得被表述为「没有重复」。
 - 只因为字段是严格 managed。严格 managed 由 Runtime 负责，不是 Agent 的缺口。
 - 只因为多个 Record Type、optional 字段未被点名或值来自忠实提炼/可靠关联；这些不是追问理由。适用 CREATE fallback 可直接省略交由 Runtime，UPDATE 不重放默认。

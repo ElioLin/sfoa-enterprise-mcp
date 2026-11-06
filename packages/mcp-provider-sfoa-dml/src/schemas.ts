@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dmlFormContextSchema } from './form-context.js';
 
 export type SalesforceFieldValue = string | number | boolean | null;
 
@@ -62,6 +63,7 @@ export const createRecordInputSchema = z
   .object({
     objectApiName: objectApiNameSchema,
     recordTypeId: recordTypeIdSchema.optional(),
+    formContext: dmlFormContextSchema.optional().describe('Optional selected desktop form. The Host verifies current requiredness immediately before dispatch. Native Quick Action is explicit; context IDs are not authorization.'),
     uiContextResolutionId: z.string().uuid().optional().describe('Optional opaque ID returned by the last CREATE action context. Audit provenance only; never changes authorization or Salesforce payload.'),
     fields: fieldsSchema,
   })
@@ -85,6 +87,8 @@ export const updateRecordInputSchema = z
   .object({
     objectApiName: objectApiNameSchema,
     recordId: recordIdSchema,
+    formContext: dmlFormContextSchema.optional(),
+    uiContextResolutionId: z.string().uuid().optional().describe('Optional audit correlation only; never authorizes UPDATE.'),
     fields: fieldsSchema,
   })
   .strict();

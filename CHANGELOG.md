@@ -1,3 +1,9 @@
+# Selected record form precision (2026-11-06)
+
+- Add opt-in current desktop New/Edit and explicit native Quick Action form context, separate requiredness and value evidence, and scoped Profile/app/page resolution.
+- Recheck selected forms immediately before governed CREATE/UPDATE dispatch; retain legacy calls and unknown mutation handling.
+- Add bounded optional recent-field statistics and protected, readable audit facts. Actual validation and UI parity status remain in [the implementation record](docs/sfoa/RECORD_CHANGE_PRECISION_20261106.md).
+
 # Agent Material Workflows HOTFIX-01 (2026-11-05)
 
 - Preserve DOCX wrapped body facts and truthful partial coverage; merge genuine same-content receipts without losing stronger reading or confirmed per-target upload outcomes.

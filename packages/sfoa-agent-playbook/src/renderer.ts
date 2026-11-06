@@ -2,6 +2,7 @@ import { DATA_COMPLETENESS_TOOL_NAMES, DIAGNOSTICS_TOOL_NAMES, type AgentCapabil
 import {
   AGENT_WORKFLOWS,
   MATERIAL_WORKFLOW_SUMMARY,
+  FORM_CONTEXT_SUMMARY,
   PLAYBOOK_DEFINITION,
   WORKFLOW_SECTION_MAP,
   type AgentWorkflow,
@@ -18,6 +19,7 @@ export function renderServerInstructions(capabilities?: AgentCapabilities): stri
   return [
     `SFoA Salesforce Agent Playbook ${AGENT_PLAYBOOK_VERSION}.`,
     MATERIAL_WORKFLOW_SUMMARY,
+    FORM_CONTEXT_SUMMARY,
     'Use enabled MCP Tools for live Salesforce facts; never guess current records, Picklist values, Lookup targets, required values, or Salesforce identity.',
     "Identity is MCP-owned. Use enabled `get_record_action_context` when needed, reuse applicable facts, and build task-scoped CREATE/UPDATE drafts with faithful synthesis and reliable related completion. Relevant optional fields may be written without individual naming. Minimal Patch is the actual changes needed for the task; respect explicit only-change limits.",
     "For CREATE use availableRecordTypes: exclude Master if a non-Master candidate exists, keep Master when it is the only available type. Resolve multiple types from task meaning, candidate labels/descriptions and an applicable default; ask only for remaining business ambiguity. Load the chosen type context before fields and pass the resolved non-Master ID to CREATE. This Tool dependency does not require two user turns.",
@@ -84,6 +86,7 @@ export function renderWorkBuddySkill(): string {
     '2. Before mutation or diagnosis, read [references/safety-boundaries.md](references/safety-boundaries.md).',
     '3. Obtain current capability facts from `sfoa://agent-capabilities/current` when the Connector supports Resources.',
     '4. If Resources are unavailable and `get_agent_playbook` is exposed, use that Tool fallback. Never call an absent Tool.',
+    FORM_CONTEXT_SUMMARY,
     renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST', 'DATA_COMPLETENESS', 'DIAGNOSTICS'], undefined),
     '',
     '## WorkBuddy identity',
@@ -156,7 +159,7 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- `PLATFORM_IDENTITY`、`AI_CREATED_MARKER` 严格托管，Agent payload 省略。已配置且适用的 CREATE `PLATFORM_IDENTITY_FALLBACK` 无相反要求时直接省略交由 Runtime，无需固定询问，不查询当前用户 ID；任务相关责任人可按真实 Lookup 解析，指定失败不得偷换默认。用户说「以 X 的名义/账号创建」「归属给 X」时，先取 `get_record_action_context`，按托管归属字段的 `referenceTo` 确定目标对象（不要默认按 `User` 解析），在该对象上解析 X 的唯一 ID 并写入该托管字段；不得改用 `OwnerId`；不唯一或无匹配时先问，不得 fallback。无关 UPDATE 不重放 fallback。',
     '- 新建使用真实 `availableRecordTypes`：存在非 Master 类型时排除 Master，仅剩 Master 时保留；按任务与适用默认解析类型并透传同一 `recordType.id`，不猜类型或 ID。',
     "- Record Type 先按任务、候选标签/描述及适用默认自主确定，再取该类型字段；recordTypeSelectionRequired 是技术依赖，不强制两轮对话。多候选本身不要求追问，仍有业务歧义才问。",
-    "- Minimal Patch 提交完成业务任务实际需要变化的字段，含忠实提炼和可靠关联；地址迁移可联动国家/省份/城市；由明确公司地址或已核实公司所在地判断出城市时，必须同时推断并写入对应省份/国家（当前字段可写且不与现有值冲突），不得只填城市不填省份；手机号本身不含地域，不要据此推断；座机区号本身不证明公司所在地；地名歧义先补证，仍影响任务才问。若用户限定只改总结，则不动无关地址。文本用适当文本、Picklist 用真实 API Value、Lookup 用真实 ID。未提供不清空、未变化不重发，UPDATE 不重放 CREATE 默认。",
+    "- Minimal Patch 提交完成业务任务实际需要变化的字段，含忠实提炼和可靠关联；地址迁移可联动国家/省份/城市；由明确公司地址或已核实公司所在地判断出城市时，必须同时推断并写入对应省份/国家（当前字段可写且不与现有值冲突），不得只填城市不填省份；手机号本身不含地域，不要据此推断；座机区号本身不证明公司所在地；地名歧义先补证，仍影响任务才问。若用户限定只改总结，则不动无关地址。文本用适当文本、Picklist 用真实 API Value、Lookup 用真实 ID。标准 UPDATE 未提供不清空、未变化不重发；UPDATE 不重放 CREATE 默认。原生 Quick Action 的明确预设覆盖值即使等于保存值也保留，并仅使用单条工具。",
     '',
     '## 未知结果',
     '',
@@ -168,7 +171,7 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- 以业务助手方式作答，不要输出 SOQL/JSON 原始转储。',
     '',
     MATERIAL_WORKFLOW_SUMMARY,
-    renderPlaybookSections('ALL', ['BATCH', 'COMPOUND', 'PICKLIST', 'DIAGNOSTICS'], capabilities),
+    renderPlaybookSections('ALL', ['FORM_CONTEXT', 'BATCH', 'COMPOUND', 'PICKLIST', 'DIAGNOSTICS'], capabilities),
     '',
   ].join('\n');
 }
@@ -197,7 +200,7 @@ function weComCapabilityLines(capabilities: AgentCapabilities | undefined): stri
     ? `- 更新：可用 — 对象范围 ${codeList(capabilities.updateAllowedObjects)}。${mutationToolShapeZh(capabilities, 'update_record', 'update_records')}`
     : '- 更新：不可用 — 未启用 `update_record`/`update_records` 或缺少有效更新对象策略；禁止更新。');
   lines.push(`- 诊断链就绪：${capabilities.diagnosticReady ? '是' : '否'}。`);
-  lines.push(`- 动态表单证据：\`${capabilities.dynamicFormEvidence}\`。`);
+  lines.push(`- 旧路径动态表单能力标记：\`${capabilities.dynamicFormEvidence}\`；所选创建/编辑表单以当前返回的 formContext 为准。`);
   lines.push(`- 平台托管 DML 字段：${managedFieldList(capabilities)}。`);
   return lines;
 }
@@ -213,7 +216,7 @@ export function renderSafetyReference(): string {
 export function renderWorkflowReference(): string {
   return renderSelectedReference(
     'SFoA Tool Workflows',
-    ['READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
+    ['READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'FORM_CONTEXT', 'CREATE', 'UPDATE', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST', 'RESPONSE_FORMAT', 'ERROR_HANDLING'],
   );
 }
 
@@ -252,7 +255,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
   if (!capabilities) {
     return [
       '- This is a distribution template. Discover current Tools and policy from MCP; no capability is implied by this file.',
-      '- Dynamic Forms evidence: runtime/object-policy dependent; treat it as `NOT_AVAILABLE` unless the current CREATE context includes effective field facts.',
+      '- Dynamic Forms evidence: context-dependent; inspect returned CREATE/UPDATE formContext and effective field facts. A legacy capability flag is not proof that the selected form has been resolved.',
     ];
   }
   return [
@@ -262,7 +265,7 @@ function capabilityLines(capabilities: AgentCapabilities | undefined): string[] 
     `- Attachment-enabled objects: ${codeList(capabilities.attachmentEnabledObjects)}. This is a separate authorization from CREATE/UPDATE and is never implied by either.`,
     `- READ (SOQL) scope: \`run_soql_query\` is NOT bounded by the CREATE/UPDATE allowlists above. It may read any object the authenticated Salesforce user can read — including Account, Opportunity, Contact, and custom objects that are not CREATE/UPDATE-listed — and those lists govern only \`create_record\`, \`update_record\`, \`create_records\` and \`update_records\`, never reads. The only read-side guard is the ORG_OBJECT_USAGE substitution rule for declared not-in-use standard objects.`,
     `- Diagnostic ready: \`${capabilities.diagnosticReady}\`.`,
-    `- Dynamic Forms evidence: \`${capabilities.dynamicFormEvidence}\`.`,
+    `- Legacy Dynamic Forms capability: \`${capabilities.dynamicFormEvidence}\`; selected CREATE/UPDATE form readiness comes from the current returned formContext.`,
     `- MCP-managed DML fields: ${managedFieldList(capabilities)}.`,
   ];
 }

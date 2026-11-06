@@ -4,6 +4,16 @@
 and UPDATE through public Provider/SDK APIs and the request-scoped USER Connection.
 No CLI, Tooling DML, Bulk API, UPSERT or DELETE is exposed.
 
+Optional `formContext` on CREATE/UPDATE opts into the Host's selected-form
+preflight after governance and managed fields, before mutation dispatch. STANDARD
+uses the existing DML executor with a verified minimal payload. Explicit native
+Create/Update Quick Actions use one USER action request; only singular Tools
+support that entry. Standard collection rows can each carry a form selection;
+unchanged rows must be omitted. `uiContextResolutionId` is audit correlation,
+never authorization. The bare Provider rejects unprepared `formContext` rather
+than silently skipping validation. Omitted form selections preserve prior behavior.
+See [ADR-0036](../../docs/sfoa/adr/ADR-0036-selected-record-form-precision.md).
+
 `create_record` and `update_record` retain their original one-record contracts.
 `create_records` and `update_records` accept one object and 1..200 records with
 optional unique clientReferenceId (<=128 characters), per-item CREATE recordTypeId

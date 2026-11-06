@@ -13,6 +13,7 @@ import type {
 import { RecordActionContextExecutor } from './record-action-executor.js';
 import { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
 import type { EffectiveUiOptions } from './effective-ui-contracts.js';
+import type { PrecisionFormOptions } from './precision-executor.js';
 import { RecordDisplayContextExecutor } from './record-display-executor.js';
 import { DiagnosticToolingQueryMcpTool } from './tools/diagnostic-tooling-query.js';
 import { ExplainFieldAccessMcpTool } from './tools/explain-field-access.js';
@@ -83,6 +84,7 @@ export function isSfoaContextToolName(value: string): value is SfoaContextToolNa
 export type SfoaContextProviderOptions = Readonly<{
   createAllowedObjects?: readonly string[];
   effectiveUi?: EffectiveUiOptions;
+  precision?: PrecisionFormOptions;
   toolNames?: readonly SfoaContextToolName[];
   diagnosticQueryExecutor?: DiagnosticToolingQueryExecutor;
   metadataListExecutor?: MetadataComponentLister;
@@ -110,7 +112,7 @@ export class SfoaContextMcpProvider extends McpProvider {
     const presentation = new PresentationRelationshipExecutor(services.getOrgService(), this.options.createAllowedObjects);
     if (requested.includes('get_record_action_context')) {
       tools.push(new RecordActionContextMcpTool(new RecordActionContextExecutor(services.getOrgService(),
-        this.options.effectiveUi ? new EffectiveRecordUiContextResolver(this.options.effectiveUi) : undefined)));
+        this.options.effectiveUi ? new EffectiveRecordUiContextResolver(this.options.effectiveUi) : undefined, this.options.precision)));
     }
     if (requested.includes('run_diagnostic_tooling_query')) {
       if (!this.options.diagnosticQueryExecutor) {

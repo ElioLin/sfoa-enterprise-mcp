@@ -1,6 +1,6 @@
 # CREATE Readiness
 
-本文件是 CREATE 的 doctrine：如何发现事实、如何验证事实、什么条件阻塞写入。它不是固定的 Tool 调用脚本，也不规定必须按某个顺序调用哪个 Tool。有效上下文可以复用，没有必要的调用可以跳过。
+本文件是 CREATE 的 doctrine：如何发现事实、如何验证事实、什么条件阻塞写入。使用 [精确表单流程](precise-forms.md) 的 START/REFINE 与提交前复核；本任务有效字段结构可复用，不做无关调用。
 
 ## 当前 CREATE contract（以代码为准，不要凭记忆）
 
@@ -12,10 +12,11 @@
 | `action` | 必需，`CREATE` |
 | `recordTypeId` | 可选；显式给出时必须属于当前候选 |
 | `recordId` | CREATE 禁止 |
-| `draftFields` | CREATE 专用，可选；任务草稿值（提示、已读材料、可靠关联），用于条件可见性；missing 与 `null` / `false` / `0` / 空串不同 |
-| `refinement` | CREATE 专用，可选；初始 0，最大 3 |
+| `formContext` | 默认选 STANDARD；明确原生 Quick Action 才传 QUICK_ACTION 与真实名称/来源 |
+| `draftFields` | 可选；任务草稿值（提示、已读材料、可靠关联），用于条件可见性；missing 与 `null` / `false` / `0` / 空串不同 |
+| `refinement` | 可选；初始 0，最大 3 |
 
-`draftFields` 与 `refinement` 是 CREATE 专用。UPDATE 不允许照搬这套机制。`recordTypeSelectionRequired=true` 时 Create Defaults / Picklist 相关事实还没有加载。
+`draftFields` 与 `refinement` 在开启 `formContext` 的 UPDATE 中也可使用，但保存值与 Patch 的合并规则不同，不能重放 CREATE defaults。`recordTypeSelectionRequired=true` 时 Create Defaults / Picklist 相关事实还没有加载。
 
 CREATE 输出的关键字段：`recordType`、`availableRecordTypes`、`recordTypeSelectionRequired`、`fields[]`、`uiContext`、`uiContextResolutionId`、`coverage`。
 
@@ -71,7 +72,7 @@ VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠
 → 先用已有材料、上下文与可用读取解决，仍缺关键事实时进入 Missing Required Checklist
 ```
 
-`apiRequired=true` 与 UI 可见性无关：即使字段在 UI 上 HIDDEN，API 必填语义仍然存在。合法草案值或现有适用默认/managed 已满足 API 必填时，UI UNKNOWN 不新增缺口；真正缺 API 必填仍不就绪。未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才属于 Critical Dynamic Dependency。
+`apiRequired=true` 与 UI 可见性无关：即使字段在 UI 上 HIDDEN，API 必填语义仍然存在。合法草案值或适用默认/managed 可满足该值义务，但不能消除仍可能改变 UI 必填的 `criticalUnknown`。未决事实确实可能改变所选表单的适用必填，或影响提交字段合法性及 Lookup/Picklist，且现有可靠证据无法消解时，属于 Critical Dynamic Dependency，必须先解决。
 
 同时要区分：
 
@@ -84,7 +85,7 @@ VISIBLE + effectiveRequired=true + 当前没有合规任务草稿值（包括忠
 
 ## Requiredness Source（当前 USER + Record Type + action）
 
-必填口径按当前 USER、Record Type 与 action 的真实可用事实解析。CREATE effective resolver 可解析 active Lightning page；UPDATE 不具备完整 Edit Dynamic Forms。requiredChecklist 表示定义，不等于缺值问题清单；先比较材料、草案、原始 defaults 与 managed。
+必填口径按当前 USER、Record Type、action 与所选入口的真实事实解析。精确 CREATE/UPDATE 使用 `formContext`：MCP 解析当前 active Lightning page 或动作自己的布局，UPDATE 合并保存值与 Patch。requiredChecklist 表示定义，不等于缺值问题清单；先比较材料、草案、原始 defaults、managed 与适用保存值。
 
 - `DYNAMIC_FORMS` / `MIXED`：使用 action context 的 `effectiveRequired` / `requiredSource`；**MUST NOT** 把 page-layout-only 的 `layoutRequired` 当成有效必填。
 - `PAGE_LAYOUT` / Default / Standard：使用当前 action 的 Record Type 页面布局 `apiRequired || layoutRequired`；CREATE 用 CREATE 的 action context，UPDATE 用 UPDATE 的 action context。

@@ -108,6 +108,13 @@
 .payload-metadata-card > span, .payload-metadata-card > small { color: var(--sfoa-muted); overflow-wrap: anywhere; }
 .payload-viewer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .payload-code-block { min-height: 260px; max-height: 60vh; white-space: pre; }
+.form-context-table-wrap { max-width: 100%; overflow: auto; }
+.form-context-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 12px; }
+.form-context-table th, .form-context-table td { max-width: 320px; padding: 9px 10px; border: 1px solid var(--sfoa-border); vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+.form-context-table th { background: var(--sfoa-canvas); }
+.form-context-rule { padding: 10px; border: 1px solid var(--sfoa-border); border-radius: 8px; margin-bottom: 8px; }
+.form-context-rule > summary { cursor: pointer; }
+.form-context-rule[open] > summary { margin-bottom: 12px; }
 
 @media (max-width: 1199px) {
   .audit-filter-core-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }

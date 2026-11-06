@@ -1,4 +1,8 @@
-Current guidance is **1.13.3**: submission-specific critical dependencies and
+Current guidance is **1.14.0**: selected CREATE/UPDATE `formContext` with standard
+and native Quick Action entries, Profile-default app resolution, full applicable
+Edit requiredness against saved values plus minimal patches, automatic pre-dispatch
+freshness checks, critical UNKNOWN stopping and non-blocking optional statistics.
+It retains submission-specific critical dependencies and
 business-semantic Record Type choice, accumulated material evidence and task continuity,
 relevant optional-field synthesis, applicable business/event duplicate checks,
 API-required versus page-required facts, and optional original-file archiving.
@@ -26,7 +30,7 @@ The existing Page Layout and managed Lookup fallback workflows remain available.
 Run `yarn agent:sync` and `yarn agent:check` at the root; generated client artifacts
 must never be edited independently.
 
-Production modules define Playbook version `1.13.3`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds.
+Production modules define Playbook version `1.14.0`, sections, safe capability facts, workflow selection, and deterministic renderers. They perform no filesystem, network, database, Salesforce Connection, credential, or secret access and can be consumed by both Node.js and browser builds. FORM_CONTEXT is included in CREATE/UPDATE, not READ/DIAGNOSIS; generic Tool compatibility does not prove selected-form readiness.
 
 Besides the checked-in Dify instruction and WorkBuddy Skill, `renderWeComRoleSetting(capabilities?)` deterministically renders the 企业微信智能机器人 (WeCom Smart Bot) recommended role setting (推荐角色设定). It is Chinese-first, capability-aware, and secret-free, written in business semantics for the assistant persona: it always acts for the current WeCom user under that user's Salesforce permissions. It deliberately carries no identity-implementation detail — the WeCom platform auto-injects the current user's identity header (`WECOM_HEADER` / `X-WeCom-User-Id`) at the enterprise MCP ingress per request — and it never reuses Buntu/USER_BOUND host semantics nor embeds any token the agent should hold or echo.
 

@@ -27,6 +27,7 @@ export class DmlExecutor {
 
   public async create(input: CreateRecordInput): Promise<string> {
     this.allowlist.assertAllowed(input.objectApiName, 'CREATE');
+    assertFormPrepared(input);
     try {
       const connection = await this.getRequestConnection();
       const sobject = connection.sobject(input.objectApiName);
@@ -63,6 +64,7 @@ export class DmlExecutor {
 
   public async update(input: UpdateRecordInput): Promise<string> {
     this.allowlist.assertAllowed(input.objectApiName, 'UPDATE');
+    assertFormPrepared(input);
     try {
       const connection = await this.getRequestConnection();
       const sobject = connection.sobject(input.objectApiName);
@@ -100,6 +102,7 @@ export class DmlExecutor {
   }
 
   private async batch(operation: 'CREATE' | 'UPDATE', input: CreateRecordsInput | UpdateRecordsInput): Promise<BatchDmlOutput> {
+    for (const item of input.records) assertFormPrepared(item);
     // One Salesforce collection request cannot express two different updates to the same
     // record: the commit order alone would decide the final value. Reject it before any
     // allowlist read, Connection lookup or dispatch.
@@ -193,4 +196,9 @@ export function batchFailureOutput(input: { records: readonly { clientReferenceI
 
 function copyFields(fields: Readonly<Record<string, SalesforceFieldValue>>): Record<string, SalesforceFieldValue> {
   return { ...fields };
+}
+
+function assertFormPrepared(input: { formContext?: unknown }): void {
+  if (input.formContext) throw new DmlRuntimeError('MCP_DML_CONFIGURATION_INVALID',
+    'The requested form context must be verified by the configured Host before mutation dispatch.');
 }

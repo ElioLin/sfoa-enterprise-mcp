@@ -16,6 +16,11 @@ The repository was cloned with full Git history. It was not downloaded as a ZIP 
 
 ## Integration policy
 
+2026-11-06 selected-form precision changes only SFoA packages, canonical/generated
+Skills, and project documentation. The required CHANGELOG preface uses its existing
+modification-matrix exception. No official Salesforce implementation, dependency,
+lockfile or CI changes are needed; merge risk is limited to that documentation preface.
+
 2026-11-05 HOTFIX-01 changes the root `package.json` build entry to the small
 SFoA-owned `scripts/build-workspaces.mjs` and adds `test:build`. Yarn Classic's
 resolved dependency graph orders existing workspace scripts and propagates failures;

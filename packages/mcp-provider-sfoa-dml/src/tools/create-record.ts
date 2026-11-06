@@ -38,6 +38,7 @@ export class CreateRecordMcpTool extends McpTool<InputShape, OutputShape> {
     return {
       title: 'Create Salesforce Record',
       description:
+        'Optional formContext requests current selected-form preflight in the Host; pass the selection from get_record_action_context. STANDARD uses normal DML; explicitly selected native Create Quick Actions use their own action endpoint and verified target type. Critical unknown or missing required values prevent dispatch. uiContextResolutionId is audit correlation only. ' +
         'Creates exactly one record in an explicitly allowlisted Salesforce object through the authenticated request identity. This mutation is not idempotent. If a Tool/request timeout or transport interruption makes the outcome unknown, do not automatically retry: first use a read-only Tool to verify Salesforce state, and inform the user when the state cannot be confirmed. Provide objectApiName and non-empty scalar fields. Optionally provide recordTypeId to create under an explicit Record Type available to the current user; when given, the payload RecordTypeId is guaranteed to match it and must not be repeated with a conflicting fields.RecordTypeId. This Tool does not accept identity, org, URL, API-version, operation, relationship, bulk, upsert, or delete inputs. Returns only success and the new record ID.',
       inputSchema: createRecordInputShape,
       outputSchema: dmlOutputSchema.shape,

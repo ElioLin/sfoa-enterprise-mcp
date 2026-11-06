@@ -60,7 +60,8 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
     ]);
     const playbook = await client.readResource({ uri: AGENT_PLAYBOOK_RESOURCE_URI });
     assert.match(resourceText(playbook), new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION.replace(/\./gu, '\\.')}`, 'u'));
-    assert.match(resourceText(playbook), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
+    assert.match(resourceText(playbook), /Legacy Dynamic Forms capability: `NOT_AVAILABLE`/u);
+    assert.match(resourceText(playbook), /selected CREATE\/UPDATE form readiness comes from the current returned formContext/u);
     assert.match(resourceText(playbook), /READ \(SOQL\) scope/u);
     assert.match(resourceText(playbook), /NOT bounded by the CREATE\/UPDATE allowlists/u);
     for (const section of ['READ', 'CREATE', 'UPDATE', 'DIAGNOSIS']) {
@@ -85,9 +86,15 @@ test('MCP-native Agent guidance exposes Instructions, Resources, Prompt, fallbac
     const prompt = await client.getPrompt({ name: AGENT_PROMPT_NAME, arguments: { workflow: 'CREATE' } });
     assert.match(promptText(prompt), /Workflow: CREATE/u);
     assert.match(promptText(prompt), /MCP_DML_OUTCOME_UNKNOWN/u);
+    assert.match(promptText(prompt), /## FORM_CONTEXT —/u);
+    assert.match(promptText(prompt), /QUICK_ACTION requires a singular create_record\/update_record call/u);
+    const updatePrompt = await client.getPrompt({ name: AGENT_PROMPT_NAME, arguments: { workflow: 'UPDATE' } });
+    assert.match(promptText(updatePrompt), /## FORM_CONTEXT —/u);
+    assert.match(promptText(updatePrompt), /saved values.*patch/u);
     const readPrompt = await client.getPrompt({ name: AGENT_PROMPT_NAME, arguments: { workflow: 'READ' } });
     assert.match(promptText(readPrompt), /Workflow: READ/u);
     assert.match(promptText(readPrompt), /## READ —/u);
+    assert.doesNotMatch(promptText(readPrompt), /## FORM_CONTEXT —/u);
     const allPrompt = await client.getPrompt({ name: AGENT_PROMPT_NAME, arguments: { workflow: 'ALL' } });
     assert.match(promptText(allPrompt), /Workflow: ALL/u);
     assert.match(promptText(allPrompt), /## DIAGNOSIS —/u);

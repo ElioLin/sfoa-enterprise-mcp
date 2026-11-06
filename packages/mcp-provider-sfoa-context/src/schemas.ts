@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DEBUG_LEVEL_TIER_NAMES, DEBUG_LEVEL_VALUES } from './debug-levels.js';
 import { uiContextSchema, visibilityStateSchema } from './effective-ui-contracts.js';
+import { formContextRequestSchema, formContextResultSchema } from './precision-contracts.js';
 
 const apiNamePattern = /^[A-Za-z][A-Za-z0-9_]*$/u;
 const salesforceIdPattern = /^(?:[A-Za-z0-9]{15}|[A-Za-z0-9]{18})$/u;
@@ -21,6 +22,7 @@ export const salesforceIdSchema = z
 export const recordActionContextInputObjectSchema = z.object({
     objectApiName: objectApiNameSchema,
     action: z.enum(['CREATE', 'UPDATE']).describe('Record action whose current USER context is required.'),
+    formContext: formContextRequestSchema.optional().describe('Precise desktop standard or explicit native Quick Action form. Fresh scoped configuration; requiredness-affecting UNKNOWN blocks readiness. Omit to retain legacy context.'),
     recordTypeId: salesforceIdSchema.optional().describe('Optional currently available Salesforce Record Type ID.'),
     recordId: salesforceIdSchema.optional().describe('Required for UPDATE; forbidden for CREATE.'),
     fieldApiNames: z.array(objectApiNameSchema).min(1).max(50).optional()
@@ -30,14 +32,18 @@ export const recordActionContextInputObjectSchema = z.object({
       .optional().describe('Continue truncated Picklist candidates for the same object/action/Record Type. Field API name to exact nextValueOffset returned by context; no identity or value inference. Requested fields are prioritized within the existing response budget.'),
     draftFields: z.record(objectApiNameSchema, z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]))
       .refine((value) => Object.keys(value).length <= 200 && JSON.stringify(value).length <= 32768, 'draftFields exceeds its bound')
-      .optional().describe('CREATE only: task draft values for conditional visibility, including faithful extraction and verified related values; USER_EXPLICIT is a draft-source tag, not proof of authorship or verification; missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
-    refinement: z.number().int().min(0).max(3).optional().describe('CREATE only: Dynamic Context refinement number, 0 initially, at most 3. Stop asking for refinements at 3.'),
+      .optional().describe('Task draft values for CREATE, or UPDATE with formContext. Includes faithful extraction and verified related values; a draft-source tag is not proof of authorship or verification. Missing differs from null, false, zero and empty string. Never persisted as UI metadata.'),
+    refinement: z.number().int().min(0).max(3).optional().describe('Dynamic Context refinement number, 0 initially, at most 3. UPDATE requires formContext. Stop asking for refinements at 3.'),
     includeRequiredness: z.boolean().optional().describe('Opt in to the additive coverage.requirednessSource and requiredChecklist projection. Default false preserves the legacy response. The projection never changes visibility, permissions or DML scope.'),
     includeValueAssessment: z.boolean().optional().describe('CREATE only, default false: assess the bounded draft against already loaded requiredness and raw Salesforce defaults, without additional Salesforce reads. Also includes requiredness facts. PROVIDED is not validation, ABSENT is not proof the user omitted a fact, and defaults/managed values are not writes. Keep final long DML values outside the bounded draft when necessary.'),
   }).strict();
 
 export const recordActionContextInputSchema = recordActionContextInputObjectSchema.superRefine((input, context) => {
-    if (input.action === 'UPDATE' && (input.draftFields !== undefined || input.refinement !== undefined)) {
+    if (input.formContext && input.includeValueAssessment === true) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['includeValueAssessment'],
+        message: 'formContext already provides the selected form value assessment; omit the legacy CREATE-only includeValueAssessment option.' });
+    }
+    if (input.action === 'UPDATE' && !input.formContext && (input.draftFields !== undefined || input.refinement !== undefined)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'draftFields and refinement are CREATE-only' });
     }
     if (input.action === 'UPDATE' && input.includeValueAssessment === true) {
@@ -181,9 +187,9 @@ const diagnosticFailureFields = {
   prerequisite: z.string().max(128).optional(),
 };
 
-const requiredSourceSchema = z.enum(['API', 'PAGE_LAYOUT', 'DYNAMIC_FORM']);
+const requiredSourceSchema = z.enum(['API', 'PAGE_LAYOUT', 'DYNAMIC_FORM', 'QUICK_ACTION']);
 const requirednessSourceSchema = z.enum([
-  'EFFECTIVE_REQUIRED', 'PAGE_LAYOUT_REQUIRED', 'PAGE_LAYOUT_FALLBACK', 'UNRESOLVED',
+  'EFFECTIVE_REQUIRED', 'PAGE_LAYOUT_REQUIRED', 'PAGE_LAYOUT_FALLBACK', 'QUICK_ACTION_REQUIRED', 'UNRESOLVED',
 ]);
 const requiredChecklistItemSchema = z
   .object({
@@ -307,6 +313,7 @@ export const recordActionContextOutputSchema = z
     recordTypeSelectionRequired: z.boolean().optional(),
     uiContext: uiContextSchema.optional(),
     uiContextResolutionId: z.string().uuid().optional(),
+    formContext: formContextResultSchema.optional(),
     fields: z.array(recordFieldContextSchema).optional(),
     requiredChecklist: z.array(requiredChecklistItemSchema).optional(),
     valueAssessment: createValueAssessmentSchema.optional(),

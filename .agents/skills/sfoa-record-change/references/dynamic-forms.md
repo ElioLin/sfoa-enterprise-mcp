@@ -1,13 +1,15 @@
 # Dynamic Forms Doctrine
 
-本文件处理 CREATE 的字段可见性与条件必填。按本次提交需要判断关键依赖，保留真实覆盖限制，不把整张页面解析完成当成统一写入前提。
+本文件处理所选 CREATE/UPDATE 表单的字段可见性与条件必填。按 [精确表单流程](precise-forms.md) 使用 `formContext`，检查全部适用必填并保留真实覆盖限制；无关可选未知不阻断。
 
 ## 先确认这次是否真的用了 Dynamic Forms
 
-CREATE 输出里的 `uiContext` 与 `coverage.dynamicFormsEvaluated` 才能说明本次是否使用了 Dynamic Forms：
+精确路径先看 `formContext.formSource/status/criticalUnknown`。DYNAMIC_FORMS/MIXED 使用当前有效页面，PAGE_LAYOUT 使用当前动作布局，QUICK_ACTION 使用动作自己的表单。不得按“有没有记录详细信息”先跳过混合页中的 Dynamic Forms。
+
+兼容旧 CREATE 输出时，`uiContext` 与 `coverage.dynamicFormsEvaluated` 说明旧路径是否使用了 Dynamic Forms：
 
 - `uiContext` 存在且 `mode=ENFORCE`、`formSource` 为 `DYNAMIC_FORMS` 或 `MIXED`、`fallbackUsed=false` 时，`fields[]` 才带有 `visibilityState`、`effectiveRequired`、`effectiveEditable`、`requiredSource`、`dependsOn` 等有效属性。
-- 发生 PAGE_LAYOUT fallback（`fallbackUsed=true`、`formSource=UNRESOLVED`、`resolutionStatus=UNRESOLVED`，或 `uiContext` 缺失）时，返回的是既有 Page Layout 结果，**没有** effective 属性。此时**MUST NOT** 假装做过 Dynamic Forms 判断，应按当前 Playbook 的 Page Layout 工作流处理，并如实说明 fallback 与 `fallbackReason`。
+- 发生 PAGE_LAYOUT fallback（`fallbackUsed=true`、`formSource=UNRESOLVED`、`resolutionStatus=UNRESOLVED`，或 `uiContext` 缺失）时，返回的是既有 Page Layout 结果，**没有** effective 属性。此时**MUST NOT** 假装做过 Dynamic Forms 判断，也不能据此宣称精确表单已就绪；如实说明 fallback 与 `fallbackReason`。
 - `coverage.completeLightningPageEvaluated` 在当前 contract 中恒为 `false`。**MUST NOT** 声称整张 Lightning Page 已被 100% 完整解析。
 
 ## 四态语义
@@ -49,7 +51,7 @@ field.visibilityState == PENDING && dependsOn == [...]
 - 依赖的记录字段类型未知
 - 依赖 `$Permission.*` 等当前不可用的事实
 - 任意关系路径、record-dependent 表达式
-- section / container 级的 record-dependent 规则（当前对未保存 draft 保守返回 UNKNOWN）
+- section / container 级缺少可证明的页面加载事实；UPDATE 使用已保存值，不能把未保存 draft 代入区块条件
 - 布尔过滤器无法解析或超出深度
 - 比较时左右类型不匹配
 
@@ -57,9 +59,9 @@ field.visibilityState == PENDING && dependsOn == [...]
 
 ## Critical Dynamic Dependency
 
-未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist，且现有可靠证据无法消解时，才属于 **Critical Dynamic Dependency**，此时 `CHANGE_READY=false`。无关、未提交、非必填字段的 PENDING 显示条件不阻断已确定写入。
+未决事实确实可能改变所选表单的适用必填，或影响提交字段合法性及 Lookup/Picklist，且现有可靠证据无法消解时，属于 **Critical Dynamic Dependency**，此时 `CHANGE_READY=false`。无关、未提交、非必填字段的 PENDING/UNKNOWN 显示条件不阻断已确定写入。
 
-合法草案值或现有适用默认/managed 已满足 API 必填时，UI UNKNOWN 不新增缺口；真正缺 API 必填、关键 Lookup/Picklist 未解或明确 API 不可写仍需解决。单纯页面显隐或页面只读未知，不等于 API 无写权限，也不新增所有 DML 都必须通过的页面门槛。开发测试 oracle 只验证指导契约，不能接入服务端作为 DML 门禁。
+API 必填已有合法值并不能消除仍可能改变 UI 必填的 `criticalUnknown`。页面状态与 FLS 分别判断；精确契约在提交前验证所选表单，旧通用 API 仍兼容，但 Skill 不能删掉 formContext 绕过已发现的关键缺口。开发测试 oracle 只验证指导契约，不接入服务端充当判定器。
 
 反之，如果只是与本次 mutation 无关的 non-critical UNKNOWN，并且 Runtime 已经足够证明：
 
@@ -71,7 +73,7 @@ field.visibilityState == PENDING && dependsOn == [...]
 
 ## Refinement
 
-使用当前 Runtime 真实允许的 contract，不要自己虚构次数。当前 contract 是 `refinement` 取值 `0..3`，`uiContext.maxRefinements=3`，`uiContext.refinementLimitReached` 在 `refinement=3` 时为 true。
+使用当前 Runtime 真实允许的 contract，不要自己虚构次数。当前 contract 是 `refinement` 取值 `0..3`；精确路径从 START 进入 REFINE，最多三次。旧路径 `uiContext.maxRefinements=3`，`uiContext.refinementLimitReached` 在 `refinement=3` 时为 true。
 
 ```text
 Initial Context
@@ -85,12 +87,12 @@ Initial Context
 
 ```text
 CHANGE_READY=false
-不得 CREATE
+不得 CREATE / UPDATE
 ```
 
 并如实告诉用户：当前 Salesforce 页面条件仍无法充分解析，需要补充信息或无法安全执行。**MUST NOT** 让模型直接猜。
 
-Runtime 不保存会话状态；refinement 计数由客户端自己保留。**MUST NOT** 假设存在跨调用的服务端状态。
+Runtime 不保存问答会话或草稿；refinement 计数由客户端保留。精确路径可用服务器返回的 `structuralContextRef` 在同一任务 REFINE 复用有界结构配置；这不包含 USER 字段事实或求值结果，不是跨任务会话状态。新任务 START 和真正提交的 SUBMIT 必须重新读取配置，或当次权威核验每个组件版本一致后复用；未经核验的缓存和 REFINE 引用不能替代提交检查。
 
 ## Evidence Completeness Gate
 

@@ -21,7 +21,7 @@ import {
   DUPLICATE_CHECK_STATUS, DUPLICATE_MATCH_STRENGTH, DUPLICATE_USER_DECISION,
   assertMinimalPatch, buildMinimalPatch, canonicalRecordIdentity, classifyFieldFact,
   dispatchSequentialBatches, evaluateBatchReadiness, evaluateCreateDuplicateGate, evaluateCreateReadiness,
-  evaluateOwnerIntent, evaluateRecordTypeIntent, evaluateUpdateReadiness, findDuplicateIdentityValues,
+  evaluateOwnerIntent, evaluateRecordTypeIntent, evaluateSelectedFormReadiness, evaluateUpdateReadiness, findDuplicateIdentityValues,
   findDuplicateUpdateTargets, groupByObject, planMutationBatches, reconcileUnknown, resolvePicklistValue,
   resolveUpdateTarget, retryEligibility, selectRetrySubset, shouldStopSubsequentBatches,
   summariseBatchOutcome, unknownOutcomePolicy,
@@ -201,10 +201,32 @@ test('record change entry retains its readiness hard-boundary content contract',
     assert.ok(body.includes(outOfScope), `SKILL.md must name ${outOfScope} as out of scope`);
   }
   // Every declared reference must stay reachable, so the routing list cannot silently drop one.
-  for (const name of ['readiness-gate', 'create-readiness', 'update-readiness', 'dynamic-forms',
+  for (const name of ['readiness-gate', 'create-readiness', 'update-readiness', 'dynamic-forms', 'precise-forms',
     'managed-lookups', 'lookup-and-picklist', 'duplicate-check', 'batch-mutations', 'outcome-reconciliation']) {
     assert.ok(body.includes(`(references/${name}.md)`), `SKILL.md must route to references/${name}.md`);
   }
+});
+
+test('precise form reference preserves native entry, task reuse, fresh submission and optional recommendation boundaries', async () => {
+  const reference = await readFile(path.join(projectRoot, 'skills/sfoa-record-change/references/precise-forms.md'), 'utf8');
+  for (const marker of ['formContext.entry=STANDARD', 'QUICK_ACTION', 'sourceRecordId', 'Profile 默认应用',
+    '所选 Edit 表单全部适用必填', '历史空值', 'structuralContextRef', 'configurationSource=TASK_REUSE',
+    '当次权威核验每个组件版本一致后复用对应配置', '未经核验的缓存与任务 REFINE 引用都不能绕过提交检查',
+    '不复用草稿、USER 字段事实或已计算的显隐结论',
+    'MCP_FORM_NOT_READY', '不能消除影响必填的 `criticalUnknown`', '当前非空值', '样本不足不扩窗、不跨类型',
+    '不额外增加确认轮次，不阻塞提交']) assert.ok(reference.includes(marker), marker);
+});
+
+test('selected form guidance preserves native action overrides and rejects unsupported collection or assessment combinations', async () => {
+  for (const relative of ['SKILL.md', 'references/precise-forms.md', 'references/update-readiness.md']) {
+    const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
+    assert.ok(text.includes('原生 Quick Action 为覆盖动作预设所需的明确值，即使等于保存值也必须保留'), relative);
+    assert.ok(text.includes('QUICK_ACTION 仅使用单条 create_record/update_record，不进入批量工具'), relative);
+  }
+  const reference = await readFile(path.join(projectRoot, 'skills/sfoa-record-change/references/precise-forms.md'), 'utf8');
+  assert.ok(reference.includes('不能同时传旧 `includeValueAssessment=true`'));
+  assert.ok(reference.includes('标准 UPDATE 继续只提交实际变化字段'));
+  assert.ok(reference.includes('不能承诺跨调用 allOrNone'));
 });
 
 test('record change readiness reference defines the gate, its blocking conditions and per-record scope', async () => {
@@ -333,14 +355,16 @@ test('outcome reconciliation reference forbids replaying UNKNOWN and resubmittin
 test('update readiness reference keeps target resolution, minimal patch and the CREATE separation', async () => {
   const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'update-readiness.md'), 'utf8');
   for (const marker of ['TARGET_RESOLVED', '0 match', 'multiple match', 'Minimal Patch',
-    'fieldUpdateable', 'layoutEditableForUpdate', 'effectiveEditable', 'draftFields and refinement are CREATE-only',
+    'fieldUpdateable', 'layoutEditableForUpdate', 'effectiveEditable', 'formContext',
     'CREATE Required  !=  UPDATE Missing Required', 'omission = preserve current value',
     'PLATFORM_IDENTITY_FALLBACK', 'Target Population', 'Claim Scope <= Evidence Scope',
     'dynamicFormsEvaluated']) {
     assert.ok(reference.includes(marker), `update-readiness.md is missing: ${marker}`);
   }
-  // The CREATE-only mechanism must be described as rejected by the runtime, not merely discouraged.
-  assert.ok(reference.includes('仅 CREATE'), 'update-readiness.md must mark draftFields/refinement CREATE-only');
+  assert.ok(reference.includes('开启 `formContext` 后可传待变更草稿'),
+    'UPDATE must permit drafts within the selected form contract');
+  assert.ok(reference.includes('无该契约的旧 UPDATE 保持原限制'),
+    'UPDATE must preserve the generic context compatibility boundary');
   // Record Type change must defer to Salesforce rather than simulate post-change UI state.
   assert.ok(reference.includes('MUST NOT** 自行模拟变更后的 Dynamic Forms 状态'),
     'update-readiness.md must refuse to simulate the post-change Dynamic Forms state');
@@ -367,7 +391,7 @@ test('batch mutation reference covers readiness, grouping, limits and progressiv
 test('record change Skill never hardcodes Salesforce truth', async () => {
   const directory = path.join(projectRoot, 'skills', 'sfoa-record-change');
   for (const relativePath of ['SKILL.md', 'references/readiness-gate.md', 'references/create-readiness.md',
-    'references/update-readiness.md', 'references/dynamic-forms.md', 'references/managed-lookups.md',
+    'references/update-readiness.md', 'references/dynamic-forms.md', 'references/precise-forms.md', 'references/managed-lookups.md',
     'references/lookup-and-picklist.md', 'references/duplicate-check.md', 'references/batch-mutations.md',
     'references/outcome-reconciliation.md']) {
     const text = await readFile(path.join(directory, relativePath), 'utf8');
@@ -1040,12 +1064,14 @@ test('UPDATE gate — Record Type is untouched unless explicitly requested', () 
   assert.equal(explicit.blocked, false);
 });
 
-test('UPDATE gate — the runtime contract forbids CREATE-only inputs on UPDATE', async () => {
-  // Evidence, not doctrine: the shipped schema rejects draftFields/refinement for action=UPDATE and
-  // requires recordId, and update_record carries no recordTypeId/uiContextResolutionId parameter.
+test('UPDATE gate — precise drafts opt in while the legacy contract and record identity remain intact', async () => {
+  // Source distribution guard complements executable context/DML schema tests in their owning
+  // packages. The pure readiness cases below check semantics without requiring package dist files.
   const contextSchema = await readFile(path.join(projectRoot, 'packages', 'mcp-provider-sfoa-context', 'src', 'schemas.ts'), 'utf8');
   assert.ok(contextSchema.includes("'draftFields and refinement are CREATE-only'"),
-    'the context schema must keep rejecting CREATE-only inputs on UPDATE');
+    'the context schema must retain the legacy UPDATE rejection');
+  assert.match(contextSchema, /input\.action === 'UPDATE' && !input\.formContext && \(input\.draftFields !== undefined \|\| input\.refinement !== undefined\)/u,
+    'only the explicit selected form contract enables UPDATE refinement');
   assert.ok(contextSchema.includes("recordId is required for UPDATE"),
     'the context schema must keep requiring recordId on UPDATE');
   assert.ok(/action:\s*z\.enum\(\['CREATE',\s*'UPDATE'\]\)/u.test(contextSchema),
@@ -1054,7 +1080,52 @@ test('UPDATE gate — the runtime contract forbids CREATE-only inputs on UPDATE'
   const updateRecord = /export const updateRecordInputSchema = z\s*\.object\(\{([\s\S]*?)\}\)/u.exec(dmlSchema)?.[1] ?? '';
   assert.ok(updateRecord.includes('recordId'), 'update_record must require recordId');
   assert.ok(!updateRecord.includes('recordTypeId'), 'update_record must not accept recordTypeId');
-  assert.ok(!updateRecord.includes('uiContextResolutionId'), 'update_record must not accept a CREATE resolution id');
+  assert.ok(updateRecord.includes('formContext: dmlFormContextSchema.optional()'), 'selected form validation remains opt-in for generic DML callers');
+  assert.ok(updateRecord.includes('uiContextResolutionId'), 'UPDATE supports the separate audit correlation');
+  assert.ok(updateRecord.includes('never authorizes UPDATE'), 'client-provided correlation must not become authorization');
+});
+
+test('selected Edit form — saved values satisfy requirements; historical empty fields remain obligations', () => {
+  const fields = [{ apiName: 'Name', required: true }, { apiName: 'Reason', required: true }];
+  const complete = evaluateSelectedFormReadiness({ action: 'UPDATE', fields,
+    savedValues: { Name: 'existing', Reason: 'existing reason' }, draftFields: { Summary: 'new summary' } });
+  assert.equal(complete.status, 'READY');
+  assert.deepEqual(complete.missingRequired, []);
+  const historicalEmpty = evaluateSelectedFormReadiness({ action: 'UPDATE', fields,
+    savedValues: { Name: 'existing', Reason: null }, draftFields: { Summary: 'new summary' } });
+  assert.equal(historicalEmpty.status, 'NEEDS_INPUT');
+  assert.deepEqual(historicalEmpty.missingRequired, ['Reason']);
+  assert.deepEqual(evaluateUpdateReadiness({ patchFields: ['Summary'], intendedFields: ['Summary'], formContext: historicalEmpty }).blockers,
+    ['FORM_MISSING_REQUIRED:Reason']);
+  assert.equal(evaluateUpdateReadiness({ patchFields: ['Summary'], intendedFields: ['Summary'] }).changeReady, true,
+    'the compatible generic UPDATE path has no invented Create/full-form requirements');
+});
+
+test('selected form — null overrides a saved value, false/zero are values, and CREATE defaults are not replayed in UPDATE', () => {
+  const fields = [{ apiName: 'RequiredValue', required: true }];
+  for (const value of [false, 0]) {
+    assert.equal(evaluateSelectedFormReadiness({ action: 'UPDATE', fields, savedValues: { RequiredValue: value } }).status, 'READY');
+  }
+  assert.equal(evaluateSelectedFormReadiness({ action: 'UPDATE', fields, savedValues: { RequiredValue: 'old' }, draftFields: { RequiredValue: null } }).status, 'NEEDS_INPUT');
+  assert.equal(evaluateSelectedFormReadiness({ action: 'CREATE', fields, defaults: { RequiredValue: 'default' } }).status, 'READY');
+  assert.equal(evaluateSelectedFormReadiness({ action: 'UPDATE', fields, defaults: { RequiredValue: 'default' } }).status, 'NEEDS_INPUT');
+});
+
+test('selected form — critical unknown is separate from API value presence and managed missing-value policy', () => {
+  const fields = [{ apiName: 'RequiredValue', required: true }];
+  const critical = evaluateSelectedFormReadiness({ fields, draftFields: { RequiredValue: 'provided' }, criticalUnknown: ['REQUIRED_VISIBILITY_UNRESOLVED'] });
+  assert.equal(critical.status, 'UNKNOWN');
+  assert.deepEqual(critical.missingRequired, []);
+  assert.ok(evaluateCreateReadiness({ formContext: critical }).blockers.includes('FORM_CRITICAL_UNKNOWN:REQUIRED_VISIBILITY_UNRESOLVED'));
+  const managed = evaluateSelectedFormReadiness({ fields, managedOnWrite: ['RequiredValue'] });
+  assert.equal(managed.status, 'READY');
+  assert.equal(evaluateSelectedFormReadiness({ fields, managedOnWrite: ['RequiredValue'], criticalUnknown: ['REQUIRED_VISIBILITY_UNRESOLVED'] }).status, 'UNKNOWN');
+  assert.equal(evaluateSelectedFormReadiness({ fields, managedOnWrite: ['RequiredValue'], draftFields: { RequiredValue: null } }).status, 'READY',
+    'a proven strict server-owned promise can replace client input');
+  assert.equal(evaluateSelectedFormReadiness({ fields, managedOnWrite: [], draftFields: { RequiredValue: null } }).status, 'NEEDS_INPUT',
+    'an explicit empty fallback has no applicable managed promise');
+  assert.equal(evaluateSelectedFormReadiness({ fields: [{ apiName: 'Optional', required: false, visibility: 'UNKNOWN' }] }).status, 'READY');
+  assert.equal(evaluateSelectedFormReadiness({ configurationVerified: false }).status, 'UNKNOWN');
 });
 
 test('batch gate — every record must be ready before the batch is dispatched', () => {
@@ -1259,7 +1330,8 @@ test('HOTFIX guidance — business Record Type meaning takes precedence over Pic
   }
   for (const relative of ['SKILL.md', 'references/create-readiness.md', 'references/dynamic-forms.md', 'references/readiness-gate.md']) {
     const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
-    assert.ok(text.includes('未决事实确实可能影响本次所需值、提交字段合法性或适用 Lookup/Picklist'), relative);
+    assert.ok(text.includes('criticalUnknown'), `${relative} must preserve selected-form critical unknown obligations`);
+    assert.ok(text.includes('未决事实确实可能改变所选表单的适用必填，或影响提交字段合法性及 Lookup/Picklist'), relative);
     assert.ok(text.includes('且现有可靠证据无法消解'), relative);
   }
 });

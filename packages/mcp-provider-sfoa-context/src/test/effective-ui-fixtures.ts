@@ -37,6 +37,9 @@ export function fixtureSnapshot(): UiSnapshot {
 }
 export function runtimeFixture(mode: UiMode, snapshot: UiSnapshot | null = fixtureSnapshot(), profileId = PROFILE, overrides: Partial<EffectiveUiOptions> = {}) {
   let metadataCalls = 0; let userCalls = 0; let snapshotCalls = 0;
+  // Legacy golden responses include their exact wire byte count. New precise
+  // tests opt into CRUD facts explicitly without changing that shared baseline.
+  const objectCrud: { createable?: boolean; updateable?: boolean } = {};
   const evidence: Readonly<Record<string, unknown>>[] = [];
   const fields = Object.fromEntries(['Name', 'Type__c', 'Discount__c', 'Internal__c', 'Secret__c', 'Unknown__c', 'Managed__c', 'NoFls__c', 'ApiRequired__c'].map((apiName) => [apiName, {
     apiName, label: apiName, dataType: 'String', required: apiName === 'ApiRequired__c', createable: apiName !== 'NoFls__c', updateable: true,
@@ -49,7 +52,7 @@ export function runtimeFixture(mode: UiMode, snapshot: UiSnapshot | null = fixtu
     request: async ({ url }: { url: string }) => {
       if (url.includes('/apps?')) { userCalls++; return { apps: snapshot?.apps ?? [] }; }
       if (url.includes('/picklist-values/')) return { picklistFieldValues: {} };
-      if (url.includes('/object-info/')) return { apiName: 'Sample__c', label: 'Sample', labelPlural: 'Samples', fields, defaultRecordTypeId: RT, recordTypeInfos: { [RT]: recordType } };
+      if (url.includes('/object-info/')) return { apiName: 'Sample__c', label: 'Sample', labelPlural: 'Samples', ...objectCrud, fields, defaultRecordTypeId: RT, recordTypeInfos: { [RT]: recordType } };
       return { layout: { id: '00h000000000001AAA', sections: [{ heading: 'Legacy', layoutRows: [{ layoutItems: [{ required: true, editableForNew: true, editableForUpdate: true, layoutComponents: [{ componentType: 'Field', apiName: 'Name' }] }] }] }] },
         record: { apiName: 'Sample__c', recordTypeId: RT, fields: { Name: { value: 'Default name' } } } };
     },
@@ -61,6 +64,6 @@ export function runtimeFixture(mode: UiMode, snapshot: UiSnapshot | null = fixtu
     audit: (entry) => { evidence.push(entry); },
     ...overrides,
   });
-  return { org, connection, resolver, fields, executor: new RecordActionContextExecutor(org, resolver), legacy: new RecordActionContextExecutor(org), evidence,
+  return { org, connection, resolver, fields, objectCrud, executor: new RecordActionContextExecutor(org, resolver), legacy: new RecordActionContextExecutor(org), evidence,
     counts: () => ({ metadataCalls, userCalls, snapshotCalls }) };
 }

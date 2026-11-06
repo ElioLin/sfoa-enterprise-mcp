@@ -20,6 +20,28 @@ Private Provider API extension for deterministic Salesforce facts:
 
 The Provider contains no identity selector, business reasoning, DML, arbitrary REST URL or client filesystem path. Tool visibility remains controlled by the remote Host's explicit configuration.
 
+## Selected CREATE/UPDATE forms (Playbook 1.14.0)
+
+Optional `formContext` selects deterministic desktop STANDARD or native
+QUICK_ACTION readiness. STANDARD resolves the explicit accessible app or USER
+Profile default, the assigned Lightning page and the action-specific UI API
+layout. Dynamic Forms and mixed pages evaluate field/container rules separately;
+critical unknowns return UNKNOWN rather than a verified Page Layout fallback.
+UPDATE checks saved values plus draft against the full selected form. Quick
+Actions use their own layout and Salesforce-evaluated presets, with authoritative
+target Record Type and source context. `READY` covers this supported form, not
+arbitrary validation rules, Apex or Flow.
+
+START and SUBMIT read current configuration or verify matching component revisions
+with Salesforce. REFINE can reuse a requester-bound structural reference; business
+values and draft decisions are always recalculated. Optional recent-field counts
+are bounded and never requested on SUBMIT. No public Tool performs DML here;
+the Host performs a fresh preflight when CREATE/UPDATE carries `formContext`.
+The legacy `includeValueAssessment=true` option cannot be combined with it.
+See [ADR-0036](../../docs/sfoa/adr/ADR-0036-selected-record-form-precision.md).
+
+## Legacy contracts (formContext omitted)
+
 `get_record_action_context` optionally accepts `includeValueAssessment: true` for
 CREATE. It defaults to off; omitted/false calls retain the previous output and
 Salesforce call count. When enabled it also includes `requiredChecklist` and

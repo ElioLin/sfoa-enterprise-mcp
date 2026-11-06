@@ -32,3 +32,8 @@ export * from './ui-snapshot-refresh.js';
 export * from './create-initial-state.js';
 export * from './create-value-assessment.js';
 export * from './presentation-relationship.js';
+export * from './precision-contracts.js';
+export * from './precision-executor.js';
+export * from './precision-metadata.js';
+export * from './precision-component-cache.js';
+export * from './precision-quick-action.js';

@@ -37,6 +37,13 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 
 ## Architecture principles
 
+2026-11-06 selected-form amendment: bounded current configuration and deterministic
+assessment now cover opt-in desktop CREATE/UPDATE and native Create/Update Quick
+Actions, with a separate lazy DIAGNOSTIC configuration scope and USER authorization.
+This is the limited extension to the earlier CREATE-only snapshot scope, not a
+general Salesforce UI/runtime replica. Implementation and acceptance evidence are
+tracked in [the fixed design matrix](RECORD_CHANGE_PRECISION_20261106.md).
+
 1. **Upstream first:** REUSE, then EXTEND, then official SDK, then minimal standard API provider.
 2. **Request identity is authoritative:** a remote request must not choose an arbitrary Salesforce username.
 3. **Salesforce authorizes:** the runtime selects an identity; Salesforce decides what that identity can do.
@@ -56,7 +63,7 @@ Provide an enterprise MCP runtime for Salesforce on Alibaba Cloud (SFoA) that Di
 | Local transport | stdio |
 | Remote transport | Streamable HTTP, stateless first |
 | Admin UI (P5) | React, TypeScript, Vite, Ant Design, TanStack Query, React Router |
-| Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.13.3`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts; Admin Web must be rebuilt when this bundled contract changes |
+| Agent guidance (P6) | Pure strict TypeScript canonical Playbook `1.14.0`; MCP Instructions, Resources, Prompt, governed Tool fallback; deterministic Dify/WorkBuddy artifacts; safe managed-field capability facts and selected-form CREATE/UPDATE guidance; Admin Web must be rebuilt when this bundled contract changes |
 | Database | P0-P4: none. P5 introduces MySQL 8.x for durable SFoA-owned routes, Tool enabled state, CREATE/UPDATE policy, Diagnostic configuration, safe runtime settings, and audit. P6-DML-01 adds one constrained managed-field child table. P7-01 compatibly evolves the Audit master and adds ordered Event/API and bounded Payload Evidence children. MySQL never stores Salesforce tokens/private keys or replicates Salesforce permissions, except the default-off, maintainer-authorized Buntu validation raw-token troubleshooting evidence defined by ADR-0016. |
 | Cache | In-process only where safe; no Redis without a demonstrated requirement |
 | Secrets | `.env.local`/shell session; no secrets or private keys in Git |

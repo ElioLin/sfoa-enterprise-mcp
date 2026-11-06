@@ -5,6 +5,7 @@ import type { AuditPayloadEvidenceSummaryRecord } from '@sfoa/control-plane';
 import { adminApi } from '../../api/client.js';
 import { ErrorState, LoadingState } from '../../components/QueryState.js';
 import { copyTextToClipboard } from '../../clipboard.js';
+import { FormContextEvidence } from './FormContextEvidence.js';
 
 export function PayloadEvidenceViewer({
   payload,
@@ -52,6 +53,7 @@ export function PayloadEvidenceViewer({
               {query.data.contentSha256 ? <Typography.Text copyable code>{query.data.contentSha256}</Typography.Text> : '—'}
             </Descriptions.Item>
           </Descriptions>
+          {query.data.payloadType === 'UI_CONTEXT' ? <FormContextEvidence text={text} truncated={query.data.truncated} /> : null}
           <div className="payload-viewer-toolbar">
             <Typography.Text type="secondary"><FileTextOutlined /> {query.data.contentType}</Typography.Text>
             <Button

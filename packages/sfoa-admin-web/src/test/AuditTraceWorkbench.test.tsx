@@ -9,6 +9,54 @@ import { asFetchMock, jsonResponse, renderAdmin } from './helpers.js';
 const NOW = '2026-09-01T00:00:00.000Z';
 
 describe('P7-07 Audit Trace Workbench', () => {
+  it('keeps a successful context call distinct from unresolved form requiredness without reading protected facts', () => {
+    const base = traceWithTerminal('SUCCESS', 'PASS');
+    const event = traceFixture().events[0]!;
+    const fetchMock = asFetchMock(() => jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+    renderAdmin(<AuditTraceWorkbench trace={{ ...base,
+      events: [{ ...event, eventType: 'UI_CONTEXT_RESOLVED', safeSummary: {
+        formReadinessStatus: 'UNKNOWN', criticalUnknownCount: 1, missingRequiredCount: 0,
+        action: 'UPDATE', entry: 'QUICK_ACTION', app: 'Sales', appSource: 'PROFILE_DEFAULT',
+      } }],
+    }} />);
+    expect(screen.getByText('表单必填判断存在未知项')).toBeInTheDocument();
+    expect(screen.getByText('PROFILE_DEFAULT')).toBeInTheDocument();
+    expect(screen.getByText('QUICK_ACTION')).toBeInTheDocument();
+    expect(screen.queryByText('未发现执行错误')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['UNKNOWN', '表单必填判断存在未知项'],
+    ['NEEDS_INPUT', '表单尚缺必填值'],
+  ] as const)('uses terminal %s when precise events are absent, without fetching protected facts', (status, title) => {
+    const base = traceWithTerminal('SUCCESS', 'PASS');
+    const fetchMock = asFetchMock(() => jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+    renderAdmin(<AuditTraceWorkbench trace={{ ...base,
+      audit: { ...base.audit, toolName: 'get_record_action_context', responseSummary: {
+        formReadinessStatus: status, missingRequiredCount: status === 'NEEDS_INPUT' ? 1 : 0,
+        criticalUnknownCount: status === 'UNKNOWN' ? 1 : 0,
+      } },
+      events: status === 'UNKNOWN' ? [] : [{ ...traceFixture().events[0]!, eventType: 'UI_CONTEXT_LINK',
+        safeSummary: { contextLinkStatus: 'CLIENT_PROVIDED_UNVERIFIED' } }],
+    }} />);
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByText(/表单状态来自工具终态摘要/u)).toBeInTheDocument();
+    expect(screen.queryByText('未发现执行错误')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('keeps the latest precise event authoritative when a terminal fallback is also present', () => {
+    const base = traceWithTerminal('SUCCESS', 'PASS');
+    const event = traceFixture().events[0]!;
+    renderAdmin(<AuditTraceWorkbench trace={{ ...base,
+      audit: { ...base.audit, responseSummary: { formReadinessStatus: 'UNKNOWN' } },
+      events: [{ ...event, eventType: 'UI_CONTEXT_RESOLVED', safeSummary: { formReadinessStatus: 'READY' } }],
+    }} />);
+    expect(screen.getByText('当前表单检查已就绪')).toBeInTheDocument();
+    expect(screen.queryByText('表单必填判断存在未知项')).not.toBeInTheDocument();
+    expect(screen.queryByText(/表单状态来自工具终态摘要/u)).not.toBeInTheDocument();
+  });
   it('shows batch partial success counts without implying every item failed', () => {
     const base = traceFixture();
     renderAdmin(<AuditTraceWorkbench trace={{ ...base, audit: { ...base.audit, toolName: 'create_records',

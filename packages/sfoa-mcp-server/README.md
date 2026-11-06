@@ -1,5 +1,17 @@
 # SFoA P6 Remote MCP Runtime
 
+Selected-form CREATE/UPDATE adds an optional `formContext` preflight at the
+existing facade seam (Playbook 1.14.0). It preserves default-deny governance,
+managed-field ordering, dispatch deadlines and unknown-outcome handling.
+STANDARD keeps existing SDK DML; explicit native Quick Actions use one USER
+action request. Separate same-org DIAGNOSTIC scopes read configuration lazily.
+Two bounded structural caches hold no business values: requester-bound REFINE
+references and component projections reusable only after a fresh Salesforce
+revision check. START/SUBMIT ignore REFINE freshness shortcuts. Unrelated Tools,
+discovery and legacy calls do not enter this workflow. No schema migration or
+global timeout change is required. See
+[ADR-0036](../../docs/sfoa/adr/ADR-0036-selected-record-form-precision.md).
+
 P8-07 adds independently governed `create_records`, `update_records`,
 `resolve_field_display_values` and `get_record_relationship_context`. Discovery
 remains lazy. Batch rows reuse CREATE/UPDATE policy, request USER and managed

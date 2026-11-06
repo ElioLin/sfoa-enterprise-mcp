@@ -54,6 +54,11 @@ export type DmlToolFacadeOptions = Readonly<{
   clientId: string;
   connectionProvider?: SalesforceConnectionProvider;
   managedFieldResolver?: ManagedDmlFieldResolver;
+  /** Read-only form preparation; an optional native action executes only at the guarded dispatch boundary. */
+  prepareFormInput?(operation: DmlOperation, input: ToolInput, requestedInput: ToolInput): Promise<{
+    input: ToolInput;
+    execute?: (extra: ToolExtra) => Promise<CallToolResult>;
+  }>;
   dmlAllowlist?: DmlAllowlistPolicy;
   redactionSecrets?: readonly string[];
   mutationStarted(): boolean;
@@ -94,13 +99,15 @@ export class DmlToolFacade {
 
   private async executeCore(input: ToolInput, extra: ToolExtra): Promise<CallToolResult> {
     const started = performance.now();
-    if (this.operation === 'CREATE') {
+    {
       try {
         const id = typeof input.uiContextResolutionId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(input.uiContextResolutionId) ? input.uiContextResolutionId : null;
         currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL', eventType: 'UI_CONTEXT_LINK',
-          eventName: 'CREATE context provenance', status: 'SUCCESS', safeSummary: {
+          eventName: `${this.operation} context provenance`, status: 'SUCCESS', safeSummary: {
             uiContextResolutionId: id, contextLinkStatus: id ? 'CLIENT_PROVIDED_UNVERIFIED' : 'NOT_PROVIDED',
+            action: this.operation,
             objectApiName: input.objectApiName, recordTypeId: input.recordTypeId ?? null,
+            ...(this.operation === 'UPDATE' ? { recordId: typeof input.recordId === 'string' ? input.recordId.slice(0, 18) : null } : {}),
           } });
         if (Array.isArray(input.records)) {
           const links = input.records.slice(0, 200).map((item: unknown, index: number) => {
@@ -110,11 +117,12 @@ export class DmlToolFacade {
               ? row.uiContextResolutionId : null;
             return { index, uiContextResolutionId: resolutionId,
               recordTypeId: typeof row.recordTypeId === 'string' ? row.recordTypeId.slice(0, 18) : null,
+              ...(this.operation === 'UPDATE' ? { recordId: typeof row.recordId === 'string' ? row.recordId.slice(0, 18) : null } : {}),
               contextLinkStatus: resolutionId ? 'CLIENT_PROVIDED_UNVERIFIED' : 'NOT_PROVIDED' };
           });
           currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL', eventType: 'UI_CONTEXT_LINK',
-            eventName: 'Batch CREATE context provenance', status: 'SUCCESS', safeSummary: {
-              batch: true, totalCount: input.records.length, links, truncated: input.records.length > 200,
+            eventName: `Batch ${this.operation} context provenance`, status: 'SUCCESS', safeSummary: {
+              action: this.operation, batch: true, totalCount: input.records.length, links, truncated: input.records.length > 200,
             } });
         }
       } catch { /* Audit fail-open; this ID never authorizes a mutation. */ }
@@ -150,6 +158,7 @@ export class DmlToolFacade {
     let executionInput = input;
     let managedFieldEvidence: ManagedFieldEvidence = NO_MANAGED_FIELD_EVIDENCE;
     let deadlineReachedBeforeDispatch = false;
+    let preparingForm = false;
     try {
       if (this.getName() === 'create_records') input = createRecordsInputSchema.parse(input);
       if (this.getName() === 'update_records') input = updateRecordsInputSchema.parse(input);
@@ -167,6 +176,7 @@ export class DmlToolFacade {
       await this.options.connectionProvider?.getConnection();
       const result = await withTimeout(
         (async () => {
+          let preparedExecute: ((extra: ToolExtra) => Promise<CallToolResult>) | undefined;
           if (this.options.managedFieldResolver) {
             const resolution = await this.options.managedFieldResolver.resolve(this.operation, input);
             executionInput = resolution.input as ToolInput;
@@ -175,6 +185,19 @@ export class DmlToolFacade {
               appliedCount: resolution.appliedCount ?? resolution.applied.length,
               truncated: resolution.appliedTruncated === true,
             });
+          }
+          const hasFormContext = input.formContext !== undefined || (Array.isArray(input.records)
+            && input.records.some((row: unknown) => isRecord(row) && row.formContext !== undefined));
+          if (hasFormContext) {
+            preparingForm = true;
+            if (!this.options.prepareFormInput) throw new RemoteRuntimeError(
+              'MCP_FORM_CONTEXT_UNAVAILABLE', 'This runtime cannot verify the requested form context; no record was submitted.',
+              { correlationId: this.options.context.correlationId },
+            );
+            const prepared = await this.options.prepareFormInput(this.operation, executionInput, input);
+            executionInput = prepared.input;
+            preparedExecute = prepared.execute;
+            preparingForm = false;
           }
           // Promise.race cannot cancel a Salesforce lookup. Never allow a lookup that
           // settles after the host deadline to continue into a late mutation dispatch.
@@ -190,6 +213,8 @@ export class DmlToolFacade {
             : undefined;
           const requestedFields = requestedFieldValues(input);
           const managedFields = resolvedManagedFieldValues(executionInput, managedFieldEvidence.applied);
+          const dispatch = (): Promise<CallToolResult> => preparedExecute
+            ? preparedExecute(extra) : Promise.resolve(this.options.tool.exec(executionInput, extra));
           return runWithSalesforceApiPurpose(
             this.operation === 'CREATE' ? 'DML_CREATE' : 'DML_UPDATE',
             () => objectApiName
@@ -201,8 +226,8 @@ export class DmlToolFacade {
                     : {}),
                   requestedFields,
                   managedFields,
-                }, () => this.options.tool.exec(executionInput, extra))
-              : this.options.tool.exec(executionInput, extra),
+                }, dispatch)
+              : dispatch(),
           );
         })(),
         this.options.toolTimeoutMs,
@@ -238,6 +263,16 @@ export class DmlToolFacade {
           ? dmlErrorToolResult(dmlOutcomeUnknownError(this.operation, error))
           : hostDmlErrorToolResult(error, this.options.redactionSecrets, this.options.context.correlationId);
         await this.log('ERROR', elapsed(started), resultErrorCode(result), 'TOOL', executionInput, result, managedFieldEvidence);
+        return result;
+      }
+      if (preparingForm && !this.options.mutationStarted()) {
+        const preparationError = error instanceof RemoteRuntimeError ? error : new RemoteRuntimeError(
+          'MCP_FORM_CONTEXT_UNAVAILABLE',
+          'Current form context could not be verified before mutation dispatch. No record was submitted; resolve the context evidence before submitting.',
+          { cause: error, correlationId: this.options.context.correlationId },
+        );
+        const result = hostDmlErrorToolResult(preparationError, this.options.redactionSecrets, this.options.context.correlationId);
+        await this.log('ERROR', elapsed(started), preparationError.code, 'TOOL', executionInput, result, managedFieldEvidence);
         return result;
       }
       if (error instanceof RemoteRuntimeError && isManagedDmlError(error.code) && !this.options.mutationStarted()) {

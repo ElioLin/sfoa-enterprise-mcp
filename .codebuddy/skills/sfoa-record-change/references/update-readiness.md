@@ -1,6 +1,6 @@
 # UPDATE Readiness
 
-本文件是 UPDATE 的 doctrine：如何确定目标记录、如何确定用户真正要改的字段、什么时候还不能写。它是判断规则，不是固定的 Tool 调用脚本。简单 UPDATE 允许复用仍然可信的 Context；没有必要的调用可以跳过。
+本文件是 UPDATE 的 doctrine：确定唯一目标、所选 Edit 表单的适用必填与实际变化字段。使用 [精确表单流程](precise-forms.md) 的 START/REFINE 和提交前复核；本任务有效结构可复用，不做无关调用。
 
 核心命题：
 
@@ -20,26 +20,27 @@ and the actual changes needed to complete that business task?
 | `action` | 必需，`UPDATE` |
 | `recordId` | **UPDATE 必需**；缺少时 Runtime 直接拒绝 |
 | `recordTypeId` | 可选；给出时必须与 `recordId` 推导出的 Record Type 一致，否则 Runtime 拒绝，**不会**切换 Record Type |
-| `draftFields` | 仅 CREATE。UPDATE 传入会被 Runtime 以「draftFields and refinement are CREATE-only」拒绝 |
-| `refinement` | 仅 CREATE。同上 |
+| `formContext` | 使用所选 STANDARD 或明确原生 QUICK_ACTION；START/REFINE 保持同一入口 |
+| `draftFields` | 开启 `formContext` 后可传待变更草稿，保存值由 USER 读取并合并；无该契约的旧 UPDATE 保持原限制 |
+| `refinement` | 开启 `formContext` 后为 0..3；达到上限仍有关键未知则停止 |
 
 UPDATE 输出与 CREATE 的关键差别（都是当前代码事实，不是设计愿望）：
 
 - **不返回** `availableRecordTypes`、`recordTypeSelectionRequired`：现有记录已经有 Record Type，不存在「选择」这一步。`recordType` 只描述当前生效的那一个。
 - **不返回 defaults**：`defaults` 为空对象。UPDATE 的 omission 语义是 preserve，没有 Create Default 可套用。
-- **不产生** `effectiveEditable` / `visibilityState` / `requiredSource`：这些 effective 属性属于 CREATE Dynamic Forms 路径。`dynamicFormsEvaluated` 恒为 `false`。
-- `fields[]` 按 `fieldUpdateable` 过滤，并提供 `fieldUpdateable`、`layoutEditableForUpdate`（Page Layout Edit 模式），这是 UPDATE 侧的 editable 证据。
+- `formContext.fields` 提供保存值与草稿合并后的 required / visibility / writable / valueState / valueSource；标准动态表单也提供 effectiveEditable / visibilityState / requiredSource 等当前事实。旧调用的 `dynamicFormsEvaluated=false` 不能证明精确 Edit 已解析。
+- `fields[]` 提供 `fieldUpdateable`、`layoutEditableForUpdate`，它们分别表达 API 与页面证据；不可写字段的已保存值仍可参与必填判断。
 - 提供 `picklist`（按当前 Record Type），用于 Picklist / Dependent Picklist 归一。
-- `coverage.warnings` 明确说明：该 coverage 是 Page Layout / UI API 的 action context，**不是**完整的 Dynamic Forms 或 Lightning 组件可见性求值。
+- `formContext.status` 与 `criticalUnknown` 给出本次支持范围内的结论；coverage 仍不能证明任意 Lightning 组件都已解析。
 
 写入工具：`update_record`（严格 1 条）与 `update_records`（同对象 1..200 条，`allOrNone` 默认 false，每项可带 `clientReferenceId`）。
 
 ```text
-update_record  = { objectApiName, recordId, fields }
-update_records = { objectApiName, allOrNone?, records: [ { recordId, fields, clientReferenceId? } ] }
+update_record  = { objectApiName, recordId, fields, formContext, uiContextResolutionId? }
+update_records = { objectApiName, allOrNone?, records: [ { recordId, fields, formContext, uiContextResolutionId?, clientReferenceId? } ] }
 ```
 
-两个 schema 都是 `.strict()`。`update_record` **没有** `recordTypeId` 与 `uiContextResolutionId` 参数：Record Type 变更只能通过 `fields` 中的 Record Type 字段表达，而且当前 Action Context 不会为它做变更后推演。
+两个 schema 都是 `.strict()`。`uiContextResolutionId` 只是客户端未核验审计关联，不能授权写入。`update_record` 没有顶层 `recordTypeId`；本次精确表单不支持类型切换后的假设状态，不得删掉 formContext 绕过限制。
 
 ## Gate 1 — TARGET_RESOLVED
 
@@ -90,7 +91,8 @@ Read Facts（查询返回了什么）
 
 - 直接提供、忠实提炼、可靠关联推导且任务相关的字段 → 纳入草稿，实际有变化的进入 Patch。
 - 用户没有提到、只是被查询顺带返回的字段 → **不进入** Patch。**MUST NOT** 「查到什么就 update 什么」。
-- Minimal Patch 以业务任务为范围，允许关联字段补全，不以逐字段点名为前提。只提交实际变化，不重放 CREATE 默认或为字段数量最少而遗漏任务信息。
+- Minimal Patch 以业务任务为范围，允许关联字段补全，不以逐字段点名为前提。标准 UPDATE 只提交实际变化，不重放 CREATE 默认或为字段数量最少而遗漏任务信息。
+- 原生 Quick Action 为覆盖动作预设所需的明确值，即使等于保存值也必须保留。否则省略后可能采用与用户意图相反的动作预设。QUICK_ACTION 仅使用单条 create_record/update_record，不进入批量工具。
 
 用户已明确提供的事实 **MUST NOT** 重复询问。用户说「把拜访日期改到下周三」时，目标与要改的字段都已经明确，直接进入预备，不需要再次确认。
 
@@ -143,6 +145,8 @@ CREATE Required  !=  UPDATE Missing Required
 - 因为本次没提交某必填字段就判定 UPDATE 不完整。
 
 只有当**当前 Runtime / Salesforce 证据**证明本次 UPDATE 本身要求该字段时才需要它。判据来自当前 UPDATE path 的反馈，而不是 CREATE 的必填清单。
+
+所选 Edit/Quick Action 表单的全部适用必填都属于本次检查范围，包含与 Patch 无关但历史为空的字段。保存值有效时已经满足，不必重问或重发。保存值为空、当前表单要求填写时先补足；用户明确限定只改某字段而必填缺项在范围外时，说明冲突并集中询问，不能静默扩大修改范围。
 
 ## Defaults
 
@@ -207,7 +211,7 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 2. 唯一解析用户目标；歧义时澄清。
 3. 确认目标字段按当前证据可修改 / 当前 Runtime 允许。
 4. 由 Salesforce / Runtime 作为最终 authority 裁决结果。
-5. **MUST NOT** 自行模拟变更后的 Dynamic Forms 状态，**MUST NOT** 把 CREATE 的 `draftFields` / `refinement` 伪造到 UPDATE。
+5. **MUST NOT** 自行模拟变更后的 Dynamic Forms 状态。当前类型下的草稿可交给带 `formContext` 的 UPDATE 计算，类型切换不能伪造为普通 refinement。
 
 当前 Runtime 的 UPDATE Action Context 不会为新的 Record Type 做 hypothetical 推演，并且明确拒绝与 `recordId` 推导结果不一致的 `recordTypeId`。因此变更后的字段可见性与必填状态属于 **Salesforce 裁决**，不是 Skill 或模型可以预判的事实。如实说明这一点，而不是给用户一个模型编造的结论。
 
@@ -215,9 +219,9 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 
 **MUST NOT** 在 UPDATE 中建立一个假的 CREATE form completeness。
 
-- 只有本次要修改的字段需要「当前有效、当前可更新、当前依赖关系可解析」。
+- 提交字段需要当前可更新、值合法；所选 Edit 表单全部适用必填需由保存值与草稿共同满足。
 - 用户修改 controller 类字段可能改变其他字段的 UI 显隐；**MUST NOT** 因此要求用户重新填写整张 CREATE 表单。
-- 当前 Runtime **不提供** Dynamic Forms UPDATE 的预计算。Skill **MUST** 承认这个能力边界，**MUST NOT** 用模型猜补齐。
+- `formContext` 提供当前类型下 Dynamic Forms UPDATE 计算；字段条件看草稿，区块条件看相应页面加载事实。关键 UNKNOWN 保持未就绪，**MUST NOT** 用模型猜补齐。
 - 最终 authority 仍然是 Salesforce Validation、Flow、Trigger、Lookup Filter 与 DML Runtime。
 
 ## UPDATE 的 blocking conditions
@@ -239,6 +243,8 @@ Dependent Picklist 必须确认当前 controller 值（记录现有值，或用�
 | Dependent Picklist controller 未确定 | controller 值未知 |
 | Managed 字段规则未满足 | 要求修改严格 managed 字段，或显式 Owner 解析失败 |
 | Record Type 意图未解析 | 用户要求变更但候选 / 许可未确认 |
+| 所选 Edit 必填未满足 | 保存值加 Patch 后仍存在 missingRequired，包括历史空值 |
+| 所选表单关键未知 | criticalUnknown 可能改变适用必填或本次提交是否合法 |
 | 证据不足或被截断 | 关键的 UPDATE context 事实缺失 |
 | Mutation Intent 与最终 Patch 不一致 | Patch 超出业务任务或违反用户明确限定 |
 

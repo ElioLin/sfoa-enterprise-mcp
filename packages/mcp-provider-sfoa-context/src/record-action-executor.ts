@@ -3,6 +3,8 @@ import type { OrgService } from '@salesforce/mcp-provider-api';
 import { z } from 'zod';
 import { ContextRuntimeError } from './errors.js';
 import { assessCreateValues } from './create-value-assessment.js';
+import { resolvePreciseForm, type DetailedActionContext, type PrecisionFormOptions } from './precision-executor.js';
+import { resolveQuickActionDescriptor } from './precision-quick-action.js';
 import type { EffectiveRecordUiContextResolver } from './effective-ui-resolver.js';
 import type { RecordActionContextInput, RecordActionContextOutput } from './schemas.js';
 import {
@@ -50,16 +52,18 @@ export function buildRequiredChecklist(
   fields: readonly OutputField[] | undefined,
   requirednessSource: RequirednessSource,
   action: 'CREATE' | 'UPDATE',
+  useEffectiveFields = false,
 ): NonNullable<RecordActionContextOutput['requiredChecklist']> {
   const checklist: NonNullable<RecordActionContextOutput['requiredChecklist']> = [];
   if (!fields) return checklist;
   for (const field of fields) {
-    const writable = action === 'CREATE'
+    const writable = useEffectiveFields && field.effectiveEditable !== undefined ? field.effectiveEditable : action === 'CREATE'
       ? field.fieldCreateable === true && field.layoutEditableForCreate !== false
       : field.fieldUpdateable === true && field.layoutEditableForUpdate !== false;
-    if (requirednessSource === 'EFFECTIVE_REQUIRED') {
+    if (requirednessSource === 'EFFECTIVE_REQUIRED' || requirednessSource === 'QUICK_ACTION_REQUIRED'
+      || useEffectiveFields && field.effectiveRequired !== undefined) {
       if (field.effectiveRequired !== true) continue;
-      const source: Array<'API' | 'PAGE_LAYOUT' | 'DYNAMIC_FORM'> =
+      const source: Array<'API' | 'PAGE_LAYOUT' | 'DYNAMIC_FORM' | 'QUICK_ACTION'> =
         field.requiredSource ?? (field.apiRequired ? ['API'] : []);
       checklist.push({
         apiName: field.apiName,
@@ -123,12 +127,18 @@ type CreateResolution =
   | { kind: 'select' };
 
 export class RecordActionContextExecutor {
-  public constructor(private readonly orgService: OrgService, private readonly effectiveUi?: EffectiveRecordUiContextResolver) {}
+  public constructor(private readonly orgService: OrgService, private readonly effectiveUi?: EffectiveRecordUiContextResolver,
+    private readonly precision?: PrecisionFormOptions) {}
 
   public async execute(requested: RecordActionContextInput): Promise<RecordActionContextOutput> {
+    return (await this.executeWithForm(requested)).output;
+  }
+
+  public async executeWithForm(requested: RecordActionContextInput,
+    observedManagedValues?: Readonly<Record<string, string | number | boolean | null>>): Promise<DetailedActionContext> {
     // The optional assessment includes its requiredness basis. This adds only
     // projections of facts already read; legacy calls keep their exact path.
-    const input = requested.includeValueAssessment === true
+    let input = requested.includeValueAssessment === true || requested.formContext
       ? { ...requested, includeRequiredness: true } : requested;
     const started = performance.now();
     try {
@@ -145,16 +155,27 @@ export class RecordActionContextExecutor {
       if (objectInfo.apiName.toLocaleLowerCase('en-US') !== input.objectApiName.toLocaleLowerCase('en-US')) {
         throw unsupported('Salesforce UI API returned object context for a different object.');
       }
+      if (input.formContext) input = { ...input, objectApiName: objectInfo.apiName };
 
       // CREATE selection and Agent-visible candidates must use the same filtered list.
       // UPDATE retains the record's own type, including existing Master records.
-      const availableRecordTypes = input.action === 'CREATE'
+      const quickAction = input.formContext?.entry === 'QUICK_ACTION'
+        ? await resolveQuickActionDescriptor(connection, { ...input, quickActionName: input.formContext.quickActionName!,
+          sourceRecordId: input.formContext.sourceRecordId }, objectInfo) : undefined;
+      if (quickAction && !quickAction.descriptor) throw unsupported(
+        `The selected native Quick Action could not be resolved (${quickAction.reasons.join(', ')}). Verify the action and source context; do not select a standard form or ask for its Record Type as a fallback.`);
+      if (input.action === 'CREATE' && quickAction?.descriptor?.targetRecordTypeId && !input.recordTypeId) {
+        input = { ...input, recordTypeId: quickAction.descriptor.targetRecordTypeId };
+      }
+      const availableRecordTypes = input.action === 'CREATE' && input.formContext?.entry !== 'QUICK_ACTION'
         ? listCreateRecordTypes(objectInfo)
         : listAvailableRecordTypes(objectInfo);
       const durationMs = Math.round(performance.now() - started);
       let output: RecordActionContextOutput;
+      let precise: DetailedActionContext | undefined;
       if (input.action === 'CREATE') {
-        const resolution = await this.resolveCreate(connection, apiVersion, input, availableRecordTypes, metrics);
+        let resolution = await this.resolveCreate(connection, apiVersion, input, availableRecordTypes, metrics);
+        if (resolution.kind === 'ready' && quickAction?.descriptor) resolution = { ...resolution, layout: quickAction.descriptor.layout };
         output = resolution.kind === 'select'
           ? buildCreateSelectionOutput(input, objectInfo, availableRecordTypes, metrics, durationMs)
           : buildOutput(input, objectInfo, availableRecordTypes, {
@@ -164,7 +185,7 @@ export class RecordActionContextExecutor {
               picklists: resolution.picklists,
               sources: resolution.sources,
             }, metrics, durationMs);
-        if (resolution.kind === 'ready' && this.effectiveUi) {
+        if (resolution.kind === 'ready' && this.effectiveUi && !input.formContext) {
           output = await this.effectiveUi.resolve(input, connection, objectInfo, {
             recordType: resolution.recordType, layout: resolution.layout, defaults: resolution.defaults,
             picklists: resolution.picklists, sources: resolution.sources,
@@ -174,9 +195,20 @@ export class RecordActionContextExecutor {
           output = { ...output, valueAssessment: assessCreateValues(output, input.draftFields ?? {},
             resolution.kind === 'ready' ? resolution.defaults : undefined) };
         }
+        if (resolution.kind === 'ready' && input.formContext) {
+          precise = await resolvePreciseForm({ connection, input, objectInfo, facts: resolution,
+            baseline: output, options: this.precision, quickAction, observedManagedValues });
+          output = precise.output;
+        }
       } else {
         const resolved = await this.resolveUpdate(connection, apiVersion, input, objectInfo, metrics);
-        output = buildOutput(input, objectInfo, availableRecordTypes, resolved, metrics, durationMs);
+        const formFacts = quickAction?.descriptor ? { ...resolved, layout: quickAction.descriptor.layout } : resolved;
+        output = buildOutput(input, objectInfo, availableRecordTypes, formFacts, metrics, durationMs);
+        if (input.formContext) {
+          precise = await resolvePreciseForm({ connection, input, objectInfo, facts: formFacts,
+            baseline: output, options: this.precision, quickAction, observedManagedValues });
+          output = precise.output;
+        }
       }
       if (Buffer.byteLength(JSON.stringify(output), 'utf8') > MAX_OUTPUT_BYTES) {
         throw new ContextRuntimeError(
@@ -184,7 +216,7 @@ export class RecordActionContextExecutor {
           'The bounded record-action context still exceeded the safe response size. Narrow the Salesforce Page Layout or Picklist configuration before retrying.',
         );
       }
-      return output;
+      return { output, ...(precise?.prepared ? { prepared: precise.prepared } : {}) };
     } catch (error) {
       if (error instanceof ContextRuntimeError) throw error;
       throw unsupported(
@@ -317,7 +349,12 @@ export class RecordActionContextExecutor {
         'recordId belongs to a different Salesforce object than objectApiName.',
       );
     }
-    const recordType = resolveAvailableRecordType(objectInfo, record.recordTypeId ?? objectInfo.defaultRecordTypeId);
+    const preciseRecordTypeId = record.recordTypeId ?? '012000000000000AAA';
+    const recordType = input.formContext
+      ? Object.values(objectInfo.recordTypeInfos).find((entry) => sameSalesforceId(entry.recordTypeId, preciseRecordTypeId))
+      : resolveAvailableRecordType(objectInfo, record.recordTypeId ?? objectInfo.defaultRecordTypeId);
+    if (!recordType) throw new ContextRuntimeError('MCP_RECORD_TYPE_NOT_AVAILABLE',
+      'The saved record Record Type is unavailable in current USER object metadata; do not substitute the user default.');
     if (input.recordTypeId && !sameSalesforceId(input.recordTypeId, recordType.recordTypeId)) {
       throw new ContextRuntimeError(
         'MCP_RECORD_TYPE_NOT_AVAILABLE',

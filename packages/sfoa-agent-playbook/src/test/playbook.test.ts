@@ -24,11 +24,39 @@ describe('canonical SFoA Agent Playbook', () => {
     for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWorkflow('CREATE')]) {
       assert.match(output, /Critical Dynamic Dependency.*cannot be resolved by existing reliable evidence/u);
       assert.match(output, /Unrelated, unsubmitted, non-required fields with PENDING display conditions do not block/u);
-      assert.match(output, /already satisfied.*not missing merely because UI visibility is UNKNOWN/u);
+      assert.match(output, /Satisfied API-required values do not erase criticalUnknown that can change UI-required obligations/u);
       assert.match(output, /Preserve actual missing API requirements, unresolved applicable Lookup\/Picklist and explicit API non-writeability/u);
       assert.match(output, /Never change a correct business Record Type merely to fit a Picklist value/u);
       assert.match(output, /current selection is wrong or multiple types genuinely fit the business task/u);
       assert.doesNotMatch(output, /try another valid candidate type or ask/u);
+    }
+  });
+  it('distributes selected form checks to CREATE and UPDATE without changing read or diagnosis workflows', () => {
+    for (const output of [renderFullPlaybook(), renderDifyInstruction(), renderWorkflowReference(), renderWorkBuddySystemPrompt(), renderWeComRoleSetting(), renderWorkflow('CREATE'), renderWorkflow('UPDATE')]) {
+      for (const token of ['formContext', 'STANDARD', 'QUICK_ACTION', 'criticalUnknown', 'MANAGED_ON_WRITE', 'MANAGED_POLICY', 'MCP_FORM_NOT_READY']) assert.ok(output.includes(token), token);
+      assert.match(output, /saved values.*patch/u);
+      assert.match(output, /automatically.*before dispatch/u);
+      assert.match(output, /CLIENT_PROVIDED_UNVERIFIED.*never authorization/u);
+      assert.match(output, /Optional.*never delay/u);
+      assert.match(output, /structuralContextRef only into REFINE for the same task/u);
+      assert.match(output, /START and actual DML SUBMIT must use a fresh read or a freshly verified matching per-component revision from Salesforce authority/u);
+      assert.match(output, /Unverified caches and task REFINE references never bypass submission verification/u);
+      assert.match(output, /never USER field facts, drafts or evaluated visibility/u);
+      assert.match(output, /QUICK_ACTION requires a singular create_record\/update_record call, never create_records\/update_records/u);
+      assert.match(output, /keep an explicit preset override in draftFields and submitted fields even when it equals the saved value/u);
+      assert.match(output, /Do not combine formContext with legacy includeValueAssessment=true/u);
+    }
+    for (const output of [renderFullPlaybook(), renderWorkflow('CREATE'), renderWorkflow('UPDATE')]) {
+      assert.match(output, /Legacy.*generic DML remain compatible/u);
+    }
+    for (const output of [renderWorkflow('READ'), renderWorkflow('DIAGNOSIS')]) {
+      assert.doesNotMatch(output, /## FORM_CONTEXT/u);
+      assert.doesNotMatch(output, /formContext\.phase=START/u);
+    }
+    for (const output of [renderServerInstructions(), renderWorkBuddySkill()]) {
+      assert.match(output, /formContext/u);
+      assert.match(output, /criticalUnknown/u);
+      assert.match(output, /QUICK_ACTION uses singular tools and preserves explicit preset overrides even when equal to saved values/u);
     }
   });
   it('distributes the bounded effective CREATE workflow without asking Agents to parse metadata', () => {
@@ -63,9 +91,9 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderWorkBuddySkill(), /action-context referenceTo target object.*never substitute OwnerId/iu);
   });
   it('has the accepted semantic version and all required sections', () => {
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.3');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.14.0');
     assert.deepEqual(PLAYBOOK_SECTION_NAMES, [
-      'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
+      'CORE', 'READ', 'DATA_COMPLETENESS', 'ORG_OBJECT_USAGE', 'FORM_CONTEXT', 'CREATE', 'UPDATE', 'ATTACHMENT', 'BATCH', 'COMPOUND', 'DIAGNOSIS', 'DIAGNOSTICS', 'LOOKUP', 'PICKLIST',
       'RESPONSE_FORMAT', 'ERROR_HANDLING', 'SAFETY_BOUNDARIES',
     ]);
   });
@@ -128,7 +156,8 @@ describe('canonical SFoA Agent Playbook', () => {
     assert.match(renderFullPlaybook(capabilities), /govern only `create_record`, `update_record`, `create_records` and `update_records`, never reads/u);
     assert.match(renderWorkflow('READ', capabilities), /READ is never bounded by the CREATE\/UPDATE allowlists or DML policy/u);
     assert.match(renderWorkflow('READ', capabilities), /Account, Opportunity, Contact/u);
-    assert.match(renderFullPlaybook(capabilities), /Dynamic Forms evidence: `NOT_AVAILABLE`/u);
+    assert.match(renderFullPlaybook(capabilities), /Legacy Dynamic Forms capability: `NOT_AVAILABLE`/u);
+    assert.match(renderFullPlaybook(capabilities), /selected CREATE\/UPDATE form readiness comes from the current returned formContext/u);
     assert.match(renderFullPlaybook(capabilities), /actual changes needed to complete this business task/u);
     assert.match(renderFullPlaybook(capabilities), /trusted Lightning record link/u);
     assert.match(renderWorkflow('CREATE', capabilities), /relevant optional fields/u);
@@ -363,7 +392,7 @@ describe('P9 data-completeness contract', () => {
   });
 
   it('stamps the version on the Dify instruction head', () => {
-    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.13\.3$/mu);
+    assert.match(renderDifyInstruction(), /^Playbook-Version: 1\.14\.0$/mu);
   });
 });
 
@@ -498,7 +527,7 @@ describe('WeCom recommended role setting renderer', () => {
     assert.match(output, /推荐角色设定/u);
     assert.match(output, /企业微信 SFoA Salesforce 助手/u);
     assert.match(output, new RegExp(`Playbook-Version: ${AGENT_PLAYBOOK_VERSION}`));
-    assert.equal(AGENT_PLAYBOOK_VERSION, '1.13.3');
+    assert.equal(AGENT_PLAYBOOK_VERSION, '1.14.0');
     assert.equal(renderWeComRoleSetting(capabilities), output);
 
     // Secret / host-token semantics from other channels must never appear.

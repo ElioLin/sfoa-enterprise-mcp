@@ -24,6 +24,7 @@ import { auditBusinessOutcome, batchResponseSummary, resolveAuditDisplayOutcome,
 import { formatDateTime, statusLabel } from '../../localization.js';
 import { PayloadEvidenceViewer, formatBytes, payloadTypeLabel } from './PayloadEvidenceViewer.js';
 import { copyTextToClipboard } from '../../clipboard.js';
+import { FormReadinessNotice, formReadinessStatus } from './FormContextEvidence.js';
 
 export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTraceDto }>) {
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('ALL');
@@ -47,6 +48,10 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
   // "SUCCESS" above a partial commit. Non-batch rows keep their single status tag.
   const showToolOutcome = businessOutcome !== undefined && displayOutcome !== toolOutcome;
   const batch = batchResponseSummary(audit);
+  const formStatus = [...trace.events].sort((left, right) => right.sequence - left.sequence)
+    .filter((event) => event.eventType === 'UI_CONTEXT_RESOLVED' || event.eventType === 'UI_CONTEXT_RESOLUTION_FAILED')
+    .map((event) => formReadinessStatus(event.safeSummary)).find((value) => value !== undefined)
+    ?? formReadinessStatus(audit.responseSummary);
   const jumpToFailure = (): void => {
     const sequence = trace.firstFailure?.sequence;
     if (sequence === null || sequence === undefined) return;
@@ -145,6 +150,8 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
             title={`批量业务结果：${businessOutcome}`}
             description={`没有执行节点失败，但 Salesforce 并未完整提交本批次：总数 ${String(batch?.totalCount ?? '—')} · 成功 ${String(batch?.succeededCount ?? '—')} · 失败 ${String(batch?.failedCount ?? '—')} · 未知 ${String(batch?.unknownCount ?? '—')}。已提交的记录不会回滚；请只针对失败项重新准备批次，禁止整批重试。`}
           />
+        ) : formStatus === 'UNKNOWN' || formStatus === 'NEEDS_INPUT' ? (
+          <Typography.Paragraph type="secondary">工具调用未报告执行错误；表单就绪状态见上方页面上下文。</Typography.Paragraph>
         ) : (
           <div className="audit-success-strip"><CheckCircleOutlined /> 未发现执行错误</div>
         )}
@@ -243,25 +250,40 @@ export function AuditTraceWorkbench({ trace }: Readonly<{ trace: AdminAuditTrace
 
 function UiContextEvidence({ trace, onPayload }: Readonly<{ trace: AdminAuditTraceDto; onPayload(value: AuditPayloadEvidenceSummaryRecord): void }>) {
   const events = trace.events.filter((event) => ['UI_CONTEXT_RESOLVED', 'UI_CONTEXT_RESOLUTION_FAILED', 'UI_CONTEXT_LINK'].includes(event.eventType));
-  if (!events.length) return null;
+  const fallbackStatus = events.some((event) => event.eventType !== 'UI_CONTEXT_LINK' && formReadinessStatus(event.safeSummary) !== undefined)
+    ? undefined : formReadinessStatus(trace.audit.responseSummary);
+  if (!events.length && !fallbackStatus) return null;
   const labels: Record<string, string> = {
     objectApiName: '对象', action: '操作', mode: '模式', salesforceUserId: 'Salesforce USER', profileId: 'Profile',
-    recordType: 'Record Type', app: 'App', formFactor: 'Form Factor', formSource: '页面来源', pageLayoutId: 'Page Layout',
+    recordType: 'Record Type', recordTypeId: 'Record Type ID', app: 'App', appSource: '应用选择依据',
+    entry: '操作入口', actionName: 'Quick Action', quickActionName: 'Quick Action', formFactor: 'Form Factor', formSource: '页面来源', pageLayoutId: 'Page Layout',
     page: 'Lightning Page', assignmentSource: '页面分配', snapshot: '快照版本与时间', resolverVersion: '解析器', coverage: '覆盖情况',
     visibleCount: '可见', hiddenCount: '隐藏', pendingCount: '待定', unknownCount: '未知', fallbackUsed: '已回退', fallbackReason: '回退原因',
     resolutionId: 'Resolution ID', uiContextResolutionId: '关联 Resolution ID', contextLinkStatus: '关联状态',
     usedForAgent: '用于 Agent 有效上下文', snapshotWarning: '快照提示', failureKind: '失败类别',
+    formReadinessStatus: '表单就绪状态', missingRequiredCount: '必填缺项数', criticalUnknownCount: '关键未知项数',
+    recommendationCount: '可选字段推荐数', checkedAt: '配置读取时间', verifiedAt: '配置读取时间', phase: '检查阶段',
+    configurationSource: '配置来源', structuralContextRef: '结构配置引用（非授权）',
   };
   return <section aria-label="页面上下文">
     <Typography.Title level={4}>页面上下文 / UI Context</Typography.Title>
+    {fallbackStatus ? <>
+      <FormReadinessNotice status={fallbackStatus} />
+      <Typography.Paragraph type="secondary">表单状态来自工具终态摘要，具体解析事件缺失或未包含就绪状态。</Typography.Paragraph>
+    </> : null}
     {events.map((event) => {
       const summary = event.safeSummary && typeof event.safeSummary === 'object' && !Array.isArray(event.safeSummary)
         ? event.safeSummary as Record<string, unknown> : {};
-      return <Descriptions key={event.id} size="small" bordered column={{ xs: 1, sm: 2 }}>
+      const state = formReadinessStatus(summary);
+      return <Space key={event.id} orientation="vertical" size="small" className="full-width">
+        {state ? <FormReadinessNotice status={state} /> : null}
+        {summary.contextLinkStatus === 'CLIENT_PROVIDED_UNVERIFIED'
+          ? <Typography.Paragraph type="secondary">关联编号由客户端提供，尚未核验；它不证明本次提交已通过表单检查。</Typography.Paragraph> : null}
+        <Descriptions size="small" bordered column={{ xs: 1, sm: 2 }}>
         {Object.entries(labels).filter(([key]) => summary[key] !== undefined).map(([key, label]) => <Descriptions.Item key={key} label={label}>
           {typeof summary[key] === 'object' ? JSON.stringify(summary[key]) : String(summary[key] ?? '—')}
         </Descriptions.Item>)}
-      </Descriptions>;
+      </Descriptions></Space>;
     })}
     <details><summary>字段依据（按需加载）</summary>
       {trace.payloadMetadata.filter((item) => item.payloadType === 'UI_CONTEXT').map((item) =>

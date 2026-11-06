@@ -1,0 +1,290 @@
+{
+  "recordedAt": "2026-11-06T11:01:37.436Z",
+  "branch": "codex/record-change-precision",
+  "base": "048eae037168705fb9c5c042abee5a460c8499e9",
+  "evidenceScope": "READ_ONLY_LIVE_API_AND_SIMULATED_DRAFT_NOT_NATIVE_UI_OR_SAVE_ACCEPTANCE",
+  "businessWrites": 0,
+  "metadataWrites": 0,
+  "selection": {
+    "objectApiName": "Account_Visit__c",
+    "apiVersion": "68.0",
+    "app": "CBU_CRM_PC",
+    "appSource": "PROFILE_DEFAULT",
+    "page": "Account_Visit",
+    "assignmentSource": "ORG_DEFAULT",
+    "formSource": "DYNAMIC_FORMS",
+    "parsedFieldInstances": 52
+  },
+  "metadataMeasurements": [
+    {
+      "coldMs": 19296,
+      "verifiedWarmMs": 4319,
+      "coldCalls": 12,
+      "verifiedWarmCalls": 6,
+      "sameNormalizedSnapshot": true
+    },
+    {
+      "coldMs": 28058,
+      "verifiedWarmMs": 4741,
+      "coldCalls": 12,
+      "verifiedWarmCalls": 6,
+      "sameNormalizedSnapshot": true
+    }
+  ],
+  "create": {
+    "durationMs": 4511,
+    "schemaValid": true,
+    "status": "UNKNOWN",
+    "apiCallCount": 12,
+    "fieldCount": 45,
+    "requiredCount": 9,
+    "unknownRequiredCount": 3,
+    "missingRequired": [
+      "Start_Time__c",
+      "End_Time__c",
+      "Visit_Aim__c",
+      "Source__c",
+      "Plan_Chat__c",
+      "Attributor__c"
+    ],
+    "criticalUnknown": [
+      "REQUIREDNESS_UNRESOLVED:Lead__c",
+      "REQUIREDNESS_UNRESOLVED:Opportunity__c",
+      "REQUIREDNESS_UNRESOLVED:Account__c"
+    ],
+    "generatedFieldEvidence": {
+      "source": "USER_DESCRIBE",
+      "extraRead": true,
+      "status": "RESOLVED",
+      "facts": [
+        {
+          "apiName": "MCP_AI_Created__c",
+          "autoNumber": false,
+          "calculated": false,
+          "defaultedOnCreate": true
+        },
+        {
+          "apiName": "Name",
+          "autoNumber": true,
+          "calculated": false,
+          "defaultedOnCreate": true
+        },
+        {
+          "apiName": "is_Synced_OA__c",
+          "autoNumber": false,
+          "calculated": false,
+          "defaultedOnCreate": true
+        }
+      ]
+    },
+    "serverDefaultFields": [
+      "MCP_AI_Created__c",
+      "is_Synced_OA__c"
+    ]
+  },
+  "update": {
+    "durationMs": 7680,
+    "schemaValid": true,
+    "status": "READY",
+    "apiCallCount": 14,
+    "fieldCount": 45,
+    "requiredCount": 10,
+    "unknownRequiredCount": 0,
+    "missingRequired": [],
+    "criticalUnknown": [],
+    "preparedFieldCount": 0
+  },
+  "refinement": {
+    "probe": "SIMULATED_TEST_DRAFT_REFINEMENT_READ_ONLY",
+    "timestamp": "2026-11-06T11:08:42.773Z",
+    "businessWrites": 0,
+    "metadataWrites": 0,
+    "valuesPrinted": false,
+    "identitySource": "EXISTING_MYSQL_USER_AND_DIAGNOSTIC_ROUTES",
+    "status": "PASS",
+    "start": {
+      "durationMs": 35863,
+      "schemaValid": true,
+      "readinessStatus": "UNKNOWN",
+      "configurationSource": "FRESH",
+      "apiCallCount": 18,
+      "missingRequiredCount": 6,
+      "criticalUnknownCount": 3,
+      "targetFields": [
+        {
+          "apiName": "Lead__c",
+          "visibility": "PENDING",
+          "required": null,
+          "valueState": "EMPTY",
+          "missingRequired": false
+        },
+        {
+          "apiName": "Opportunity__c",
+          "visibility": "PENDING",
+          "required": null,
+          "valueState": "EMPTY",
+          "missingRequired": false
+        },
+        {
+          "apiName": "Account__c",
+          "visibility": "PENDING",
+          "required": null,
+          "valueState": "EMPTY",
+          "missingRequired": false
+        }
+      ],
+      "targetRules": [
+        {
+          "apiName": "Lead__c",
+          "ruleResult": "PENDING",
+          "evaluations": [
+            {
+              "scope": "FIELD",
+              "state": "PENDING",
+              "evaluationBasis": "CURRENT_DRAFT",
+              "dependsOn": [
+                "Source__c"
+              ]
+            }
+          ]
+        },
+        {
+          "apiName": "Opportunity__c",
+          "ruleResult": "PENDING",
+          "evaluations": [
+            {
+              "scope": "FIELD",
+              "state": "PENDING",
+              "evaluationBasis": "CURRENT_DRAFT",
+              "dependsOn": [
+                "Source__c"
+              ]
+            }
+          ]
+        },
+        {
+          "apiName": "Account__c",
+          "ruleResult": "PENDING",
+          "evaluations": [
+            {
+              "scope": "FIELD",
+              "state": "PENDING",
+              "evaluationBasis": "CURRENT_DRAFT",
+              "dependsOn": [
+                "Source__c"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "refine": {
+      "durationMs": 1897,
+      "schemaValid": true,
+      "readinessStatus": "NEEDS_INPUT",
+      "configurationSource": "TASK_REUSE",
+      "apiCallCount": 6,
+      "missingRequiredCount": 6,
+      "criticalUnknownCount": 0,
+      "targetFields": [
+        {
+          "apiName": "Lead__c",
+          "visibility": "HIDDEN",
+          "required": false,
+          "valueState": "EMPTY",
+          "missingRequired": false
+        },
+        {
+          "apiName": "Opportunity__c",
+          "visibility": "HIDDEN",
+          "required": false,
+          "valueState": "EMPTY",
+          "missingRequired": false
+        },
+        {
+          "apiName": "Account__c",
+          "visibility": "VISIBLE",
+          "required": true,
+          "valueState": "EMPTY",
+          "missingRequired": true
+        }
+      ],
+      "targetRules": [
+        {
+          "apiName": "Lead__c",
+          "ruleResult": "HIDDEN",
+          "evaluations": [
+            {
+              "scope": "FIELD",
+              "state": "HIDDEN",
+              "evaluationBasis": "CURRENT_DRAFT",
+              "dependsOn": [
+                "Source__c"
+              ]
+            }
+          ]
+        },
+        {
+          "apiName": "Opportunity__c",
+          "ruleResult": "HIDDEN",
+          "evaluations": [
+            {
+              "scope": "FIELD",
+              "state": "HIDDEN",
+              "evaluationBasis": "CURRENT_DRAFT",
+              "dependsOn": [
+                "Source__c"
+              ]
+            }
+          ]
+        },
+        {
+          "apiName": "Account__c",
+          "ruleResult": "VISIBLE",
+          "evaluations": [
+            {
+              "scope": "FIELD",
+              "state": "VISIBLE",
+              "evaluationBasis": "CURRENT_DRAFT",
+              "dependsOn": [
+                "Source__c"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "simulatedInput": {
+      "label": "SIMULATED_TEST_DRAFT",
+      "field": "Source__c",
+      "source": "CURRENT_USER_UI_API_PICKLIST_FOR_RESOLVED_RECORD_TYPE",
+      "selectableValuesCount": 4,
+      "valuePrinted": false,
+      "representsUserIntent": false
+    },
+    "expectedComparison": [
+      {
+        "apiName": "Lead__c",
+        "expectedVisibility": "HIDDEN",
+        "actualVisibility": "HIDDEN",
+        "matches": true
+      },
+      {
+        "apiName": "Opportunity__c",
+        "expectedVisibility": "HIDDEN",
+        "actualVisibility": "HIDDEN",
+        "matches": true
+      },
+      {
+        "apiName": "Account__c",
+        "expectedVisibility": "VISIBLE",
+        "actualVisibility": "VISIBLE",
+        "matches": true
+      }
+    ],
+    "acceptanceLimit": "Read-only dependency resolution demonstrated; no save or native Lightning UI parity acceptance."
+  },
+  "nativeLightningUiParity": "NOT_TESTED",
+  "nativeQuickActionSave": "NOT_TESTED",
+  "actualAgentBusinessAcceptance": "NOT_TESTED"
+}

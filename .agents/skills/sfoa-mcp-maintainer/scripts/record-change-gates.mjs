@@ -237,6 +237,7 @@ export function evaluateCreateReadiness({
   picklistNormalized = true,
   managedPolicySatisfied = true,
   evidenceComplete = true,
+  formContext,
 } = {}) {
   const blockers = [];
   if (!intentIsCreate) blockers.push('INTENT_NOT_CREATE');
@@ -268,6 +269,7 @@ export function evaluateCreateReadiness({
   if (!picklistNormalized) blockers.push('PICKLIST_NOT_NORMALIZED');
   if (!managedPolicySatisfied) blockers.push('MANAGED_POLICY_UNSATISFIED');
   if (!evidenceComplete) blockers.push('EVIDENCE_INCOMPLETE');
+  if (formContext !== undefined) blockers.push(...selectedFormBlockers(formContext));
 
   return Object.freeze({ changeReady: blockers.length === 0, action: 'CREATE', blockers: Object.freeze(blockers) });
 }
@@ -393,9 +395,9 @@ export function findDuplicateIdentityValues(records = []) {
  * change, and only those fields?"
  *
  * Deliberately does NOT accept a CREATE required-field list: create-time requiredness is not an
- * UPDATE blocker. It also does not consult `effectiveEditable`: that flag is produced only on the
- * CREATE Dynamic Forms path, while the current UPDATE action context exposes `fieldUpdateable` and
- * `layoutEditableForUpdate`. Where the runtime and this model disagree, the runtime wins.
+ * UPDATE blocker. A selected Edit form is a separate optional input: it evaluates every applicable
+ * Edit requirement against saved values and the patch. Page editability does not replace FLS.
+ * Where the runtime and this development-only model disagree, the runtime wins.
  */
 export function evaluateUpdateReadiness({
   intentIsUpdate = true,
@@ -411,6 +413,7 @@ export function evaluateUpdateReadiness({
   managedPolicySatisfied = true,
   recordTypeIntentResolved = true,
   evidenceComplete = true,
+  formContext,
 } = {}) {
   const blockers = [];
   if (!intentIsUpdate) blockers.push('INTENT_NOT_UPDATE');
@@ -435,8 +438,46 @@ export function evaluateUpdateReadiness({
   if (!managedPolicySatisfied) blockers.push('MANAGED_POLICY_UNSATISFIED');
   if (!recordTypeIntentResolved) blockers.push('RECORD_TYPE_INTENT_UNRESOLVED');
   if (!evidenceComplete) blockers.push('EVIDENCE_INCOMPLETE');
+  if (formContext !== undefined) blockers.push(...selectedFormBlockers(formContext));
 
   return Object.freeze({ changeReady: blockers.length === 0, action: 'UPDATE', blockers: Object.freeze(blockers) });
+}
+
+/**
+ * Development oracle for selected-form facts, never a production validator or permission engine.
+ * Fields/requiredness/source data are supplied evidence, not Salesforce business rules encoded here.
+ * managedOnWrite contains only promises already proven applicable to this exact input: strict
+ * ownership may replace client input, while fallback cannot promise to replace explicit input.
+ */
+export function evaluateSelectedFormReadiness({
+  action = 'CREATE', fields = [], savedValues = {}, draftFields = {}, defaults = {},
+  managedOnWrite = [], criticalUnknown = [], configurationVerified = true,
+} = {}) {
+  const missingRequired = [];
+  const unknown = [...criticalUnknown];
+  if (!configurationVerified) unknown.push('CONFIGURATION_UNVERIFIED');
+  // CREATE defaults must never be replayed while checking an existing Edit form.
+  const current = action === 'UPDATE' ? savedValues : defaults;
+  const effective = { ...current, ...draftFields };
+  for (const field of fields) {
+    if (field.required === null || field.conditionalRequiredUnknown === true) unknown.push(`REQUIREDNESS_UNKNOWN:${field.apiName}`);
+    if (field.required !== true) continue;
+    const value = effective[field.apiName];
+    const hasValue = Object.hasOwn(effective, field.apiName) && value !== undefined && value !== null && value !== '';
+    if (!hasValue && !managedOnWrite.includes(field.apiName)) missingRequired.push(field.apiName);
+  }
+  return Object.freeze({
+    status: unknown.length ? 'UNKNOWN' : missingRequired.length ? 'NEEDS_INPUT' : 'READY',
+    missingRequired: Object.freeze(missingRequired), criticalUnknown: Object.freeze(unknown),
+  });
+}
+
+function selectedFormBlockers(formContext) {
+  const blockers = [];
+  for (const field of formContext.missingRequired ?? []) blockers.push(`FORM_MISSING_REQUIRED:${field}`);
+  for (const reason of formContext.criticalUnknown ?? []) blockers.push(`FORM_CRITICAL_UNKNOWN:${reason}`);
+  if (formContext.status !== 'READY' && blockers.length === 0) blockers.push('FORM_NOT_READY');
+  return blockers;
 }
 
 /**

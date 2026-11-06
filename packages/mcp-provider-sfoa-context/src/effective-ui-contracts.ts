@@ -33,7 +33,7 @@ export const uiPageSchema = z.object({
 }).strict();
 export const uiAssignmentSchema = z.object({
   app: uiNameSchema.nullable(), profile: uiNameSchema.nullable(), recordType: uiNameSchema.nullable(),
-  formFactor: formFactorSchema.nullable(), action: z.enum(['View', 'New']),
+  formFactor: formFactorSchema.nullable(), action: z.enum(['View', 'New', 'Edit']),
   type: uiNameSchema, page: uiNameSchema.nullable(),
   source: z.enum(['ORG_DEFAULT', 'APP_DEFAULT', 'APP_PROFILE_RECORD_TYPE']),
 }).strict();

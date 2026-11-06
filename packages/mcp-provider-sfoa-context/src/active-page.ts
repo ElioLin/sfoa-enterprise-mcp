@@ -5,6 +5,7 @@ export type ActivePageResult = Pick<UiContext, 'formSource' | 'resolutionStatus'
 export function resolveActivePage(snapshot: UiSnapshot, facts: Readonly<{
   profileId: string; recordTypeId: string; formFactor: FormFactor;
   apps: readonly { appId: string; developerName: string }[]; appDeveloperName?: string;
+  action?: 'CREATE' | 'UPDATE';
 }>): ActivePageResult {
   const failed = (reason: string, ambiguous = false): ActivePageResult => ({
     formSource: ambiguous ? 'AMBIGUOUS' : 'UNRESOLVED', resolutionStatus: ambiguous ? 'AMBIGUOUS' : 'UNRESOLVED',
@@ -29,16 +30,17 @@ export function resolveActivePage(snapshot: UiSnapshot, facts: Readonly<{
       && (assignment.profile === null || assignment.profile === profiles[0]?.fullName)
       && (assignment.recordType === null || assignment.recordType === recordType)
       && (assignment.formFactor === null || assignment.formFactor === facts.formFactor));
-    const choose = (action: 'New' | 'View'): UiAssignment[] => {
+    const choose = (action: 'New' | 'Edit' | 'View'): UiAssignment[] => {
       const rows = matches.filter((row) => row.action === action);
       const priority = (row: UiAssignment): number => (row.app ? 4 : 0) + (row.profile ? 2 : 0) + (row.recordType ? 1 : 0) + (row.formFactor ? 0.5 : 0);
       const highest = Math.max(...rows.map(priority));
       return rows.filter((row) => priority(row) === highest);
     };
-    const fresh = choose('New');
+    const operationAction = facts.action === 'UPDATE' ? 'Edit' : 'New';
+    const fresh = choose(operationAction);
     if (fresh.length > 1) return failed('ASSIGNMENT_RESOLUTION_ERROR', true);
     const override = fresh[0];
-    if (override?.type === 'Default' && matches.some((row) => row.action === 'New' && !['Default', 'Standard'].includes(row.type))) {
+    if (override?.type === 'Default' && matches.some((row) => row.action === operationAction && !['Default', 'Standard'].includes(row.type))) {
       return failed('ASSIGNMENT_DEFAULT_INHERITANCE_UNKNOWN');
     }
     if (override && !['Default', 'Standard'].includes(override.type)) return {

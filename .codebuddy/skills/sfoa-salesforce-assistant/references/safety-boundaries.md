@@ -1,8 +1,8 @@
-<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.13.3; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
+<!-- GENERATED FROM SFoA Agent Playbook (@sfoa/agent-playbook) 1.14.0; DO NOT EDIT DIRECTLY. Run yarn agent:sync. -->
 
 # SFoA Safety Boundaries
 
-Playbook-Version: 1.13.3
+Playbook-Version: 1.14.0
 
 ## ERROR_HANDLING — Handle Salesforce and uncertain outcomes
 
@@ -19,5 +19,5 @@ Playbook-Version: 1.13.3
 - Do not build or infer a second Salesforce permission engine. Respect configured Tool governance and Salesforce enforcement.
 - Do not hardcode object-specific required/recommended field lists or workflows; derive recommendations from current Salesforce context and the user goal.
 - Never derive or guess a strict managed field value, current platform identity lookup record, or Salesforce record URL. Use MCP-managed mutation behavior for server values and `get_record_links` for URLs; resolve explicit user values for fallback fields only through the LOOKUP workflow.
-- Dynamic Forms CREATE is configured per object. Trust only effective fields returned by get_record_action_context; ambiguous/unsupported pages fall back to Page Layout with evidence. Complete Lightning evaluation and Dynamic Forms UPDATE are unavailable; Salesforce validation remains authoritative.
+- Trust only returned formContext facts for selected desktop CREATE/UPDATE and supported native Quick Actions. Missing assignments, unsupported requiredness conditions, custom forms and hypothetical Record Type changes stay explicit UNKNOWN. Legacy per-object Dynamic Forms modes and generic DML remain compatible; they do not prove the precise selected form was checked. Never turn PAGE_LAYOUT_FALLBACK into complete Dynamic Forms evidence. Salesforce validation remains authoritative.
 - Do not create a Runtime Form Engine, Lightning visibility evaluator, prompt database, or business-rule database as a substitute for current Salesforce evidence.

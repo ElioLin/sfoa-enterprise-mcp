@@ -142,9 +142,10 @@ export class ContextToolFacade {
     input: ToolInput = {},
     response?: CallToolResult,
   ): Promise<void> {
-    // A ready CREATE is audited by the resolver even when its internal ID is not Agent-visible.
+    // Legacy ready CREATE and precise CREATE/UPDATE are audited by their resolver.
     if (this.getName() === 'get_record_action_context'
-      && !(input.action === 'CREATE' && response?.structuredContent?.recordTypeSelectionRequired === false)) {
+      && !(input.action === 'CREATE' && response?.structuredContent?.recordTypeSelectionRequired === false)
+      && !isFormContext(response?.structuredContent?.formContext)) {
       try {
         currentRequestAuditContext()?.collector().recordEvent({ eventCategory: 'TOOL',
           eventType: result === 'PASS' ? 'UI_CONTEXT_RESOLVED' : 'UI_CONTEXT_RESOLUTION_FAILED',
@@ -152,7 +153,8 @@ export class ContextToolFacade {
             resolutionId: randomUUID(), ...safeContextRequestSummary(this.getName(), input) as object,
             usedForAgent: false, dynamicFormsEvaluated: false,
             resolutionStatus: result === 'PASS' ? 'NOT_APPLICABLE' : 'UNRESOLVED',
-            reason: errorCode ?? (input.action !== 'CREATE' ? 'CREATE_ONLY' : 'RECORD_TYPE_SELECTION_REQUIRED'),
+            reason: errorCode ?? (input.formContext !== undefined ? 'FORM_CONTEXT_UNRESOLVED'
+              : input.action !== 'CREATE' ? 'CREATE_ONLY' : 'RECORD_TYPE_SELECTION_REQUIRED'),
           } });
       } catch { /* P7 remains fail-open. */ }
     }
@@ -351,6 +353,11 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     ...(typeof content.returnedFiles === 'number' ? { returnedFiles: content.returnedFiles } : {}),
     ...(fields !== undefined ? { fieldCount: fields } : {}),
     ...(Array.isArray(content.managedDmlFields) ? { managedDmlFieldCount: content.managedDmlFields.length } : {}),
+    ...(isFormContext(content.formContext) ? {
+      formReadinessStatus: content.formContext.status,
+      missingRequiredCount: Array.isArray(content.formContext.missingRequired) ? content.formContext.missingRequired.length : 0,
+      criticalUnknownCount: Array.isArray(content.formContext.criticalUnknown) ? content.formContext.criticalUnknown.length : 0,
+    } : {}),
     ...(typeof content.totalLimits === 'number' ? { totalLimits: content.totalLimits } : {}),
     ...(typeof content.returnedLimits === 'number' ? { returnedLimits: content.returnedLimits } : {}),
     // The debug-log set. `returnedCount` / `scannedCount` / `totalCount` are the three numbers that
@@ -379,6 +386,11 @@ function safeContextResponseSummary(response: CallToolResult | undefined, errorC
     ...(timelineEntryCount(content) === null ? {} : { timelineEntryCount: timelineEntryCount(content) }),
     ...(errorCode ? { errorCode } : {}),
   };
+}
+
+function isFormContext(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && ['READY', 'NEEDS_INPUT', 'UNKNOWN'].includes(String((value as Record<string, unknown>).status));
 }
 
 /**
