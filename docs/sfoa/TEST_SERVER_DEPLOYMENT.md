@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-11-06 HOTFIX-01 材料工作流部署（203）
+
+部署 `feature/agent-material-workflows` @ `b459e8b1fb348eeea95f58c9a4c698f19e22f8ba`（HOTFIX-01）。部署前 203 为 core `1f060ed` + Playbook **1.13.2** + Adapter `9c4fda9`；本轮推进到 Playbook **1.13.3**、Adapter `b459e8b`、四业务 Skill 与独立 `sfoa` 1.13.3，并重打 Admin Web。**真实企微 / Salesforce 业务 UAT 本轮未执行**；以下仅为协议、构建、字节与可见性验证。
+
+| 项 | 实际记录 |
+| --- | --- |
+| 归档 | `/data/sfoa-enterprise-mcp/incoming/sfoa-app-b459e8b.tar.gz`，4,282,741 B，sha256 `9958e79551af9f563cf8c1d27b2d66b7672cbee5651b926c4266b2c0dcf02616`，1460 个 tracked 文件；`git -c core.autocrlf=false -c core.eol=lf archive` 生成，staging 与 app 的 `sha256sum -c` 均 **1460 OK / 0 non-OK**；`packages/mcp/README.md` symlink 保留（`../../README.md`） |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/material-hotfix01-20261106T091634-b459e8b/`（24M）：app 源码（排除 node_modules/dist）、agent-playbook/mcp-server/admin-api/admin-web 四个旧 dist、实际 adapter、五份 runtime Skill、registry 快照、`pre-state.txt`/`post-state.txt`、`rollback.sh`（未演练） |
+| 构建 | 按依赖序重建 `@sfoa/agent-playbook`（1.13.3）、`@sfoa/mcp-server`（含 `onFileResult?.(observed)`）、`@sfoa/admin-api`、`@sfoa/admin-web`；日志 `build-*.log`。未重装依赖、无新迁移（017 已于 11-05 APPLIED） |
+| 服务 | `sfoa-mcp-server` / `sfoa-admin-api` 重启：PID **3845239 / 3845252**，`ActiveEnterTimestamp` 09:18:07 / 09:18:12，NRestarts=0；`/health` 200（auditPersistence UP，failureCount 0）、`/admin/api/ready` 200（8.4.5）；Gateway PID **3759907**、nginx PID 1267856 未重启 |
+| Adapter | `openclaw plugins reload sfoa-wecom-mcp-adapter` 成功：generation **4**、`restartRequired=false`、source digest `7f1f641215cbd7d69e4ff31f4f3b9a0848f556272ba038cd930882f24e130510`。落盘 hash：`src/index.js` `7fcdc7e0…`、`material-tasks.js` `9999b0d4…`、`native-reading.js` `b015160a…`、`read-office.py` `a58b3250…`、`openclaw.plugin.json` `be611e34…`（与 9c4fda9 相同，未触发新 capability consent）；Gateway 日志显示 attachment bridge 与 requester resolver 重新注册 |
+| Runtime Skill | `skill:runtime:sync/check --runtime-root /data/openclaw/workspace/skills`：四个业务 Skill 与 canonical `diff -r` 全部 IDENTICAL、`drift: []`；`sfoa-record-change/SKILL.md` 更新为 `11a57370…`；`sfoa` 导出重生成 **1.13.3**（`SKILL.md` `5ae5b733…`），既有 `mcp.json` hash `3279fe3b…` 未变；`skills.status` 四个业务 Skill `eligible/modelVisible=true`，`sfoa` eligible=true/modelVisible=false，maintainer 不在 runtime |
+| MCP 协议 | initialize 200、protocolVersion `2025-06-18`、instructions 4950 字符且含 **1.13.3**、不含 1.13.2；tools/list **29**；`upload_files_to_record` 输出含 `retryable`，`get_record_action_context` 输入含 `includeValueAssessment`。使用控制面内部 enabled 路由注入 `X-Platform-User-Id`，日志仅保留 route id 与掩码 `61***79`，未打印工号 |
+| Admin Web | 新包 `index-DQlDgH9N.js` / `AgentIntegrationPage-Ty3qH7HN.js`（含 **1.13.3**）；nginx `:9000/`、`/agent-integration`、`/admin/api/ready` 均 200；`chown -R root:root` + `restorecon -Rv dist`，`index.html` 为 `httpd_sys_content_t` |
+| 配置/迁移 | `.env.local` sha256 `235f2465…`、`openclaw.json` sha256 `863b33d1…`，部署前后一致；迁移台账仍 001–015 + **017 APPLIED**，未执行 `db:migrate` |
+| 服务器专项 | 部署树 Adapter 材料/原生读取测试 **46/46 PASS**（material-tasks 26 + native 11 + material-reader 9）；本机同一源码 bridge 25/25、material/native 37/37 PASS |
+| 未做 | 真实企微多轮材料、真实 Salesforce CREATE/UPDATE/上传、PDF/图片/音频原生覆盖回写、归档 ACCEPTED+materialIds、跨 Gateway 重启持久化均未在本轮验证；不把协议/构建 PASS 当业务 UAT |
+| 回滚 | 审阅后执行上述备份内 `rollback.sh`：停 MCP/Admin → 解回 app 源码与四个 dist → 解回 adapter 与五份 runtime Skill → `chown/restorecon` → 启动两服务 → `openclaw plugins reload`；不恢复 registry 快照（其他插件可能已有新状态），不撤销 Salesforce 写入或重放未知操作 |
+| 既有告警 | `openclaw plugins inspect/reload` 仍显示 legacy agent migration `EXDEV` 警告；属既有环境问题，本轮未运行 `doctor --fix`，未改配置 |
+
+### 2026-11-06 Prompt 字段最小化补丁（a21e679）
+
+| 项 | 实际记录 |
+| --- | --- |
+| 提交 | `a21e679a271a806998a5d1b439c1de0cfc007c65` `fix(adapter): keep host identity and staging paths out of model views`；3 文件：`src/material-tasks.js`、`test/native-reading.test.js`、`README.md` |
+| 行为 | 模型可见的 prompt 与 `sfoa_material_task` 结果改为业务事实白名单；不再包含 `sessionKey`/`sessionId`、`sourcePaths`、`ownerRequester`、`sourceMessages`、`sourceMessageId`、`receipts`。宿主 registry 仍保留这些字段用于证据绑定/清理；`details.taskId` 保留（`new_task` 绑定需要），选中材料的 `reading.text` 仍按需返回 |
+| 落盘 | app 与 `/data/openclaw/plugins/sfoa-wecom-mcp-adapter` 同步；`material-tasks.js` `35b13f72…`、`native-reading.test.js` `daebb9e1…`、`README.md` `74b09d31…`；CR=0 |
+| 热加载 | `plugins reload` generation **5**、`restartRequired=false`、source digest `f1db4d2c46b6eae3ca3f68abc723b33c7f37ce31ffdf0042391f598408ff0a3b`；Gateway PID 3759907 未变；bridge/resolver 重新注册 |
+| 验证 | 服务器部署树 material/native 测试 **37/37**；直接渲染证明 prompt 与 tool view 中 `woSECRETUSER`、`/data/openclaw/state`、`ownerRequester`、`sessionKey`、`sourcePaths`、`sourceMessages` 均 absent；`taskId` 保留、未选材料正文不返回、选中材料正文返回。本机 material/native/bridge **62/62** |
+| MCP/Admin | 未重建、未重启（3845239/3845252 不变）；Playbook 1.13.3、29 tools、四业务 Skill/`sfoa` 1.13.3 不变 |
+| 备份/回滚 | `/data/sfoa-enterprise-mcp/backup/prompt-minimization-20261106T093553-a21e679/`：pre `material-tasks.js` `9999b0d4…`、pre test `808070d1…`、pre README `1752e9fd…`、`rollback.sh`（未演练）；回滚恢复预补丁文件并热加载 |
+| 未做 | 真实企微/Salesforce 业务 UAT 未执行；字段最小化只改变模型可见视图，不改变宿主证据与写入授权 |
+
+---
+
 ## 2026-11-05 材料工作流测试部署（203）
 
 后续核对发现 Admin Web 仍在提供 10 月 29 日的 Playbook 1.12.0 静态包；此前的 1.13.2 证明覆盖服务端和运行 Skill，未覆盖管理前端。已补发 `index-3O0UrNe6.js` / `AgentIntegrationPage-C9ZxVunh.js`，11:40 实际浏览器确认页面与 Dify/WeCom 生成文本均为 1.13.2；Linux 全量 95/95，四服务 PID 未变。备份及回滚：`/data/sfoa-enterprise-mcp/backup/admin-playbook-1132-20261105T033105Z/rollback.sh`，未演练。四业务 Skill 38 文件与 Git 一致，独立 sfoa 导出正文一致。完整遗漏、失败保留、本地跨分支开发库处理及验证/回滚见[启动与版本修复记录](STARTUP_AND_PLAYBOOK_REPAIR_20261105.md)。历史记录保留，不能将服务端版本视为前端已同步的证明。

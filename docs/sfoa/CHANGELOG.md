@@ -2,6 +2,12 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-06 — HOTFIX-01 deployed; model-visible task state minimized
+
+The test server now runs `feature/agent-material-workflows` at `b459e8b` (HOTFIX-01): Playbook **1.13.3**, the LF adapter source, four runtime business Skills, the independent `sfoa` 1.13.3 export and a rebuilt Admin Web bundle. Protocol checks returned Playbook 1.13.3, 29 Tools, `retryable` on attachment output and the optional `includeValueAssessment`; migration 017 was already applied. Real WeCom and Salesforce business UAT were not run in this round.
+
+A follow-up adapter commit `a21e679` makes the model-visible material task view an explicit business whitelist. Host session keys, absolute staging paths, requester identity, source message IDs and receipt/attempt bookkeeping remain in the host registry and are no longer sent in the prompt or the `sfoa_material_task` result; `taskId` remains in the tool result for task binding. Adapter reload generation 5; material/native tests 37/37 on the server and 62/62 locally. Business UAT remains the outstanding gate. See [the deployment record](TEST_SERVER_DEPLOYMENT.md) for backups, rollback and the prompt-minimization addendum.
+
 ## 2026-11-05 — OpenClaw registration compatibility and acceptance follow-up
 
 The optional material task store now tolerates a host trust denial without rolling

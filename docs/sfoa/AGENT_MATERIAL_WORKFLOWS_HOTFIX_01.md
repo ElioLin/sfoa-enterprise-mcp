@@ -3,6 +3,8 @@
 日期：2026-11-05。范围：本地实现、确定性回归、基本构建、指导分发和交付记录。
 本报告接续[原交付](AGENT_MATERIAL_WORKFLOWS_DELIVERY.md)与[续测记录](AGENT_MATERIAL_WORKFLOWS_ACCEPTANCE_FOLLOWUP.md)，不覆盖其中历史失败、真实渠道结果或部署版本。
 
+> **2026-11-06 部署补记**：本报告源码 `b459e8b` 已按[测试服务器部署指南](TEST_SERVER_DEPLOYMENT.md)部署到 203（Playbook 1.13.3、Adapter HOTFIX-01、四业务 Skill 与独立 `sfoa` 1.13.3）；协议、构建、字节与可见性验证通过。同日稍后追加 Adapter Prompt 字段最小化补丁 `a21e679`（generation 5），只改变模型可见视图。真实企微与 Salesforce 业务 UAT 仍未执行，原文的 **NOT_RUN_BY_REQUEST / PARTIAL** 结论对业务验收继续有效。
+
 **交付判定：PARTIAL。** A1–A5 与现有宿主可实现的 B1/B2 已完成代码和针对性回归；根构建顺序已在 Node 24 / 26 CI 验证。尚有本地隔离安装链接/最终根构建失败、harness、graceful shutdown、P7 时间边界检查失败，以及 Node 22 的既有测试参数兼容失败，不能标记 READY_FOR_USER_UAT 或“测试全部通过”。真实企微 / OpenClaw 模型业务流程 / Salesforce 实写及附件发布统一为 **NOT_RUN_BY_REQUEST**，本报告不宣布本轮业务 COMPLETE。
 
 ## 基线与交付边界
