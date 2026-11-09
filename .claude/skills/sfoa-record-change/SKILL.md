@@ -9,7 +9,7 @@ display_name_en: "CRM Record Create & Update"
 
 指导修订：1.14.0 — 创建/编辑按所选表单取证并在提交前复核，保留材料提炼与业务类型语义。
 
-按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/所选表单事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → 执行和回执。CREATE/UPDATE 使用 `formContext`，默认标准入口；具体见 [精确表单流程](references/precise-forms.md)。复用仍适用的上下文；查询、纯附件或诊断不进入该表单流程。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
+按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/所选表单事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → 执行和回执。CREATE/UPDATE 使用 `formContext`，默认标准入口；具体见 [精确表单流程](references/precise-forms.md)。可复用仍适用的上下文，但 CREATE 前 **MUST** 满足 Hard Rule 45 的«本次表单证据»；查询、纯附件或诊断不进入该表单流程。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
 
 工具结果被客户端截断时，不把可见片段当完整字段表。利用已有字段定义，按任务调用 `get_record_action_context.fieldApiNames` 缩小响应；必填/条件必填与已知控制依赖仍保留，遗漏与未知字段在 coverage.fieldProjection 中说明。相关 Picklist 续取仍用 nextValueOffset，不为无关字段重复读取完整上下文。
 
@@ -71,6 +71,7 @@ display_name_en: "CRM Record Create & Update"
 42. **适用查重** — CREATE 围绕当前真实对象的业务身份/事件键，UPDATE 仅对实际变化且适用的身份值做有界 USER 查询；名称、共享电话、模糊匹配是候选，不直接证明重复。拜访结合客户、时间和事件，历史拜访不阻止新事件。先用已有事实消歧；实质同记录冲突或继续新建/改为更新/取消的独立选择才集中问，已有决定不重问；普通初始“新建”不代表已知后来发现的同记录证据后仍决定再建一份，未解选择应在保存前问；不能静默覆盖旧记录。无适用键、查询失败或截断如实说明限制，不统一阻断，也不声称全库唯一。见 [duplicate-check.md](references/duplicate-check.md)。
 43. **Selected Form Contract** — CREATE/UPDATE 使用 `formContext`：默认 STANDARD，仅明确选择时使用原生 QUICK_ACTION；应用明确值优先，否则使用当前 USER 的 Profile 默认应用。START/REFINE 处理草稿与关键缺项；提交携带相同选择，由 MCP 自动 SUBMIT 复核当前配置。QUICK_ACTION 仅使用单条 create_record/update_record，不进入批量工具。`UNKNOWN`/`criticalUnknown` 不得以旧 API 路径绕过。近期可选建议不阻塞已就绪保存，按实际分子、分母、窗口和范围说明。见 [precise-forms.md](references/precise-forms.md)。
 44. **必填性未证明即不得提交** — `coverage.requirednessIncomplete=true` 表示本次解析没有证明该 Record Type 的完整必填集合：可能是对象存在 Record Type 专属 Lightning 页面但本次解析到了别的页面（`RECORD_TYPE_PAGE_NOT_MATCHED`），也可能是动态表单解析回落到 Page Layout（`RESOLUTION_FALLBACK_*`）。此时 **MUST NOT** 把 `requiredChecklist` 当作完整清单，**MUST NOT** 据此给出 `CHANGE_READY=true`。**MUST** 先如实说明「当前表单必填校验不完整」，列出已确认的必填项，并请用户补充只在专属表单页出现的必填字段，或由用户明确确认按现有信息保存。该信号与 `coverage: PARTIAL`、`truncated`、`PENDING` 是不同事实，不能互相替代，也不能因为 `includeRequiredness` 已开启就认为必填已证明。
+45. **CREATE 前必须有本次表单证据** — 调用 `create_record` / `create_records` 之前，**MUST** 在本轮对话中针对当前对象与**已确定的 Record Type** 调用过 `get_record_action_context`（不传 `formContext` 时服务端按 STANDARD START 处理）。下列任一情况都使先前证据失效，**MUST** 重新调用并在拿到结果后再决定：对象或 Record Type 变化；用户补充/更改了会改变条件必填的事实（来源、销售组织、Record Type 相关选择等）；上次调用之后已经发生过任何写入；上次调用没有返回 `formContext`（例如未选 Record Type 导致 `recordTypeSelectionRequired`）。**MUST NOT** 以「同一会话里前面查过」「上一次也是这样建的」「我记得这几个字段不用填」为由跳过本次取证——旧结论来自旧配置，必填集合可能已经变化。`missingRequired` 非空且无合规草稿值时，先补齐或追问，**MUST NOT** 直接建单。同一会话内重复为不同对象/类型取证时，同样各自独立执行本规则。
 
 ## CREATE 与 UPDATE 的关键差异
 

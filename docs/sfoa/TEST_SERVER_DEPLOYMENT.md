@@ -21,6 +21,8 @@
 | 未做 | 快照刷新（用户自测）；真实企微/DSH 端到端业务 UAT；Salesforce 写入（本次仅只读 UI API 调用） |
 | 回滚 | `bash /data/sfoa-enterprise-mcp/backup/branch-561614d-20261109T181254/rollback.sh`（停服 → 解回 app 源码与 5 个 dist → 启动），未演练 |
 
+**部署后追加（18:50）**：企微实测仍未追问三个必填字段。审计显示该会话只调用了 `run_soql_query` 与 `create_record`（审计 10061–10064），**从未调用 `get_record_action_context`**，落库记录 `a0fC5000001AyiHIAS` 的三个字段为空；而同一时段的不传 `formContext` 验证调用（10060）已返回 `missingRequiredCount=9` 含这三个字段。结论是智能体跳过了取证步骤，不是运行时缺陷。据此在 `sfoa-record-change` 增加 Hard Rule 45（CREATE 前必须有本次表单证据，显式禁止「同一会话前面查过」式复用），已同步 app 与 OpenClaw runtime（`SKILL.md` sha256 `dcc89cf9…`，四个 Skill `drift: []`）。
+
 ---
 
 ## 2026-11-09 业务 Skill 中文显示名发布（203）
