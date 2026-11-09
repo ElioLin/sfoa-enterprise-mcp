@@ -820,6 +820,7 @@ async function executeMcpPost(
     initializedProvider,
     diagnosticReady,
     precision: { loadMetadata: loadFormMetadata,
+      defaultFormContext: options.config.precisionDefaultFormContext,
       appDeveloperName: typeof headers['x-salesforce-app-developer-name'] === 'string'
         ? headers['x-salesforce-app-developer-name'] : undefined,
       formFactor: headers['x-salesforce-form-factor'] === undefined || headers['x-salesforce-form-factor'] === 'Large'

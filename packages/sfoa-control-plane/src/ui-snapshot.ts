@@ -57,7 +57,8 @@ export class MySqlUiSnapshotRepository {
     });
   }
   /** Small database lease prevents duplicate refreshes across Admin processes. */
-  public async beginRefresh(organizationId: string, objectApiName: string, parserVersion: string): Promise<string> {
+  public async beginRefresh(organizationId: string, objectApiName: string, parserVersion: string,
+    leaseMs = 180_000): Promise<string> {
     const token = randomUUID();
     await this.database.insertInto('sfoa_ui_snapshot').values({
       organization_id: organizationId, object_api_name: objectApiName, parser_version: parserVersion,
@@ -67,7 +68,7 @@ export class MySqlUiSnapshotRepository {
     const result = await this.database.updateTable('sfoa_ui_snapshot').set({
       refresh_status: 'REFRESHING', refresh_started_at: new Date(), refresh_token: token, last_error: null,
     }).where('organization_id', '=', organizationId).where('object_api_name', '=', objectApiName)
-      .where((eb) => eb.or([eb('refresh_status', '!=', 'REFRESHING'), eb('refresh_started_at', '<', new Date(Date.now() - 180_000))]))
+      .where((eb) => eb.or([eb('refresh_status', '!=', 'REFRESHING'), eb('refresh_started_at', '<', new Date(Date.now() - Math.max(leaseMs, 60_000)))]))
       .executeTakeFirst();
     if (!result.numUpdatedRows) throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFLICT', 'UI snapshot refresh is already running.');
     return token;

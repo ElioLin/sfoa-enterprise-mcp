@@ -115,3 +115,28 @@ test('asynchronous precise-context audit failure cannot alter the form result or
   assert.equal((await executor.execute(f.input)).formContext?.status, 'READY');
   await new Promise<void>((resolve) => setImmediate(resolve));
 });
+
+test('an omitted formContext defaults to the precise STANDARD form and falls back to legacy context when it cannot resolve', async () => {
+  const snapshot = fixtureSnapshot();
+  const f = runtimeFixture('ENFORCE', snapshot);
+  Object.assign(f.objectCrud, { createable: true, updateable: true });
+  const loadMetadata = async () => ({ snapshot, appDeveloperName: 'App_A', appSource: 'PROFILE_DEFAULT' as const,
+    verifiedAt: new Date().toISOString(), apiCallCount: 1, evidence: {} });
+
+  const preciseFirst = new RecordActionContextExecutor(f.org, f.resolver, { defaultFormContext: true, loadMetadata });
+  const defaulted = await preciseFirst.execute({ objectApiName: 'Sample__c', action: 'CREATE' });
+  recordActionContextOutputSchema.parse(defaulted);
+  assert.equal(defaulted.formContext?.entry, 'STANDARD');
+  assert.equal(defaulted.formContext?.phase, 'START');
+  assert.notEqual(defaulted.formContext?.status, 'UNRESOLVED');
+
+  const unavailable = new RecordActionContextExecutor(f.org, f.resolver, { defaultFormContext: true,
+    loadMetadata: async () => { throw new Error('FORM_METADATA_READER_UNAVAILABLE'); } });
+  const fallback = await unavailable.execute({ objectApiName: 'Sample__c', action: 'CREATE' });
+  recordActionContextOutputSchema.parse(fallback);
+  assert.equal(fallback.formContext, undefined, 'defaulted precision must not surface an unusable UNKNOWN form');
+  assert.ok(fallback.coverage?.warnings.some((warning) => warning.startsWith('PRECISION_FALLBACK_LEGACY_CONTEXT:')));
+
+  const explicitLegacy = new RecordActionContextExecutor(f.org, f.resolver, { defaultFormContext: false, loadMetadata });
+  assert.equal((await explicitLegacy.execute({ objectApiName: 'Sample__c', action: 'CREATE' })).formContext, undefined);
+});

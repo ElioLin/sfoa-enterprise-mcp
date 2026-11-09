@@ -3,8 +3,10 @@ import { UI_PARSER_VERSION, uiSnapshotSchema, type UiAssignment, type UiSnapshot
 import { asArray, asObject, parseFlexiPage, textValue } from './flexipage-parser.js';
 
 /** Admin-only configuration read, using a dedicated DIAGNOSTIC connection. */
-export async function collectUiSnapshot(connection: Connection, objectApiName: string, signal?: AbortSignal): Promise<UiSnapshot> {
+export async function collectUiSnapshot(connection: Connection, objectApiName: string, signal?: AbortSignal,
+  onStage?: (stage: string) => void): Promise<UiSnapshot> {
   if (!/^[A-Za-z][A-Za-z0-9_]{0,127}$/u.test(objectApiName)) throw new Error('INVALID_OBJECT');
+  const stage = (name: string): void => { try { onStage?.(name); } catch { /* telemetry only */ } };
   const check = (): void => { signal?.throwIfAborted(); };
   const query = async (soql: string, limit: number): Promise<Record<string, unknown>[]> => {
     check();
@@ -13,6 +15,7 @@ export async function collectUiSnapshot(connection: Connection, objectApiName: s
     return result.records.map(asObject);
   };
   check();
+  stage('INVENTORY');
   const [userInfo, object, directory, definitions, profiles, profileDirectory, types] = await Promise.all([
     connection.soap.getUserInfo(), connection.metadata.read('CustomObject', objectApiName),
     connection.metadata.list([{ type: 'CustomApplication' }]),
@@ -47,6 +50,7 @@ export async function collectUiSnapshot(connection: Connection, objectApiName: s
     }
   }
   add(asObject(object).actionOverrides, null, 'ORG_DEFAULT');
+  stage('APPLICATIONS');
   for (let index = 0; index < apps.length; index += 20) {
     check();
     const batch = apps.slice(index, index + 20);
@@ -64,6 +68,7 @@ export async function collectUiSnapshot(connection: Connection, objectApiName: s
   const names = [...new Set(assignments.filter((row) => row.type === 'Flexipage' && row.page).map((row) => row.page as string))];
   if (names.length > 100) throw new Error('SNAPSHOT_PAGE_BOUND');
   const pages: UiSnapshot['pages'] = [];
+  stage('FLEXIPAGES');
   for (let index = 0; index < names.length; index += 10) {
     check();
     const batch = names.slice(index, index + 10);
@@ -75,6 +80,7 @@ export async function collectUiSnapshot(connection: Connection, objectApiName: s
     }
   }
   check();
+  stage('NORMALIZE');
   return uiSnapshotSchema.parse({ organizationId: userInfo.organizationId, objectApiName,
     parserVersion: UI_PARSER_VERSION, apps, assignments, pages, complete: true,
     profiles: profiles.map((profile) => {

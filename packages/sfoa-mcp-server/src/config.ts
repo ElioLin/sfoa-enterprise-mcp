@@ -99,6 +99,8 @@ export type RemoteRuntimeConfig = Readonly<{
   maxBodyBytes: number;
   requestTimeoutMs: number;
   toolTimeoutMs: number;
+  /** When true, CREATE/UPDATE without formContext defaults to STANDARD START (precision-first). */
+  precisionDefaultFormContext?: boolean;
   enabledTools: readonly string[];
   dmlAllowlist: DmlAllowlistPolicy;
   allowedHosts: readonly string[];
@@ -138,6 +140,8 @@ const rawRemoteConfigSchema = z
     MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_REQUEST_TIMEOUT_MS),
     MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(100).max(900_000).default(DEFAULT_MCP_TOOL_TIMEOUT_MS),
     MCP_ENABLED_TOOLS: z.string().trim().default(DEFAULT_RUNTIME_ENABLED_TOOLS.join(',')),
+    SFOA_PRECISION_DEFAULT_FORM_CONTEXT: z.enum(['true', 'false']).default('true')
+      .transform((value) => value === 'true'),
     MCP_DML_ALLOWLIST_JSON: z.string().max(65_536).optional(),
     MCP_ALLOWED_HOSTS: z.string().trim().optional(),
     MCP_ALLOWED_ORIGINS: z.string().trim().optional(),
@@ -365,6 +369,7 @@ export async function loadRemoteRuntimeConfig(
     maxBodyBytes: parsed.data.MCP_MAX_BODY_BYTES,
     requestTimeoutMs: parsed.data.MCP_REQUEST_TIMEOUT_MS,
     toolTimeoutMs: parsed.data.MCP_TOOL_TIMEOUT_MS,
+    precisionDefaultFormContext: parsed.data.SFOA_PRECISION_DEFAULT_FORM_CONTEXT,
     enabledTools,
     dmlAllowlist,
     allowedHosts,

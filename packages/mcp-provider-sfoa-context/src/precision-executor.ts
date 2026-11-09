@@ -13,6 +13,13 @@ export type PrecisionFormOptions = Readonly<{
   loadMetadata?: PrecisionMetadataLoader;
   appDeveloperName?: string;
   formFactor?: 'Large' | 'Medium' | 'Small';
+  /**
+   * When true, a CREATE/UPDATE call that omits `formContext` is treated as
+   * `{ entry: 'STANDARD', phase: 'START' }`, so the live selected-form path is
+   * the default and the snapshot-based legacy path becomes the fallback.
+   * Callers that pass `formContext` explicitly always keep their own choice.
+   */
+  defaultFormContext?: boolean;
   recommendationPolicy?: RecentFieldPolicy;
   managedFields?: readonly Readonly<{ objectApiName: string; targetFieldApiName: string; enabled: boolean;
     applyOnCreate: boolean; applyOnUpdate: boolean;

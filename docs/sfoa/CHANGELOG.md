@@ -2,6 +2,14 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-09 — Precision-first form context and a workable snapshot refresh bound
+
+CREATE/UPDATE that omit `formContext` now default to `{ entry: 'STANDARD', phase: 'START' }` when `SFOA_PRECISION_DEFAULT_FORM_CONTEXT` is true (the default), so the live selected-form read answers and `sfoa_ui_snapshot` serves only the fallback. Explicit callers keep their own choice. A defaulted request that cannot resolve any selected form falls back to the snapshot context with `PRECISION_FALLBACK_LEGACY_CONTEXT` in coverage warnings; an explicit `formContext` never falls back.
+
+The Admin refresh bound was a hard-coded 120s and always failed on 203. A read-only measurement of `collectUiSnapshot(Account_Visit__c)` took **159s**, with one Metadata read at **136s** — the bound, not the code, was wrong. The bound is now `SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS` (default 180s), the DB lease follows it plus 60s, and a timeout records the stage that was running (`SNAPSHOT_REFRESH_TIMEOUT_FLEXIPAGES` and similar) instead of a generic reason.
+
+Gates: context provider 320 tests, control-plane/mcp-server/admin-api type-check clean, `skill:check` drift `[]`, `skill:test` 88/88.
+
 ## 2026-11-09 — Record Type page assignment and explicit requiredness incompleteness
 
 Fixed the reason two channels created 客户来访 `Account_Visit__c` records with blank 就餐安排/酒店安排/行程计划: `Profile.fullName` is URL-encoded (`%2F`) when it contains a slash, while FlexiPage assignments keep the raw name, so `resolveActivePage` matched no Record Type specific page and silently evaluated the org default `Account_Visit` page instead of `ComeTo`. The comparison now decodes both sides and also accepts the display name; a regression test covers `Team A%2FSales` ↔ `Team A/Sales`.

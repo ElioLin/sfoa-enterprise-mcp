@@ -76,6 +76,20 @@ contain a slash are stored URL-encoded (`%2F`) in `Profile.fullName` while
 FlexiPage assignments keep the raw name; `active-page.ts` decodes both sides
 before comparing, otherwise every Record Type specific page is skipped.
 
+Precision is the default path. `SFOA_PRECISION_DEFAULT_FORM_CONTEXT` (default
+true) makes a CREATE/UPDATE that omits `formContext` behave as
+`{ entry: 'STANDARD', phase: 'START' }`, so the live selected-form read answers
+instead of the snapshot. Callers that pass `formContext` keep their own choice.
+When a defaulted request cannot resolve any selected form (status UNKNOWN with
+formSource UNRESOLVED), the executor falls back to the snapshot context and adds
+`PRECISION_FALLBACK_LEGACY_CONTEXT` to coverage warnings; an explicit
+`formContext` never falls back. `sfoa_ui_snapshot` therefore only serves that
+fallback path, and its refresh bound is `SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS`
+(Admin, default 180s; the DB lease is the bound plus 60s). A real 203 refresh
+measured ~160s, dominated by one Metadata read (~136s), so the old 120s bound
+always timed out; the failure reason now carries the stage
+(`SNAPSHOT_REFRESH_TIMEOUT_FLEXIPAGES` and similar) in `last_error`.
+
 Focused gates: context `precision-*.test`, DML legacy suite, Host
 `form-dml-preflight.test`/`form-context-facade.test` and native action integration,
 Admin `FormContextEvidence`/`AuditTraceWorkbench` plus `precision-audit.spec.ts`.

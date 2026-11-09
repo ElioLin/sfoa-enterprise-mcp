@@ -133,7 +133,8 @@ export async function startConfiguredAdminApi(
     const server = await startAdminApiServer({
       uiSnapshots: new MySqlUiSnapshotRepository(database),
       refreshUiSnapshot: (objectApiName, actor) => refreshCurrentUiSnapshot(identityRuntime, store.repositories,
-        new MySqlUiSnapshotRepository(database), objectApiName, actor),
+        new MySqlUiSnapshotRepository(database), objectApiName, actor,
+        { timeoutMs: adminConfig.uiSnapshotRefreshTimeoutMs ?? 180_000 }),
       config: adminConfig,
       store,
       adminService,

@@ -34,6 +34,8 @@ export type AdminApiConfig = Readonly<{
   cookieName: string;
   loginMaxAttempts: number;
   loginWindowMs: number;
+  /** Bound for one interactive UI snapshot refresh; the DB lease follows it. */
+  uiSnapshotRefreshTimeoutMs?: number;
 }>;
 
 const rawSchema = z.object({
@@ -50,6 +52,7 @@ const rawSchema = z.object({
   SFOA_ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   SFOA_ADMIN_LOGIN_WINDOW_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(900_000),
   SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON: z.string().max(65_536).optional(),
+  SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(900_000).default(180_000),
 }).strict();
 
 const NAMES = [
@@ -170,6 +173,7 @@ export async function loadAdminApiConfig(
     cookieName: cookieSecure ? '__Host-sfoa_admin' : 'sfoa_admin',
     loginMaxAttempts: parsed.SFOA_ADMIN_LOGIN_MAX_ATTEMPTS,
     loginWindowMs: parsed.SFOA_ADMIN_LOGIN_WINDOW_MS,
+    uiSnapshotRefreshTimeoutMs: parsed.SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS,
   });
 }
 

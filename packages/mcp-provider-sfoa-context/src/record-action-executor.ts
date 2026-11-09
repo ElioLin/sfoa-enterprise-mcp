@@ -140,6 +140,13 @@ export class RecordActionContextExecutor {
     // projections of facts already read; legacy calls keep their exact path.
     let input = requested.includeValueAssessment === true || requested.formContext
       ? { ...requested, includeRequiredness: true } : requested;
+    // Precision-first: an omitted formContext means the STANDARD selected form, not
+    // the snapshot path, when the deployment enables it. Explicit callers are untouched.
+    const defaultedFormContext = this.precision?.defaultFormContext === true && !requested.formContext
+      && (requested.action === 'CREATE' || requested.action === 'UPDATE');
+    if (defaultedFormContext) {
+      input = { ...input, includeRequiredness: true, formContext: { entry: 'STANDARD', phase: 'START' } };
+    }
     const started = performance.now();
     try {
       const connection = await this.getRequestConnection();
@@ -196,18 +203,35 @@ export class RecordActionContextExecutor {
             resolution.kind === 'ready' ? resolution.defaults : undefined) };
         }
         if (resolution.kind === 'ready' && input.formContext) {
+          const legacyBaseline = output;
           precise = await resolvePreciseForm({ connection, input, objectInfo, facts: resolution,
             baseline: output, options: this.precision, quickAction, observedManagedValues });
           output = precise.output;
+          if (defaultedFormContext && this.effectiveUi && isUnresolvedDefaultedPrecision(output)) {
+            // The caller never asked for precision; it was the deployment default.
+            // A selected-form path that could not even resolve configuration falls
+            // back to the snapshot context instead of failing the whole call.
+            precise = undefined;
+            output = await this.effectiveUi.resolve(input, connection, objectInfo, {
+              recordType: resolution.recordType, layout: resolution.layout, defaults: resolution.defaults,
+              picklists: resolution.picklists, sources: resolution.sources,
+            }, legacyBaseline);
+            output = withLegacyFallbackWarning(output);
+          }
         }
       } else {
         const resolved = await this.resolveUpdate(connection, apiVersion, input, objectInfo, metrics);
         const formFacts = quickAction?.descriptor ? { ...resolved, layout: quickAction.descriptor.layout } : resolved;
         output = buildOutput(input, objectInfo, availableRecordTypes, formFacts, metrics, durationMs);
         if (input.formContext) {
+          const legacyBaseline = output;
           precise = await resolvePreciseForm({ connection, input, objectInfo, facts: formFacts,
             baseline: output, options: this.precision, quickAction, observedManagedValues });
           output = precise.output;
+          if (defaultedFormContext && this.effectiveUi && isUnresolvedDefaultedPrecision(output)) {
+            precise = undefined;
+            output = withLegacyFallbackWarning(legacyBaseline);
+          }
         }
       }
       if (Buffer.byteLength(JSON.stringify(output), 'utf8') > MAX_OUTPUT_BYTES) {
@@ -738,4 +762,20 @@ function unsupported(message: string, cause?: unknown): ContextRuntimeError {
     message,
     cause === undefined ? {} : { cause },
   );
+}
+
+/**
+ * True when the selected-form path could not resolve any configuration at all
+ * (no page, no entry, no requiredness). A defaulted request then falls back to
+ * the snapshot context instead of returning an unusable UNKNOWN form.
+ */
+function isUnresolvedDefaultedPrecision(output: RecordActionContextOutput): boolean {
+  const form = output.formContext;
+  return form !== undefined && form.status === 'UNKNOWN' && form.formSource === 'UNRESOLVED';
+}
+
+function withLegacyFallbackWarning(output: RecordActionContextOutput): RecordActionContextOutput {
+  if (!output.coverage) return output;
+  return { ...output, coverage: { ...output.coverage, warnings: [...output.coverage.warnings,
+    'PRECISION_FALLBACK_LEGACY_CONTEXT: the defaulted selected-form path could not resolve the current configuration, so the snapshot-based context answered. Confirm critical required fields with the user.'] } };
 }
