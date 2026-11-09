@@ -1,9 +1,11 @@
 ---
 name: sfoa-data-analysis
 description: Salesforce 数据查询与完整性分析：统计、汇总、分布、趋势、全量导出与跨对象检索。用于覆盖率声明、聚合优先、SOQL/SOSL/Bulk 选择、Schema 自助核对、游标续取与配额前置；配合 sfoa-crm-core，不做记录变更。
+display_name: "CRM 数据统计与分析"
+display_name_en: "CRM Data Analytics"
 ---
 
-# SFOA Data Analysis
+# CRM 数据统计与分析（SFoA Data Analysis）
 
 指导修订：P9 — 数据查询与完整性（Data Completeness）。
 

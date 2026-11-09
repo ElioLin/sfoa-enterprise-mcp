@@ -2,6 +2,10 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-09 — Business Skill display names (zh-CN)
+
+The four business Skills now carry `display_name` / `display_name_en` frontmatter so host skill pickers show a Chinese name to business users: `sfoa-crm-core` → CRM 业务助手, `sfoa-record-change` → CRM 记录新建与修改, `sfoa-data-analysis` → CRM 数据统计与分析, `sfoa-org-diagnostics` → CRM 问题诊断. `name` and every directory stay ASCII kebab-case — `manage.mjs` rejects any canonical directory outside `[a-z0-9-]` and requires frontmatter `name` to equal it, so a Chinese `name` would fail `skill:sync/check/package/export` and the runtime publish. No `description` trigger keyword was removed; only the `SKILL.md` H1 gained the Chinese name. Gates: `skill:sync` + `skill:check` drift `[]` on all six canonical Skills, `skill:delivery` `ok`, `toolkit.test.mjs` 88/88. Runtime copies and the OpenClaw `agents.entries.main.skills` slug references are unchanged and still need a republish plus `openclaw skills check --agent main` to confirm the host parses the new fields.
+
 ## 2026-11-06 — HOTFIX-01 deployed; model-visible task state minimized
 
 The test server now runs `feature/agent-material-workflows` at `b459e8b` (HOTFIX-01): Playbook **1.13.3**, the LF adapter source, four runtime business Skills, the independent `sfoa` 1.13.3 export and a rebuilt Admin Web bundle. Protocol checks returned Playbook 1.13.3, 29 Tools, `retryable` on attachment output and the optional `includeValueAssessment`; migration 017 was already applied. Real WeCom and Salesforce business UAT were not run in this round.

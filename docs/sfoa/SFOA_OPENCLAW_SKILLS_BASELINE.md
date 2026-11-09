@@ -32,6 +32,21 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 
 业务分析可组合 SFOA MCP + Web Search + Web Fetch + Browser + Image / PDF。实际公司 Schema 继续由 MCP / Metadata 决定，不用 Skill 固化公司对象字段。
 
+## 显示名与机器标识
+
+四个业务 Skill 面向业务用户，宿主技能列表显示中文名；`name` 与目录名保持 ASCII slug 不变。
+
+| Skill（目录 / `name`） | `display_name` | `display_name_en` |
+| --- | --- | --- |
+| `sfoa-crm-core` | CRM 业务助手 | CRM Business Assistant |
+| `sfoa-record-change` | CRM 记录新建与修改 | CRM Record Create & Update |
+| `sfoa-data-analysis` | CRM 数据统计与分析 | CRM Data Analytics |
+| `sfoa-org-diagnostics` | CRM 问题诊断 | CRM Issue Diagnostics |
+
+`name` 不能改为中文：`manage.mjs` 的 `platformSkillPaths` 用 `/^[a-z0-9]+(?:-[a-z0-9]+)*$/` 校验每个 canonical 目录名（`discoverSkills` 对 `skills/*` 逐个执行），`validateSkill` 又要求 frontmatter `name` 等于目录名。中文写进 `name` 会让 `skill:sync/check/package/export` 与 `skill:runtime:sync` 在发现阶段直接抛错，并破坏 `.agents/.claude/.codebuddy` 三平台副本与 OpenClaw `agents.entries.main.skills` 的 slug 引用。
+
+`description` 是模型路由依据，本次未删改任何触发词，只在其后追加 `display_name` 字段；`SKILL.md` 的 H1 改为「中文名（英文名）」，供 Skill 正文进入上下文时识别。宿主选择器读取 `display_name`（本机已安装的 `wecom-unified`、`pptx-generator` 等均使用该字段）；不支持该字段的宿主会忽略它，`description` 仍完整可用。OpenClaw 是否解析该字段需在重新发布后用 `openclaw skills check --agent main` 复核。
+
 ## 专业化关系与交接接口
 
 `sfoa-crm-core` 是通用基础；record-change、business-analysis、system-diagnosis、reporting 分别补充 DML、业务分析、技术诊断、输出 Artifact。它们是 specialization，不覆盖 Core 硬边界，也不同时宣称适用于所有 Salesforce 请求。

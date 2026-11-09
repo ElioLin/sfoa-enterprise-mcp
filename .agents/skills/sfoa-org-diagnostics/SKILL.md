@@ -1,9 +1,11 @@
 ---
 name: sfoa-org-diagnostics
 description: Salesforce 组织异常的证据诊断：按问题组合已启用的数据、权限、配置、代码与平台取证能力，默认以真实标签和业务语言解释现象、已确认范围、缺口及下一步；保留准确技术证据供明确要求时展开，不做业务修复。
+display_name: "CRM 问题诊断"
+display_name_en: "CRM Issue Diagnostics"
 ---
 
-# SFOA Org Diagnostics
+# CRM 问题诊断（SFoA Org Diagnostics）
 
 本 Skill 是 sfoa-crm-core 的专业化补充，inherits all hard rules from sfoa-crm-core。Salesforce / MCP Runtime Fact > Agent Playbook > sfoa-org-diagnostics > Model Assumption。诊断默认受众是企微业务用户；「诊断」「系统诊断」不等于请求代码/API。
 

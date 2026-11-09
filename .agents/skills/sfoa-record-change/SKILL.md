@@ -1,9 +1,11 @@
 ---
 name: sfoa-record-change
 description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增、创建、修改记录时使用：Record Type、Dynamic Forms、必填字段、最小 Patch、Lookup/Picklist、Owner fallback、批量变更、附件上传；配合 sfoa-crm-core，不用于纯查询。
+display_name: "CRM 记录新建与修改"
+display_name_en: "CRM Record Create & Update"
 ---
 
-# SFOA Record Change
+# CRM 记录新建与修改（SFoA Record Change）
 
 指导修订：1.14.0 — 创建/编辑按所选表单取证并在提交前复核，保留材料提炼与业务类型语义。
 

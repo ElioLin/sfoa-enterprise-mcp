@@ -1,9 +1,11 @@
 ---
 name: sfoa-crm-core
 description: SFOA Salesforce CRM 业务请求的通用运行指导。用于查询公司 CRM 数据、查客户或我的商机、创建或修改 Salesforce 记录、CRM 分析，以及使用 SFOA MCP Tools；也用于结合 CRM 与网页、图片或 PDF 的任务。不用于无 CRM 意图的天气、闲聊、数学、普通文本总结或一般网页搜索，也不承担仓库开发运维。
+display_name: "CRM 业务助手"
+display_name_en: "CRM Business Assistant"
 ---
 
-# SFOA CRM Core
+# CRM 业务助手（SFoA CRM Core）
 
 指导修订：HOTFIX02 — Full Population Analytics / Data Completeness。
 
