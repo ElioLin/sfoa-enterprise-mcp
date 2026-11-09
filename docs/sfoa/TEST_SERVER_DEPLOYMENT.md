@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-11-09 可选表单修复分支部署（`feature/ui-context-requiredness-integrity` @ `561614d`）
+
+部署客户来访漏填必填字段的修复：简档名 `%2F` 编码导致的记录类型页面失配、`requirednessIncomplete` 硬信号、precision 默认路径、快照刷新超时可配置。**未执行快照刷新**（由用户自行验证）。
+
+| 项 | 实际记录 |
+| --- | --- |
+| 归档 | `incoming/sfoa-branch-561614d.tar.gz`，4,428,789 B，sha256 `ed7e14cf0cb5a373299b28b69f000f7789be97b6ef2d601135c882dfcf4fa08e`；`git -c core.autocrlf=false -c core.eol=lf archive` 生成，服务器侧 sha256 与本地一致；staging 1497 文件 |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/branch-561614d-20261109T181254/`（25M）：`app-src.tar.gz`（排除 node_modules/dist）、5 个包的 `dist-*.tar.gz`、`pre-state.txt`、`rollback.sh` |
+| 同步 | `rsync -a --omit-dir-times --no-perms STAGE/ app/`（无 `--delete`），未删除任何文件 |
+| 构建 | `sfoa-control-plane` → `mcp-provider-sfoa-context` → `sfoa-mcp-server` → `sfoa-admin-api` → `sfoa-admin-web`（tsc + vite），全部 exit 0；产物时间 18:13，含新标记 `PRECISION_FALLBACK_LEGACY_CONTEXT`、`SNAPSHOT_REFRESH_TIMEOUT_`、`requirednessIncomplete`、`leaseMs` |
+| 服务 | `sfoa-mcp-server` PID **3857828**（18:16:54）、`sfoa-admin-api` PID **3857842**（18:16:58），`NRestarts=0`；`/health` 200、`/admin/api/ready` 200、nginx `:9000` 200，新前端包 `assets/index-BMNbxYY8.js`，2 分钟内无 error 级日志 |
+| Runtime Skill | `manage.mjs runtime-sync/check`：四个业务 Skill 全 `ok:true`、`drift: []`；`sfoa-record-change/SKILL.md` sha256 `87febe20…`，规则 44「必填性未证明即不得提交」已在 runtime；`openclaw skills check`：Total 91 / Eligible 55 / Visible to model 7 |
+| 功能验证 | MCP `initialize` 后 `tools/list` = **29**；`get_record_action_context`（`Account_Visit__c` / 客户来访 / **不传 formContext**）→ `formContext.entry=STANDARD`、`phase=START`、`app=FRN_CRM_PC`（Profile 默认）、`page=**ComeTo**`、`formSource=DYNAMIC_FORMS`，`uiContext` 不存在（未走快照）；`missingRequired` 含 **就餐安排 `Restaurant_Schedule__c`、酒店安排 `Hotel_Schedule__c`、行程计划 `Route_Plan__c`**，`requiredCount=13`；`visit_route_text`/`matters` 在销售组织 8060 下正确为 false。`status=UNKNOWN` 属预期（必填未填 + `Source__c` 未定导致 Lead/Opportunity/Account 条件必填 UNKNOWN） |
+| 新增配置 | 无需手工改配置：`SFOA_PRECISION_DEFAULT_FORM_CONTEXT` 默认 `true`、`SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS` 默认 `180000` 均已在代码内默认。实测 203 单次 `collectUiSnapshot` **159s**（其中单次 Metadata 读 136s），旧的 120s 常量必然超时 |
+| 未做 | 快照刷新（用户自测）；真实企微/DSH 端到端业务 UAT；Salesforce 写入（本次仅只读 UI API 调用） |
+| 回滚 | `bash /data/sfoa-enterprise-mcp/backup/branch-561614d-20261109T181254/rollback.sh`（停服 → 解回 app 源码与 5 个 dist → 启动），未演练 |
+
+---
+
 ## 2026-11-09 业务 Skill 中文显示名发布（203）
 
 四个业务 Skill 增加 `display_name` / `display_name_en` 与中文 H1（提交 `4fc8465`），并发布到 203 的 OpenClaw runtime。
