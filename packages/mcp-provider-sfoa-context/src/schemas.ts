@@ -336,6 +336,8 @@ export const recordActionContextOutputSchema = z
         truncated: z.boolean(),
         dynamicFormsEvaluated: z.boolean(),
         requirednessSource: requirednessSourceSchema.optional(),
+        requirednessIncomplete: z.boolean().optional().describe('True when effective requiredness could not be proven for this Record Type, for example a Record Type specific Lightning page exists but was not resolved, or the resolution fell back to Page Layout. Confirm the missing required fields with the user before CREATE.'),
+        requirednessIncompleteReason: z.string().max(128).optional(),
         completeLightningPageEvaluated: z.literal(false),
         warnings: z.array(z.string()),
       })

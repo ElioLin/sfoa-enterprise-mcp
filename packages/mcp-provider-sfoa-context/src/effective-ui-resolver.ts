@@ -12,6 +12,13 @@ import { ContextRuntimeError } from './errors.js';
 import { createInitialState, resolveUserFacts, userDependencies, boundedRead, type InitialFact } from './create-initial-state.js';
 
 const appsSchema = z.object({ apps: z.array(z.object({ appId: z.string(), developerName: z.string() })).max(100) });
+
+/**
+ * Stable, machine-matchable warning used whenever effective requiredness could
+ * not be proven for the Record Type the request is creating. Prose warnings are
+ * read inconsistently; the paired boolean/reason fields are the contract.
+ */
+const REQUIREDNESS_INCOMPLETE_WARNING = 'REQUIREDNESS_INCOMPLETE: this object has a Record Type specific Lightning page that this request did not resolve, so fields required only on that page may be absent from the checklist. Confirm the missing required fields with the user before CREATE.';
 export class EffectiveRecordUiContextResolver {
   public constructor(private readonly options: EffectiveUiOptions) {}
 
@@ -46,6 +53,7 @@ export class EffectiveRecordUiContextResolver {
     };
     let snapshotRecord: UiSnapshotRecord | undefined;
     let failureLayer = 'USER_CONTEXT_ERROR';
+    let requirednessIncomplete = false;
     let result = baseline;
     // One budget across all extra reads; do not start another read after it expires.
     const readDeadline = started + 3000;
@@ -83,9 +91,22 @@ export class EffectiveRecordUiContextResolver {
       }, readDeadline));
       const active = resolveActivePage(snapshot, { profileId: user.profileId, recordTypeId: facts.recordType.recordTypeId,
         formFactor: ui.formFactor, apps: apps.apps, ...(ui.app ? { appDeveloperName: ui.app } : {}) });
-      Object.assign(ui, active);
+      const { recordTypePageAvailable, recordTypePageMatched, ...activePageFacts } = active;
+      Object.assign(ui, activePageFacts);
+      // A Record Type specific Lightning page exists but this request resolved a
+      // different one. Requiredness from the resolved page may omit fields only
+      // the Record Type page requires, so the agent must not treat it as complete.
+      const requirednessNotProven = recordTypePageAvailable && !recordTypePageMatched;
+      requirednessIncomplete = requirednessNotProven;
+      evidence.recordTypePage = { available: recordTypePageAvailable, matched: recordTypePageMatched };
+      evidence.requirednessIncomplete = requirednessNotProven;
       ui.fallbackUsed = active.fallbackReason !== null;
       if (active.formSource === 'PAGE_LAYOUT' && active.resolutionStatus === 'RESOLVED') {
+        if (requirednessNotProven && result.coverage) {
+          result = { ...result, coverage: { ...result.coverage,
+            requirednessIncomplete: true, requirednessIncompleteReason: 'RECORD_TYPE_PAGE_NOT_MATCHED',
+            warnings: [...result.coverage.warnings, REQUIREDNESS_INCOMPLETE_WARNING] } };
+        }
         Object.assign(evidence, ui); audit(); return result;
       }
       if (!ui.fallbackUsed) {
@@ -135,6 +156,8 @@ export class EffectiveRecordUiContextResolver {
             fields: computed.fields, uiContext: ui, uiContextResolutionId: resolutionId,
             coverage: baseline.coverage ? { ...baseline.coverage, dynamicFormsEvaluated: true,
               ...(input.includeRequiredness ? { requirednessSource: 'EFFECTIVE_REQUIRED' } : {}),
+              ...(requirednessIncomplete ? { requirednessIncomplete: true,
+                requirednessIncompleteReason: 'RECORD_TYPE_PAGE_NOT_MATCHED' } : {}),
               totalVisibleFields: computed.fields.filter((field) => field.visibilityState === 'VISIBLE').length,
               returnedFields: computed.fields.length, totalPicklistValues: computed.totalPicklistValues,
               returnedPicklistValues: computed.returnedPicklistValues,
@@ -142,6 +165,7 @@ export class EffectiveRecordUiContextResolver {
                 `Effective CREATE context uses supported Dynamic Forms rules and current USER ObjectInfo.${input.includeRequiredness ? ' Requiredness source is EFFECTIVE_REQUIRED.' : ''} Salesforce remains the final write authority.`,
                 ...(computed.partial ? ['Some visibility is PENDING or UNKNOWN; do not guess.'] : []),
                 ...(computed.truncated ? ['Picklist/default evidence was truncated; do not guess omitted values.'] : []),
+                ...(requirednessIncomplete ? [REQUIREDNESS_INCOMPLETE_WARNING] : []),
                 ...(evidence.snapshotWarning ? ['SNAPSHOT_STALE: using the last valid configuration; Admin refresh is recommended.'] : []),
               ] } : undefined };
           if (Buffer.byteLength(JSON.stringify(result)) > MAX_OUTPUT_BYTES) throw new Error('EFFECTIVE_OUTPUT_BOUND');
@@ -160,11 +184,16 @@ export class EffectiveRecordUiContextResolver {
     }
     if (ui.fallbackUsed) {
       const fallbackReason = ui.fallbackReason ?? 'UNRESOLVED';
+      // A fallback never proves Record Type requiredness. Always mark it so the
+      // agent asks instead of treating the legacy checklist as complete.
+      requirednessIncomplete = true;
       result = input.includeRequiredness
         ? { ...baseline, requiredChecklist: buildRequiredChecklist(baseline.fields, 'PAGE_LAYOUT_FALLBACK', input.action),
           coverage: baseline.coverage ? { ...baseline.coverage, requirednessSource: 'PAGE_LAYOUT_FALLBACK',
+            requirednessIncomplete: true, requirednessIncompleteReason: `RESOLUTION_FALLBACK_${fallbackReason}`,
             warnings: [...baseline.coverage.warnings,
-              `Dynamic Forms resolution fell back to PAGE_LAYOUT (${fallbackReason}); requiredness source is PAGE_LAYOUT_FALLBACK.`] } : undefined }
+              `Dynamic Forms resolution fell back to PAGE_LAYOUT (${fallbackReason}); requiredness source is PAGE_LAYOUT_FALLBACK.`,
+              REQUIREDNESS_INCOMPLETE_WARNING] } : undefined }
         : baseline;
       evidence.usedForAgent = false;
     }

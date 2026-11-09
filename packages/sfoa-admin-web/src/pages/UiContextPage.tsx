@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Form, Input, Select, Space, Table, Typography } from 'antd';
+import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography } from 'antd';
 import { dynamicFormsObjectPoliciesSchema } from '@sfoa/control-plane/contracts';
 import { adminApi } from '../api/client.js';
 import { PageFrame } from '../components/PageFrame.js';
@@ -65,7 +65,11 @@ export default function UiContextPage() {
           { title: '对象', dataIndex: 'objectApiName' },
           { title: '页面 / 来源', render: (_value, row) => row.pages.map((name, index) => <div key={name}>{name} · {row.formSources[index]}</div>) },
           { title: 'App / 范围', render: (_value, row) => <details><summary>{row.apps.length} Apps / {row.profileCount} Profiles / {row.recordTypeCount} RT</summary>{row.apps.join(', ')}</details> },
-          { title: '状态', dataIndex: 'status' }, { title: '刷新时间', dataIndex: 'refreshedAt', render: formatDateTime },
+          { title: '状态', dataIndex: 'status', render: (value: string, row) => <Space size={4}>
+            <Tag color={value === 'READY' ? 'green' : 'red'}>{value}</Tag>
+            {row.stale && <Tag color="orange">已过期 · {row.ageHours === null ? '从未刷新' : `${row.ageHours} 小时前`}</Tag>}
+          </Space> },
+          { title: '刷新时间', dataIndex: 'refreshedAt', render: formatDateTime },
           { title: '解析器', dataIndex: 'parserVersion' }, { title: '最近错误', dataIndex: 'lastError' },
         ]} />}
       </Card>

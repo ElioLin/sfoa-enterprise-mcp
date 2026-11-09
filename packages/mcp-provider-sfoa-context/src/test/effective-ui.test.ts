@@ -147,6 +147,47 @@ test('active page varies by Profile and requires explicit App when applicable Ap
   assert.equal(resolveActivePage(snapshot, { ...facts, appDeveloperName: 'NotAccessible' }).fallbackReason, 'APP_CONTEXT_INVALID');
 });
 
+test('URL-encoded Profile fullName still matches its Record Type page assignment', () => {
+  // Metadata returns `%2F` for a slash in Profile.fullName while FlexiPage
+  // assignments keep the raw name. Real case: 客户来访 -> ComeTo was skipped and
+  // the org default page was evaluated instead.
+  const snapshot = fixtureSnapshot();
+  snapshot.profiles[0] = { id: PROFILE, name: 'Team A/Sales', fullName: 'Team A%2FSales' };
+  snapshot.assignments[0] = { ...snapshot.assignments[0]!, profile: 'Team A/Sales' };
+  const facts = { profileId: PROFILE, recordTypeId: RT, formFactor: 'Large' as const, apps: snapshot.apps };
+  const active = resolveActivePage(snapshot, facts);
+  assert.equal(active.formSource, 'DYNAMIC_FORMS');
+  assert.equal(active.page, 'Create_Page');
+  assert.equal(active.recordTypePageAvailable, true);
+  assert.equal(active.recordTypePageMatched, true);
+});
+
+test('requiredness is marked incomplete when the Record Type page exists but is not the resolved page', async () => {
+  const fixture = runtimeFixture('ENFORCE');
+  // Second Profile has no Record Type assignment, so the org default Page Layout resolves.
+  const output = await fixture.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE', includeRequiredness: true });
+  assert.equal(output.coverage?.requirednessIncomplete, undefined);
+
+  const otherProfile = runtimeFixture('ENFORCE', fixtureSnapshot(), '00e000000000002AAA');
+  const fallback = await otherProfile.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE', includeRequiredness: true });
+  assert.equal(fallback.coverage?.requirednessIncomplete, true);
+  assert.equal(fallback.coverage?.requirednessIncompleteReason, 'RECORD_TYPE_PAGE_NOT_MATCHED');
+  assert.ok(fallback.coverage?.warnings.some((warning) => warning.startsWith('REQUIREDNESS_INCOMPLETE:')));
+  recordActionContextOutputSchema.parse(fallback);
+});
+
+test('an unresolvable page assignment marks requiredness incomplete instead of a silent Page Layout fallback', async () => {
+  const snapshot = fixtureSnapshot();
+  snapshot.apps.push({ appId: '06m000000000002AAA', developerName: 'App_B', fullName: 'App_B' });
+  const fixture = runtimeFixture('ENFORCE', snapshot);
+  const output = await fixture.executor.execute({ objectApiName: 'Sample__c', action: 'CREATE', includeRequiredness: true });
+  assert.equal(output.uiContext, undefined);
+  assert.equal(output.coverage?.requirednessIncomplete, true);
+  assert.equal(output.coverage?.requirednessIncompleteReason, 'RESOLUTION_FALLBACK_APP_CONTEXT_REQUIRED');
+  assert.ok(output.coverage?.warnings.some((warning) => warning.startsWith('REQUIREDNESS_INCOMPLETE:')));
+  recordActionContextOutputSchema.parse(output);
+});
+
 test('custom New override is detected before Dynamic Forms and unsupported form factors fall back', () => {
   const snapshot = fixtureSnapshot();
   snapshot.assignments.push({ app: null, profile: null, recordType: null, formFactor: null, action: 'New', type: 'LightningComponent', page: 'CustomNew', source: 'ORG_DEFAULT' });

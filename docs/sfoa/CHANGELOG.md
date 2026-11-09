@@ -2,6 +2,12 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-09 — Record Type page assignment and explicit requiredness incompleteness
+
+Fixed the reason two channels created 客户来访 `Account_Visit__c` records with blank 就餐安排/酒店安排/行程计划: `Profile.fullName` is URL-encoded (`%2F`) when it contains a slash, while FlexiPage assignments keep the raw name, so `resolveActivePage` matched no Record Type specific page and silently evaluated the org default `Account_Visit` page instead of `ComeTo`. The comparison now decodes both sides and also accepts the display name; a regression test covers `Team A%2FSales` ↔ `Team A/Sales`.
+
+Requiredness that cannot be proven is now an explicit contract instead of a prose warning: `coverage.requirednessIncomplete=true` plus `requirednessIncompleteReason` (`RECORD_TYPE_PAGE_NOT_MATCHED`, or `RESOLUTION_FALLBACK_<reason>`), and `sfoa-record-change` rule 44 forbids `CHANGE_READY=true` on that signal. Admin snapshot summaries expose `stale`/`ageHours` so a snapshot older than the 24h TTL is visible without reading runtime warnings. Gates: context provider 307 tests (one runner `spawn EPERM`, 13/13 when run directly), `skill:check` drift `[]` on all six canonical Skills, `skill:test` 88/88, control-plane/admin-api/admin-web type-check clean. No deployment or runtime setting change in this commit.
+
 ## 2026-11-09 — Business Skill display names (zh-CN)
 
 The four business Skills now carry `display_name` / `display_name_en` frontmatter so host skill pickers show a Chinese name to business users: `sfoa-crm-core` → CRM 业务助手, `sfoa-record-change` → CRM 记录新建与修改, `sfoa-data-analysis` → CRM 数据统计与分析, `sfoa-org-diagnostics` → CRM 问题诊断. `name` and every directory stay ASCII kebab-case — `manage.mjs` rejects any canonical directory outside `[a-z0-9-]` and requires frontmatter `name` to equal it, so a Chinese `name` would fail `skill:sync/check/package/export` and the runtime publish. No `description` trigger keyword was removed; only the `SKILL.md` H1 gained the Chinese name. Gates: `skill:sync` + `skill:check` drift `[]` on all six canonical Skills, `skill:delivery` `ok`, `toolkit.test.mjs` 88/88. Runtime copies and the OpenClaw `agents.entries.main.skills` slug references are unchanged and still need a republish plus `openclaw skills check --agent main` to confirm the host parses the new fields.

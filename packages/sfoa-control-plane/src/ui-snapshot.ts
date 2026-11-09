@@ -12,7 +12,11 @@ export type StoredUiSnapshot = Readonly<{
 export type UiSnapshotSummary = Omit<StoredUiSnapshot, 'snapshot'> & Readonly<{
   pages: readonly string[]; formSources: readonly string[]; apps: readonly string[];
   profileCount: number; recordTypeCount: number;
+  /** Refreshed longer ago than the runtime TTL, or not READY: agent requiredness may be stale. */
+  stale: boolean; ageHours: number | null;
 }>;
+/** Keep in sync with UI_SNAPSHOT_TTL_MS in the context provider. */
+const UI_SNAPSHOT_STALE_MS = 86_400_000;
 export class MySqlUiSnapshotRepository {
   public constructor(private readonly database: ControlPlaneDatabaseClient) {}
   public async get(organizationId: string, objectApiName: string): Promise<StoredUiSnapshot | undefined> {
@@ -45,8 +49,11 @@ export class MySqlUiSnapshotRepository {
       const row = byId.get(entry.id);
       if (!row) return [];
       const { snapshot: _snapshot, ...summary } = map({ ...row, snapshot_json: null, refresh_token: null, refresh_started_at: null });
+      const ageMs = summary.refreshedAt ? Date.now() - Date.parse(summary.refreshedAt) : null;
       return [{ ...summary, pages: strings(row.pageNames), formSources: strings(row.formSources), apps: strings(row.apps),
-        profileCount: row.profileCount ?? 0, recordTypeCount: row.recordTypeCount ?? 0 }];
+        profileCount: row.profileCount ?? 0, recordTypeCount: row.recordTypeCount ?? 0,
+        stale: summary.status !== 'READY' || ageMs === null || ageMs > UI_SNAPSHOT_STALE_MS,
+        ageHours: ageMs === null || Number.isNaN(ageMs) ? null : Math.round(ageMs / 3_600_000) }];
     });
   }
   /** Small database lease prevents duplicate refreshes across Admin processes. */

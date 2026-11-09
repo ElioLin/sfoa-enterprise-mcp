@@ -63,6 +63,19 @@ approval token. P7 keeps counts/selection in summaries and protected fields/rule
 value provenance in lazy UI_CONTEXT payloads. Tool success is distinct from form
 readiness. Both synchronous and asynchronous audit failures remain observational.
 
+Effective requiredness is only proven when the resolved page is the page the
+Record Type is assigned to. `coverage.requirednessIncomplete=true` (paired with
+`requirednessIncompleteReason`) marks the two cases where it is not: the object
+has a Record Type specific FlexiPage but this request resolved another page
+(`RECORD_TYPE_PAGE_NOT_MATCHED`), or the whole resolution fell back to Page
+Layout (`RESOLUTION_FALLBACK_*`). `sfoa-record-change` rule 44 forbids
+`CHANGE_READY=true` on that signal; a detail-only Agent that ignores it will
+save records with blank required fields, which is exactly what happened on the
+`Account_Visit__c` 客户来访 records on 2026-11-09. Profile full names that
+contain a slash are stored URL-encoded (`%2F`) in `Profile.fullName` while
+FlexiPage assignments keep the raw name; `active-page.ts` decodes both sides
+before comparing, otherwise every Record Type specific page is skipped.
+
 Focused gates: context `precision-*.test`, DML legacy suite, Host
 `form-dml-preflight.test`/`form-context-facade.test` and native action integration,
 Admin `FormContextEvidence`/`AuditTraceWorkbench` plus `precision-audit.spec.ts`.
