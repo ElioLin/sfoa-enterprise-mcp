@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-11-09 业务 Skill 中文显示名发布（203）
+
+四个业务 Skill 增加 `display_name` / `display_name_en` 与中文 H1（提交 `4fc8465`），并发布到 203 的 OpenClaw runtime。
+
+| 项 | 实际记录 |
+| --- | --- |
+| 备份 | `/data/openclaw/backups/20261109-133422-skill-display-name/`：4 份 runtime 目录 + 4 份 app `SKILL.md`，回滚即 `cp -a` 回去 |
+| 上传 | 4 个 `SKILL.md` 经 `ssh 'cat >'` 写入服务器 `/tmp/sfoa-skill-new/`，服务器与本机 sha256 逐一相同（`520394b6…`、`fd0bcdc0…`、`f8b80513…`、`1860ccff…`），无 CRLF 污染 |
+| app 树 | 覆盖 `app/skills/<name>/SKILL.md`，hash 与本机一致 |
+| Runtime | `node skills/sfoa-mcp-maintainer/scripts/manage.mjs runtime-sync --runtime-root /data/openclaw/workspace/skills`；`runtime-check` 四个 Skill 全 `ok:true`、`drift: []`；runtime `SKILL.md` 与新 canonical 逐一 hash 相同 |
+| 可见性 | `openclaw skills check --agent main`：Total 91 / Eligible 55 / **Visible to model 7**（`browser-automation` + 四个业务 Skill + `wecom-send-media` + `wecom-send-template-card`）；四个业务 Skill `eligible=true`、`modelVisible=true` |
+| **关键结论** | **OpenClaw 2026.9.5 不解析 `display_name`**：`skills.status` 返回的字段清单（`always/baseDir/blockedByAgentFilter/…/description/disabled/eligible/filePath/install/missing/modelVisible/name/...`）不含任何 display 字段，91 个 Skill 中带显示名的为 **0**；`dist/frontmatter-*.mjs` 只识别 `always`/`homepage`/`emoji`/`userInvocable`/`metadata`。因此 OpenClaw 侧列表仍按 `name`（slug）显示，中文名只在支持该字段的宿主生效（WorkBuddy 已安装 Skill 普遍使用 `display_name`） |
+| 未做 | DSH / WorkBuddy 选择器 UI 实测未执行；`description` 触发词未改；本次未重启 Gateway（正文变更按既有语义热读取），也未改 `agents.entries.main.skills` |
+| 回退 | 恢复 runtime：`cp -a /data/openclaw/backups/20261109-133422-skill-display-name/runtime-<name> /data/openclaw/workspace/skills/`；恢复 app：用同目录 `app-<name>.SKILL.md` 覆盖回 `app/skills/<name>/SKILL.md` |
+
+---
+
 ## 2026-11-06 精确创建/编辑表单测试部署
 
 `codex/record-change-precision@94f1833` 已部署到 203，MCP/Admin Web/四业务 Skill 与独立 `sfoa` 为 Playbook **1.14.0**。服务器源码 1496 文件无漂移，精确表单专项 101/101、Skills 88/88；实际 29 个工具，五个相关工具增加可选 `formContext`，其余工具输入契约不变。Gateway 未重启；新会话完整读取两份新版记录变更指导。没有新增迁移、未执行 Salesforce 写入。发布中因浏览器探针错误输出包含临时 Admin Cookie，已只轮换管理会话签名密钥，旧签名会话 401，新登录/退出 200；后台需要重新登录。详见[部署与回滚记录](RECORD_CHANGE_PRECISION_DEPLOYMENT_20261106.md)，不以部署检查替代真实业务 UAT。
