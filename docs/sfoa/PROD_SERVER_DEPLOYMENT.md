@@ -4,6 +4,43 @@
 
 ---
 
+## 部署记录 · record-change precision 94f1833f（Playbook 1.14.0，2026-11-09）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `codex/record-change-precision` 运行时代码 `94f1833f`（分支 tip `caf16ec` 仅补部署证据），Playbook **1.14.0**、精确表单 `formContext`；从 048eae0 / 1.13.3 增量升级；无迁移、无 Adapter 变更 |
+| 归档/校验 | 复用 203 precision 归档 `sfoa-app-94f1833.tar.gz`，4,407,572 B，sha256 `2054045c…`，1496 files；207 staging/app `sha256sum -c` 均 **1496 OK**；`.env.local` 未改 |
+| 备份/回滚 | `/data/sfoa-enterprise-mcp/backup/precision-prod-20261109T111944-94f1833/`（7.3M：app source/dist、DB ledger、adapter、runtime skills、openclaw config、`rollback.sh`）；DB 017 additive 保留 |
+| 构建 | Playbook / Context / DML / MCP Server / Admin API / Admin Web 六包成功；Admin Web `index-CTp8faou.js` / `AgentIntegrationPage-CK_3b5F2.js`（1.14.0），并补回 1.13.3 旧 hashed assets 供缓存兼容 |
+| 服务 | MCP/Admin 重启：PID **1252785 / 1252799**（11:21:21 / 11:21:25）；health/ready UP；Gateway PID 1169616 未重启；Adapter 未改 |
+| MCP 协议 | initialize **1.14.0**；tools/list **25**（四个 DML 仍 disabled，用户决定保持）；`get_record_action_context` 有可选 `formContext`；附件 `retryable` / Context `includeValueAssessment` 保留 |
+| Skills | 四业务 Skill **39** 文件（record-change 14、core 10、data-analysis 8、org-diagnostics 7）与 canonical 一致、drift []；`record-change` `337a35d9…`；`sfoa` **1.14.0** `5ef50653…`；`mcp.json` 未变 |
+| 203/207 对拍 | app runtime 94f1833f、Playbook 1.14.0、7 个 precision 源文件、Adapter、四个 Skill、`sfoa`、Admin Web 当前 assets、NTP 均一致；207 tools 25 vs 203 29 仅因 DML 工具治理（用户决定保持）；OpenClaw 配置仍只差环境主体值 |
+| 未做 | 真实 Salesforce 精确表单 CREATE/UPDATE/Quick Action、附件/材料业务 UAT、DML 开启均未执行；本轮为部署/构建/协议/字节/配置验收 |
+
+---
+
+## 部署记录 · 材料工作流升级到 048eae0 + OpenClaw 对齐（2026-11-09）
+
+| 项 | 值 |
+| --- | --- |
+| 部署内容 | `feature/agent-material-workflows` @ `048eae0`（从 1dca49a / Playbook 1.12.0 升级）；Playbook **1.13.3**、Adapter `a21e679`、四业务 Skill / `sfoa` 1.13.3、Admin Web 重建 |
+| 归档/校验 | 复用测试服 LF 归档 `sfoa-app-048eae0.tar.gz`，4,287,055 B，sha256 `82c7e6b8…`，1460 files；staging/app `sha256sum -c` 均 **1460 OK**；`packages/mcp/README.md` symlink 保留；`.env.local` 未改 |
+| 备份/回滚 | `/data/sfoa-enterprise-mcp/backup/material-workflows-prod-20261109T110203-048eae0/`（6.9M）：app source/dist、DB schema/ledger、adapter、runtime skills、openclaw config、`rollback.sh`；DB 015/017 additive，回滚不撤销 |
+| 迁移 | 015 原本 APPLIED；**017 APPLIED** at 2026-11-09T11:04:08Z，`bytes_removed_at` 与新 ENUM 验证；无 016/未知版本 |
+| 构建 | 11 包按 §6 顺序成功：agent-playbook/provider-api/dx-core/context/dml/data/identity-runtime/control-plane/mcp-server/admin-api/admin-web；`yarn.lock` 无变化、未重装 |
+| 服务 | MCP/Admin 重启：PID **1250783 / 1250797**（11:07:26 / 11:07:30），health/ready UP、DB 8.0.39；Gateway PID 1169616 未重启；nginx active |
+| Adapter | `plugins reload` generation **3**、`restartRequired=false`、source digest `f1db4d2c…`；`material-tasks.js` `35b13f72…`、manifest `be611e34…`；material store `MEMORY_ONLY_REVALIDATE_AFTER_RESTART`（与 203 同） |
+| Skills | 四个业务 Skill 与 canonical IDENTICAL、drift []；`sfoa` 1.13.3 `5ae5b733…`，`mcp.json` `3279fe3b…` 未变；`skills.status` 四业务 eligible/modelVisible=true，sfoa false |
+| Admin Web | `index-DQlDgH9N.js` / `AgentIntegrationPage-Ty3qH7HN.js`（1.13.3）；`/`、`/admin/api/ready` 200；chown/restorecon |
+| MCP 协议 | initialize 1.13.3、tools/list **25**；附件 `retryable`、Context `includeValueAssessment` 均在 |
+| OpenClaw 对齐 | 两边 `tools.deny:["ask_user"]`、`ui.prefs.locale=zh-CN`、`mainSkills`、`alsoAllow` 一致；masked diff 只剩 identity/bind/origins/MCP token/企微 botId+secret 等环境主体值；203 的 ui 为本次新增 |
+| 差异/待定 | 207 四个 DML 工具在 `sfoa_tool_control` 自 2026-10-10 起 `enabled=false`，故 tools/list **25 vs 203 29**；DML 策略 `Lead` enabled（CREATE/UPDATE）。**用户已决定保持 25（不开启）**；207 缺 203 的 WeCom `question-bridge.js` test-only 补丁（ask_user 两边已 deny） |
+| 时钟/文档 | 207 时钟曾快 558s，已校准；`wecom-cli auth init` 成功、只读 `sheet get` 读取 `CRM智能助手测试`。**NTP 永久修复已完成（203+207）**：注释失败的 `pool ntp.aliyun.com iburst nts`，保留 Rocky pool，重启 chronyd 后两台均 `Leap status: Normal`、选中 `^*` 源、偏移为微秒级；备份 `/etc/chrony.conf.bak-pre-ntp-fix-20261109` |
+| 未做 | 材料工作流/附件真实业务 UAT、浏览器登录态 UAT、DML 工具开启均未做；本轮验收为协议/构建/字节/服务/配置层 |
+
+---
+
 ## 部署记录 · Admin 复制按钮 focus-trap 修复（admin-web 单文件补丁，2026-10-30）
 
 | 项 | 值 |
