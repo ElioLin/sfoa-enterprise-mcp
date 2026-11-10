@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-11-10 按钮可见性求值（`5dd610c`）与一次误判回滚
+
+针对 13:22 那一轮「总结只写了通用 9 项、FRN 三项为空」的问题，改为解析 Lightning 页面 `force:highlightsPanel` 声明的动作及其**自带的 visibilityRule**，按记录真实字段值求值，合并 Salesforce 记录级 actions（后者不套用页面可见性规则）。
+
+| 项 | 实际记录 |
+| --- | --- |
+| 改动 | `flexipage-parser` 采集页面动作与规则；`precision-standard` 求值 `applicable` 并只返回本对象的字段编辑型动作；契约新增 `applicable/ruleState/source`；Skill 46/47 与 playbook 同步 |
+| 门禁 | context 321/321、playbook 48/48、`skill:check` drift [] |
+| 部署 | 上传 4 个 context 源文件 + playbook renderer + SKILL.md，重建 context/playbook/mcp-server，重启 PID **3863527**，`/health` 200 |
+| 一次误判 | 首次验证用 `a0fC5000001B29BIAS`（Visit-004248），调用 6 分钟后报 `MCP_RECORD_ACTION_CONTEXT_UNSUPPORTED`，据此回滚了线上文件 |
+| 回滚后对照 | 回滚到上一版后同一条记录**同样报错**（13 秒），而同日的 `a0fC5000001B4VxIAK` 正常返回。结论：该记录本身无法被 UI API 解析，与本次改动无关；回滚是误判，随后重新部署新版本 |
+| 最终验证 | `a0fC5000001B0VZIA0`（Visit-004247，客户来访，计划中，8060）→ `[V] Account_Visit__c.FRN_Visit_Summary (VISIBLE)`、`Cancel_Visit (VISIBLE)`；`EASO/WRN/Visit_Summary` 均 `HIDDEN`。`a0fC5000001B4VxIAK`（已完成，8060）→ 全部总结按钮 `HIDDEN`，与页面规则一致 |
+| 已知限制 | 复杂 booleanFilter（引用 `Record.RecordType.DeveloperName` 等）当前求值为 UNKNOWN，如 `Create_Checklist`/`View_Checklist`；这类按钮不会被误判为可用 |
+| 备注 | 建议用户把访问记录建为「计划中」再走总结按钮——页面规则要求 Status=计划中，已完成状态下所有总结按钮都不呈现 |
+
+---
+
 ## 2026-11-10 记录动作发现（`f81be45` + 装配修正 `c3b87af`）部署
 
 | 项 | 实际记录 |
