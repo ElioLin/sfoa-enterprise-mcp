@@ -50,6 +50,14 @@ function fixture(action: 'CREATE' | 'UPDATE' = 'CREATE', global = false) {
       record: { apiName: 'Contact', recordTypeId: new URL(url, 'https://example.test').searchParams.get('recordTypeId'),
         fields: { LastName: { value: 'Object default' }, Mandatory__c: { value: 'Create default' }, Untouched__c: { value: 'Off-action default' } } } };
     if (url.includes('/layout/')) return baselineLayout;
+    if (url.includes('/ui-api/actions/record/')) return { actions: { [RECORD]: { actions: [
+      { apiName: 'Contact.CloseContact', label: '关闭联系', type: 'QuickAction', subtype: 'Update',
+        targetObject: 'Contact', actionTargetType: 'Describe', section: 'Page' },
+      { apiName: 'Contact.Add_Child', label: '添加子项', type: 'QuickAction', subtype: 'Create',
+        targetObject: 'Child__c', actionTargetType: 'Describe', section: 'Page' },
+      { apiName: 'Edit', label: '编辑', type: 'StandardButton', subtype: 'ScreenAction',
+        targetObject: 'Contact', actionTargetType: 'Invoke', section: 'Page' },
+    ] } } };
     if (url.includes(`/records/${PARENT}`)) return { id: PARENT, apiName: 'Account', recordTypeId: RT, fields: { Id: { value: PARENT } } };
     if (url.includes(`/records/${RECORD}`)) return { id: returnedRecordId, apiName: 'Contact', recordTypeId: ACTION_RT,
       fields: Object.fromEntries(Object.entries(stored).map(([name, value]) => [name, { value }])) };

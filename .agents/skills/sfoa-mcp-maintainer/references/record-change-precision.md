@@ -76,6 +76,17 @@ contain a slash are stored URL-encoded (`%2F`) in `Profile.fullName` while
 FlexiPage assignments keep the raw name; `active-page.ts` decodes both sides
 before comparing, otherwise every Record Type specific page is skipped.
 
+Button-only requiredness is a separate form. `get_record_action_context` returns
+`formContext.availableActions` on UPDATE — Salesforce's record-scoped
+`/ui-api/actions/record/{id}` list, filtered to `QuickAction` and
+`StandardButton`, capped at 30, with `evaluable` marking the actions this Tool
+can resolve through `entry=QUICK_ACTION` (a Describe target on the same
+object). Standard requiredness never proves a button's requiredness: resolve
+the action by label, then read its own `missingRequired`. A failed actions read
+sets `actionsError` and never fails the context call. Do not hardcode action or
+child-object API names; child records come from the object's own
+`childRelationships` and the role labels on them.
+
 Precision is the default path. `SFOA_PRECISION_DEFAULT_FORM_CONTEXT` (default
 true) makes a CREATE/UPDATE that omits `formContext` behave as
 `{ entry: 'STANDARD', phase: 'START' }`, so the live selected-form read answers

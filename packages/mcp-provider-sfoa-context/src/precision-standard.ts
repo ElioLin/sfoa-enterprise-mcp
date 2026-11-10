@@ -129,7 +129,12 @@ export async function resolveStandardForm(args: Readonly<{
     const evaluated = evaluateStandardForm({ input, objectInfo, facts, baseline, page: dynamic ? page : undefined,
       savedValues: saved, user: Object.fromEntries(userFacts.facts.filter((fact) => fact.resolutionStatus === 'RESOLVED')
         .map((fact) => [fact.path.slice('$User.'.length), fact.value])) });
+    const actions = input.action === 'UPDATE' && input.recordId
+      ? await loadAvailableActions(connection, input.recordId, objectInfo.apiName, deadline, () => { apiCallCount++; })
+      : undefined;
     return { ...result, ...identity, ...active, ...evaluated, appSource: metadata.appSource, apiCallCount,
+      ...(actions ? { availableActions: actions.actions, actionsEvaluated: true,
+        ...(actions.error ? { actionsError: actions.error } : {}) } : {}),
       metadata: { verifiedAt: metadata.verifiedAt, apiCallCount: metadata.apiCallCount, evidence: metadata.evidence,
         structuralContextRef: metadata.structuralContextRef, cache: metadata.cache } };
   } catch (error) {
@@ -387,5 +392,59 @@ function validateDraft(input: StandardFormInput, objectInfo: ObjectInfo): void {
       || (numeric && typeof value !== 'number') || (!numeric && field.dataType !== 'Boolean' && typeof value !== 'string'))) {
       throw new ContextRuntimeError('MCP_RECORD_ACTION_CONTEXT_INVALID', `Draft field ${name} has an incompatible scalar type.`);
     }
+  }
+}
+
+const ACTIONS_LIMIT = 30;
+const actionsPayloadSchema = z.object({
+  actions: z.record(z.string(), z.object({ actions: z.array(z.object({
+    apiName: z.string().min(1).max(255),
+    label: z.string().min(1).max(255).optional(),
+    type: z.string().max(64).optional(),
+    subtype: z.string().max(64).nullable().optional(),
+    targetObject: z.string().max(255).nullable().optional(),
+    section: z.string().max(64).nullable().optional(),
+    actionTargetType: z.string().max(64).nullable().optional(),
+  }).passthrough()).max(500) }).passthrough()),
+});
+
+export type AvailableRecordAction = Readonly<{
+  apiName: string; label: string; type: 'QuickAction' | 'StandardButton';
+  subtype: string | null; targetObject: string | null; section: string | null;
+  /** True when get_record_action_context can evaluate this action's own layout. */
+  evaluable: boolean;
+}>;
+
+/**
+ * Record-scoped available actions, including the page's Quick Action buttons.
+ * This is the only authoritative source for "which buttons exist on this record":
+ * the FlexiPage only declares components, while visibility, permission and
+ * Record Type criteria are resolved per record by Salesforce itself.
+ *
+ * Failures are reported as `actionsError` and never fail the context call: the
+ * selected form's own requiredness stays valid without the action list.
+ */
+async function loadAvailableActions(connection: Connection, recordId: string, objectApiName: string,
+  deadline: number, onCall: () => void): Promise<Readonly<{ actions: readonly AvailableRecordAction[]; error?: string }>> {
+  try {
+    onCall();
+    const raw = await boundedRead(() => connection.request<unknown>({ method: 'GET',
+      url: `/services/data/v${connection.getApiVersion()}/ui-api/actions/record/${encodeURIComponent(recordId)}` }), deadline);
+    const parsed = actionsPayloadSchema.safeParse(raw);
+    if (!parsed.success) return { actions: [], error: 'ACTIONS_RESPONSE_UNREADABLE' };
+    const rows = Object.values(parsed.data.actions).flatMap((entry) => entry.actions);
+    const mapped = rows.flatMap((row): AvailableRecordAction[] => {
+      if (row.type !== 'QuickAction' && row.type !== 'StandardButton') return [];
+      const targetObject = row.targetObject ?? null;
+      return [{ apiName: row.apiName, label: row.label ?? row.apiName, type: row.type,
+        subtype: row.subtype ?? null, targetObject, section: row.section ?? null,
+        evaluable: row.type === 'QuickAction' && row.actionTargetType === 'Describe' && targetObject === objectApiName }];
+    });
+    const rank = (action: AvailableRecordAction): number => action.evaluable ? 0 : action.type === 'QuickAction' ? 1 : 2;
+    const actions = mapped.sort((left, right) => rank(left) - rank(right) || left.label.localeCompare(right.label))
+      .slice(0, ACTIONS_LIMIT);
+    return { actions };
+  } catch {
+    return { actions: [], error: 'ACTIONS_UNAVAILABLE' };
   }
 }

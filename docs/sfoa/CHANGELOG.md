@@ -2,6 +2,16 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-10 — Record action discovery, generic button and child-record rules
+
+A WeCom session wrote 客户拜访 records whose 总结按钮 required fields stayed empty and whose two participant child tables stayed empty. Audit showed the session never resolved the button at all (it wrote through the STANDARD form) and never attempted a child-object create, even though both child objects are in the DML allowlist.
+
+`get_record_action_context` on UPDATE now returns `formContext.availableActions`: Salesforce's record-scoped `/ui-api/actions/record/{id}` list, filtered to `QuickAction`/`StandardButton`, capped at 30, ordered evaluable-first, each with `apiName`, `label`, `type`, `subtype`, `targetObject`, `section` and `evaluable`. `evaluable` is true only for a Quick Action that this Tool can resolve as its own form (Describe target on the same object), so LWC and cross-object create actions are reported but not promised. A failed read returns `actionsError` and never fails the context call.
+
+Guidance is object-agnostic on purpose: skill rules 46-48 and the playbook now require resolving a button by label through `entry=QUICK_ACTION` before judging readiness, forbid substituting STANDARD requiredness for a button's own checklist, define the ask-then-「无」sequence for text fields only (dates, numbers, picklists and lookups may never be filled with a placeholder), and route child records through the object's `childRelationships` with role labels rather than hardcoded object names.
+
+Gates: context provider 320/320, agent-playbook 48/48, `skill:check` drift [] on six canonical Skills.
+
 ## 2026-11-09 — Precision-first form context and a workable snapshot refresh bound
 
 CREATE/UPDATE that omit `formContext` now default to `{ entry: 'STANDARD', phase: 'START' }` when `SFOA_PRECISION_DEFAULT_FORM_CONTEXT` is true (the default), so the live selected-form read answers and `sfoa_ui_snapshot` serves only the fallback. Explicit callers keep their own choice. A defaulted request that cannot resolve any selected form falls back to the snapshot context with `PRECISION_FALLBACK_LEGACY_CONTEXT` in coverage warnings; an explicit `formContext` never falls back.

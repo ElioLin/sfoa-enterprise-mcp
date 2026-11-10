@@ -7,7 +7,7 @@ display_name_en: "CRM Record Create & Update"
 
 # CRM 记录新建与修改（SFoA Record Change）
 
-指导修订：1.14.0 — 创建/编辑按所选表单取证并在提交前复核，保留材料提炼与业务类型语义。
+指导修订：1.15.0 — 按钮动作（Quick Action）必填优先、缺失必填的询问与「无」确认、子表与参与人按真实结构落地。
 
 按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/所选表单事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → 执行和回执。CREATE/UPDATE 使用 `formContext`，默认标准入口；具体见 [精确表单流程](references/precise-forms.md)。可复用仍适用的上下文，但 CREATE 前 **MUST** 满足 Hard Rule 45 的«本次表单证据»；查询、纯附件或诊断不进入该表单流程。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
 
@@ -72,6 +72,9 @@ display_name_en: "CRM Record Create & Update"
 43. **Selected Form Contract** — CREATE/UPDATE 使用 `formContext`：默认 STANDARD，仅明确选择时使用原生 QUICK_ACTION；应用明确值优先，否则使用当前 USER 的 Profile 默认应用。START/REFINE 处理草稿与关键缺项；提交携带相同选择，由 MCP 自动 SUBMIT 复核当前配置。QUICK_ACTION 仅使用单条 create_record/update_record，不进入批量工具。`UNKNOWN`/`criticalUnknown` 不得以旧 API 路径绕过。近期可选建议不阻塞已就绪保存，按实际分子、分母、窗口和范围说明。见 [precise-forms.md](references/precise-forms.md)。
 44. **必填性未证明即不得提交** — `coverage.requirednessIncomplete=true` 表示本次解析没有证明该 Record Type 的完整必填集合：可能是对象存在 Record Type 专属 Lightning 页面但本次解析到了别的页面（`RECORD_TYPE_PAGE_NOT_MATCHED`），也可能是动态表单解析回落到 Page Layout（`RESOLUTION_FALLBACK_*`）。此时 **MUST NOT** 把 `requiredChecklist` 当作完整清单，**MUST NOT** 据此给出 `CHANGE_READY=true`。**MUST** 先如实说明「当前表单必填校验不完整」，列出已确认的必填项，并请用户补充只在专属表单页出现的必填字段，或由用户明确确认按现有信息保存。该信号与 `coverage: PARTIAL`、`truncated`、`PENDING` 是不同事实，不能互相替代，也不能因为 `includeRequiredness` 已开启就认为必填已证明。
 45. **CREATE 前必须有本次表单证据** — 调用 `create_record` / `create_records` 之前，**MUST** 在本轮对话中针对当前对象与**已确定的 Record Type** 调用过 `get_record_action_context`（不传 `formContext` 时服务端按 STANDARD START 处理）。下列任一情况都使先前证据失效，**MUST** 重新调用并在拿到结果后再决定：对象或 Record Type 变化；用户补充/更改了会改变条件必填的事实（来源、销售组织、Record Type 相关选择等）；上次调用之后已经发生过任何写入；上次调用没有返回 `formContext`（例如未选 Record Type 导致 `recordTypeSelectionRequired`）。**MUST NOT** 以「同一会话里前面查过」「上一次也是这样建的」「我记得这几个字段不用填」为由跳过本次取证——旧结论来自旧配置，必填集合可能已经变化。`missingRequired` 非空且无合规草稿值时，先补齐或追问，**MUST NOT** 直接建单。同一会话内重复为不同对象/类型取证时，同样各自独立执行本规则。
+46. **按钮动作优先于主表单必填** — 当用户的任务语义对应记录上的一个**动作按钮**（例如总结、关闭、提交、加签、添加参与人等）时，**MUST** 先用 `formContext.availableActions`（UPDATE 上下文中由 Salesforce 按该记录实时返回）按 `label` 找到目标按钮，再以 `formContext: { entry: 'QUICK_ACTION', quickActionName }` 取得**该按钮自己的表单**及其 `missingRequired`；**MUST NOT** 用 STANDARD 主表单的必填集合替代按钮表单的必填判断，也 **MUST NOT** 因为主表单 READY 就认为按钮动作已就绪。写入时 **MUST** 携带同一个 `formContext`，由 preflight 复核。`availableActions` 为空或没有语义匹配项时，**MUST** 如实告知并询问用户指的是哪个动作，**MUST NOT** 猜一个 apiName。`evaluable=false` 的按钮（LWC 动作、或目标对象不是当前对象的创建型动作）本工具无法按其布局求解：**MUST** 说明这一限制，改用该业务对象的常规创建/更新路径（例如直接创建子记录），**MUST NOT** 声称已经通过该按钮写入。
+47. **缺失必填的处理次序** — 当必填字段在材料中没有依据时：① 先按字段 label、help、类型与依赖在材料/上下文里再找一次；② 仍无则**集中一次**问用户（用中文字段名，不逐字段连问）；③ 用户明确表示没有或不适用的**文本 / 长文本**字段，**MUST** 先确认「这些字段是否可以统一填“无”」，得到肯定答复后才可写入「无」，并在回执中注明这是按用户确认填入的占位值。日期、数值、货币、百分比、Picklist、Lookup **MUST NOT** 用「无」或其他占位值填充，应保持为空并说明缺哪一项。
+48. **子表与参与人** — 需要写明细/参与人时，**MUST** 先从 `describe_sobject` 的 `childRelationships` 识别父记录下的子对象，并按**子对象 label 与字段 label** 判断归属类别（如「我方/内部/员工」与「客户/外部/来访人」），**MUST NOT** 硬编码任何对象 API 名或假设某业务对象独有的结构。材料中每个参与人写一条子记录：父 lookup 指向刚创建的父记录，人员 lookup 指向 `Contact` 或 `User`。客户方人员 **MUST** 在父记录所属客户下按姓名查到**唯一** `Contact` 再写；查不到或重名先问，**MUST NOT** 猜 ID。写完后 **MUST** 按父记录回查子表条数并与材料核对，数量不符要说明；子对象不在 DML 白名单时必须明确报告，**MUST NOT** 静默跳过。
 
 ## CREATE 与 UPDATE 的关键差异
 

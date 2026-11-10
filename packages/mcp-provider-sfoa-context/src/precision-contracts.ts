@@ -40,6 +40,19 @@ export const formContextResultSchema = z.object({
   configurationSource: z.enum(['FRESH', 'TASK_REUSE']).optional(),
   missingRequired: z.array(z.string()).max(400), criticalUnknown: z.array(z.string()).max(400),
   fields: z.array(formFieldAssessmentSchema).max(400),
+  /**
+   * Record-scoped actions Salesforce reports for this record, including the
+   * Lightning page's Quick Action buttons. `evaluable` marks the ones this Tool
+   * can resolve as their own form via formContext.entry=QUICK_ACTION.
+   */
+  availableActions: z.array(z.object({
+    apiName: z.string().min(1).max(255), label: z.string().min(1).max(255),
+    type: z.enum(['QuickAction', 'StandardButton']),
+    subtype: z.string().max(64).nullable(), targetObject: z.string().max(255).nullable(),
+    section: z.string().max(64).nullable(), evaluable: z.boolean(),
+  }).strict()).max(30).optional(),
+  actionsEvaluated: z.boolean().optional(),
+  actionsError: z.string().max(128).optional(),
   apiCallCount: z.number().int().nonnegative(), durationMs: z.number().int().nonnegative(),
   recommendations: z.unknown().optional(),
   warnings: z.array(z.string()).max(30),
