@@ -50,6 +50,8 @@ export const formContextResultSchema = z.object({
     type: z.enum(['QuickAction', 'StandardButton']),
     subtype: z.string().max(64).nullable(), targetObject: z.string().max(255).nullable(),
     section: z.string().max(64).nullable(), evaluable: z.boolean(),
+    applicable: z.boolean(), ruleState: z.enum(['VISIBLE', 'HIDDEN', 'UNKNOWN', 'NONE']),
+    source: z.enum(['PAGE', 'SALESFORCE']),
   }).strict()).max(30).optional(),
   actionsEvaluated: z.boolean().optional(),
   actionsError: z.string().max(128).optional(),

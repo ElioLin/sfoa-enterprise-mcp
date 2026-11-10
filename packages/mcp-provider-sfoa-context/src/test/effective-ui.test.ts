@@ -34,6 +34,35 @@ test('structural parser retains ancestry, sections, repeated instances and deskt
   assert.equal(parseFlexiPage(raw, 'Sample__c').formSource, 'MIXED');
 });
 
+test('highlights panel buttons keep their own visibility rules instead of assuming any business field', () => {
+  const raw = fixturePage();
+  (raw.flexiPageRegions[0]!.itemInstances as unknown[]).push({
+    componentInstance: {
+      componentName: 'force:highlightsPanel',
+      identifier: 'highlights',
+      componentInstanceProperties: [{ name: 'actionNames', valueList: { valueListItems: [
+        { value: 'Sample__c.Summary_A', visibilityRule: { booleanFilter: '1 AND 2', criteria: [
+          { leftValue: '{!Record.Status__c}', operator: 'EQUAL', rightValue: '计划中' },
+          { leftValue: '{!Record.Division__c}', operator: 'EQUAL', rightValue: '8060' },
+        ] } },
+        { value: 'Sample__c.Summary_B', visibilityRule: { criteria:
+          { leftValue: '{!Record.Division__c}', operator: 'NE', rightValue: '8060' } } },
+        { value: 'Edit' },
+      ] } }],
+    },
+  });
+  const page = parseFlexiPage(raw, 'Sample__c');
+  assert.equal(page.actions?.length, 3);
+  assert.equal(page.actions?.[0]?.name, 'Sample__c.Summary_A');
+  assert.equal(page.actions?.[0]?.rule?.criteria.length, 2);
+  assert.equal(page.actions?.[0]?.rule?.booleanFilter, '1 AND 2');
+  // A single-criterion rule arrives as an object, not an array.
+  assert.equal(page.actions?.[1]?.rule?.criteria.length, 1);
+  assert.equal(page.actions?.[1]?.rule?.criteria[0]?.operator, 'NE');
+  assert.equal(page.actions?.[2]?.name, 'Edit');
+  assert.equal(page.actions?.[2]?.rule, null);
+});
+
 test('refresh collects only bounded configuration through the official SDK and normalizes its current facts', async () => {
   const calls: string[] = [];
   const source = fixtureSnapshot();

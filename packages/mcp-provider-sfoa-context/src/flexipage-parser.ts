@@ -62,12 +62,40 @@ export function parseFlexiPage(raw: unknown, objectApiName: string): UiPage {
   for (const region of regions.filter((entry) => entry.type === 'Region')) {
     if (typeof region.name === 'string') visit(region.name, [], null, 0, 0, []);
   }
+  const pageActions = collectPageActions(regions);
   const rawFieldCount = regions.flatMap((region) => asArray(region.itemInstances)).filter((item) => asObject(item).fieldInstance).length;
   if (rawFieldCount !== visitedFields.size) unsupported.add('UNREACHABLE_FIELDS');
   return uiPageSchema.parse({ fullName: page.fullName, objectApiName, type: page.type,
     formSource: fields.length ? desktopDetail ? 'MIXED' : 'DYNAMIC_FORMS' : desktopDetail ? 'PAGE_LAYOUT' : 'UNRESOLVED',
+    ...(pageActions.length ? { actions: pageActions } : {}),
     fields, unsupported: [...unsupported],
   });
+}
+
+/**
+ * Buttons the Lightning page declares on its highlights panel, each with the
+ * page's own visibility rule. Business logic differs per object and per org, so
+ * the rule is captured verbatim instead of assuming any particular field: the
+ * caller evaluates it against the actual record values.
+ */
+function collectPageActions(regions: readonly Record<string, unknown>[]): NonNullable<UiPage['actions']> {
+  const byName = new Map<string, NonNullable<UiPage['actions']>[number]>();
+  for (const region of regions) {
+    for (const item of asArray(region.itemInstances).map(asObject)) {
+      if (!item.componentInstance) continue;
+      const component = asObject(item.componentInstance);
+      if (String(component.componentName) !== 'force:highlightsPanel') continue;
+      const actionNames = asObject(properties(component.componentInstanceProperties).get('actionNames'));
+      for (const entry of asArray(actionNames.valueListItems).map(asObject)) {
+        const name = textValue(entry.value);
+        if (!name || byName.has(name)) continue;
+        const rule = entry.visibilityRule == null ? null : (ruleOf(entry.visibilityRule, 'CONTAINER')[0]?.rule ?? null);
+        byName.set(name, { name, rule, ...(rule?.unsupported ? { ruleUnsupported: true } : {}) });
+        if (byName.size >= 60) return [...byName.values()];
+      }
+    }
+  }
+  return [...byName.values()];
 }
 
 function properties(raw: unknown): Map<string, unknown> {

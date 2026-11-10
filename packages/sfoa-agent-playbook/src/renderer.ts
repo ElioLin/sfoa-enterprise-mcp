@@ -160,7 +160,7 @@ export function renderWeComRoleSetting(capabilities?: AgentCapabilities): string
     '- 新建使用真实 `availableRecordTypes`：存在非 Master 类型时排除 Master，仅剩 Master 时保留；按任务与适用默认解析类型并透传同一 `recordType.id`，不猜类型或 ID。',
     "- Record Type 先按任务、候选标签/描述及适用默认自主确定，再取该类型字段；recordTypeSelectionRequired 是技术依赖，不强制两轮对话。多候选本身不要求追问，仍有业务歧义才问。",
     "- Minimal Patch 提交完成业务任务实际需要变化的字段，含忠实提炼和可靠关联；地址迁移可联动国家/省份/城市；由明确公司地址或已核实公司所在地判断出城市时，必须同时推断并写入对应省份/国家（当前字段可写且不与现有值冲突），不得只填城市不填省份；手机号本身不含地域，不要据此推断；座机区号本身不证明公司所在地；地名歧义先补证，仍影响任务才问。若用户限定只改总结，则不动无关地址。文本用适当文本、Picklist 用真实 API Value、Lookup 用真实 ID。标准 UPDATE 未提供不清空、未变化不重发；UPDATE 不重放 CREATE 默认。原生 Quick Action 的明确预设覆盖值即使等于保存值也保留，并仅使用单条工具。",
-    "- 记录上的动作按钮（总结、关闭、提交、加签、添加参与人等）各有独立表单与必填集合，主表单就绪不代表按钮动作就绪。UPDATE 上下文里的 `formContext.availableActions` 是 Salesforce 按当前记录返回的可用动作清单：按 label 命中目标按钮后，用 `formContext.entry=QUICK_ACTION` 加 `quickActionName` 取该按钮的必填，再携带同一 `formContext` 写入；清单为空或没有语义匹配项时先问，不猜 apiName。`evaluable=false` 的按钮本工具无法按其布局求解，如实说明限制并改走该业务对象的常规创建/更新路径。",
+    "- 记录上的字段编辑型按钮（如总结、关闭）各有独立表单与必填集合，主表单就绪不代表按钮动作就绪。UPDATE 上下文里的 `formContext.availableActions` 合并了 Salesforce 的可用动作与 Lightning 页面该按钮自身的显隐规则：只有 `applicable=true` 的按钮才可用于本记录（规则按记录的真实字段值求值，不同事业体/状态可能不同），`applicable=false` 说明页面在当前状态不呈现它，应先由用户把记录推进到该条件或明确同意换入口，不得硬用；`ruleState=UNKNOWN` 或清单为空时先问，不猜按钮名。按钮专属字段不得放进 CREATE payload（会被 DRAFT_FIELD_NOT_VISIBLE 拒绝），应在建单后经该按钮写入。导出、审批、提交等纯业务动作不在读写范围内。",
     "- 需要写明细或参与人时，从对象 `childRelationships` 找真正承载它们的子对象，按子对象与字段 label 判断「我方/内部」与「客户/外部」，不硬编码对象名。客户方人员须在父记录所属客户下匹配唯一 `Contact`，重名或缺失先问；写完按父记录回查子表条数并与材料核对，不为凑数编造参与人。",
     "- 必填字段在材料中无依据时，先再找一次，再集中问一次；用户确认没有时，仅文本/长文本可在得到用户同意后填「无」并在回执注明，日期、数值、Picklist、Lookup 不得用占位值。",
     '',

@@ -26,9 +26,19 @@ export const fieldInstanceSchema = z.object({
     scope: z.enum(['FIELD', 'CONTAINER']), rule: visibilityRuleSchema,
   }).strict()).max(30),
 }).strict();
+export const pageActionSchema = z.object({
+  /** Full action name as written on the page, e.g. `Object.Action_Name` or a standard button. */
+  name: z.string().min(1).max(255),
+  /** The page's own visibility rule for this action; null means always offered by the page. */
+  rule: visibilityRuleSchema.nullable(),
+  /** Set when the rule shape could not be parsed, so applicability must be treated as unknown. */
+  ruleUnsupported: z.boolean().optional(),
+}).strict();
 export const uiPageSchema = z.object({
   fullName: uiNameSchema, objectApiName: uiNameSchema, type: uiNameSchema,
   formSource: formSourceSchema, fields: z.array(fieldInstanceSchema).max(1000),
+  /** Buttons the Lightning page declares (highlights panel), with their visibility rules. */
+  actions: z.array(pageActionSchema).max(60).optional(),
   unsupported: z.array(z.string().max(128)).max(30),
 }).strict();
 export const uiAssignmentSchema = z.object({

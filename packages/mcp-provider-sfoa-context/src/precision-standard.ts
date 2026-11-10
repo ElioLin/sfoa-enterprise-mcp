@@ -110,11 +110,16 @@ export async function resolveStandardForm(args: Readonly<{
     const page = active.page ? snapshot.pages.find((row) => row.fullName === active.page) : undefined;
     const dynamic = active.formSource === 'DYNAMIC_FORMS' || active.formSource === 'MIXED';
     if (dynamic && !page) throw new Error('FORM_PAGE_UNRESOLVED');
-    const names = dynamic ? [...new Set([
-      ...page!.fields.map((field) => field.apiName),
-      ...Object.values(objectInfo.fields).filter((field) => field.required).map((field) => field.apiName),
-      ...recordDependencies(page!),
-    ])] : [...new Set((baseline.fields ?? []).filter((field) => field.layoutMember || field.apiRequired).map((field) => field.apiName))];
+    const names = [...new Set([
+      ...(dynamic ? [
+        ...page!.fields.map((field) => field.apiName),
+        ...Object.values(objectInfo.fields).filter((field) => field.required).map((field) => field.apiName),
+        ...recordDependencies(page!),
+      ] : (baseline.fields ?? []).filter((field) => field.layoutMember || field.apiRequired).map((field) => field.apiName)),
+      // Button visibility rules are evaluated against the record too, so their
+      // dependencies must be read even when the field is not on the form.
+      ...actionDependencies(page),
+    ])];
     const readableNames = [...new Set([...names, ...Object.keys(input.draftFields ?? {})])]
       .filter((name) => Object.hasOwn(objectInfo.fields, name));
     if (readableNames.length > 400 || (!dynamic && baseline.coverage
@@ -134,7 +139,11 @@ export async function resolveStandardForm(args: Readonly<{
       savedValues: saved, user: Object.fromEntries(userFacts.facts.filter((fact) => fact.resolutionStatus === 'RESOLVED')
         .map((fact) => [fact.path.slice('$User.'.length), fact.value])) });
     const actions = input.action === 'UPDATE' && input.recordId
-      ? await loadAvailableActions(connection, input.recordId, objectInfo.apiName, deadline, () => { apiCallCount++; })
+      ? await loadAvailableActions({ connection, recordId: input.recordId, objectApiName: objectInfo.apiName,
+        page: page ?? undefined, saved,
+        fieldTypes: Object.fromEntries(Object.entries(objectInfo.fields).map(([name, field]) => [name, field.dataType])),
+        recordTypeDeveloperName: (snapshot.recordTypes.find((row) => sameSalesforceId(row.id, facts.recordType.recordTypeId))?.fullName ?? '').split('.').pop() ?? '',
+        deadline, onCall: () => { apiCallCount++; } })
       : undefined;
     return { ...result, ...identity, ...active, ...evaluated, appSource: metadata.appSource, apiCallCount,
       ...(actions ? { availableActions: actions.actions, actionsEvaluated: true,
@@ -417,6 +426,11 @@ export type AvailableRecordAction = Readonly<{
   subtype: string | null; targetObject: string | null; section: string | null;
   /** True when get_record_action_context can evaluate this action's own layout. */
   evaluable: boolean;
+  /** True when the page's own visibility rule evaluates visible for this record. */
+  applicable: boolean;
+  /** How applicability was decided: page rule state, or NONE when only Salesforce reported it. */
+  ruleState: 'VISIBLE' | 'HIDDEN' | 'UNKNOWN' | 'NONE';
+  source: 'PAGE' | 'SALESFORCE';
 }>;
 
 /**
@@ -428,12 +442,13 @@ export type AvailableRecordAction = Readonly<{
  * Failures are reported as `actionsError` and never fail the context call: the
  * selected form's own requiredness stays valid without the action list.
  */
-async function loadAvailableActions(connection: Connection, recordId: string, objectApiName: string,
-  deadline: number, onCall: () => void): Promise<Readonly<{ actions: readonly AvailableRecordAction[]; error?: string }>> {
+async function fetchRecordActions(args: Readonly<{
+  connection: Connection; recordId: string; objectApiName: string; deadline: number; onCall: () => void;
+}>): Promise<Readonly<{ actions: readonly AvailableRecordAction[]; error?: string }>> {
   try {
-    onCall();
-    const raw = await boundedRead(() => connection.request<unknown>({ method: 'GET',
-      url: `/services/data/v${connection.getApiVersion()}/ui-api/actions/record/${encodeURIComponent(recordId)}` }), deadline);
+    args.onCall();
+    const raw = await boundedRead(() => args.connection.request<unknown>({ method: 'GET',
+      url: `/services/data/v${args.connection.getApiVersion()}/ui-api/actions/record/${encodeURIComponent(args.recordId)}` }), args.deadline);
     const parsed = actionsPayloadSchema.safeParse(raw);
     if (!parsed.success) return { actions: [], error: 'ACTIONS_RESPONSE_UNREADABLE' };
     const rows = Object.values(parsed.data.actions).flatMap((entry) => entry.actions);
@@ -442,13 +457,72 @@ async function loadAvailableActions(connection: Connection, recordId: string, ob
       const targetObject = row.targetObject ?? null;
       return [{ apiName: row.apiName, label: row.label ?? row.apiName, type: row.type,
         subtype: row.subtype ?? null, targetObject, section: row.section ?? null,
-        evaluable: row.type === 'QuickAction' && row.actionTargetType === 'Describe' && targetObject === objectApiName }];
+        evaluable: row.type === 'QuickAction' && row.actionTargetType === 'Describe' && targetObject === args.objectApiName,
+        applicable: true, ruleState: 'NONE', source: 'SALESFORCE' }];
     });
-    const rank = (action: AvailableRecordAction): number => action.evaluable ? 0 : action.type === 'QuickAction' ? 1 : 2;
-    const actions = mapped.sort((left, right) => rank(left) - rank(right) || left.label.localeCompare(right.label))
-      .slice(0, ACTIONS_LIMIT);
-    return { actions };
+    return { actions: mapped };
   } catch {
     return { actions: [], error: 'ACTIONS_UNAVAILABLE' };
   }
+}
+
+/** Record fields referenced by the page's button visibility rules. */
+export function actionDependencies(page?: UiPage): string[] {
+  const names = new Set<string>();
+  for (const action of page?.actions ?? []) {
+    for (const criterion of action.rule?.criteria ?? []) {
+      const match = /^\{!Record\.([A-Za-z][A-Za-z0-9_]*)\}$/u.exec(String(criterion.leftValue));
+      if (match) names.add(match[1]!);
+    }
+  }
+  return [...names];
+}
+
+/**
+ * Which buttons this record actually offers.
+ *
+ * Salesforce's record-scoped actions endpoint answers "what may this USER run
+ * here" but does not apply the Lightning page's own visibility rules, so it can
+ * offer a button the page hides and hide one the page shows. The page's rules
+ * are evaluated against the record's real values and merged in: an action is
+ * applicable only when its own rule evaluates visible. Only field-editing
+ * actions on this object are returned; business-only buttons are left out
+ * because the create/edit tools never execute them.
+ */
+async function loadAvailableActions(args: Readonly<{
+  connection: Connection; recordId: string; objectApiName: string; page?: UiPage;
+  saved: Readonly<Record<string, unknown>>; fieldTypes: Readonly<Record<string, string>>;
+  recordTypeDeveloperName: string; deadline: number; onCall: () => void;
+}>): Promise<Readonly<{ actions: readonly AvailableRecordAction[]; error?: string }>> {
+  const endpoint = await fetchRecordActions({ connection: args.connection, recordId: args.recordId,
+    objectApiName: args.objectApiName, deadline: args.deadline, onCall: args.onCall });
+  const facts: VisibilityFacts = { draftFields: args.saved, fieldTypes: args.fieldTypes, user: {}, formFactor: 'Large' };
+  const seen = new Set<string>();
+  const rows: AvailableRecordAction[] = [];
+  for (const action of args.page?.actions ?? []) {
+    const hit = endpoint.actions.find((row) => row.apiName.toLowerCase() === action.name.toLowerCase());
+    const evaluated = action.rule ? evaluateVisibility(action.rule, facts).state : 'VISIBLE';
+    const state = evaluated === 'PENDING' ? 'UNKNOWN' : evaluated;
+    const ruleState = action.ruleUnsupported ? 'UNKNOWN' : state;
+    if (!hit) {
+      if (!action.name.startsWith(`${args.objectApiName}.`)) continue;
+      rows.push({ apiName: action.name, label: action.name.split('.').pop() ?? action.name, type: 'QuickAction',
+        subtype: null, targetObject: args.objectApiName, section: 'Page', evaluable: true,
+        applicable: ruleState === 'VISIBLE', ruleState, source: 'PAGE' });
+    } else {
+      rows.push({ ...hit, applicable: ruleState === 'VISIBLE', ruleState, source: 'PAGE' });
+    }
+    seen.add(action.name.toLowerCase());
+  }
+  for (const row of endpoint.actions) {
+    if (seen.has(row.apiName.toLowerCase())) continue;
+    rows.push({ ...row, applicable: true, ruleState: 'NONE', source: 'SALESFORCE' });
+  }
+  const filtered = rows.filter((row) => row.type === 'QuickAction'
+    && (row.subtype === 'Create' || row.subtype === 'Update' || row.subtype === null)
+    && (row.targetObject === null || row.targetObject === args.objectApiName));
+  const rank = (action: AvailableRecordAction): number => (action.applicable ? 0 : 2) + (action.evaluable ? 0 : 1);
+  const actions = filtered.sort((left, right) => rank(left) - rank(right) || left.label.localeCompare(right.label))
+    .slice(0, ACTIONS_LIMIT);
+  return { actions, ...(endpoint.error ? { error: endpoint.error } : {}) };
 }
