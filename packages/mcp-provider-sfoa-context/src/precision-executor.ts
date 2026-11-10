@@ -111,6 +111,9 @@ export async function resolvePreciseForm(args: Readonly<{
     fields = resolved.fields; values = resolved.currentValues; saved = resolved.savedValues;
     Object.assign(report, { formSource: resolved.formSource, app: resolved.app, appSource: resolved.appSource,
       page: resolved.page, pageLayoutId: resolved.pageLayoutId,
+      ...(resolved.availableActions ? { availableActions: resolved.availableActions } : {}),
+      ...(resolved.actionsEvaluated ? { actionsEvaluated: true } : {}),
+      ...(resolved.actionsError ? { actionsError: resolved.actionsError } : {}),
       verifiedAt: resolved.metadata.verifiedAt ?? report.verifiedAt,
       ...(resolved.metadata.structuralContextRef ? { structuralContextRef: resolved.metadata.structuralContextRef } : {}),
       ...(resolved.metadata.cache ? { configurationSource: resolved.metadata.cache } : {}) });

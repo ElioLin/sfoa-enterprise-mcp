@@ -36,6 +36,10 @@ export type StandardFormResult = Readonly<{
   valueSources: Readonly<Record<string, PrecisionValueSource>>;
   blockers: string[];
   rules: Readonly<Record<string, unknown>>[];
+  /** Record-scoped actions Salesforce reports for this record (UPDATE only). */
+  availableActions?: readonly AvailableRecordAction[];
+  actionsEvaluated?: boolean;
+  actionsError?: string;
   metadata: { verifiedAt: string | null; apiCallCount: number; evidence?: Readonly<Record<string, unknown>>;
     structuralContextRef?: string; cache?: 'FRESH' | 'TASK_REUSE' };
   apiCallCount: number;
