@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-11-10 记录动作发现（`f81be45` + 装配修正 `c3b87af`）部署
+
+| 项 | 实际记录 |
+| --- | --- |
+| 归档 | `incoming/sfoa-branch-f81be45.tar.gz`，4,443,383 B，sha256 `c36e336ac9c33bfee1cba46f704ed65a3dc7831609dbaae227dcc800c1cf49e4`，服务器侧一致；staging 1497 文件 |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/branch-f81be45-20261110T114130/`（24M）：`app-src.tar.gz` + 三个包的 `dist-*.tar.gz` + `pre-state.txt` + 各次构建日志 |
+| 构建 | `mcp-provider-sfoa-context`、`sfoa-agent-playbook`、`sfoa-mcp-server`，首次全部 exit 0；产物含 `availableActions` / `ui-api/actions/record` 标记 |
+| 服务 | 首次重启 PID **3860431**；修正后重启 PID **3860779**，`/health` 200 |
+| Runtime Skill | `runtime-sync` 成功，四个业务 Skill `drift: []`；规则 46–48 已进 runtime（按钮动作优先、缺失必填的询问与「无」确认、子表按真实结构落地） |
+| 首次验证失败 | 部署后 `formContext.actionsEvaluated` 为 `undefined`：`resolveStandardForm` 已计算，但 `resolvePreciseForm` 用固定字段列表装配 `report`，把新字段丢了 |
+| 修正方式 | 补 `StandardFormResult` 字段 + 装配处 `Object.assign`；只上传 `precision-standard.ts` / `precision-executor.ts` 两个文件后重建 context 与 mcp-server（未再走整包 rsync，避免用 staging 覆盖修正） |
+| 修正后验证 | `availableActions=6`、`actionsEvaluated=true`；`[E] Account_Visit__c.Visit_Summary（总结）`、`[ ] Account_Visit__c.Add_Participant（添加参与人，target=Visit_Participants__c）`、`Global.NewTask`、`fileUpload`、`Edit`；以 `Visit_Summary` 解析返回 `NEEDS_INPUT`，`missingRequired` 含客户现有市场情况、市场/行业信息、我司机会点、现场管理评价、其他、客户变动信息 |
+| 未做 | 真实企微端到端复测（待用户执行）；快照刷新；Salesforce 写入（本次仅只读 UI API） |
+| 回滚 | 恢复 `backup/branch-f81be45-20261110T114130/app-src.tar.gz` 与三个 `dist-*.tar.gz` 后重启 |
+
+---
+
 ## 2026-11-09 可选表单修复分支部署（`feature/ui-context-requiredness-integrity` @ `561614d`）
 
 部署客户来访漏填必填字段的修复：简档名 `%2F` 编码导致的记录类型页面失配、`requirednessIncomplete` 硬信号、precision 默认路径、快照刷新超时可配置。**未执行快照刷新**（由用户自行验证）。
