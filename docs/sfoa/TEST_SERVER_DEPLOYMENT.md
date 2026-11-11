@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-11-11 附件暂存上限默认值对齐 50 MiB（`6e5eb3e`）
+
+本次只对齐代码默认值与文档。203 的 `app/.env.local` 自 2026-09-18 起已是 `MCP_ATTACHMENT_MAX_FILE_BYTES=52428800`，显式配置优先，因此**运行时行为没有变化**；重启是为了让源码、dist 与运行进程三者一致。
+
+| 项 | 记录 |
+| --- | --- |
+| 提交 | `6e5eb3e` `fix(config): align attachment staging ceiling default to 50 MiB` |
+| 归档 | `incoming/sfoa-app-6e5eb3e.tar.gz`，4,454,260 B，sha256 `7b6a3f1a650d32cf6fe32e2906704c4cba5331ae670eddbeb4518767a58d566c`；`git -c core.autocrlf=false -c core.eol=lf archive HEAD`，1497 文件，本机与服务器哈希一致，归档内无密钥 / `.env.local` |
+| 备份 | `backup/sfoa-app-pre-6e5eb3e-20261111T103927.tar.gz`（11,818,950 B），排除 `node_modules` / `dist` 等产物 |
+| 同步 | staging `staging-6e5eb3e-20261111T103927` → `rsync -a --omit-dir-times --no-perms`（**不带 `--delete`**）；`app/.env.local` 保留且仍为 50 MiB |
+| 字节校验 | 5 个改动文件 sha256 与本地 HEAD blob 逐一相同（`.env.example`、项目 changelog、集成指南、02C 报告、`config.ts`） |
+| 构建 | `yarn workspace @sfoa/mcp-server build` 通过；`dist/config.js` 为 `52_428_800`（TS 保留数字分隔符，文本检索 `52428800` 不会命中，属正常） |
+| 服务 | `systemctl restart sfoa-mcp-server`，PID 3864213 → **3869891**，`NRestarts=0`、`active/running`；admin-api 与 nginx 未重启 |
+| 健康检查 | `/health` 200（`auditPersistence UP`、`failureCount 0`）、`/admin/api/ready` 200（8.4.5）、nginx `:9000` 200、`MCP_ATTACHMENT_INGRESS_ENABLED=true`；近 3 分钟无 error 级日志 |
+| 推送 | **未完成**：本机到 GitHub 的 HTTPS / SSH 均被连接重置，系统无代理，经 203 做 SOCKS 跳板亦超时；提交留在本地待补推（详见本节末尾说明） |
+| 未做 | 真实企微 / DSH 业务 UAT；MCP `tools/list` 协议级回归（本次未改工具面与治理配置） |
+| 回滚 | 恢复上述备份的 app 源码 → `yarn workspace @sfoa/mcp-server build` → `systemctl restart sfoa-mcp-server`；`.env.local` 不在备份内，保持现状 |
+
+> 补推方式：在可访问 GitHub 的网络环境执行 `git push origin feature/ui-context-requiredness-integrity`。本机无需重新提交。
+
+---
+
 ## 2026-11-10 创建/编辑通用流程规则（`a903595`，Skill 1.16.0）
 
 15:57 那轮证明失败不是对象问题而是流程问题：4 条记录**建单即已完成**，页面总结按钮被状态规则隐藏，随后只按猜写了 3 个字段、没有清单也没有追问。
