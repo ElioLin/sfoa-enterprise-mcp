@@ -1082,7 +1082,7 @@ sha256sum $PLG/dist/src/cli/tool.js $PLG/dist/src/channel.js
 
 ## 22. P9-T5 同步：业务 Skill 与 Agent Playbook 1.10.0（2026-09-29）
 
-P9-T5 交付的是 Agent 侧契约：Playbook **1.10.0**（数据完备性）与新的 `sfoa-data-analysis` Skill。
+P9-T5 交付的是 Agent 侧契约：Playbook **1.10.0**（数据完备性）与新的 `crm-data-analysis` Skill。
 服务端那一侧已在 [T5 部署记录](TEST_SERVER_DEPLOYMENT.md#p9-t5-playbook-1100-data-analysis-skill-and-acceptance-deployment-2026-09-29)
 里逐面验证过 1.10.0；本节记录**宿主侧**（OpenClaw）的同步——workspace 里的 Skill 文件，以及主 Agent 能不能看见它们。
 
@@ -1096,14 +1096,14 @@ yarn skill:runtime:check --project-root /data/sfoa-enterprise-mcp/app \
                          --runtime-root  /data/openclaw/workspace/skills
 ```
 
-`skill:runtime:sync` 只认业务白名单（`sfoa-crm-core` / `sfoa-record-change` / `sfoa-data-analysis`），
+`skill:runtime:sync` 只认业务白名单（`crm-core` / `crm-record-change` / `crm-data-analysis`），
 `--runtime-root` 必须显式给出。三个 Skill 的 SKILL.md 在 canonical 与 workspace 两侧 **sha256 相同、目录树逐一相同**：
 
 | Skill | SKILL.md sha256（两侧一致） | 目录树 | 本次变化 |
 | --- | --- | --- | --- |
-| `sfoa-crm-core` | `bc5de86f4759d6f6153459c69233f3647a52b2a411e25f24c465b700d9b6b679` | 完全一致 | 刷新 |
-| `sfoa-record-change` | `c12a9e482ce5239aa8c902ce386fa20730595a648ce312390d331f76f2ead4ae` | 完全一致 | 刷新 |
-| `sfoa-data-analysis` | `2a36ed1302ae87c7d3d90fe6af98c0bcad21d2a212581ba506ee4c4284525007` | 完全一致 | **新增**（7 个 references） |
+| `crm-core` | `bc5de86f4759d6f6153459c69233f3647a52b2a411e25f24c465b700d9b6b679` | 完全一致 | 刷新 |
+| `crm-record-change` | `c12a9e482ce5239aa8c902ce386fa20730595a648ce312390d331f76f2ead4ae` | 完全一致 | 刷新 |
+| `crm-data-analysis` | `2a36ed1302ae87c7d3d90fe6af98c0bcad21d2a212581ba506ee4c4284525007` | 完全一致 | **新增**（7 个 references） |
 
 `skill:runtime:check` 三项均 `ok: true`、`drift: []`。
 
@@ -1129,8 +1129,8 @@ yarn skill:runtime:check --project-root /data/sfoa-enterprise-mcp/app \
 
 ### 22.3 可见性：主 Agent 的 Skill 白名单
 
-文件到位不等于 Agent 能用。`skills.entries` 只 enable 了 `sfoa-crm-core` / `sfoa-record-change`，
-而 `agents.entries.main.skills` 是**按 Agent 的白名单**——`sfoa-data-analysis` 两个都不在，
+文件到位不等于 Agent 能用。`skills.entries` 只 enable 了 `crm-core` / `crm-record-change`，
+而 `agents.entries.main.skills` 是**按 Agent 的白名单**——`crm-data-analysis` 两个都不在，
 所以 `openclaw skills check` 把它报成 `Excluded by agent allowlist`，模型根本看不到。
 
 补丁用 `openclaw config patch` 走一次校验过的写入（先 `--dry-run`，写入前备份
@@ -1138,8 +1138,8 @@ yarn skill:runtime:check --project-root /data/sfoa-enterprise-mcp/app \
 
 ```json5
 {
-  skills: { entries: { "sfoa-data-analysis": { enabled: true } } },
-  agents: { entries: { main: { skills: [ /* 原 12 项 + sfoa-data-analysis */ ] } } },
+  skills: { entries: { "crm-data-analysis": { enabled: true } } },
+  agents: { entries: { main: { skills: [ /* 原 12 项 + crm-data-analysis */ ] } } },
 }
 ```
 
@@ -1157,7 +1157,7 @@ Applied 2 config update(s). Change will apply without restarting the gateway.
 | Available as command | 4 | **5** |
 | Excluded by agent allowlist | 76 | **75** |
 
-`Ready and visible to model` 里新增一行 `sfoa-data-analysis`，与 `sfoa-crm-core`、`sfoa-record-change` 并列。
+`Ready and visible to model` 里新增一行 `crm-data-analysis`，与 `crm-core`、`crm-record-change` 并列。
 `openclaw config validate` 通过（`Config valid: /data/openclaw/state/openclaw.json`）。
 
 **边界（刻意如此）**：连接器 Skill `sfoa` 仍然**不在** `main` 的白名单里，与 09-23 的处置一致。

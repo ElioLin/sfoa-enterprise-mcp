@@ -34,14 +34,14 @@ Project documentation:
 - [Acceptance matrix](docs/sfoa/TEST_MATRIX.md)
 - [Authoritative baseline](docs/sfoa/PROJECT_BASELINE.md)
 - [OpenClaw Skill Suite baseline](docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md)
-- [Skill-01 `sfoa-crm-core` report](docs/sfoa/SFOA_CRM_CORE_SKILL.md)
-- [Skill-02A `sfoa-record-change` report](docs/sfoa/SFOA_RECORD_CHANGE_SKILL.md)
+- [Skill-01 `crm-core` report](docs/sfoa/SFOA_CRM_CORE_SKILL.md)
+- [Skill-02A `crm-record-change` report](docs/sfoa/SFOA_RECORD_CHANGE_SKILL.md)
 
 The SFoA services start together with `yarn p5:dev`; default local endpoints are MCP `8080`, Admin API `8081`, and Admin Web `5173`. Run `yarn agent:sync` / `yarn agent:check` for P6 Agent Playbook distributions. Run `yarn skill:sync` / `yarn skill:check` / `yarn skill:delivery` / `yarn skill:smoke` for the P7-08 Codex, Claude Code, and WorkBuddy/CodeBuddy Skill copies and their Git-trackability clean-clone proof; `yarn ai:doctor` checks local diagnostic prerequisites without printing secrets. Run `yarn validate:p5` for the repeatable product regression Gate. Real credentials belong only in ignored local environment files or secret injection.
 
 ### OpenClaw business Skills
 
-Canonical sources are `skills/sfoa-crm-core/` and `skills/sfoa-record-change/`; `skills/` is the only place a Skill is edited. The ordinary WeCom business Agent sees exactly those two, never `sfoa-mcp-maintainer`, which is a development/operations Skill for Codex, Claude Code, and WorkBuddy.
+Canonical sources are `skills/crm-core/` and `skills/crm-record-change/`; `skills/` is the only place a Skill is edited. The ordinary WeCom business Agent sees exactly those two, never `sfoa-mcp-maintainer`, which is a development/operations Skill for Codex, Claude Code, and WorkBuddy.
 
 ```bash
 # 1. Edit only under skills/<name>/, then validate, test and refresh the dev-client copies.
@@ -65,7 +65,7 @@ The Salesforce Agent Playbook is distributed to four governed identity channels.
 
 - **小犇 / Dify** — the Dify agent passes the current user's Buntu token (`Authorization: Bearer <CURRENT_USER_TOKEN>`); identity resolves through `BUNTU_TOKEN` → Identity Route.
 - **企业微信 / WeCom** — the 企业微信智能机器人 (WeCom Smart Bot) uses its native MCP Plugin with `Bearer <MCP_WECOM_CLIENT_TOKEN>` to reach the enterprise-domain HTTPS MCP URL. Discovery needs only this independent channel credential and does not access Salesforce. For tool execution, WeCom auto-injects the current user's `X-WeCom-User-Id`; the server resolves the `WECOM_HEADER` identity and user route. The role setting stays business guidance derived from live capabilities.
-- **WorkBuddy** — a custom Streamable HTTP Connector uses a route-bound `Bearer <USER_BOUND_TOKEN>` plus the generated `sfoa-salesforce-assistant` Skill.
+- **WorkBuddy** — a custom Streamable HTTP Connector uses a route-bound `Bearer <USER_BOUND_TOKEN>` plus the generated `crm-playbook` Skill.
 - **Internal / Inspector** — the controlled internal-service channel uses `Bearer <MCP_CLIENT_TOKEN>` with the primary `X-Platform-User-Id` header (`INTERNAL_SERVICE_HEADER`).
 
 Only the Internal channel configures `X-Platform-User-Id`. Dify, WeCom, and WorkBuddy never send a Salesforce username, platform-user selector, or credential in Tool arguments. For WeCom, `X-WeCom-User-Id` is trusted identity-header provenance auto-injected by the WeCom platform at the enterprise ingress — not cryptographic proof of the client — so production still needs the HTTPS enterprise domain, a protected MCP service credential, and a Host allowlist; the header must never be hand-forged by a self-built client, and single-header forgery prevention is a future channel-bound design, not a runtime guarantee.

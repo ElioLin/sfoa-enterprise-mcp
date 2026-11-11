@@ -34,7 +34,7 @@
 其余运行层的本轮只读证据：
 
 - Playbook 源码和 dist 均为 **1.13.2**；新的 MCP initialize 实际返回 1.13.2，tools/list 返回 29。该检查使用合法无身份企微 discovery，不冒充用户，也未查询/修改 Salesforce。
-- `sfoa-crm-core` 10、`sfoa-record-change` 13、`sfoa-data-analysis` 8、`sfoa-org-diagnostics` 7，共 **38 文件**，服务器 app 和实际 `/data/openclaw/workspace/skills` 与基线 Git blob 的 LF 字节逐一一致。四个 Skill 的 Gateway 状态均 eligible/modelVisible=true。
+- `crm-core` 10、`crm-record-change` 13、`crm-data-analysis` 8、`crm-org-diagnostics` 7，共 **38 文件**，服务器 app 和实际 `/data/openclaw/workspace/skills` 与基线 Git blob 的 LF 字节逐一一致。四个 Skill 的 Gateway 状态均 eligible/modelVisible=true。
 - maintainer 没有发布给业务 Agent。独立 `sfoa` 重新生成的 1.13.2 正文与运行副本逐字节一致，既有 `mcp.json` 未改。工具清单或 discovery 不替代模型实际读取证据，既有真人材料验收仍见此前报告。
 - Adapter 仍加载 `/data/openclaw/plugins/sfoa-wecom-mcp-adapter` 的 `9c4fda9`；MCP / Admin / Gateway PID 分别为 3046218 / 3046787 / 3759907。
 

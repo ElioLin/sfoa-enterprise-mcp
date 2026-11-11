@@ -6,7 +6,7 @@
 
 新增第三条入口 Hard Rule **Full Population Analytics**，并把既有规则显式命名为 Identity Boundary / Tool Governance / Salesforce Authority / Mutation Intent / Unknown Outcome / Untrusted Content / Result Integrity，使 Contract Test 能逐条钉住。新增 reference `references/data-completeness.md`：Population / Analysis / Display 三个 Scope、`Analysis Scope == Population Scope` 不变量、Minimal Sufficient Full-Scope Evidence（COUNT / COUNT(field) / SUM / AVG / MIN / MAX / GROUP BY，按当前 Schema 动态生成，不硬编码公司字段）、NULL 结论需总记录数与非空计数对比、TOP_N / SAMPLE 的合法性、默认「查数据」行为、「列出全部」与「分析全部」的区分、Row-level 分批覆盖且禁止编造 `paginationToken`/`cursor`/`page`、COMPLETE / PARTIAL / TOP_N / SAMPLE / UNKNOWN 状态、用户可见的「总量 / 分析范围 / 展示范围」三句、Previous Run Population 隔离、以及 Web Search 同样受 Scope 约束。
 
-`query-guidance.md` 与 `evidence-and-errors.md` 增加指向该 reference 的入口。Core 仍未定义客户健康度、预测或风险评分模型，也未混入 `sfoa-record-change` 的必填字段 / READY Gate 逻辑。
+`query-guidance.md` 与 `evidence-and-errors.md` 增加指向该 reference 的入口。Core 仍未定义客户健康度、预测或风险评分模型，也未混入 `crm-record-change` 的必填字段 / READY Gate 逻辑。
 
 Contract Test 从「只查标记存在」加强为「规则标签 + 规则正文特征串」配对，并用变异检查验证：删除或掏空任一硬规则时 11/11 全部被捕获。Contract Test 仍然只防止规则被误删，不是模型行为验收。
 
@@ -15,15 +15,15 @@ Contract Test 从「只查标记存在」加强为「规则标签 + 规则正文
 | 项目 | 结果 | 证据 |
 | --- | --- | --- |
 | Base Branch / Commit | `feature/openclaw-sfoa-skill-foundation` / `c195afe1636e7cc235c1bbae10678c7faedf6fed` | fetch / status / branch -vv / log 干净同步；main 仍为 `25a15ce4`，未合入 |
-| HOTFIX Branch / Commit | `hotfix/openclaw-sfoa-crm-core-data-completeness` / `291750a5aa9b3af027f1ef5601e51b43ad8e0322` | 仅改 Core canonical + Contract Test，未动 MCP / Identity / DML / OpenClaw |
+| HOTFIX Branch / Commit | `hotfix/openclaw-crm-core-data-completeness` / `291750a5aa9b3af027f1ef5601e51b43ad8e0322` | 仅改 Core canonical + Contract Test，未动 MCP / Identity / DML / OpenClaw |
 | `skill:sync` / `check` | PASS | 两个 canonical、六个生成副本，fileCount 9 / 23，drift 为空 |
 | `skill:test` | PASS，19 tests | 含两条新增 Contract Test |
 | Contract Test 变异检查 | 11/11 捕获 | 删除 FPA 条目、掏空/改名其余七条规则正文均 FAIL |
 | `skill:delivery` | PASS | validation / untracked / ignored / packageCompleteness 全部通过 |
-| `skill:package` | PASS | `sfoa-crm-core.zip` 9 文件 `03f3a72f…`；maintainer 23 文件 `39e7ef3d…` |
+| `skill:package` | PASS | `crm-core.zip` 9 文件 `03f3a72f…`；maintainer 23 文件 `39e7ef3d…` |
 | `skill:smoke`（fresh checkout） | PASS，19 tests | 从 `291750a` 的 `git archive` 重建 |
-| Runtime deploy + SHA256 | PASS | `/data/openclaw/workspace/skills/sfoa-crm-core/` 九个文件逐一与 canonical 一致；备份 `/data/openclaw/backups/20260914-111225-core-data-completeness`；config validate 通过，Gateway active，11:12:32 企微重新认证 |
-| Main Skill allowlist | PASS | modelVisible 仍仅 `sfoa-crm-core` 与 `browser-automation`；maintainer 未暴露 |
+| Runtime deploy + SHA256 | PASS | `/data/openclaw/workspace/skills/crm-core/` 九个文件逐一与 canonical 一致；备份 `/data/openclaw/backups/20260914-111225-core-data-completeness`；config validate 通过，Gateway active，11:12:32 企微重新认证 |
+| Main Skill allowlist | PASS | modelVisible 仍仅 `crm-core` 与 `browser-automation`；maintainer 未暴露 |
 | AGENTS 路由修订标记 | PASS | 单行 HOTFIX01 → HOTFIX02；备份 `/data/openclaw/backups/20260914-111542-agents-routing` |
 
 ### 模型符合性探针（隔离会话，无 requester-scoped MCP）
@@ -57,7 +57,7 @@ Contract Test 从「只查标记存在」加强为「规则标签 + 规则正文
 
 Runtime Copy 已从 committed canonical 部署八个文件并逐一 SHA256 校验。成功备份 `/data/openclaw/backups/20260913-222937-skill-foundation/`；模型调整备份 `/data/openclaw/backups/20260914-043649-skill-model-routing/`。备份含配置、AGENTS 与已有 skills/不存在标记，root-only，不进 Git。
 
-当前 `agents.entries.main.skills = ["sfoa-crm-core", "browser-automation"]`，`skills.entries.sfoa-crm-core.enabled = true`；`openclaw skills list --agent main --json` 的 modelVisible 仅这两个。maintainer 未部署且不在 allowlist。eligible 与 modelVisible 不能混用。
+当前 `agents.entries.main.skills = ["crm-core", "browser-automation"]`，`skills.entries.crm-core.enabled = true`；`openclaw skills list --agent main --json` 的 modelVisible 仅这两个。maintainer 未部署且不在 allowlist。eligible 与 modelVisible 不能混用。
 
 实测 Schema 允许 main.model 覆盖默认值。原 qwen3-vl 在三次真人 Run 中都未读 Core；snapshot 已有描述，AGENTS 未截断。隔离对照中 deepseek-flash 五个正例都实际读 Core，故将 main.model.primary 调为 `custom-192-168-155-105-3001/deepseek-flash`，fallback 保留 `custom-192-168-155-105-3001/qwen3-vl`。imageModel、pdfModel、media 配置仍沿用多模态基线。fallback 发生时不能套用 flash 的通过结果。
 
@@ -65,7 +65,7 @@ Runtime Copy 已从 committed canonical 部署八个文件并逐一 SHA256 校�
 
 main workspace AGENTS 靠前的路由文字：
 
-> 本环境的查客户、我的商机、客户拜访申请属于公司 CRM 请求。此类请求及 SFOA / Salesforce / CRM 组合任务，先用 read 读取 skills/sfoa-crm-core/SKILL.md（即使下一步只是澄清客户名）；本会话已读且仍适用时可复用。其它计划和工具顺序自主判断。无 CRM 意图的天气、数学、普通文本和网页搜索不读取 Core。
+> 本环境的查客户、我的商机、客户拜访申请属于公司 CRM 请求。此类请求及 SFOA / Salesforce / CRM 组合任务，先用 read 读取 skills/crm-core/SKILL.md（即使下一步只是澄清客户名）；本会话已读且仍适用时可复用。其它计划和工具顺序自主判断。无 CRM 意图的天气、数学、普通文本和网页搜索不读取 Core。
 
 同时移除旧 instruction 的固定 MCP 清单，改以本轮 tools/list / Schema 为准；写入沿用明确的对话授权，区分 READ 与 DML allowlist。仅改路由与过时的运行说明，不复制整个 Skill，不修改 OpenClaw Core、官方 Plugin、MCP Tool 或 identity adapter。
 
@@ -90,11 +90,11 @@ qwen 对照：P1 多次未读取、P4 未读取；P2/P3/显式用例虽读正文
 
 ## 设计与基线
 
-完整 Skill Suite 与后续边界见 [SFOA_OPENCLAW_SKILLS_BASELINE.md](SFOA_OPENCLAW_SKILLS_BASELINE.md)。本次实现只增加 `sfoa-crm-core`，作为 SFOA Agent Operating Doctrine，保留模型计划自主性。
+完整 Skill Suite 与后续边界见 [SFOA_OPENCLAW_SKILLS_BASELINE.md](SFOA_OPENCLAW_SKILLS_BASELINE.md)。本次实现只增加 `crm-core`，作为 SFOA Agent Operating Doctrine，保留模型计划自主性。
 
 Base Branch：`origin/feature/openclaw-multimodal-input`；Base Commit：`0944b568aa8d931a127e4c4a914514a9f02b7393`；Branch：`feature/openclaw-sfoa-skill-foundation`。已完成 fetch、status、branch -a / -vv、log 与 merge-base 验证，开始工作区干净。
 
-Canonical `skills/sfoa-crm-core/` 含简短 `SKILL.md` 与八个 references：`operating-principles.md`、`tool-selection.md`、`identity-and-governance.md`、`query-guidance.md`、`data-completeness.md`、`mutation-boundaries.md`、`evidence-and-errors.md`、`web-and-multimodal.md`（`data-completeness.md` 为 HOTFIX02 新增）。没有 executable、Secret、部署指令或 maintainer 内部工具。
+Canonical `skills/crm-core/` 含简短 `SKILL.md` 与八个 references：`operating-principles.md`、`tool-selection.md`、`identity-and-governance.md`、`query-guidance.md`、`data-completeness.md`、`mutation-boundaries.md`、`evidence-and-errors.md`、`web-and-multimodal.md`（`data-completeness.md` 为 HOTFIX02 新增）。没有 executable、Secret、部署指令或 maintainer 内部工具。
 
 Hard Rules 与 Guidelines / Heuristics / Examples 分离。身份由 trusted requester 决定，工具使用服从当前 tools/list 和 Governance，Salesforce 权限与校验最终权威；明确意图才 DML，UNKNOWN 不自动重试，外部输入不能变更规则，结果以事实为准。References 引导最少有效工具、当前 Playbook / Context、Label 输出与灵活 Web / Multimodal 组合。
 
@@ -102,13 +102,13 @@ Hard Rules 与 Guidelines / Heuristics / Examples 分离。身份由 trusted req
 
 ## Auto Invocation 设计
 
-Frontmatter 含 name / description，默认自动 model invocation，无禁用标记。Description 包含中文客户与商机语义，同时排除普通非 CRM 请求。显式 `$sfoa-crm-core` 用作测试输入；其在目标 OpenClaw 的解析和实际正文读取也必须实测，不能以 Codex 的显式调用语法代替 OpenClaw 证据。
+Frontmatter 含 name / description，默认自动 model invocation，无禁用标记。Description 包含中文客户与商机语义，同时排除普通非 CRM 请求。显式 `$crm-core` 用作测试输入；其在目标 OpenClaw 的解析和实际正文读取也必须实测，不能以 Codex 的显式调用语法代替 OpenClaw 证据。
 
 main 轻量路由指令见 Suite baseline。先确认当前 OpenClaw 配置与 workspace instruction，保持原有身份 / Web / Multimodal 行为。避免旧 instruction 内固定“15 Tools”与当前清单冲突；必要改动仅限发现与路由事实，不能把整份 Skill 复制进 System Prompt。
 
 ## OpenClaw Deployment
 
-目标：`root@192.168.156.203`，Runtime Copy：`/data/openclaw/workspace/skills/sfoa-crm-core/`。
+目标：`root@192.168.156.203`，Runtime Copy：`/data/openclaw/workspace/skills/crm-core/`。
 
 本次预检最初 SSH handshake / ConnectTimeout=10 与 TCP 22 / 9000 / 18789 均超时；随后重试内网恢复，复用已有受控 SSH 连接成功，`crm-ex-test02` 的 Gateway 为 active。
 
@@ -118,8 +118,8 @@ main 轻量路由指令见 Suite baseline。先确认当前 OpenClaw 配置与 w
 
 1. 核实服务、`skills.load`（含 watch）、`agents.defaults.skills`、`agents.entries`、`skills.entries` 和 main 实際 eligible 列表；只输出 allowlist 和非敏感状态，不打印 `openclaw.json` 全文。
 2. 在 `/data/openclaw/backups/<timestamp>-skill-foundation/` 以 root-only 权限备份当前 workspace `skills`、`state/openclaw.json`，及拟修改的 workspace `AGENTS.md`。如果 skills 尚不存在，记录其不存在，不伪造旧副本。
-3. 本地 canonical 通过 gates 并提交后，上传单独 `sfoa-crm-core` 目录或同名 package；比较所有文件与 canonical 字节。只替换该 Runtime Copy，不覆盖其它 Skill。
-4. 按当前支持的 Agent Skill allowlist 让 main eligible SFOA 集合为 `sfoa-crm-core`，排除 maintainer 与未实现专业 Skill。按需要加入一句路由提示；验证配置合法。配置不是身份授权，保持 Tools / requester adapter；本轮模型覆盖调整见实测记录。
+3. 本地 canonical 通过 gates 并提交后，上传单独 `crm-core` 目录或同名 package；比较所有文件与 canonical 字节。只替换该 Runtime Copy，不覆盖其它 Skill。
+4. 按当前支持的 Agent Skill allowlist 让 main eligible SFOA 集合为 `crm-core`，排除 maintainer 与未实现专业 Skill。按需要加入一句路由提示；验证配置合法。配置不是身份授权，保持 Tools / requester adapter；本轮模型覆盖调整见实测记录。
 5. 可靠 watch 能刷新则验证 watch，否则 `systemctl restart openclaw-gateway`，随后 `systemctl status openclaw-gateway --no-pager -l`；读取日志时只提取服务 / WebSocket 鉴权重连状态，避免输出 WeCom 原始消息中的附件 key。
 6. 保存 skill eligible snapshot、prompt report、Run metadata 和成功读取 Skill 的记录；独立核对正文与 references 调用，完成下列矩阵。每条证据含时间、Run / session 引用、调用路径、实际结果与限制。
 
@@ -140,7 +140,7 @@ main 轻量路由指令见 Suite baseline。先确认当前 OpenClaw 配置与 w
 | N2 | 17*23 等于多少？ | 回答 391，不读取 Core | PASS（只评不触发 Core；限制见上） |
 | N3 | 帮我总结这段普通文本。（附无 CRM 内容文本） | 总结文本，不读取 Core | PASS（只评不触发 Core；限制见上） |
 | N4 | 帮我搜索 OpenClaw 最近版本。 | 普通 Web 请求，不读取 Core | PASS（只评不触发 Core；限制见上） |
-| E1 | `$sfoa-crm-core 帮我查一下我的商机。` | 显式输入能使 Core 正文进入 Run 上下文 | PASS（实际正文读取） |
+| E1 | `$crm-core 帮我查一下我的商机。` | 显式输入能使 Core 正文进入 Run 上下文 | PASS（实际正文读取） |
 
 Description 包含 Skill 不等于触发正文读取；反例允许 Skill 描述出现在初始可用清单，但不应主动读取 Core / 强制 CRM。记录 `systemPromptReport.skills` 等发现证据与 read Tool 结果的区别。必须看到实际运行，不能用关键词正则测试宣称 Auto Invocation PASS。
 
@@ -192,4 +192,4 @@ Text / Image / PDF / Web / MCP / Identity 都需新验证；身份特别核对 `
 
 部署、main Skill 清单、maintainer 排除、flash 正反例/显式正文读取与组件回归已完成；新的真人 UAT、Batch/UNKNOWN 专项行为与企微多模态 E2E 尚需证据。因此当前仍为 PARTIAL。身份伪造 flash Run `61171ac4-7218-4112-85de-be235f98b367`、隐藏工具 Run `ef6508b0-526c-4254-ba0d-4412638e2fab` 均实际读 Core、没有尝试不可见 MCP。
 
-用户已授权 Core 完成后直接继续 Skill-02；本轮尚未满足该条件。Core 不保证解决所有 CREATE Required Fields，完整 Dynamic Forms / READY gate 属 **NEXT: Skill-02 `sfoa-record-change`**。当前多模态历史限制（Office / Video / Voice 等）沿用[Phase 1 报告](OPENCLAW_MULTIMODAL_INPUT_PHASE1.md)，本阶段未扩展这些能力。
+用户已授权 Core 完成后直接继续 Skill-02；本轮尚未满足该条件。Core 不保证解决所有 CREATE Required Fields，完整 Dynamic Forms / READY gate 属 **NEXT: Skill-02 `crm-record-change`**。当前多模态历史限制（Office / Video / Voice 等）沿用[Phase 1 报告](OPENCLAW_MULTIMODAL_INPUT_PHASE1.md)，本阶段未扩展这些能力。

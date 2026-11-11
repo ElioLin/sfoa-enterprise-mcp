@@ -33,7 +33,7 @@
 | T3 | `explain_field_access`（P10-3） | DIAGNOSTIC |
 | T4 | `list_metadata_components`（P10-4）+ `get_metadata_component_context` 类型扩展（P10-5） | DIAGNOSTIC |
 | T5 | `get_platform_diagnostics`（P10-6） | DIAGNOSTIC |
-| T6 | `sfoa-org-diagnostics` skill（P10-7）+ Playbook 1.11.0 + 小犇指令 + 文档收口 + 整体验收 | — |
+| T6 | `crm-org-diagnostics` skill（P10-7）+ Playbook 1.11.0 + 小犇指令 + 文档收口 + 整体验收 | — |
 
 全部工具归宿 `@sfoa/mcp-provider-sfoa-context`（P9 已确立诊断工具在此包：`get_org_limits` 是现成接入范本），无需新建包。
 
@@ -444,29 +444,29 @@
 ---
 ---
 
-## 任务 T6 — sfoa-org-diagnostics skill + Playbook 1.11.0 + 收口与整体验收（P10-7）
+## 任务 T6 — crm-org-diagnostics skill + Playbook 1.11.0 + 收口与整体验收（P10-7）
 
 ```
 你是本仓库（D:\GitProject\sfoa-enterprise-mcp）的维护工程师，执行 P10 的收口任务。
 前置：T1–T5 已完成并通过各自验收。分支 feature/p10-diagnostic-depth。
 
-本任务目标：新建 sfoa-org-diagnostics skill（诊断决策树方法论）、Playbook 升级 1.11.0 并同步小犇指令、完成文档收口与 P10 整体验收。
+本任务目标：新建 crm-org-diagnostics skill（诊断决策树方法论）、Playbook 升级 1.11.0 并同步小犇指令、完成文档收口与 P10 整体验收。
 
 ## 必读
-1. skills/sfoa-data-analysis/（P9 落地的 skill 格式与 Hard Rules 风格基准）与 skills/sfoa-crm-core/SKILL.md（canonical skill 格式）
+1. skills/crm-data-analysis/（P9 落地的 skill 格式与 Hard Rules 风格基准）与 skills/crm-core/SKILL.md（canonical skill 格式）
 2. packages/sfoa-agent-playbook/src/definition.ts、version.ts、capabilities.ts、renderer.ts（P9 的 DATA_COMPLETENESS 章节先例）；scripts/sync-generated.mjs（5 个生成物清单）
 3. docs/sfoa/MCP_CAPABILITY_GAP_ANALYSIS_2026-09.md 第 5 节 P10 里程碑验收与 0.5 节清单；CHANGELOG.md 与 docs/sfoa/CHANGELOG.md 的摘要/详录分工
 4. T2–T5 全部 ADR（诊断工具的最终契约以 ADR 为准）
 
 ## 实现内容
-1. skills/sfoa-org-diagnostics/SKILL.md（+ references/ 若需要，风格对齐 sfoa-data-analysis）：
+1. skills/crm-org-diagnostics/SKILL.md（+ references/ 若需要，风格对齐 crm-data-analysis）：
    - Hard Rules 必须覆盖：
      a) 证据引用义务：诊断结论必须引用具体元数据证据（组件 fullName、日志行号、审计条目时间戳、授权来源链），无证据不得下结论
      b) 分类先行：症状先归类（数据/权限/配置/代码/平台），再走该类的确定性工具路径——把五类路径写成本 skill 的核心决策树：
         数据类 → query_records/describe_sobject；权限类 → explain_field_access；配置类 → list_metadata_components + get_metadata_component_context；代码类 → set_trace_flag → get_apex_logs → get_debug_log_body；平台类 → get_platform_diagnostics
      c) 时间对齐套路：「何时开始异常」先问清，异常时间点 × get_platform_diagnostics 时间线对齐是默认第一步
      d) INDETERMINATE 与降级语义：工具输出 INDETERMINATE/unavailable 时如实转述并指出缺失前提，不得脑补
-     e) Untrusted 内容规则继承；Salesforce 权威规则继承（与 sfoa-crm-core 的关系声明：本 skill 只管诊断方法论，身份/治理/写入规则不重复）
+     e) Untrusted 内容规则继承；Salesforce 权威规则继承（与 crm-core 的关系声明：本 skill 只管诊断方法论，身份/治理/写入规则不重复）
      f) 无工具可用时（未启用/无权限）：如实报告需要 Admin 启用，不得用 run_diagnostic_tooling_query 手拼长查询替代确定性工具除非用户明确要求临时深挖
    - Guidelines：复现最小化建议（重开 trace 的时机）、日志保留期提醒、多假设并行时的证据优先级；
      **复现协作义务**（2026-09-30 补充）：TraceFlag 只对开启后的执行生效，历史异常不可回溯——set_trace_flag 成功后智能体必须主动向用户给出最小复现指引（操作步骤 + durationMinutes 窗口期）并等待复现后再调 get_apex_logs，不得开了 trace 就宣称「日志已就绪」；
@@ -482,13 +482,13 @@
    - 「部分启用」验证：只启用三个工具时，未启用工具不可见且其它工具 hint 不点名它们（跨工具 hint 门控）
 
 ## 提交
-- feat(skills): add the sfoa-org-diagnostics skill
+- feat(skills): add the crm-org-diagnostics skill
 - feat(agent-playbook): publish playbook 1.11.0 with the diagnostics contract
 - test(sfoa-mcp-server): fix the validate:p10 gate harness
 - docs(sfoa): record the P10 acceptance evidence
 
 ## 禁止事项
-- 禁止手改生成物（docs/agent/*、.codebuddy/skills/sfoa-salesforce-assistant/*）；禁止跳过 agent:check；禁止在 skill 中写环境特定值；禁止把验收未执行项写成已执行（P9 的诚实标准：pre-fix FAIL 与未执行项都要留痕）。
+- 禁止手改生成物（docs/agent/*、.codebuddy/skills/crm-playbook/*）；禁止跳过 agent:check；禁止在 skill 中写环境特定值；禁止把验收未执行项写成已执行（P9 的诚实标准：pre-fix FAIL 与未执行项都要留痕）。
 
 ## 改进空间（可自主发挥）
 - 决策树的呈现形式（单文件表格 vs references/ 分册）自定，以 agent 可执行性为先；

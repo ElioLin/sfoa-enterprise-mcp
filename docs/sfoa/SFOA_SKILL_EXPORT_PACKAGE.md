@@ -17,16 +17,16 @@ Baseline ID: SFOA-SKILL-EXPORT-1.0 · 2026-09-23 · 分支 `feature/sfoa-skill-e
 
 结论:**功能与 SFoA 高度重叠且治理倒退,不引入运行时;吸收其打包方法论与销售助手输出模板**。其 `delete_record` / `tooling_execute` / `apex_execute` / `restful` 正是本项目 default-deny 治理刻意不暴露的能力。
 
-## 2. 归属确认(原 P0):`.codebuddy/skills/sfoa-salesforce-assistant` 不 canonical 化
+## 2. 归属确认(原 P0):`.codebuddy/skills/crm-playbook` 不 canonical 化
 
-调查确认该目录**不是孤儿 canonical Skill**,而是 `yarn agent:sync`(`packages/sfoa-agent-playbook/scripts/sync-generated.mjs`)生成的分发产物,与 `docs/agent/*` 同源,头部带 `GENERATED FROM SFoA Agent Playbook … DO NOT EDIT DIRECTLY` 标记。为其创建 `skills/sfoa-salesforce-assistant/` 会制造第二事实源并破坏 `agent:check` 漂移检测。因此:
+调查确认该目录**不是孤儿 canonical Skill**,而是 `yarn agent:sync`(`packages/sfoa-agent-playbook/scripts/sync-generated.mjs`)生成的分发产物,与 `docs/agent/*` 同源,头部带 `GENERATED FROM SFoA Agent Playbook … DO NOT EDIT DIRECTLY` 标记。为其创建 `skills/crm-playbook/` 会制造第二事实源并破坏 `agent:check` 漂移检测。因此:
 
 - 不新建 canonical 目录;该产物保持由 `agent:sync` 生成、`agent:check` 校验;
-- MuleRun 的总结/导航模板并入 `skills/sfoa-crm-core`(业务基础 Skill,"用户输出"本就是其职责,见 [SFOA_OPENCLAW_SKILLS_BASELINE.md](SFOA_OPENCLAW_SKILLS_BASELINE.md))。
+- MuleRun 的总结/导航模板并入 `skills/crm-core`(业务基础 Skill,"用户输出"本就是其职责,见 [SFOA_OPENCLAW_SKILLS_BASELINE.md](SFOA_OPENCLAW_SKILLS_BASELINE.md))。
 
-## 3. P1:总结/导航模板合入 sfoa-crm-core
+## 3. P1:总结/导航模板合入 crm-core
 
-新增 `skills/sfoa-crm-core/references/summary-navigation.md` 并由 `SKILL.md` 按需路由。吸收 MuleRun `system-prompt.md` 的结构(变更后按操作顺序输出总结、删除条目删除线+原因、关联 `A <> B` 形式),修正其两个弱点:
+新增 `skills/crm-core/references/summary-navigation.md` 并由 `SKILL.md` 按需路由。吸收 MuleRun `system-prompt.md` 的结构(变更后按操作顺序输出总结、删除条目删除线+原因、关联 `A <> B` 形式),修正其两个弱点:
 
 | MuleRun 原模板 | SFoA 版 |
 | --- | --- |
@@ -73,8 +73,8 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 | 检查 | 证据 | 结果 |
 | --- | --- | --- |
 | 包被宿主识别 | `openclaw skills check --agent main` 的 `Total` 76→77、`Eligible` 40→41,新条目 `sfoa (loaded, but this agent is not allowed to see/use it)` | ✅ SKILL.md frontmatter 被解析、依赖检查通过,包布局对 OpenClaw 合法 |
-| 未改动线上行为 | `Visible to model` 仍为 5(`browser-automation`、`sfoa-crm-core`、`sfoa-record-change`、`wecom-send-media`、`wecom-send-template-card`) | ✅ 安装后 main 可见集合不变,企微链路未受影响 |
-| 安装字节一致 | 装入 `skills/sfoa/` 的 `SKILL.md`/`mcp.json` 与 canonical 生成物 sha256 相同;`sfoa-crm-core` 10 文件全部一致 | ✅ |
+| 未改动线上行为 | `Visible to model` 仍为 5(`browser-automation`、`crm-core`、`crm-record-change`、`wecom-send-media`、`wecom-send-template-card`) | ✅ 安装后 main 可见集合不变,企微链路未受影响 |
+| 安装字节一致 | 装入 `skills/sfoa/` 的 `SKILL.md`/`mcp.json` 与 canonical 生成物 sha256 相同;`crm-core` 10 文件全部一致 | ✅ |
 | endpoint 真实存在 | 本机 P5 栈:`/health`、`/ready` 均 `200` | ✅ |
 | 认证与身份归属 | 仅带 `Authorization: Bearer <客户端令牌>` 请求 `/mcp` 返回 **401 `MCP_PLATFORM_USER_REQUIRED`**(客户端凭证已通过,缺 `X-Platform-User-Id`/`X-WeCom-User-Id`);运行时启动横幅 `identitySources` = `USER_BOUND_TOKEN`、`INTERNAL_SERVICE_HEADER`、`BUNTU_TOKEN`、`WECOM_HEADER` | ✅ 实测印证「凭证与身份都由宿主/服务端提供,本包不含」 |
 
@@ -88,7 +88,7 @@ yarn skill:export --endpoint http://<sfoa-host>:8080/mcp [--output <dir>] [--ser
 
 ## 6. 可移除性
 
-将来替换或废弃时:删除 `skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`、`manage.mjs` 中的 `export` 分支、package.json 的 `skill:export` 行、`.gitignore` 的 `/out/` 条目、**以及 `references/testing.md` 中的 `skill:export` 说明段**,并下架各宿主 workspace 中的 `sfoa/` 包目录即可;`skills/sfoa-crm-core/references/summary-navigation.md` 属 P1 交付、**不随本功能移除**。删脚本后跑 `yarn skill:sync` 清掉三平台生成副本(否则 `skill:check` 会报副本多余),或直接删除对应的三个 `scripts/export-agent-skill.mjs` 副本。canonical Skills、Runtime、数据库、治理配置零改动。
+将来替换或废弃时:删除 `skills/sfoa-mcp-maintainer/scripts/export-agent-skill.mjs`、`manage.mjs` 中的 `export` 分支、package.json 的 `skill:export` 行、`.gitignore` 的 `/out/` 条目、**以及 `references/testing.md` 中的 `skill:export` 说明段**,并下架各宿主 workspace 中的 `sfoa/` 包目录即可;`skills/crm-core/references/summary-navigation.md` 属 P1 交付、**不随本功能移除**。删脚本后跑 `yarn skill:sync` 清掉三平台生成副本(否则 `skill:check` 会报副本多余),或直接删除对应的三个 `scripts/export-agent-skill.mjs` 副本。canonical Skills、Runtime、数据库、治理配置零改动。
 
 **必须先删测试再删脚本**:`toolkit.test.mjs` 顶部从 `./export-agent-skill.mjs` 导入(`assertSafeOutputRoot` / `exportAgentSkillPackage` / 常量),并在文件末尾有 3 个 `skill:export` 用例。只删脚本会让**整个测试文件 import 失败**——不是坏 3 个用例,而是 `skill:test` 与 `skill:smoke` **全量失败**。正确顺序:先移除该 import 块与 3 个用例,跑 `yarn skill:test` 确认 65→62 全绿,再删脚本本体与其余条目。
 

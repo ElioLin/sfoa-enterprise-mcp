@@ -27,8 +27,8 @@ attachment attempts cannot be replayed by changing references.
 The OpenClaw Skill Foundation adds advisory business-agent guidance above the
 existing MCP contract, with canonical sources in `skills/*` and independently
 deployed runtime copies. It does not register Tools, resolve identity, evaluate
-Salesforce permissions or execute a deterministic workflow. `sfoa-crm-core`
-supplies the common boundaries and `sfoa-record-change` adds the evidence-based
+Salesforce permissions or execute a deterministic workflow. `crm-core`
+supplies the common boundaries and `crm-record-change` adds the evidence-based
 CREATE readiness doctrine; further specialized Skills supplement them. The
 maintainer Skill remains a development/operations artifact and is excluded from
 the ordinary business Agent, as is the imported developer Skill `mcp-builder`
@@ -868,7 +868,7 @@ Provider and to the `DIAGNOSTIC` role in P9-T3, and the role map below is what r
 
 P9-T5 adds no Tool, and the table above is complete because of that rather than in spite of it: the
 plan's sixth item is the aggregate-first guidance, which lands in **Playbook 1.10.0** and in the
-`skills/sfoa-data-analysis` Skill. The contract those two carry is what makes the bounded output
+`skills/crm-data-analysis` Skill. The contract those two carry is what makes the bounded output
 above usable — a coverage declaration is obligatory for any conclusion drawn from a `query_records`
 or Bulk result, no whole-result claim may be made while `truncated` is true, and an Agent that hits
 `INVALID_FIELD` must `describe` before retrying. The Tools state their own completeness; the Playbook

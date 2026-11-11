@@ -9,7 +9,7 @@ import { isSuccessfulTurn } from './run-evidence.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 export const businessCases = JSON.parse(await readFile(new URL('./business-cases.json', import.meta.url), 'utf8'));
-const skills = ['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis', 'sfoa-org-diagnostics'];
+const skills = ['crm-core', 'crm-record-change', 'crm-data-analysis', 'crm-org-diagnostics'];
 const writes = new Set(['create_record', 'update_record', 'create_records', 'update_records']);
 
 /** Checks parameters/outcomes, never claims to judge arbitrary prose by fixed wording. */

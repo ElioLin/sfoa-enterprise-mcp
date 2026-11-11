@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AGENT_PLAYBOOK_VERSION } from '@sfoa/agent-playbook';
 
-const SKILL_ROOT = resolve(process.cwd(), '..', '..', '.codebuddy', 'skills', 'sfoa-salesforce-assistant');
+const SKILL_ROOT = resolve(process.cwd(), '..', '..', '.codebuddy', 'skills', 'crm-playbook');
 
 describe('WorkBuddy / CodeBuddy Skill content', () => {
   it('has valid required YAML frontmatter and progressive-disclosure references', async () => {
@@ -13,7 +13,7 @@ describe('WorkBuddy / CodeBuddy Skill content', () => {
     const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/u.exec(skill)?.[1];
 
     expect(frontmatter).toBeDefined();
-    expect(frontmatter).toMatch(/^name:\s+sfoa-salesforce-assistant$/mu);
+    expect(frontmatter).toMatch(/^name:\s+crm-playbook$/mu);
     expect(frontmatter).toMatch(/^description:\s*>$/mu);
     expect(frontmatter).not.toMatch(/^allowed-tools:/mu);
     expect(skill).toContain('[references/tool-workflows.md](references/tool-workflows.md)');

@@ -17,7 +17,7 @@ The bearer is bound to the route rather than a Salesforce username. Route remapp
 ## System Prompt and Skill
 
 1. Use `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md` as the concise global prompt.
-2. Import the complete `.codebuddy/skills/sfoa-salesforce-assistant/` directory, including `references/`.
+2. Import the complete `.codebuddy/skills/crm-playbook/` directory, including `references/`.
 3. Prefer MCP Instructions/Resources/Prompt discovery when WorkBuddy exposes those surfaces.
 4. Confirm `get_agent_playbook` and `get_record_links` in `tools/list` before relying on their fallback/link behavior.
 5. Run a read-only Test Run before an allowed CREATE/UPDATE scenario.

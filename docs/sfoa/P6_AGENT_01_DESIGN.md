@@ -109,7 +109,7 @@ The Playbook never asks for a Salesforce password, JWT, private key, Salesforce 
 
 The canonical package's Node-only sync script owns:
 
-- `.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md`;
+- `.codebuddy/skills/crm-playbook/SKILL.md`;
 - WorkBuddy reference files under that Skill;
 - `docs/agent/DIFY_AGENT_INSTRUCTION.md`;
 - `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`.

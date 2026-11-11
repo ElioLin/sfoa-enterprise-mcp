@@ -12,11 +12,11 @@ import { createServer } from 'node:http';
 
 test('runtime configuration projection reports model, allowlist and paths without credentials or prompt contents', () => {
   const output = projectOpenClawConfig({ agents: { defaults: { model: { primary: 'configured-model', fallbacks: ['configured-fallback'] }, workspace: '/isolated/workspace' },
-    entries: { main: { skills: ['sfoa-crm-core'], systemPrompt: 'SYNTHETIC_PRIVATE_PROMPT' } } },
-    skills: { entries: { 'sfoa-crm-core': { enabled: true, apiKey: 'SYNTHETIC_PRIVATE_KEY' } } },
+    entries: { main: { skills: ['crm-core'], systemPrompt: 'SYNTHETIC_PRIVATE_PROMPT' } } },
+    skills: { entries: { 'crm-core': { enabled: true, apiKey: 'SYNTHETIC_PRIVATE_KEY' } } },
     mcp: { servers: { sfoa: { headers: { Authorization: 'Bearer SYNTHETIC_PRIVATE_TOKEN' } } } } });
   assert.equal(output.agents[0]?.model.primary, 'configured-model');
-  assert.deepEqual(output.agents[0]?.skills, ['sfoa-crm-core']);
+  assert.deepEqual(output.agents[0]?.skills, ['crm-core']);
   assert.doesNotMatch(JSON.stringify(output), /SYNTHETIC_PRIVATE/u);
   assert.match(output.evidence, /CONFIG_FILE_ONLY/u);
 });

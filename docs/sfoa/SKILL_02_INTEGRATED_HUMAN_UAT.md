@@ -16,7 +16,7 @@
 | --- | --- | --- | --- | --- |
 | 0.1 | 部署 02B 代码到 test server | 服务器 `app/` | 部署树字节与提交一致 | ✅ 已完成（`4b3b2ff`，`app/skills` 为 02B） |
 | 0.2 | 发布 runtime copy | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` 然后 `runtime:check` | 两个业务 Skill `ok:true`、`drift:[]` | ✅ 已完成（canonical↔runtime 逐字节一致） |
-| 0.3 | 确认 Agent 可见 Skill | `openclaw skills check --agent main` | 恰好 3 个：`browser-automation`、`sfoa-crm-core`、`sfoa-record-change`；**不含** `sfoa-mcp-maintainer` | ✅ 已完成 |
+| 0.3 | 确认 Agent 可见 Skill | `openclaw skills check --agent main` | 恰好 3 个：`browser-automation`、`crm-core`、`crm-record-change`；**不含** `sfoa-mcp-maintainer` | ✅ 已完成 |
 | 0.4 | 确认 mutation Tool 已启用 | Admin → Tool Governance（或 `sfoa_tool_control`） | UAT 用到的 `create_record`、`update_record` **以及批量场景的** `create_records`、`update_records` 均处于启用状态且对象在 DML allowlist 内 | ⬜ **待确认**（P8-07 记录显示这两个批量 Tool 可能无登记行） |
 | 0.5 | 确认身份链路 | 企微发一条只读问题 | Agent 使用当前企微用户的 Salesforce 身份，不是固定账号 | ⬜ 待确认 |
 | 0.6 | 准备测试数据 | 在 Salesforce 侧 | 至少 3 条同类测试记录（其中 2 条可用于批量、1 条用于单条 UPDATE），字段都留出可安全修改的空间 | ⬜ 待准备 |

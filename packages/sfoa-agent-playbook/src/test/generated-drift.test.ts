@@ -16,7 +16,7 @@ describe('generated Agent artifact drift guard', () => {
       assert.equal(run('--write', root).status, 0);
       assert.equal(run('--check', root).status, 0);
       for (const file of ['docs/agent/DIFY_AGENT_INSTRUCTION.md', 'docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md',
-        '.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md', '.codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md']) {
+        '.codebuddy/skills/crm-playbook/SKILL.md', '.codebuddy/skills/crm-playbook/references/tool-workflows.md']) {
         const content = readFileSync(resolve(root, file), 'utf8');
         assert.match(content, new RegExp(AGENT_PLAYBOOK_VERSION.replace(/\./gu, '\\.'), 'u'));
         assert.match(content, /PLATFORM_IDENTITY_FALLBACK/u);

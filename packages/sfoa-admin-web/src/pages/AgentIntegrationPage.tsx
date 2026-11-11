@@ -30,7 +30,7 @@ import {
   Typography,
 } from 'antd';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import skillMarkdown from '../../../../.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md?raw';
+import skillMarkdown from '../../../../.codebuddy/skills/crm-playbook/SKILL.md?raw';
 import { adminApi } from '../api/client.js';
 import {
   bindHostGuidance,
@@ -57,7 +57,7 @@ import { StatusTag } from '../components/StatusTag.js';
 import { copyTextToClipboard } from '../clipboard.js';
 
 const DEFAULT_EXTERNAL_URL = 'http://127.0.0.1:8080/mcp';
-const SKILL_REPO_PATH = '.codebuddy/skills/sfoa-salesforce-assistant/';
+const SKILL_REPO_PATH = '.codebuddy/skills/crm-playbook/';
 
 export default function AgentIntegrationPage() {
   const { message } = App.useApp();
@@ -583,7 +583,7 @@ function WorkBuddyTab({
       <Card title="精简 System Prompt" className="surface-card" extra={<Button icon={<CopyOutlined />} onClick={() => void onCopy(systemPrompt, '已复制 WorkBuddy System Prompt。')}>复制 System Prompt</Button>}>
         <CodeBlock value={systemPrompt} tall />
       </Card>
-      <Card title="生成的 sfoa-salesforce-assistant Skill" className="surface-card" extra={<Button icon={<CopyOutlined />} onClick={() => void onCopy(skillMarkdown, '已复制 SKILL.md。')}>复制 SKILL.md</Button>}>
+      <Card title="生成的 crm-playbook Skill" className="surface-card" extra={<Button icon={<CopyOutlined />} onClick={() => void onCopy(skillMarkdown, '已复制 SKILL.md。')}>复制 SKILL.md</Button>}>
         <Descriptions bordered size="small" column={1}>
           <Descriptions.Item label="Playbook 版本"><code>{AGENT_PLAYBOOK_VERSION}</code></Descriptions.Item>
           <Descriptions.Item label="Repo 路径"><code>{SKILL_REPO_PATH}</code></Descriptions.Item>

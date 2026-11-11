@@ -37,7 +37,7 @@
 - default-deny Tool Governance + DML Object×Operation policy（MySQL 快照、fail-closed）。
 - 请求级身份（USER / DIAGNOSTIC 双角色，P7-09 lazy connection）。
 - P7 端到端审计证据链（Event/API/Payload，Workbench 追溯）。
-- Playbook 1.6.x + `sfoa-crm-core` / `sfoa-record-change` skills（变更就绪方法论成熟）。
+- Playbook 1.6.x + `crm-core` / `crm-record-change` skills（变更就绪方法论成熟）。
 
 ---
 
@@ -92,7 +92,7 @@ Standard 服务器固定工具集：
 | GAP-M3 | 无 `list_metadata_components` | 无法按类型列组件清单（如全部 active ValidationRule / Flow / DuplicateRule），只能靠 Tooling query 且无截断契约 | P1 |
 | GAP-M4 | `get_metadata_component_context` 类型面窄（8 类） | NamedCredential、CustomMetadata、CustomSetting、QuickAction、RecordType、EmailTemplate、DuplicateRule/AssignmentRule/EscalationRule、SharingRule、Workflow、PermissionSet/Profile 等常见异常源读不到 | P1 |
 | GAP-M5 | 无平台状态/变更溯源聚合 | SetupAuditTrail（谁改了什么配置）、AsyncApexJob（失败 batch/queueable）、CronTrigger（调度卡死）、最近部署记录——**根因定位的黄金证据**（异常时间点 × 变更记录对齐）无工具支撑 | P0（诊断向） |
-| GAP-M6 | 无诊断方法学 skill | 工具即使补齐，agent 仍需要"症状分类 → 证据路径 → 假设树 → 引用证据的结论"的可复用方法论；`sfoa-crm-core` 只有数据完整性规则，无诊断决策树 | P0（skill 向） |
+| GAP-M6 | 无诊断方法学 skill | 工具即使补齐，agent 仍需要"症状分类 → 证据路径 → 假设树 → 引用证据的结论"的可复用方法论；`crm-core` 只有数据完整性规则，无诊断决策树 | P0（skill 向） |
 | GAP-M7 | 诊断账号能力前提未定义 | ApexLog 仅 owner 与持 View All Data 者可见；为他人设 TraceFlag 需要额外权限。DIAGNOSTIC 固定账号的最小权限清单需要扩展并文档化 | P0（前置） |
 | GAP-M8 | 无 `get_org_limits` | 诊断"作业卡住/被跳过"时需要 governor 证据。**已交付**（P9-T3）——与 GAP-D7 是同一个工具，且它本就属于本条所描述的诊断类读：已改由服务器自有的 DIAGNOSTIC 身份执行，业务身份不参与，见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | P1 |
 
@@ -137,7 +137,7 @@ Standard 服务器固定工具集：
 | P9-2 | `describe_sobject` + `list_sobjects`（原计划名 `describe_global`，偏离见 [ADR-0024](adr/ADR-0024-p9-data-provider-over-official-sdk.md)）**已交付**（T1/T2） | jsforce `describe()/describeGlobal()`；对象模式输出字段（类型/label/nillable/createable/updateable/picklist/referenceTo/relationshipName）+ childRelationships；全局模式输出对象清单；有界截断 | READ / USER | 官方 SDK |
 | P9-3 | `submit_bulk_query` + `get_bulk_query_results` **已交付**（T4） | Bulk API 2.0：提交异步查询作业 → 轮询/取结果；默认只回样本 + totalSize，可选分页取全量；PK chunking 支持；作业配额不足时报结构化错误（配合 P9-4） | READ / USER | 官方 SDK（jsforce bulk） |
 | P9-4 | `get_org_limits` **已交付**（T3） | `Connection.limits()` 全量快照；重点标注 API/bulk 并发与日配额。**角色为 READ / DIAGNOSTIC**（原计划为 READ / USER）：`limits` 资源不含业务记录，属 org 配置读，业务身份读不到，故落在服务器自有的诊断身份上，工具也随之移入 `@sfoa/mcp-provider-sfoa-context`——见 [ADR-0027](adr/ADR-0027-p9-org-limits-diagnostic-identity.md) | READ / DIAGNOSTIC | 官方 SDK |
-| P9-5 | 聚合引导（skill + 工具描述）**已交付**（T5）——只落 `sfoa-data-analysis` skill 与工具描述，**不新增工具** | 在 `sfoa-data-analysis` skill（见 P11-1）与工具描述中固化："先 COUNT/GROUP BY 估量，再决定明细路径"；声明聚合天然防截断 | — | — |
+| P9-5 | 聚合引导（skill + 工具描述）**已交付**（T5）——只落 `crm-data-analysis` skill 与工具描述，**不新增工具** | 在 `crm-data-analysis` skill（见 P11-1）与工具描述中固化："先 COUNT/GROUP BY 估量，再决定明细路径"；声明聚合天然防截断 | — | — |
 | P9-6 | `search_records`（SOSL）**已交付**（T2） | `Connection.search()`；跨对象 FIND 子句；结果有界 | READ / USER | 官方 SDK |
 
 **P9 里程碑验收**：对 10 万行级真实对象完成一次"全量统计 + 明细抽样"分析且数据完整性声明可审计（totalSize == fetched || truncated==true 且有续查指引）；agent 在无人工辅助下通过 describe 自修正常见 INVALID_FIELD。
@@ -155,7 +155,7 @@ Standard 服务器固定工具集：
 > 包的先例），P10 未新增包；写路径仅 `set_trace_flag` 一条，且结构性限定在 `TraceFlag`/`DebugLevel`
 > 两个对象内、带 ≤60 分钟到期。
 > [ADR-0029](adr/ADR-0029-p10-diagnostic-identity-prerequisites.md) 是 P10-0 的交付物：把诊断身份所需
-> 权限写成**按来源逐项复核**的清单，生产部署须重新测量而不是继承本 org 的结论。`sfoa-org-diagnostics`
+> 权限写成**按来源逐项复核**的清单，生产部署须重新测量而不是继承本 org 的结论。`crm-org-diagnostics`
 > skill（GAP-M6）与 Playbook 1.11.0 随 T6 一并交付。
 
 | # | 交付项 | 设计要点 | 角色/治理 | 上游策略 |
@@ -167,7 +167,7 @@ Standard 服务器固定工具集：
 | P10-4 | `list_metadata_components` **已交付**（T4，[ADR-0032](adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md)） | 按 metadataType 列组件（fullName、状态、lastModifiedBy/Date）；类型白名单可配置；有界分页 | DIAGNOSTIC | Metadata API listMetadata / Tooling query |
 | P10-5 | `get_metadata_component_context` 类型扩展 **已交付**（T4，[ADR-0032](adr/ADR-0032-p10-metadata-listing-pair-data-source-and-type-budget.md)） | 增补 NamedCredential、CustomMetadata、CustomSetting、QuickAction、RecordType、EmailTemplate、DuplicateRule、AssignmentRule、AutoResponseRule、EscalationRule、SharingRule、Workflow、PermissionSet、Profile | DIAGNOSTIC | 沿用现有机制 |
 | P10-6 | `get_platform_diagnostics` **已交付**（T5，[ADR-0033](adr/ADR-0033-p10-platform-diagnostics-stall-rule-and-degradation-matrix.md)） | 单调用聚合最近 N 小时（默认 24h，≤168h）：SetupAuditTrail（配置/权限变更溯源）、AsyncApexJob 失败清单、CronTrigger/QUEUED/SCHEDULED 卡滞、最近部署/变更；输出按时间线对齐的证据表 | DIAGNOSTIC | 标准 + Tooling API 聚合 |
-| P10-7 | `sfoa-org-diagnostics` skill **已交付**（T6） | 诊断决策树：症状分类（数据/权限/配置/代码/平台）→ 每类确定性工具路径 → 假设树 → 结论必须引用元数据证据（组件 fullName、log 行、审计条目）；含"异常时间点 × SetupAuditTrail 变更对齐"标准套路；与 P7 审计 Workbench 的 MCP 侧证据衔接 | — | — |
+| P10-7 | `crm-org-diagnostics` skill **已交付**（T6） | 诊断决策树：症状分类（数据/权限/配置/代码/平台）→ 每类确定性工具路径 → 假设树 → 结论必须引用元数据证据（组件 fullName、log 行、审计条目）；含"异常时间点 × SetupAuditTrail 变更对齐"标准套路；与 P7 审计 Workbench 的 MCP 侧证据衔接 | — | — |
 
 **P10 里程碑验收**：三条真实诊断场景闭环——(a) Apex 运行时异常：开 trace → 复现 → 拉 log → 定位类/行号；(b) 字段不可见：explain_field_access 输出授权来源链且结论与人工核对一致；(c) "昨天起流程行为异常"：SetupAuditTrail 时间线对齐出变更记录。
 
@@ -177,7 +177,7 @@ Standard 服务器固定工具集：
 
 | # | 交付项 | 设计要点 | 角色/治理 |
 | --- | --- | --- | --- |
-| P11-1 | `sfoa-data-analysis` skill | 数据完整性契约：任何分析结论必须声明覆盖率（fetched/totalSize）；truncated 时的三条路径（聚合→bulk→缩窗）；聚合优先；Untrusted 字段内容规则；统计口径显式化 | — |
+| P11-1 | `crm-data-analysis` skill | 数据完整性契约：任何分析结论必须声明覆盖率（fetched/totalSize）；truncated 时的三条路径（聚合→bulk→缩窗）；聚合优先；Untrusted 字段内容规则；统计口径显式化 | — |
 | P11-2 | `run_report` / `list_reports` | Analytics REST API 执行已保存报表（带过滤参数）；权限敏感，默认禁用 | READ / USER |
 | P11-3 | 记录附件/长文本读取 | ContentVersion/Attachment 正文下载（有界）；EmailMessage 文本 | READ / USER |
 | P11-4 | Playbook 升级 | 新工具写入 `get_agent_playbook`（版本号递增），保持 drift Gate | — |

@@ -106,7 +106,7 @@ Recommended setup:
 4. Paste the JSON into a custom MCP Connector and save; add no identity Header.
 5. Create or configure the Agent.
 6. Add `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md` as the concise global System Prompt.
-7. Install/enable `.codebuddy/skills/sfoa-salesforce-assistant/`.
+7. Install/enable `.codebuddy/skills/crm-playbook/`.
 8. Perform a read-only Test Run before any DML test.
 
 The Connector supplies network/authentication/Tools. The System Prompt supplies global behavior. The Skill supplies Salesforce Tool workflows and safety boundaries. Connector configuration alone does not teach the Agent these workflows.

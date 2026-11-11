@@ -12,7 +12,7 @@
 | --- | --- |
 | Probe Verification Gate | **PASS** — 6/6，真实 API evidence，无 blocking SFOA difference |
 | 新业务 Tool | `upload_files_to_record`（唯一新增，复数形式） |
-| 新业务 Skill | **无** — 扩展 `skills/sfoa-record-change/`，新增 `references/file-attachments.md` |
+| 新业务 Skill | **无** — 扩展 `skills/crm-record-change/`，新增 `references/file-attachments.md` |
 | Official WeCom Plugin 是否修改 | **NO**（见 §10） |
 | 文件接受策略是否镜像到 SFoA | **NO ×3**（无扩展名/MIME/大小 allowlist，见 §7） |
 | 是否把 Files 对象暴露给 Generic DML | **NO** |
@@ -74,7 +74,7 @@
 | --- | --- |
 | Base branch | `main` |
 | Base SHA | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1`（`docs(sfoa): state that main and the test server share one commit`） |
-| 分支点 | Skill-02B tip `feature/openclaw-sfoa-record-change-02b` @ `ce800c20fc59a77f11778728073c1af2bf2cefa1`（本地 = `origin`，已 push） |
+| 分支点 | Skill-02B tip `feature/openclaw-crm-record-change-02b` @ `ce800c20fc59a77f11778728073c1af2bf2cefa1`（本地 = `origin`，已 push） |
 | 02C branch | `feature/sfoa-attachment-upload` |
 | 功能 Final SHA | **`59cb040cb01c3ff8fcf7d08a2c81c64a9afcee43`**（功能实施 + Audit 缺陷修复的最后一个代码提交） |
 | 分支 tip | 承载**本报告**的文档提交（`59cb040` 之上仅有纯文档提交：本报告、UAT 清单、部署记录及其 SHA 说明；无任何代码改动）。不在此处钉死具体 SHA，理由同 `ce800c2`：钉死的 tip SHA 会被下一次文档提交立即作废 |
@@ -85,7 +85,7 @@
 `git fetch --all --prune` 后：
 
 - `main` = `origin/main` = `origin` = `3adae7b`。
-- `3adae7b..ce800c2` 有 6 个提交（`2b6c91d` → `5626163` → `4b3b2ff` → `9f3167f` → `a00017f` → `ce800c2`），即 Skill-02B 的完整交付链，其 tip 已推送到 `origin/feature/openclaw-sfoa-record-change-02b`。
+- `3adae7b..ce800c2` 有 6 个提交（`2b6c91d` → `5626163` → `4b3b2ff` → `9f3167f` → `a00017f` → `ce800c2`），即 Skill-02B 的完整交付链，其 tip 已推送到 `origin/feature/openclaw-crm-record-change-02b`。
 - **02B 对运行时代码的改动 = 0**：`git diff 3adae7b..ce800c2 -- packages yarn.lock .env.example config integrations` 输出为空；02B 只动了 `skills/`、三处生成副本与 `docs/sfoa/`。
 - 因此从 `main` 到 `59cb040` 的**运行时代码差异全部来自 02C**，02B 不引入任何需要重启服务的变更。
 
@@ -135,12 +135,12 @@ git push origin feature/sfoa-attachment-capability-probe
 | `packages/sfoa-admin-web` | 5 | `DmlPoliciesPage.tsx`（既有策略页新增「附件上传」列与开关）+ 4 个测试 |
 | `packages/sfoa-admin-api` | 2 | `tool-catalog.ts`（Tool 登记）+ 测试 |
 | `packages/sfoa-identity-runtime` | 1 | `request-audit-collector.ts`（附件调用所需的 api-call 记录形状） |
-| `skills/sfoa-record-change` | 2 | `SKILL.md`（仅一行极短激活语）+ 新增 `references/file-attachments.md` |
+| `skills/crm-record-change` | 2 | `SKILL.md`（仅一行极短激活语）+ 新增 `references/file-attachments.md` |
 | `scripts` | 1 | `sfoa-attachment-capability-probe.mjs`（probe 仪器，随 cherry-pick 进入） |
 | `CHANGELOG.md` | 1 | 根 changelog |
 | `.claude` / `.agents` / `.codebuddy` | 9 | `yarn skill:sync` 生成的平台副本（**非手写**） |
 
-**`skills/sfoa-crm-core/` 与 `skills/sfoa-mcp-maintainer/` 的业务内容未变**，只随生成副本同步。
+**`skills/crm-core/` 与 `skills/sfoa-mcp-maintainer/` 的业务内容未变**，只随生成副本同步。
 
 ---
 
@@ -338,7 +338,7 @@ yarn test:p7 （Audit）                                   →   6 / pass   6 / 
 
 | 回归面 | 结果 |
 | --- | --- |
-| Skill-01（`sfoa-crm-core`） | **PASS** |
+| Skill-01（`crm-core`） | **PASS** |
 | Skill-02 CREATE | **PASS** |
 | Skill-02 UPDATE | **PASS** |
 | Skill-02 Batch | **PASS** |
@@ -709,11 +709,11 @@ TTL 是**基础设施生命周期**，不是 Salesforce 文件策略（§二十�
 | 是否绕过 Tool Governance | **NO** —— 走既有 `tools/list` / enable-disable / agent visibility / audit |
 | `tools/list` 是否暴露 `upload_files_to_record` | **YES** —— 两种凭据路径都返回同一份 **16 个 Tool** 的列表，含 `upload_files_to_record`，schema 为上述 3 属性 |
 | 宿主原生 Tool 的双清单注入 | `provider-runtime.ts`（治理服务器）与 `discovery-server.ts`（发现服务器）**两处**都注入。原因是两者都通过 Provider 派生清单解析已启用 Tool 名，只注入一处会 fail-closed（`MCP_TOOL_NOT_AVAILABLE`），而不是服务它 |
-| 新 Skill | **无**。扩展 `skills/sfoa-record-change/`，新增 `references/file-attachments.md`；`SKILL.md` 只加一行极短激活语 |
+| 新 Skill | **无**。扩展 `skills/crm-record-change/`，新增 `references/file-attachments.md`；`SKILL.md` 只加一行极短激活语 |
 | `get_agent_playbook` | 最小改动：新增 `attachmentEnabledObjects` 能力事实 |
 | Admin Web | 在既有策略 UI 增加「附件上传」列与开关，保持现有风格，**不新建独立模块** |
 | Admin API | 扩展现有 DTO，**不新建**独立 Attachment Policy API |
-| 业务 Agent 可见 Skill | 仍**只有** `sfoa-crm-core` 与 `sfoa-record-change`；`sfoa-mcp-maintainer` 对业务 Agent **不可见** |
+| 业务 Agent 可见 Skill | 仍**只有** `crm-core` 与 `crm-record-change`；`sfoa-mcp-maintainer` 对业务 Agent **不可见** |
 
 ### 16.1 Doctrine（写入 `references/file-attachments.md`）
 
@@ -781,11 +781,11 @@ MCP_ATTACHMENT_MAX_FILES_PER_OWNER
 
 ```text
 yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
-  → sfoa-crm-core      ok:true, drift: []
-  → sfoa-record-change ok:true, drift: []
+  → crm-core      ok:true, drift: []
+  → crm-record-change ok:true, drift: []
 ```
 
-业务 Agent 可见 Skill 仍**只有** `sfoa-crm-core` + `sfoa-record-change`；`sfoa-mcp-maintainer` 确认不可见。
+业务 Agent 可见 Skill 仍**只有** `crm-core` + `crm-record-change`；`sfoa-mcp-maintainer` 确认不可见。
 
 > 注意：`skill:runtime:check` **必须在服务器上运行**。在 Windows 检出上运行会把 `/data/...` 解析成 `D:/Git/data/...` 并报假的 "missing Runtime Copy"。
 

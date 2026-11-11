@@ -10,9 +10,9 @@
 .codebuddy/skills/sfoa-mcp-maintainer/references/p8-07-runtime-batch.md
 .codebuddy/skills/sfoa-mcp-maintainer/scripts/doctor.mjs
 .codebuddy/skills/sfoa-mcp-maintainer/SKILL.md
-.codebuddy/skills/sfoa-salesforce-assistant/references/safety-boundaries.md
-.codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md
-.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md
+.codebuddy/skills/crm-playbook/references/safety-boundaries.md
+.codebuddy/skills/crm-playbook/references/tool-workflows.md
+.codebuddy/skills/crm-playbook/SKILL.md
 CHANGELOG.md
 docs/agent/DIFY_AGENT_INSTRUCTION.md
 docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md

@@ -68,7 +68,7 @@ Record Type is assigned to. `coverage.requirednessIncomplete=true` (paired with
 `requirednessIncompleteReason`) marks the two cases where it is not: the object
 has a Record Type specific FlexiPage but this request resolved another page
 (`RECORD_TYPE_PAGE_NOT_MATCHED`), or the whole resolution fell back to Page
-Layout (`RESOLUTION_FALLBACK_*`). `sfoa-record-change` rule 44 forbids
+Layout (`RESOLUTION_FALLBACK_*`). `crm-record-change` rule 44 forbids
 `CHANGE_READY=true` on that signal; a detail-only Agent that ignores it will
 save records with blank required fields, which is exactly what happened on the
 `Account_Visit__c` 客户来访 records on 2026-11-09. Profile full names that

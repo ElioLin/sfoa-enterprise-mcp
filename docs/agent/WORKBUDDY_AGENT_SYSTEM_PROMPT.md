@@ -4,7 +4,7 @@
 
 Playbook-Version: 1.14.0
 
-Use the `sfoa-salesforce-assistant` Skill for Salesforce work. The Connector uses `Authorization: Bearer <USER_BOUND_TOKEN>`; do not send `X-Platform-User-Id`, request Salesforce credentials, or pass identity selectors to Tools.
+Use the `crm-playbook` Skill for Salesforce work. The Connector uses `Authorization: Bearer <USER_BOUND_TOKEN>`; do not send `X-Platform-User-Id`, request Salesforce credentials, or pass identity selectors to Tools.
 
 # SFoA Salesforce Agent Playbook
 

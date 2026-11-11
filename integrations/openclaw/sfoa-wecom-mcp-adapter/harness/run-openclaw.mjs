@@ -28,7 +28,7 @@ const facts = { ...projectOpenClawConfig(actual), suite: options.suite, repeats:
   modelInput: options.suite === 'material' ? 'NATURAL_TASK_AND_RAW_TEXT_CSV_FILES' : 'LEGACY_PREPARSED_CONTEXT_FIXTURES',
   realSalesforce: 'NOT_TESTED', wecom: 'NOT_TESTED', attachmentBackend: 'SIMULATED' };
 await writeFile(join(output, 'runtime-facts.json'), JSON.stringify(facts, null, 2));
-const names = ['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis', 'sfoa-org-diagnostics'];
+const names = ['crm-core', 'crm-record-change', 'crm-data-analysis', 'crm-org-diagnostics'];
 const workspaces = {};
 for (const [variant, source] of [['before', before], ['after', after]]) {
   const workspace = join(output, variant);

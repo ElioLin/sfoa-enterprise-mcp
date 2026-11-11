@@ -89,7 +89,7 @@ test('admin can manage the bounded control plane and logout', async ({ page }, t
   await page.getByRole('tab', { name: '小犇 / Dify' }).click();
   await expect(page.locator('pre').filter({ hasText: '# Dify / 小犇 SFoA Salesforce Agent Instruction' })).toBeVisible();
   await page.getByRole('tab', { name: 'WorkBuddy' }).click();
-  await expect(page.getByText('.codebuddy/skills/sfoa-salesforce-assistant/', { exact: true })).toBeVisible();
+  await expect(page.getByText('.codebuddy/skills/crm-playbook/', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '退出登录' }).click();
   await expect(page.getByRole('heading', { name: '管理员登录' })).toBeVisible();

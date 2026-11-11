@@ -55,9 +55,9 @@ No input field accepts a host/origin/base URL. The Tool makes no Salesforce or e
 
 `yarn agent:sync` builds the canonical package and rewrites exactly:
 
-- `.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md`;
-- `.codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md`;
-- `.codebuddy/skills/sfoa-salesforce-assistant/references/safety-boundaries.md`;
+- `.codebuddy/skills/crm-playbook/SKILL.md`;
+- `.codebuddy/skills/crm-playbook/references/tool-workflows.md`;
+- `.codebuddy/skills/crm-playbook/references/safety-boundaries.md`;
 - `docs/agent/DIFY_AGENT_INSTRUCTION.md`;
 - `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`.
 

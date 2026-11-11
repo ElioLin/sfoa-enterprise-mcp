@@ -33,7 +33,7 @@ explicitly enabled Control Plane route. All six live in the existing `@sfoa/mcp-
 
 Two of those are not Tools. [ADR-0029](adr/ADR-0029-p10-diagnostic-identity-prerequisites.md) is T1's
 deliverable: the diagnostic identity's measured prerequisites, written as a per-source enablement list so
-a production deployment re-measures rather than inherits. The `sfoa-org-diagnostics` Skill is T6's: the
+a production deployment re-measures rather than inherits. The `crm-org-diagnostics` Skill is T6's: the
 five-class decision tree (data / permission / configuration / code / platform), one deterministic
 evidence path per class, the evidence-citation duty, the time-alignment routine, and the degradation and
 indeterminacy semantics — synced to all four client locations and published to the Agent through Playbook
@@ -470,7 +470,7 @@ concluding "no exception". The same edit closed a latent false `FAIL` in the rea
 body legs would have blamed the Tools for a trace write the deployment had correctly declined (§4).
 
 Everything the plan asked to leave behind is in place: Playbook 1.11.0 with the diagnostics contract,
-the `sfoa-org-diagnostics` Skill synced to all four client locations, the GAP analysis's P10 table
+the `crm-org-diagnostics` Skill synced to all four client locations, the GAP analysis's P10 table
 marked delivered with its ADR numbers, and both CHANGELOGs. The pre-existing failures are unchanged and
 measured (§5): the p7 gate fails under battery load and passes solo on both trees, `validate:p2`/`p3`
 still stop at the missing second identity, and lint's 47 upstream errors are untouched. None of them is
@@ -490,11 +490,11 @@ commit and deployed over the 2026-09-29 build — the previous bundle is kept at
 `backup/admin-web-dist-pre-df6a889-20261009-155432.tar.gz` — so the console UI now serves the P10 build.
 
 **The Skill is published to the test server's OpenClaw** (2026.9.5 / `ec9c1a1`). `runtime-sync` copied
-`sfoa-org-diagnostics` into `/data/openclaw/workspace/skills/` (7 files; `SKILL.md` sha256
+`crm-org-diagnostics` into `/data/openclaw/workspace/skills/` (7 files; `SKILL.md` sha256
 `3dec5151…`, the repository's own bytes), and one validated `openclaw config patch` added it to **both**
 allowlists — `skills.entries` and `agents.entries.main.skills` — reporting that the change applies
 **without restarting the gateway**. `runtime-check` then reported `drift: []` for all four business
-Skills, and `openclaw skills check --agent main` lists `sfoa-org-diagnostics` among the seven Skills
+Skills, and `openclaw skills check --agent main` lists `crm-org-diagnostics` among the seven Skills
 ready and visible to the model.
 
 **All six Tools are enabled through the Control Plane, not in memory.** A dry read first reproduced

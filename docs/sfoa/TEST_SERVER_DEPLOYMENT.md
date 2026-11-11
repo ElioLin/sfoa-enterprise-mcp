@@ -86,13 +86,13 @@
 | 同步 | `rsync -a --omit-dir-times --no-perms STAGE/ app/`（无 `--delete`），未删除任何文件 |
 | 构建 | `sfoa-control-plane` → `mcp-provider-sfoa-context` → `sfoa-mcp-server` → `sfoa-admin-api` → `sfoa-admin-web`（tsc + vite），全部 exit 0；产物时间 18:13，含新标记 `PRECISION_FALLBACK_LEGACY_CONTEXT`、`SNAPSHOT_REFRESH_TIMEOUT_`、`requirednessIncomplete`、`leaseMs` |
 | 服务 | `sfoa-mcp-server` PID **3857828**（18:16:54）、`sfoa-admin-api` PID **3857842**（18:16:58），`NRestarts=0`；`/health` 200、`/admin/api/ready` 200、nginx `:9000` 200，新前端包 `assets/index-BMNbxYY8.js`，2 分钟内无 error 级日志 |
-| Runtime Skill | `manage.mjs runtime-sync/check`：四个业务 Skill 全 `ok:true`、`drift: []`；`sfoa-record-change/SKILL.md` sha256 `87febe20…`，规则 44「必填性未证明即不得提交」已在 runtime；`openclaw skills check`：Total 91 / Eligible 55 / Visible to model 7 |
+| Runtime Skill | `manage.mjs runtime-sync/check`：四个业务 Skill 全 `ok:true`、`drift: []`；`crm-record-change/SKILL.md` sha256 `87febe20…`，规则 44「必填性未证明即不得提交」已在 runtime；`openclaw skills check`：Total 91 / Eligible 55 / Visible to model 7 |
 | 功能验证 | MCP `initialize` 后 `tools/list` = **29**；`get_record_action_context`（`Account_Visit__c` / 客户来访 / **不传 formContext**）→ `formContext.entry=STANDARD`、`phase=START`、`app=FRN_CRM_PC`（Profile 默认）、`page=**ComeTo**`、`formSource=DYNAMIC_FORMS`，`uiContext` 不存在（未走快照）；`missingRequired` 含 **就餐安排 `Restaurant_Schedule__c`、酒店安排 `Hotel_Schedule__c`、行程计划 `Route_Plan__c`**，`requiredCount=13`；`visit_route_text`/`matters` 在销售组织 8060 下正确为 false。`status=UNKNOWN` 属预期（必填未填 + `Source__c` 未定导致 Lead/Opportunity/Account 条件必填 UNKNOWN） |
 | 新增配置 | 无需手工改配置：`SFOA_PRECISION_DEFAULT_FORM_CONTEXT` 默认 `true`、`SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS` 默认 `180000` 均已在代码内默认。实测 203 单次 `collectUiSnapshot` **159s**（其中单次 Metadata 读 136s），旧的 120s 常量必然超时 |
 | 未做 | 快照刷新（用户自测）；真实企微/DSH 端到端业务 UAT；Salesforce 写入（本次仅只读 UI API 调用） |
 | 回滚 | `bash /data/sfoa-enterprise-mcp/backup/branch-561614d-20261109T181254/rollback.sh`（停服 → 解回 app 源码与 5 个 dist → 启动），未演练 |
 
-**部署后追加（18:50）**：企微实测仍未追问三个必填字段。审计显示该会话只调用了 `run_soql_query` 与 `create_record`（审计 10061–10064），**从未调用 `get_record_action_context`**，落库记录 `a0fC5000001AyiHIAS` 的三个字段为空；而同一时段的不传 `formContext` 验证调用（10060）已返回 `missingRequiredCount=9` 含这三个字段。结论是智能体跳过了取证步骤，不是运行时缺陷。据此在 `sfoa-record-change` 增加 Hard Rule 45（CREATE 前必须有本次表单证据，显式禁止「同一会话前面查过」式复用），已同步 app 与 OpenClaw runtime（`SKILL.md` sha256 `dcc89cf9…`，四个 Skill `drift: []`）。
+**部署后追加（18:50）**：企微实测仍未追问三个必填字段。审计显示该会话只调用了 `run_soql_query` 与 `create_record`（审计 10061–10064），**从未调用 `get_record_action_context`**，落库记录 `a0fC5000001AyiHIAS` 的三个字段为空；而同一时段的不传 `formContext` 验证调用（10060）已返回 `missingRequiredCount=9` 含这三个字段。结论是智能体跳过了取证步骤，不是运行时缺陷。据此在 `crm-record-change` 增加 Hard Rule 45（CREATE 前必须有本次表单证据，显式禁止「同一会话前面查过」式复用），已同步 app 与 OpenClaw runtime（`SKILL.md` sha256 `dcc89cf9…`，四个 Skill `drift: []`）。
 
 ---
 
@@ -128,7 +128,7 @@
 | 构建 | 按依赖序重建 `@sfoa/agent-playbook`（1.13.3）、`@sfoa/mcp-server`（含 `onFileResult?.(observed)`）、`@sfoa/admin-api`、`@sfoa/admin-web`；日志 `build-*.log`。未重装依赖、无新迁移（017 已于 11-05 APPLIED） |
 | 服务 | `sfoa-mcp-server` / `sfoa-admin-api` 重启：PID **3845239 / 3845252**，`ActiveEnterTimestamp` 09:18:07 / 09:18:12，NRestarts=0；`/health` 200（auditPersistence UP，failureCount 0）、`/admin/api/ready` 200（8.4.5）；Gateway PID **3759907**、nginx PID 1267856 未重启 |
 | Adapter | `openclaw plugins reload sfoa-wecom-mcp-adapter` 成功：generation **4**、`restartRequired=false`、source digest `7f1f641215cbd7d69e4ff31f4f3b9a0848f556272ba038cd930882f24e130510`。落盘 hash：`src/index.js` `7fcdc7e0…`、`material-tasks.js` `9999b0d4…`、`native-reading.js` `b015160a…`、`read-office.py` `a58b3250…`、`openclaw.plugin.json` `be611e34…`（与 9c4fda9 相同，未触发新 capability consent）；Gateway 日志显示 attachment bridge 与 requester resolver 重新注册 |
-| Runtime Skill | `skill:runtime:sync/check --runtime-root /data/openclaw/workspace/skills`：四个业务 Skill 与 canonical `diff -r` 全部 IDENTICAL、`drift: []`；`sfoa-record-change/SKILL.md` 更新为 `11a57370…`；`sfoa` 导出重生成 **1.13.3**（`SKILL.md` `5ae5b733…`），既有 `mcp.json` hash `3279fe3b…` 未变；`skills.status` 四个业务 Skill `eligible/modelVisible=true`，`sfoa` eligible=true/modelVisible=false，maintainer 不在 runtime |
+| Runtime Skill | `skill:runtime:sync/check --runtime-root /data/openclaw/workspace/skills`：四个业务 Skill 与 canonical `diff -r` 全部 IDENTICAL、`drift: []`；`crm-record-change/SKILL.md` 更新为 `11a57370…`；`sfoa` 导出重生成 **1.13.3**（`SKILL.md` `5ae5b733…`），既有 `mcp.json` hash `3279fe3b…` 未变；`skills.status` 四个业务 Skill `eligible/modelVisible=true`，`sfoa` eligible=true/modelVisible=false，maintainer 不在 runtime |
 | MCP 协议 | initialize 200、protocolVersion `2025-06-18`、instructions 4950 字符且含 **1.13.3**、不含 1.13.2；tools/list **29**；`upload_files_to_record` 输出含 `retryable`，`get_record_action_context` 输入含 `includeValueAssessment`。使用控制面内部 enabled 路由注入 `X-Platform-User-Id`，日志仅保留 route id 与掩码 `61***79`，未打印工号 |
 | Admin Web | 新包 `index-DQlDgH9N.js` / `AgentIntegrationPage-Ty3qH7HN.js`（含 **1.13.3**）；nginx `:9000/`、`/agent-integration`、`/admin/api/ready` 均 200；`chown -R root:root` + `restorecon -Rv dist`，`index.html` 为 `httpd_sys_content_t` |
 | 配置/迁移 | `.env.local` sha256 `235f2465…`、`openclaw.json` sha256 `863b33d1…`，部署前后一致；迁移台账仍 001–015 + **017 APPLIED**，未执行 `db:migrate` |
@@ -177,17 +177,17 @@
 
 | 项目 | 实际记录 |
 | --- | --- |
-| 变更 | `sfoa-record-change` 新增 Hard Rule 42：CREATE 前对名称 / 电话 / 手机 / 邮箱 / 证件号 / 外部 ID 等敏感身份字段做有界查重；强键或名称命中先告知用户并由用户选择继续新建 / 改为更新 / 取消，0 行不证明全库唯一；新增 `references/duplicate-check.md`，并接入 `create-readiness.md`、`readiness-gate.md`、`phone-and-mobile.md`；维护侧增加可执行 gate + 测试 |
+| 变更 | `crm-record-change` 新增 Hard Rule 42：CREATE 前对名称 / 电话 / 手机 / 邮箱 / 证件号 / 外部 ID 等敏感身份字段做有界查重；强键或名称命中先告知用户并由用户选择继续新建 / 改为更新 / 取消，0 行不证明全库唯一；新增 `references/duplicate-check.md`，并接入 `create-readiness.md`、`readiness-gate.md`、`phone-and-mobile.md`；维护侧增加可执行 gate + 测试 |
 | 变更性质 | 仅 Skill 正文 / 引用与维护侧测试；无 MCP / Admin / OpenClaw 运行时源码变化、无迁移、无配置变化 |
 | 归档 | `sfoa-skill-create-dedup-20261103-160107.tar.gz`（43,477 B，sha256 `4c3fbceff72753b4a0d355503cd1b165547c6d0358087a4a3b732ad5ba1a0781`，LF 归一，13 文件） |
-| 备份 | runtime：`/data/openclaw/backups/20261103-160107-skill-create-dedup/sfoa-record-change/`（12 文件旧版）；app：`/data/sfoa-enterprise-mcp/backup/sfoa-app-skill-record-change-pre-20261103-160107.tar.gz`（38,661 B） |
-| 落盘 | 解到 `/data/sfoa-enterprise-mcp/staging-skill-create-dedup-20261103-160107`，`rsync -a` 覆盖 `app/skills/sfoa-record-change`；未删除任何文件；app 与 staging 文件集一致 |
+| 备份 | runtime：`/data/openclaw/backups/20261103-160107-skill-create-dedup/crm-record-change/`（12 文件旧版）；app：`/data/sfoa-enterprise-mcp/backup/sfoa-app-skill-record-change-pre-20261103-160107.tar.gz`（38,661 B） |
+| 落盘 | 解到 `/data/sfoa-enterprise-mcp/staging-skill-create-dedup-20261103-160107`，`rsync -a` 覆盖 `app/skills/crm-record-change`；未删除任何文件；app 与 staging 文件集一致 |
 | 字节验证 | 未改动引用（batch-mutations / dynamic-forms / file-attachments / lookup-and-picklist / managed-lookups / material-and-related-fields / outcome-reconciliation / update-readiness）sha256 与服务器旧版逐一相同；变更文件为 `SKILL.md` `04182a…`、`create-readiness.md` `23fea8…`、`readiness-gate.md` `84aeaf…`、`phone-and-mobile.md` `1916fa…`、新增 `duplicate-check.md` `803aad…` |
-| Runtime Copy | `yarn skill:runtime:sync --canonical skills/sfoa-record-change --runtime-root /data/openclaw/workspace/skills` → 13 文件；`runtime:check` `ok:true` / `drift:[]`；runtime `SKILL.md` sha256 `04182a…` |
-| OpenClaw | `openclaw skills check --agent main`：`sfoa-record-change` 可见；`openclaw gateway call skills.status --json`：`eligible=true`、`modelVisible=true`；Gateway PID 2996434 未重启（正文变更按既有语义热读取） |
+| Runtime Copy | `yarn skill:runtime:sync --canonical skills/crm-record-change --runtime-root /data/openclaw/workspace/skills` → 13 文件；`runtime:check` `ok:true` / `drift:[]`；runtime `SKILL.md` sha256 `04182a…` |
+| OpenClaw | `openclaw skills check --agent main`：`crm-record-change` 可见；`openclaw gateway call skills.status --json`：`eligible=true`、`modelVisible=true`；Gateway PID 2996434 未重启（正文变更按既有语义热读取） |
 | 服务 | `sfoa-mcp-server` / `sfoa-admin-api` / `openclaw-gateway` / `nginx` 均 active；未重建、未重启 |
 | 权限 | 发布后 app / runtime Skill 目录 755、文件 644（避免归档带入 666） |
-| 回滚 | 恢复 runtime：`cp -a /data/openclaw/backups/20261103-160107-skill-create-dedup/sfoa-record-change /data/openclaw/workspace/skills/`；恢复 app：解回 app 备份 tar；无需重启服务 |
+| 回滚 | 恢复 runtime：`cp -a /data/openclaw/backups/20261103-160107-skill-create-dedup/crm-record-change /data/openclaw/workspace/skills/`；恢复 app：解回 app 备份 tar；无需重启服务 |
 | 未做 | 未做真人企微 CREATE 重复提示 UAT；维护侧 gate / 测试仅在本仓库，未同步到服务器 app；未部署 Playbook / Dify / WorkBuddy 指令文档（本次只更新 OpenClaw Skill） |
 
 ---
@@ -207,8 +207,8 @@
 
 | 项目 | 实际记录 |
 | --- | --- |
-| 变更 | Playbook/`sfoa-record-change`：显式“以 X 的名义/归属 X”必须先取 `get_record_action_context`，按托管字段的 `referenceTo` 确定目标对象（不默认 `User`），解析 X 的唯一 ID 写入托管字段，禁止用 `OwnerId` 代替；座机区号/明确地址/公司所在地确定城市时同时推断省份/国家，手机号不推断地域。 |
-| 部署 | 备份 `/data/sfoa-enterprise-mcp/backup/p0-owner-geo-20261103-114254/`；替换 app 的 `packages/sfoa-agent-playbook/dist`；`skill:runtime:sync` 同步 `sfoa-record-change`（12 文件）；`systemctl restart sfoa-mcp-server` 后 PID 3002025（最终版本）、`/health` 200；`openclaw mcp reload` 已执行。 |
+| 变更 | Playbook/`crm-record-change`：显式“以 X 的名义/归属 X”必须先取 `get_record_action_context`，按托管字段的 `referenceTo` 确定目标对象（不默认 `User`），解析 X 的唯一 ID 写入托管字段，禁止用 `OwnerId` 代替；座机区号/明确地址/公司所在地确定城市时同时推断省份/国家，手机号不推断地域。 |
+| 部署 | 备份 `/data/sfoa-enterprise-mcp/backup/p0-owner-geo-20261103-114254/`；替换 app 的 `packages/sfoa-agent-playbook/dist`；`skill:runtime:sync` 同步 `crm-record-change`（12 文件）；`systemctl restart sfoa-mcp-server` 后 PID 3002025（最终版本）、`/health` 200；`openclaw mcp reload` 已执行。 |
 | 验证 | `dist/definition.js` 含 `landline area code`/`do not assume User`；`dist/renderer.js` 含 `不得只填城市`/`referenceTo`；runtime `phone-and-mobile.md` 含 `手机号本身不含地域`；四服务 active。 |
 | 未做 | 真人企微“以郑燕军的名义新建→`Lead_Owner__c`（预期 Contact `003C5000004wEeRIAU`）”与“0592→福建省/厦门市”UAT。 |
 
@@ -220,21 +220,21 @@
 | 补丁位置 | `/data/openclaw/state/npm/projects/wecom-wecom-openclaw-plugin-18f843d908__openclaw-generation__g-8f3a4349afa261a8/node_modules/@wecom/wecom-openclaw-plugin/dist/src/`：新增 `question-bridge.js`（sha256 `7807d603…`），并改 `monitor.js`（`dfb905d4…` → `9eee0f92…`）。备份 `backup/p0-field-inference-20261102-114641/wecom-monitor.js.pre-question-bridge`。 |
 | 桥逻辑 | 从 outbound `channelData.askUser` 记住 `questionId`/`optionValues`（按 accountId+chatId，TTL 15 min）；inbound 文本先匹配 `1..N` 或选项 label，命中则调用 `getWeComRuntime().gateway.request("question.resolve", { id, answers:{answers:{[questionId]:[value]}}, resolvedBy })`，不再入 chat 队列；已 terminal 的迟到数字回复丢弃，避免二次提问。离线测试 `1` → `question.resolve` 参数正确。 |
 | 补丁生效 | `systemctl restart openclaw-gateway`：PID 2996434，16 plugins 加载，企微 WebSocket `Authentication successful`；`mcp reload` 已执行。补丁属于第三方插件本地修改，**插件重装/升级会丢失**，复发先核对 `monitor.js` sha256 与 `question-bridge.js` 是否存在。 |
-| 归属人意图规则 | Playbook + `sfoa-record-change` 增加：用户说“以 X 的账号/归属 X”时不切换认证身份；若 `managedDmlFields` 有可用户指定的归属字段（如 `PLATFORM_USER_LOOKUP_FALLBACK`），把 X 解析为目标 Lookup 唯一 ID 并写入该字段，**不得改用 `OwnerId`**；没有可指定字段/严格 `PLATFORM_IDENTITY` 时明确告知只能按当前身份执行。 |
-| 部署 | 工作树归档 sha256 `30e1abeb…`；重建 agent-playbook/context/mcp-server；`sfoa-mcp-server` PID 2997098，`/health` 200；runtime `sfoa-record-change` 已同步（`managed-lookups.md` 含 OwnerId 规则），`skills.status` eligible/modelVisible true。 |
+| 归属人意图规则 | Playbook + `crm-record-change` 增加：用户说“以 X 的账号/归属 X”时不切换认证身份；若 `managedDmlFields` 有可用户指定的归属字段（如 `PLATFORM_USER_LOOKUP_FALLBACK`），把 X 解析为目标 Lookup 唯一 ID 并写入该字段，**不得改用 `OwnerId`**；没有可指定字段/严格 `PLATFORM_IDENTITY` 时明确告知只能按当前身份执行。 |
+| 部署 | 工作树归档 sha256 `30e1abeb…`；重建 agent-playbook/context/mcp-server；`sfoa-mcp-server` PID 2997098，`/health` 200；runtime `crm-record-change` 已同步（`managed-lookups.md` 含 OwnerId 规则），`skills.status` eligible/modelVisible true。 |
 | 未做 | 真人企微提问→回复 `1` 的端到端 UAT；归属人字段实际解析（陈俊杰 4 条同名 Contact 需先消歧）；插件补丁未纳入仓库。 |
 
 ## 2026-11-02 P0 字段推断与手机/电话规则（203）
 
 | 项目 | 实际记录 |
 | --- | --- |
-| 部署内容 | `feature/p0-agent-field-inference` 工作树（基于 `769ec8d`，未提交）：`get_record_action_context` 的 `includeRequiredness`/`requirednessSource`/`requiredChecklist`/`writable`/`omittedFieldCatalog`；Playbook 与 `sfoa-record-change` 的 Requiredness Source、Explicit Fact Coverage、手机/电话中国大陆规则；无 DB 迁移 |
+| 部署内容 | `feature/p0-agent-field-inference` 工作树（基于 `769ec8d`，未提交）：`get_record_action_context` 的 `includeRequiredness`/`requirednessSource`/`requiredChecklist`/`writable`/`omittedFieldCatalog`；Playbook 与 `crm-record-change` 的 Requiredness Source、Explicit Fact Coverage、手机/电话中国大陆规则；无 DB 迁移 |
 | 服务器基线 | 部署前 10 个受影响源文件与 `769ec8d` git blob 的 sha256 全部一致（LF）；服务器源码未含未预期改动 |
-| 备份 | `/data/sfoa-enterprise-mcp/backup/p0-field-inference-20261102-114641/`：`app-source-affected.tar.gz`（context/playbook 源码 + 三个包 dist + canonical record-change Skill）与 `openclaw-runtime-sfoa-record-change.tar.gz` |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/p0-field-inference-20261102-114641/`：`app-source-affected.tar.gz`（context/playbook 源码 + 三个包 dist + canonical record-change Skill）与 `openclaw-runtime-crm-record-change.tar.gz` |
 | 归档/落盘 | 本机 LF 归一化后 `p0-deploy-20261102035357.tar.gz`（370,100 B，sha256 `f09ed02d…`）；staging 81 文件 `sha256sum -c` 全 OK、CR=0；`rsync -a` 覆盖 `app/`，`sha256sum -c` 81 OK / 0 FAILED |
 | 构建 | `@sfoa/agent-playbook` → `@sfoa/mcp-provider-sfoa-context` → `@sfoa/mcp-server` 全部成功；dist 含 `includeRequiredness`/`requirednessSource`/`requiredChecklist`/`omittedFieldCatalog`/`writable`，Playbook dist 含 `mainland China mobile pattern`/`writable=false` |
 | 服务 | `systemctl restart sfoa-mcp-server`：PID 2987553，`NRestarts=0`，`/health` 200；`sfoa-admin-api` 未重启，`/admin/api/ready` 200；`nginx`/`openclaw-gateway` active |
-| Skill 发布 | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills`；`sfoa-record-change` 12 文件、`phone-and-mobile.md` sha256 `ba556062…`，`skill:runtime:check` drift []；`openclaw gateway call skills.status` 显示 `eligible=true`/`modelVisible=true`；执行 `openclaw mcp reload` |
+| Skill 发布 | `yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills`；`crm-record-change` 12 文件、`phone-and-mobile.md` sha256 `ba556062…`，`skill:runtime:check` drift []；`openclaw gateway call skills.status` 显示 `eligible=true`/`modelVisible=true`；执行 `openclaw mcp reload` |
 | 活体验证 | 以 60245 调用 `tools/list`（29 tools）确认 `includeRequiredness` 在 schema；Lead/FRN CREATE 返回 `PAGE_LAYOUT_REQUIRED`（35 项，其中 21 writable / 14 非 writable）；`Account_Visit__c` 客户来访 CREATE 返回 `EFFECTIVE_REQUIRED`/`DYNAMIC_FORMS`（18 项），`Visit_Route__c` 不在创建必填清单；均只读 |
 | 回滚 | `systemctl stop sfoa-mcp-server` → 解回备份 source/dist → 按上述顺序重建 → 恢复 runtime Skill 目录 → `systemctl start sfoa-mcp-server`；无 DB 变更 |
 | 未做 | 真人企微 UAT（用户进行）；本轮分支未 commit/push；Playbook 版本仍为 1.12.0 |
@@ -261,8 +261,8 @@
 | 项目 | 实际记录 |
 | --- | --- |
 | 部署内容 | `codex/openclaw-business-autonomy` @ `0a7649e7`（HEAD）。运行时源码与 11:52 已部署的 `83818ca` 相同；`83818ca..0a7649e` 仅文档/证据、maintainer 参考、一个测试文件与 harness fixture 有差异 |
-| 归档 | `incoming/sfoa-deploy-0a7649e-20261027-143611.tar.gz`（3,925,893 B，sha256 `56362ccffce89fa85740757b02958651c881670f404caff310a9d1313e5d55b4`，1655 entries）。归档内 `skills/sfoa-crm-core/SKILL.md` 7408 B / 0 CR，`packages/sfoa-mcp-server/src/http-server.ts` 0 CR |
-| **CRLF 纠正** | 11:51 的 `autonomy-source-c2.tar.gz`（sha256 `e1f7226f…`，本机/服务器一致）**实际是 CRLF**：`skills/sfoa-crm-core/SKILL.md` 7465 B / 57 CR。app 与 runtime 副本都继承了 CRLF；去掉 CR 后与 canonical 相同。原记录的“来自 tracked LF 字节”只对 C1 归档成立 |
+| 归档 | `incoming/sfoa-deploy-0a7649e-20261027-143611.tar.gz`（3,925,893 B，sha256 `56362ccffce89fa85740757b02958651c881670f404caff310a9d1313e5d55b4`，1655 entries）。归档内 `skills/crm-core/SKILL.md` 7408 B / 0 CR，`packages/sfoa-mcp-server/src/http-server.ts` 0 CR |
+| **CRLF 纠正** | 11:51 的 `autonomy-source-c2.tar.gz`（sha256 `e1f7226f…`，本机/服务器一致）**实际是 CRLF**：`skills/crm-core/SKILL.md` 7465 B / 57 CR。app 与 runtime 副本都继承了 CRLF；去掉 CR 后与 canonical 相同。原记录的“来自 tracked LF 字节”只对 C1 归档成立 |
 | 备份 | `backups/autonomy-0a7649e-20261027-143611/`（私有 700）：app 源码 `app-source-pre-0a7649e.tar.gz`（11 MB），四个业务 Skill 与独立 `sfoa` 包 |
 | 落盘 | 先解到权限 755 的 staging，再 `rsync -a`（无 `--delete`）覆盖 `app/`；`.env.local` 与 `packages/mcp/README.md` 软链保留 |
 | 字节验证 | staging 清单 1394 个文件，`sha256sum -c` 全部 OK；清单内文本文件 CR=0；app 的四个业务 Skill 与 git HEAD 逐字节一致 |
@@ -283,7 +283,7 @@
 | 项目 | 实际记录 |
 | --- | --- |
 | 源码归档 | `incoming/autonomy-source-20261027.tar.gz`（2d7a1f4，LF）、`incoming/autonomy-source-c2.tar.gz`（83818ca，**实为 CRLF**；见上方 14:37 重部署记录） |
-| 最终归档 hash | `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`；本地/服务器一致。该归档的 `skills/sfoa-crm-core/SKILL.md` 为 7465 B / 57 CR，部署树与 runtime 因而继承 CRLF；去掉 CR 后才与 canonical 一致，14:37 已以 LF 归档重部署 |
+| 最终归档 hash | `e1f7226f5dfc1e4b3ad092c999536994dc431bb8e693d36ff4b175a6b45e2da3`；本地/服务器一致。该归档的 `skills/crm-core/SKILL.md` 为 7465 B / 57 CR，部署树与 runtime 因而继承 CRLF；去掉 CR 后才与 canonical 一致，14:37 已以 LF 归档重部署 |
 | 备份 | `/data/sfoa-enterprise-mcp/backups/autonomy-20261027-<完整源码SHA>/`，保留 app 源码/dist、四个业务 Skill、独立 sfoa 导出包、adapter 附件文件、构建/同步记录 |
 | 构建 | Playbook → Context / Data → Server → Admin API / Web；C2 未改 Data 代码，复用 C1 已重建产物；Web 检查 DAC + restorecon |
 | 实际配置 | Gateway 使用 `/data/openclaw/state/openclaw.json`，main workspace `/data/openclaw/workspace`，主模型 `custom-192-168-155-105-3001/deepseek-flash`，thinking=max；OpenClaw 2026.9.5(ec9c1a1)，实际 Gateway Node24.19.0 |
@@ -377,7 +377,7 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 | 项 | 值 |
 | --- | --- |
 | 部署内容 | `feature/sfoa-attachment-upload` @ `59cb040`（Skill-02C：`upload_files_to_record` + Attachment Ingress + Attachment Bridge + `attachment_enabled` 迁移 014），替换测试服务器上一版 02B 交付 |
-| 变更前版本识别 | 服务器无 `.git`。按**文件清单 + 暂存目录名**判定：`app/` 中含 02C 之前的 Skill-02B 收口内容，与 `ce800c2` 一致（见下方 02B 记录的更正说明）。`/data/openclaw/workspace/skills/sfoa-record-change` 为 02B 的 **9 文件**版本 |
+| 变更前版本识别 | 服务器无 `.git`。按**文件清单 + 暂存目录名**判定：`app/` 中含 02C 之前的 Skill-02B 收口内容，与 `ce800c2` 一致（见下方 02B 记录的更正说明）。`/data/openclaw/workspace/skills/crm-record-change` 为 02B 的 **9 文件**版本 |
 | **运行时代码差异 ≠ 0** | 与 02B 不同，本轮**改动运行时代码**：`packages/sfoa-mcp-server`（24 文件）、`packages/sfoa-control-plane`（13）、`integrations/openclaw`（6）、`packages/sfoa-agent-playbook`（5）、`packages/sfoa-admin-web`（5）、`packages/sfoa-admin-api`（2）、`packages/sfoa-identity-runtime`（1）。故本轮**重建并重启**了 MCP Runtime 与 Admin API |
 | 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-02c-59cb040.tar.gz`（**2,579,590 B**，sha256 `d2cc72d59e8298753b609ae2e8572dba8baf21bdad5fbcfc9c4f66ed57b3ce06`）。归档内文本文件**纯 LF**；唯一含 CR 的文件是 `docs/sfoa/evidence/p6-dml-01-admin-managed-fields.png`（二进制 PNG），不参与逐字节门禁 |
 | 上传/校验 | 上传到 `/data/sfoa-enterprise-mcp/incoming/`，服务器侧 `sha256sum` 与本地**一致** |
@@ -391,8 +391,8 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 | 服务 | **已重启** `sfoa-mcp-server` 与 `sfoa-admin-api`；`openclaw-gateway` 与 `nginx` 未重启 |
 | 部署后状态 | `sfoa-mcp-server` active · `127.0.0.1:8080/health` → **200**；`sfoa-admin-api` active · `127.0.0.1:8081/admin/api/health` → **200**（经 nginx `:9000/admin/api/health` 亦 **200**）；`nginx :9000/`（Admin Web）→ **200**；`openclaw-gateway` active。Node `v22.23.1` |
 | Runtime Copy 发布 | 复用既有机制，未新建第二套：`yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills` |
-| Skill 校验 | **在服务器上**运行 `yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills` → `sfoa-crm-core`、`sfoa-record-change` 均 `ok:true`、`drift: []` |
-| Agent 可见性 | 业务 Agent 仍**只有** `sfoa-crm-core` + `sfoa-record-change`；`sfoa-mcp-maintainer` 确认不可见 |
+| Skill 校验 | **在服务器上**运行 `yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills` → `crm-core`、`crm-record-change` 均 `ok:true`、`drift: []` |
+| Agent 可见性 | 业务 Agent 仍**只有** `crm-core` + `crm-record-change`；`sfoa-mcp-maintainer` 确认不可见 |
 | Tool 发现 | `tools/list` 在**两种凭据路径**（内部 `MCP_CLIENT_TOKEN` 与企微渠道 `MCP_WECOM_CLIENT_TOKEN` + `X-WeCom-User-Id`）均返回**同一份 16 个 Tool** 的列表，含 `upload_files_to_record` |
 | 真实链路验证 | 3 个真实 `ContentVersion` 在测试 org 上创建。**修复前**的 `068C5000000yWOPIA2` 无 audit 行；**修复后**的 `068C5000000yWg9IAE`（内部凭据）与 `068C5000000yWhlIAE`（**企微渠道凭据**）均已审计，后者 `identity_source=WECOM_HEADER`、`execution_role=USER`，证明真实入站渠道确实能执行该 Tool。**按 §九十五，这三个文件均未自动删除** |
 | 审计卫生 | 落库 payload 全量扫描：file bytes / base64 / raw multipart body / Bearer token / 暂存区绝对路径 **全部 absent**；重启后 audit writer 失败计数 = 0 |
@@ -408,13 +408,13 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 
 | 项 | 值 |
 | --- | --- |
-| 部署内容 | `feature/openclaw-sfoa-record-change-02b` @ `4b3b2ff`（实际落盘 tip 为 `ce800c2`，见上方更正）（Skill-02B `sfoa-record-change` UPDATE + Batch + Outcome 收口，以及 `sfoa-crm-core` 两处跨 Skill 事实修正），替换测试服务器上一版 `main` @ `3adae7b`（Skill-02A 交付） |
-| 变更前版本识别 | 服务器无 `.git`，按**文件清单 + 内容特征**判定：`/data/openclaw/workspace/skills/sfoa-record-change` 与 `app/skills/sfoa-record-change` 均 **7 文件**、含 `references/outcomes.md`、`SKILL.md` 9576 B / sha256 `c7354635…`、不含 `UPDATE != CREATE` → 判定为 **Skill-02A**，与 `main` @ `3adae7b` 一致 |
+| 部署内容 | `feature/openclaw-crm-record-change-02b` @ `4b3b2ff`（实际落盘 tip 为 `ce800c2`，见上方更正）（Skill-02B `crm-record-change` UPDATE + Batch + Outcome 收口，以及 `crm-core` 两处跨 Skill 事实修正），替换测试服务器上一版 `main` @ `3adae7b`（Skill-02A 交付） |
+| 变更前版本识别 | 服务器无 `.git`，按**文件清单 + 内容特征**判定：`/data/openclaw/workspace/skills/crm-record-change` 与 `app/skills/crm-record-change` 均 **7 文件**、含 `references/outcomes.md`、`SKILL.md` 9576 B / sha256 `c7354635…`、不含 `UPDATE != CREATE` → 判定为 **Skill-02A**，与 `main` @ `3adae7b` 一致 |
 | **运行时代码差异 = 0** | `git diff 3adae7b..4b3b2ff -- packages yarn.lock packages/sfoa-control-plane/migrations .env.example config integrations` 为空。改动只落在 `skills/`（canonical + 三处生成副本）与 `docs/sfoa/`。**故未清增量标记、未重建 workspace、未 `systemctl restart`** 任一服务 |
-| 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-02b-final-4b3b2ff.tar.gz`（**2,446,821 B**，1344 个 tracked 条目，sha256 `9cde97603eed890573e391f6de7e06024345dc53a87721be1cc61c12176f17fc`）。实测归档内 `skills/sfoa-record-change/SKILL.md` **crlf=0 / loneLf=118**（纯 LF），避免 §3.1 的 CRLF 假漂移 |
+| 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz` → `sfoa-02b-final-4b3b2ff.tar.gz`（**2,446,821 B**，1344 个 tracked 条目，sha256 `9cde97603eed890573e391f6de7e06024345dc53a87721be1cc61c12176f17fc`）。实测归档内 `skills/crm-record-change/SKILL.md` **crlf=0 / loneLf=118**（纯 LF），避免 §3.1 的 CRLF 假漂移 |
 | 上传/校验 | 经 ssh 写入 `/tmp/`，服务器侧 `sha256sum` 与本地**一致** |
 | 落盘方式 | 先解到 `staging-02b-final-4b3b2ff/`，再用 **`rsync -a`（不带 `--delete`）** 覆盖到 `app/`，服务器独有文件全部保留（`.env.local`、`.idea`、`projects`、`.temp`、`.workbuddy`、`node_modules`、各包 `dist`）。**额外一步**：02B 退役的 `references/outcomes.md` 不参与 rsync 删除，已显式 `rm` canonical + `.agents`/`.claude`/`.codebuddy` 共 **4 处**，并复查 `find` 结果为 0 |
-| 备份（Skill） | `/data/openclaw/backups/20260915-095931-skill-02b-delivery/sfoa-record-change/`（7 文件，02A 版本完整保留） |
+| 备份（Skill） | `/data/openclaw/backups/20260915-095931-skill-02b-delivery/crm-record-change/`（7 文件，02A 版本完整保留） |
 | 备份（app） | 只备份本次可能改动的子树：`/data/sfoa-enterprise-mcp/backup/sfoa-app-skills-02b-pre-20260915-095931.tar.gz`（89,387 B）、`sfoa-app-docs-02b-pre-20260915-095931.tar.gz`（652,098 B）。**未**做 5.6 G 全量 app 打包（其中绝大部分是 `node_modules` 与 `dist`，本轮不可能被改动），范围与理由已在报告中说明 |
 | 依赖 | `yarn.lock` 与根 `package.json` 依赖段无变化 → **未重装** `node_modules` |
 | 数据库迁移 | **无新迁移**：`packages/sfoa-control-plane/migrations` 无变化，未执行 `db:migrate` |
@@ -423,14 +423,14 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 | 服务 | **未重启**。`MCP Runtime changed: NO` |
 | Runtime Copy 发布 | 复用既有机制，未新建第二套：`yarn skill:runtime:sync --runtime-root /data/openclaw/workspace/skills`（方向 canonical → runtime，受 `BUSINESS_SKILL_ALLOWLIST` 约束） |
 | Skill 校验 | 服务器 `app/` 上 `manage.mjs validate` → 3 个 Skill `ok:true`；`check` → `drift: []`；`runtime-check` → 两个业务 Skill `ok:true`、`drift: []` |
-| 字节级验证 | `diff -r` 比对 canonical 与 runtime：`sfoa-crm-core` 9/9 **IDENTICAL**、`sfoa-record-change` 9/9 **IDENTICAL**。另有 22/22 doctrine 探针在 runtime 副本中命中（`UPDATE != CREATE`、`TARGET_RESOLVED`、`Minimal Patch`、`∀ record: CHANGE_READY(record) == true`、`MCP_DML_BATCH_DUPLICATE_RECORD_ID`、`200 + 200 + 100`、`FAILED != UNKNOWN`、`Read-Back != Transaction Success` 等），`missing: 0` |
+| 字节级验证 | `diff -r` 比对 canonical 与 runtime：`crm-core` 9/9 **IDENTICAL**、`crm-record-change` 9/9 **IDENTICAL**。另有 22/22 doctrine 探针在 runtime 副本中命中（`UPDATE != CREATE`、`TARGET_RESOLVED`、`Minimal Patch`、`∀ record: CHANGE_READY(record) == true`、`MCP_DML_BATCH_DUPLICATE_RECORD_ID`、`200 + 200 + 100`、`FAILED != UNKNOWN`、`Read-Back != Transaction Success` 等），`missing: 0` |
 | 机器门禁 | 本机 `yarn skill:test` **63/63 pass**（exit 0）；`skill:validate`/`skill:check`/`skill:delivery` 全 `ok:true`、`drift: []`、`problems: []`；`skill:smoke` 从提交后 HEAD 字节重建亦 63/63 |
-| Agent 可见性 | `openclaw skills check --agent main` → **Visible to model: 3** = `browser-automation`、`sfoa-crm-core`、`sfoa-record-change`。`agents.entries.main.skills` 仍为 `["sfoa-crm-core","browser-automation","sfoa-record-change"]`（**数组未被覆盖**，既有 `browser-automation` 保留）；`skills.entries` 仅两个 SFOA Skill 且 `enabled=true` |
+| Agent 可见性 | `openclaw skills check --agent main` → **Visible to model: 3** = `browser-automation`、`crm-core`、`crm-record-change`。`agents.entries.main.skills` 仍为 `["crm-core","browser-automation","crm-record-change"]`（**数组未被覆盖**，既有 `browser-automation` 保留）；`skills.entries` 仅两个 SFOA Skill 且 `enabled=true` |
 | Maintainer 隔离 | `/data/openclaw/workspace/skills/` 顶层**只有**两个业务 Skill；`find` 匹配 `*maintainer*` = 0；workspace 内 `*.mjs`/`*.js`/`scripts/` = 0；`openclaw skills info sfoa-mcp-maintainer --agent main` → `Skill not found`；运行中 Gateway 索引 `maintainer: false`。**未**使用 `cp -r skills/*` |
 | 刷新语义（本轮实测修正） | `skills.load`/`skills.watch` 均未设置、本轮未改配置（故日志中「skills snapshot invalidated by config change」未触发）、Gateway 进程仍是最初 pid；但 `openclaw gateway call skills.status --json`（答案来自运行进程）已返回**新的 151 字符 description**，且全新 session 经 Gateway 的一轮 UPDATE 意图探针已应用 `TARGET_RESOLVED` 等 02B 规则 → **无需重启**。注意 `openclaw skills list` 直读 workspace、不产生 Gateway 日志行，不能作为运行进程的证据 |
 | 会话探针 | 明确禁止写入的 UPDATE 意图探针：模型复述「明确的 UPDATE 意图（不是 CREATE）」「Gate 1 — TARGET_RESOLVED」「目标唯一解析前不生成也不提交 Patch」，并确认**未调用任何写入工具、未修改任何记录** |
 | ⚠️ 未做 | 本次**未**执行真实企业微信 UAT，**未**产生任何 Salesforce 业务记录。批量 UAT 前仍需在 Admin「Tool Governance」确认 `create_records` / `update_records` 已启用。02B **尚未合入 `main`**（`main` 仍为 `3adae7b`），因此「`main` == 服务器 `app/`」这一不变量在合并前暂时不成立 |
-| 回滚 | 恢复 Skill：`cp -a /data/openclaw/backups/20260915-095931-skill-02b-delivery/sfoa-record-change /data/openclaw/workspace/skills/`。恢复 app 子树：解回上述两个 `sfoa-app-*-02b-pre-*.tar.gz` 到 `app/`。无 DB 迁移不回滚，无需重启服务 |
+| 回滚 | 恢复 Skill：`cp -a /data/openclaw/backups/20260915-095931-skill-02b-delivery/crm-record-change /data/openclaw/workspace/skills/`。恢复 app 子树：解回上述两个 `sfoa-app-*-02b-pre-*.tar.gz` 到 `app/`。无 DB 迁移不回滚，无需重启服务 |
 
 ---
 
@@ -438,10 +438,10 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 
 | 项 | 值 |
 | --- | --- |
-| 部署内容 | `hotfix/openclaw-sfoa-record-change-02a-delivery` @ `345b739`（Skill-02A `sfoa-record-change` 交付 + `sfoa-crm-core` 同步 + OpenClaw WeCom/并发/多模态集成链），替换测试服务器上一版 `main` @ `3e19d9a`（P8-07 HOTFIX02） |
+| 部署内容 | `hotfix/openclaw-crm-record-change-02a-delivery` @ `345b739`（Skill-02A `crm-record-change` 交付 + `crm-core` 同步 + OpenClaw WeCom/并发/多模态集成链），替换测试服务器上一版 `main` @ `3e19d9a`（P8-07 HOTFIX02） |
 | 变更前版本识别 | 服务器无 `.git`，按**代码特征**判定：`packages/mcp-provider-sfoa-dml/dist/tools/batch-records.js` 存在（P8-07）、`packages/sfoa-mcp-server/dist/discovery-server.js` 存在（P8-06）、`dml-tool-facade.js` 含 `assertNoDuplicateBatchRecordIds`（HF02-02）→ 判定为 **`3e19d9a`**，与上一条部署记录及备份 `sfoa-app-pre-3e19d9a-20260910-170921.tar.gz` 一致 |
 | **运行时代码差异 = 0** | `git diff 3e19d9a..345b739 -- packages yarn.lock 'packages/sfoa-control-plane/migrations' .env.example config` 结果为空。该区间 111 个文件全部落在 `docs/sfoa`、`skills/`、`.claude`/`.agents`/`.codebuddy` 生成副本、`integrations/openclaw`，外加根 `package.json` 两个 `skill:runtime:*` 开发脚本。**故本次未清增量标记、未重建 workspace、未 `systemctl restart`** —— 重启对运行行为是 no-op，仅会增加无谓风险 |
-| 打包（⚠️ 本次修正） | `git archive` 会重新应用 `core.autocrlf`：本机 `core.autocrlf=true`，直接 `git archive HEAD` 产出的文本文件是 **CRLF**，与仓库 blob（LF）**不等价**（实测 `skills/sfoa-record-change/SKILL.md` 9576 B LF → 9643 B CRLF，+67 B = 行数）。**正确命令**：`git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz -o <name>.tar.gz <sha>`。旧流程从 Windows 检出打包会把 CRLF 带上服务器（本次在改动前的服务器备份中实测到 `skills/sfoa-mcp-maintainer/SKILL.md` 就是 CRLF），属**存量流程缺陷**，已一并修正 |
+| 打包（⚠️ 本次修正） | `git archive` 会重新应用 `core.autocrlf`：本机 `core.autocrlf=true`，直接 `git archive HEAD` 产出的文本文件是 **CRLF**，与仓库 blob（LF）**不等价**（实测 `skills/crm-record-change/SKILL.md` 9576 B LF → 9643 B CRLF，+67 B = 行数）。**正确命令**：`git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz -o <name>.tar.gz <sha>`。旧流程从 Windows 检出打包会把 CRLF 带上服务器（本次在改动前的服务器备份中实测到 `skills/sfoa-mcp-maintainer/SKILL.md` 就是 CRLF），属**存量流程缺陷**，已一并修正 |
 | 上传/校验 | `sfoa-app-lf-345b739-20260914-171645.tar.gz`（2,324,567 B，1102 个 tracked 文件）→ scp `/data/sfoa-enterprise-mcp/incoming/`；本机/服务器 sha256 一致（`eaa5210595644ed4961d83508674fe8420f6b99f32bc61c6ee793c17fdbfce1a`） |
 | 落盘方式 | 先解到 `staging-lf-345b739/`，再用 **`rsync -a`（不带 `--delete`）** 覆盖到 `app/`，因此服务器独有文件全部保留：`.env.local`、`.idea`、`projects`、`.temp`、`.workbuddy`、`.codegraph/codegraph.db*`、`.claude/settings.local.json`、`node_modules`、各包 `dist` |
 | 依赖 | `yarn.lock` 与根 `package.json` 依赖段无变化 → **未重装** node_modules |
@@ -451,10 +451,10 @@ Salesforce 写入仍按实际缺项标 NOT RUN；修复后的可信企微只读�
 | 服务 | **未重启**。`sfoa-mcp-server`、`sfoa-admin-api`、`openclaw-gateway` 三服务 `active`；`/health` **200**；`/admin/api/ready` **200**（Admin API 实际监听 **127.0.0.1:8081**，`8080` 上取该路径是 404，勿误判） |
 | 备份 | 部署前 app → `/data/sfoa-enterprise-mcp/backup/sfoa-app-pre-345b739-20260914-171541.tar.gz`（9,369,900 B，1717 文件，sha256 `637910ff0d244b9b7626863df23ff30af3b8a95898a91a5bdb8ae0403bdd72f5`） |
 | 字节级验证 | 以 HEAD 的 1102 个 blob 内容生成 sha256 清单，在服务器 `app/` 下 `sha256sum -c`：**OK 1102 / FAILED 0 / MISSING 0**。即部署树与仓库字节**完全一致** |
-| Skill 校验 | `yarn skill:check` → `ok:true`、`drift:[]`（3 个 canonical Skill 与其 `.claude`/`.agents`/`.codebuddy` 生成副本一致）；`yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills` → 两个业务 Skill 均 `ok:true`、`drift:[]`；独立 `diff -rq` 复核 `sfoa-crm-core`（9）+ `sfoa-record-change`（7）= **16/16 文件字节相同** |
+| Skill 校验 | `yarn skill:check` → `ok:true`、`drift:[]`（3 个 canonical Skill 与其 `.claude`/`.agents`/`.codebuddy` 生成副本一致）；`yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills` → 两个业务 Skill 均 `ok:true`、`drift:[]`；独立 `diff -rq` 复核 `crm-core`（9）+ `crm-record-change`（7）= **16/16 文件字节相同** |
 | 机器门禁 | `node --test skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs`：本机 **32/32 pass**，服务器 `app/` 部署树同样 **32/32 pass** |
 | OpenClaw 插件 | `/data/openclaw/plugins/sfoa-wecom-mcp-adapter` 的 `openclaw.plugin.json`(`857a3b04…`)、`src/index.js`(`eb92ac47…`)、`src/resolver.js`(`ac3909a3…`) 与 HEAD 逐一相同 → **无需重发** |
-| Agent 可见性 | `agents.entries.main.skills` = `["sfoa-crm-core","browser-automation","sfoa-record-change"]`；`skills.entries` 仅两项且 `enabled:true`；`sfoa-crm-core`/`sfoa-record-change` 均 `eligible:true, modelVisible:true`；业务 workspace `/data/openclaw/workspace/skills/` **只含这两个 Skill，`sfoa-mcp-maintainer` 不在其中** |
+| Agent 可见性 | `agents.entries.main.skills` = `["crm-core","browser-automation","crm-record-change"]`；`skills.entries` 仅两项且 `enabled:true`；`crm-core`/`crm-record-change` 均 `eligible:true, modelVisible:true`；业务 workspace `/data/openclaw/workspace/skills/` **只含这两个 Skill，`sfoa-mcp-maintainer` 不在其中** |
 | 合并 | 部署验证通过后 `main` 以 **fast-forward** 合入本分支并推送（合并前 `main` = `origin/main` = `25a15ce`，是本分支 tip 的祖先，`HEAD..main` 计数为 0 → 无冲突、无合并提交）。此次 FF 同时把 OpenClaw 测试服基线 / WeCom→SFOA 集成 / 并发·联网 / 多模态 / Skill-01/02A 全部带入 `main` |
 | 回滚 | 停服 → 解回上述 `sfoa-app-pre-345b739-20260914-171541.tar.gz` 到 `app/` → `systemctl restart sfoa-mcp-server sfoa-admin-api`；DB 无迁移不回滚 |
 | 一致性 | 本条记录所在的提交（及其后的记录修订）随同 fast-forward 一并进入 `main`，并且服务器 `app/` 也重新同步到**同一个提交**。因此 `main` 的 tip 与测试服务器 `app/` 逐字节一致；如需核对，按 §3.5 用该提交的 sha256 清单跑 `sha256sum -c` |
@@ -703,7 +703,7 @@ git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz \
 
 > `git archive` 只导出该提交的 tracked 文件，天然不含 `node_modules`/`.git`/`dist`/`.env.local`/`*.pem`/`*.key`/`*.tsbuildinfo`/`.wireit`，无需手工排除。
 >
-> **`-c core.autocrlf=false -c core.eol=lf` 不是可选项。** 本机 `core.autocrlf=true`，不带这两个开关时 `git archive` 会把文本文件重新写成 CRLF：实测 `skills/sfoa-record-change/SKILL.md` 由 9576 B（LF）变成 9643 B（CRLF，+67 B = 行数）。这会让服务器上的 `skills/` 与 OpenClaw runtime 副本、以及 `skill:check` / `skill:runtime:check` 的逐字节比较全部产生**假漂移**。部署后必须用 §3.5 的清单校验确认。
+> **`-c core.autocrlf=false -c core.eol=lf` 不是可选项。** 本机 `core.autocrlf=true`，不带这两个开关时 `git archive` 会把文本文件重新写成 CRLF：实测 `skills/crm-record-change/SKILL.md` 由 9576 B（LF）变成 9643 B（CRLF，+67 B = 行数）。这会让服务器上的 `skills/` 与 OpenClaw runtime 副本、以及 `skill:check` / `skill:runtime:check` 的逐字节比较全部产生**假漂移**。部署后必须用 §3.5 的清单校验确认。
 
 **备选（直接归档工作区，仅在不按提交导出时使用）**：
 
@@ -1654,7 +1654,7 @@ which is exactly `b4e3453`'s version. So the T5 archive re-based that file onto 
 T4 sync trail no longer has to be reasoned about when reading the app tree.
 
 **What shipped.** Playbook **1.10.0** with the data-completeness contract, and its five
-`agent:sync` artifacts; the `sfoa-data-analysis` Skill (canonical under `skills/`, plus its three
+`agent:sync` artifacts; the `crm-data-analysis` Skill (canonical under `skills/`, plus its three
 generated copies); and the two `sfoa-admin-web` drift-gate literals that had to follow the new
 version. The `@sfoa/mcp-provider-sfoa-data` and `@sfoa/mcp-provider-sfoa-context` packages are
 byte-identical to what T4 deployed.
@@ -1743,7 +1743,7 @@ by pid. The same holds for the audit runners below. This is a property of the te
 **Follow-ups, in the order they happened.** The acceptance report was written first
 ([P9_ACCEPTANCE_REPORT.md](P9_ACCEPTANCE_REPORT.md)), then:
 
-1. **The host side of the same contract.** The `sfoa-data-analysis` Skill and the regenerated `sfoa`
+1. **The host side of the same contract.** The `crm-data-analysis` Skill and the regenerated `sfoa`
    connector Skill were synced into the OpenClaw workspace on this same server, and the Skill was
    added to the `main` Agent's allowlist. That is a different surface from the four in the table
    above and is recorded in

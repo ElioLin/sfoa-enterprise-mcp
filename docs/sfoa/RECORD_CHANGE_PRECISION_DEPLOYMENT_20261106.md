@@ -25,7 +25,7 @@
 
 - Linux 精确表单专项：**101/101 PASS**；Linux Skills：**88/88 PASS**；`skill:check`、`skill:delivery`、`agent:check` 与数据库版本检查通过。开发阶段的更大范围测试及真实只读 Provider 结果见[实现报告](RECORD_CHANGE_PRECISION_20261106.md)，不混作本轮服务器测试数量。
 - 发布前后实际 MCP 发现结果：同样 29 个工具；变化限定为 `get_record_action_context`、`create_record`、`update_record`、`create_records`、`update_records` 的表单输入；根层 `formContext` 非必填，批量通过逐条结构携带。无其他工具输入契约漂移。
-- 实际 Gateway 新会话 `e1bea8eb-0ab5-4464-9aa2-958df347d2ac` 只调用 `read`，完整读取 `sfoa-record-change/SKILL.md` **25047 B** 和 `references/precise-forms.md` **7778 B**，正文与运行文件一致；模型回答版本 1.14.0，并说明不能去掉 `formContext` 绕过关键 UNKNOWN。没有发送渠道消息或调用 Salesforce 业务工具。
+- 实际 Gateway 新会话 `e1bea8eb-0ab5-4464-9aa2-958df347d2ac` 只调用 `read`，完整读取 `crm-record-change/SKILL.md` **25047 B** 和 `references/precise-forms.md` **7778 B**，正文与运行文件一致；模型回答版本 1.14.0，并说明不能去掉 `formContext` 绕过关键 UNKNOWN。没有发送渠道消息或调用 Salesforce 业务工具。
 - 浏览器实际登录测试环境，确认 Canonical Playbook、Dify/WeCom 生成文本为 1.14.0，并检查审计与旧页面上下文入口。浏览器验证使用 SSH 转发的服务器 HTTP 服务；本机直接访问测试域名 9000 端口超时，因此不把该验证当作直连网络可用的证明。
 - 脱敏汇总：[部署证据](evidence/record-change-precision-deployment-20261106.json)。服务器原始探针、构建/测试日志位于 `/data/sfoa-enterprise-mcp/evidence/precision-deploy-20261106`，私密登录/会话结果不进入 Git。
 

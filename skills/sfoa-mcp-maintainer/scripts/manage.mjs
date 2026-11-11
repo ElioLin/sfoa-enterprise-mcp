@@ -218,7 +218,7 @@ async function verifyPackageCompleteness({ projectRoot, canonicalDir }) {
  * OpenClaw workspace。开发侧 Skill（DEVELOPER_SKILL_NAMES）永远不得进入
  * 这个列表，也不得因为「方便同步」而把整个 `skills/*` 复制到 Runtime。
  */
-export const BUSINESS_SKILL_ALLOWLIST = Object.freeze(['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis', 'sfoa-org-diagnostics']);
+export const BUSINESS_SKILL_ALLOWLIST = Object.freeze(['crm-core', 'crm-record-change', 'crm-data-analysis', 'crm-org-diagnostics']);
 
 /**
  * 开发侧 Skill：随 `skill:sync` 复制到三个开发客户端根目录，但永远不发布到业务

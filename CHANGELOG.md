@@ -173,7 +173,7 @@
   `:8081/admin/api/health` UP), and the admin-web bundle was rebuilt from the same commit and deployed
   over the 2026-09-29 build, so the console UI now serves the P10 build (previous bundle kept in
   `backup/`).
-- **`sfoa-org-diagnostics` is published to the test server's OpenClaw** (2026.9.5). `runtime-sync`
+- **`crm-org-diagnostics` is published to the test server's OpenClaw** (2026.9.5). `runtime-sync`
   copied the Skill into `/data/openclaw/workspace/skills/` (`SKILL.md` sha256 `3dec5151…`, the
   repository's own bytes), one validated `openclaw config patch` added it to **both** allowlists
   (`skills.entries` and `agents.entries.main.skills`) and reported the change applies **without a
@@ -201,7 +201,7 @@
 
 # SFoA P10 Diagnostic Depth — T6 the diagnostics Skill, Playbook 1.11.0, and an acceptance run that measured the platform (2026-10-09)
 
-- Deliver **GAP-M6**: `sfoa-org-diagnostics`, the methodology the six P10 Tools exist to serve. Five
+- Deliver **GAP-M6**: `crm-org-diagnostics`, the methodology the six P10 Tools exist to serve. Five
   symptom classes (data / permission / configuration / code / platform), **one deterministic evidence
   path per class**, and the duties that make a diagnosis checkable: cite the component `fullName`, the
   log line, the audit timestamp or the authorization chain — a conclusion without one is not a
@@ -569,7 +569,7 @@
   five `agent:sync` generated artifacts (including the 小犇 instruction
   `docs/agent/DIFY_AGENT_INSTRUCTION.md`) carry `Playbook-Version: 1.10.0` and
   `agent:check` reports no drift.
-- Add `skills/sfoa-data-analysis`, the business Skill the P9 contract needs: hard
+- Add `skills/crm-data-analysis`, the business Skill the P9 contract needs: hard
   rules for the completeness declaration and for what `truncated` forbids, the
   three escalation paths out of a truncated result (aggregate, Bulk, narrow the
   scope), the rule that untrusted field content stays data, and explicit
@@ -605,8 +605,8 @@
   [docs/sfoa/P9_ACCEPTANCE_REPORT.md](docs/sfoa/P9_ACCEPTANCE_REPORT.md).
 - Sync the host that consumes the contract, not just the server that serves it.
   `skill:runtime:sync` published all three business Skills into the OpenClaw
-  workspace — the new `sfoa-data-analysis` plus refreshed `sfoa-crm-core` and
-  `sfoa-record-change` — with `runtime-check` reporting no drift and each SKILL.md
+  workspace — the new `crm-data-analysis` plus refreshed `crm-core` and
+  `crm-record-change` — with `runtime-check` reporting no drift and each SKILL.md
   byte-identical between the canonical tree and the workspace copy. The connector
   Skill produced by `skill:export`, still announcing **1.9.0 / 15 Tools** from its
   09-23 install, was regenerated at **1.10.0 / 22 Tools**; because files are not
@@ -633,7 +633,7 @@
   gitignored because the package is regenerable and must not become a second
   source of truth. Runtime tools, governance and schemas are unchanged
   (`MCP Runtime changed: NO`).
-- Add `skills/sfoa-crm-core/references/summary-navigation.md` (routed from the
+- Add `skills/crm-core/references/summary-navigation.md` (routed from the
   Skill's reference list): the post-mutation summary and record-navigation
   template absorbed from the evaluated MuleRun Salesforce skill, hardened to
   this runtime — proven links only via `get_record_links` or tool-returned
@@ -643,7 +643,7 @@
 - Add `docs/sfoa/SFOA_SKILL_EXPORT_PACKAGE.md` recording the MuleRun evaluation
   verdict (absorb the packaging methodology and template; do not import the
   vendored `smn2gnt/MCP-Salesforce` server), the ownership finding that
-  `.codebuddy/skills/sfoa-salesforce-assistant` is an `agent:sync` generated
+  `.codebuddy/skills/crm-playbook` is an `agent:sync` generated
   artifact and must not be canonicalized, the OpenClaw onboarding path that
   supplements (not replaces) `skill:runtime:sync`, and the removal story.
 - Extend `skills/sfoa-mcp-maintainer/scripts/toolkit.test.mjs` with three
@@ -739,7 +739,7 @@
   without a database; and a gate now drives the real upload inside a request
   audit context and requires the finalised snapshot to satisfy it. Reintroducing
   the old field was confirmed to make that gate fail.
-- Extend the existing `sfoa-record-change` Skill rather than adding a new one: a
+- Extend the existing `crm-record-change` Skill rather than adding a new one: a
   single activation line in `SKILL.md` and a new `references/file-attachments.md`
   holding the attachment doctrine (only attachment-enabled objects; create first;
   a CREATE `OUTCOME_UNKNOWN` forbids upload; an attachment `FAILED` does not undo a
@@ -759,7 +759,7 @@
   search-versus-fetch semantics. Add an editorial contract guard, separate from
   runtime and real WeCom acceptance. No MCP/identity/DML implementation changes.
 
-- Establish the SFOA Skill Suite baseline and implement only `sfoa-crm-core`,
+- Establish the SFOA Skill Suite baseline and implement only `crm-core`,
   with separate hard boundaries and flexible evidence/tool-selection guidance.
 - Extend existing Skill delivery to multiple canonical sources without copying
   maintainer tooling into business Skills. Preserve maintainer-specific gates.

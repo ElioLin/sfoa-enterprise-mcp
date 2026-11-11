@@ -17,7 +17,7 @@
 | Item | Value |
 | --- | --- |
 | Repository | `D:\GitProject\sfoa-enterprise-mcp` |
-| Working branch | `feature/openclaw-sfoa-record-change-02b` @ `ce800c20fc59a77f11778728073c1af2bf2cefa1` |
+| Working branch | `feature/openclaw-crm-record-change-02b` @ `ce800c20fc59a77f11778728073c1af2bf2cefa1` |
 | `main` | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1` |
 | Working tree | clean except the untracked probe script |
 | Test server | `crm-ex-test02` / `192.168.156.203`, deployed tree at `4b3b2ff` |
@@ -36,7 +36,7 @@ Built: one workspace probe script and this report.
 
 **Not built, per the task boundary:** `upload_files_to_record`, any Attachment Bridge, Skill-02C, `attachmentEnabled`, any Admin UI, any file-type allowlist, any file-size matrix, any second authentication mechanism.
 
-**Not modified:** the Generic DML Strategy (`sfoa_dml_policy` / `MCP_DML_ALLOWLIST_JSON`), `sfoa-record-change` (Skill-02), OpenClaw, the WeCom Plugin, any runtime package under `packages/`.
+**Not modified:** the Generic DML Strategy (`sfoa_dml_policy` / `MCP_DML_ALLOWLIST_JSON`), `crm-record-change` (Skill-02), OpenClaw, the WeCom Plugin, any runtime package under `packages/`.
 
 The probe adds nothing to Runtime: it imports the project's existing compiled packages and calls the same request-scoped identity path the production server uses.
 

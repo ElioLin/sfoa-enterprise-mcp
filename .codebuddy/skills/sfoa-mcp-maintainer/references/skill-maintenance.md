@@ -29,18 +29,18 @@ any canonical Skill but belongs to `DEVELOPER_SKILL_NAMES` in `manage.mjs`, so
 and `BUSINESS_SKILL_ALLOWLIST` partition `skills/*`; `toolkit.test.mjs` fails when a
 canonical Skill belongs to neither, or when a developer Skill is allowlisted.
 
-`skills/sfoa-crm-core` is business guidance for OpenClaw. Its runtime destination
-is `/data/openclaw/workspace/skills/sfoa-crm-core`; deploy from canonical bytes,
+`skills/crm-core` is business guidance for OpenClaw. Its runtime destination
+is `/data/openclaw/workspace/skills/crm-core`; deploy from canonical bytes,
 back up existing Skills/configuration, verify the current OpenClaw configuration
 schema and main eligible list, then validate actual Skill reads in Runs.
 Development-client copies are not the business runtime allowlist: ordinary main
 must not expose `sfoa-mcp-maintainer`. Suite policy and runtime evidence live in
 `docs/sfoa/SFOA_OPENCLAW_SKILLS_BASELINE.md` and `SFOA_CRM_CORE_SKILL.md` in the repo.
 
-`skills/sfoa-record-change` is the second business Skill (Skill-02: readiness
+`skills/crm-record-change` is the second business Skill (Skill-02: readiness
 kernel + CREATE + UPDATE + batch mutation + outcome reconciliation). Its runtime
-destination is `/data/openclaw/workspace/skills/sfoa-record-change`, and the
-ordinary main allowlist carries it alongside `sfoa-crm-core` only. Business Skills
+destination is `/data/openclaw/workspace/skills/crm-record-change`, and the
+ordinary main allowlist carries it alongside `crm-core` only. Business Skills
 are guidance only: they carry no `scripts/` and no `agents/openai.yaml`, and they
 must never name `sfoa-mcp-maintainer`. `toolkit.test.mjs` enforces both, plus a
 label/content marker contract per readiness rule and a no-hardcoding guard, so a
@@ -145,8 +145,8 @@ SHA-256 comparison and `modelVisible` result in the phase report.
 
 Resolve the actual running configuration/workspace first; the historical
 /data/openclaw/workspace/skills path above is a clue, not current proof. The
-canonical business suite is exactly sfoa-crm-core, sfoa-record-change,
-sfoa-data-analysis and sfoa-org-diagnostics. Never deploy this maintainer Skill or
+canonical business suite is exactly crm-core, crm-record-change,
+crm-data-analysis and crm-org-diagnostics. Never deploy this maintainer Skill or
 its test oracle to a business Agent. record-change-gates.mjs and
 task-autonomy.test.mjs are test models only and never enter Runtime.
 

@@ -1,5 +1,5 @@
 /**
- * Executable decision model for the `sfoa-record-change` business Skill.
+ * Executable decision model for the `crm-record-change` business Skill.
  *
  * Purpose: turn the Skill's Hard Rules into a runnable reference implementation so the machine gate
  * asserts *behaviour* instead of only asserting that doctrine text exists. This module is a test

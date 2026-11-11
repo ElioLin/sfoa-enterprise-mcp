@@ -19,7 +19,7 @@ P9 六项能力共享同一个新 Provider 包，但复杂度差异大、可独�
 | T2 | `query_records`（有界自动翻页 + 结构化输出 + 错误结构化） | 高 | T1（同包） |
 | T3 | `get_org_limits` + `search_records`（SOSL） | 低 | T1（`get_org_limits` 现落在 context 包，见 ADR-0027） |
 | T4 | `submit_bulk_query` + `get_bulk_query_results`（Bulk API 2.0） | 高 | T1；建议 T3 之后（配额联动） |
-| T5 | Playbook 1.10.0 + 小犇指令 + `sfoa-data-analysis` skill + 文档收口 | 中 | T1–T4 |
+| T5 | Playbook 1.10.0 + 小犇指令 + `crm-data-analysis` skill + 文档收口 | 中 | T1–T4 |
 
 全部任务在同一分支线性推进（共享新包，禁止并行分支互相覆盖）。
 
@@ -297,12 +297,12 @@ feat(provider-sfoa-data): add bulk query 2.0 submit and fetch tools
 你是本仓库（D:\GitProject\sfoa-enterprise-mcp）的维护工程师，执行 P9 数据完备性计划的收口任务。
 前置：T1–T4 已完成并通过各自验收。分支 feature/p9-data-completeness。
 
-本任务目标：把 P9 新能力写进 Agent 操作契约（Playbook 1.10.0 与小犇指令）、新建 sfoa-data-analysis skill、完成文档与版本收口，并执行 P9 整体验收。
+本任务目标：把 P9 新能力写进 Agent 操作契约（Playbook 1.10.0 与小犇指令）、新建 crm-data-analysis skill、完成文档与版本收口，并执行 P9 整体验收。
 
 ## 必读
 1. packages/sfoa-agent-playbook/src/definition.ts、version.ts、renderer.ts、capabilities.ts（playbook 内容与版本机制；AGENT_INFRASTRUCTURE_TOOL_NAMES 的定义处）
-2. packages/sfoa-agent-playbook/scripts/sync-generated.mjs（生成物清单：.codebuddy/skills/sfoa-salesforce-assistant/*、docs/agent/DIFY_AGENT_INSTRUCTION.md（小犇指令）、docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md）
-3. skills/sfoa-crm-core/SKILL.md（顶层 canonical skill 的格式基准）
+2. packages/sfoa-agent-playbook/scripts/sync-generated.mjs（生成物清单：.codebuddy/skills/crm-playbook/*、docs/agent/DIFY_AGENT_INSTRUCTION.md（小犇指令）、docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md）
+3. skills/crm-core/SKILL.md（顶层 canonical skill 的格式基准）
 4. docs/sfoa/MCP_CAPABILITY_GAP_ANALYSIS_2026-09.md（P9 验收标准）
 5. CHANGELOG.md 最近 10 条条目的格式
 
@@ -318,10 +318,10 @@ feat(provider-sfoa-data): add bulk query 2.0 submit and fetch tools
    - version.ts 将 AGENT_PLAYBOOK_VERSION 从 1.9.0 升至 1.10.0。
    - 更新 packages/sfoa-agent-playbook 内的单元测试（版本断言、渲染快照、章节存在性）。
    - 执行：yarn workspace @sfoa/agent-playbook build && yarn agent:sync && yarn agent:check，确认 5 个生成物全部刷新且漂移检查 PASS（小犇指令 docs/agent/DIFY_AGENT_INSTRUCTION.md 头部应为 Playbook-Version: 1.10.0）。
-2. 新建 skills/sfoa-data-analysis/SKILL.md（顶层 canonical，格式对齐 skills/sfoa-crm-core/SKILL.md：frontmatter name/description + Hard Rules + Guidelines）：
+2. 新建 skills/crm-data-analysis/SKILL.md（顶层 canonical，格式对齐 skills/crm-core/SKILL.md：frontmatter name/description + Hard Rules + Guidelines）：
    - Hard Rules：完整性声明（覆盖率、truncated 语义）、禁止把部分结果说成全量、truncated 时的三条路径（聚合→bulk→缩小范围）、大结果不整段进上下文、Untrusted 字段内容规则、统计口径显式化（时间窗/过滤条件/币种等）。
    - Guidelines：先 COUNT 再明细、describe 自助流程、limits 前置检查、分页续取纪律（locator/nextRecordsUrl 的正确消费）。
-   - 同步副本到 .codebuddy/skills/sfoa-data-analysis/SKILL.md（与 sfoa-crm-core 的双处存放模式一致；如发现仓库有 skill 同步脚本则使用脚本，不要手抄出错）。
+   - 同步副本到 .codebuddy/skills/crm-data-analysis/SKILL.md（与 crm-core 的双处存放模式一致；如发现仓库有 skill 同步脚本则使用脚本，不要手抄出错）。
 3. 文档收口：
    - CHANGELOG.md 增加 P9 条目（新增包与 8 个工具、playbook 1.10.0、新 skill）。
    - docs/sfoa/MCP_CAPABILITY_GAP_ANALYSIS_2026-09.md 第 5 节 P9 表格追加状态列或在文首标注「P9 已交付（分支 feature/p9-data-completeness）」。
@@ -338,12 +338,12 @@ feat(provider-sfoa-data): add bulk query 2.0 submit and fetch tools
 
 ## 提交
 - feat(agent-playbook): publish playbook 1.10.0 with the data completeness contract
-- feat(skills): add the sfoa-data-analysis skill
+- feat(skills): add the crm-data-analysis skill
 - docs(sfoa): record the P9 acceptance evidence
 （可按实际拆合，但 playbook 与 skill 分开）
 
 ## 禁止事项
-- 禁止手改 docs/agent/ 与 .codebuddy/skills/sfoa-salesforce-assistant/ 下的生成物（只能经 yarn agent:sync 生成）；禁止把新工具写成默认启用；禁止在 skill 中写入任何环境特定值（org id、用户名、token）；禁止跳过 agent:check。
+- 禁止手改 docs/agent/ 与 .codebuddy/skills/crm-playbook/ 下的生成物（只能经 yarn agent:sync 生成）；禁止把新工具写成默认启用；禁止在 skill 中写入任何环境特定值（org id、用户名、token）；禁止跳过 agent:check。
 - 完成后输出：playbook 版本证据、agent:check 结果、skill 文件路径、整体验收摘要、分支最终 git log --oneline。
 ```
 

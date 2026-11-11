@@ -277,7 +277,7 @@ schema cannot express.
 
 P9's seven Tools are built, unit- and protocol-tested, deployed to `crm-ex-test02` behind Tool
 Governance and default-disabled, and pass all 11 live gates against the real org with three
-consecutive green runs. The Agent-facing contract (Playbook 1.10.0) and the `sfoa-data-analysis`
+consecutive green runs. The Agent-facing contract (Playbook 1.10.0) and the `crm-data-analysis`
 Skill are in the same deployment. Two defects were found by running the acceptance itself — a
 volatile-counter comparison in the org-limits gate, and the build order that had left the test
 server advertising Playbook 1.9.0 — and both are fixed and recorded rather than worked around. The

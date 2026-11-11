@@ -18,7 +18,7 @@ validation and single-Skill compatibility. Every canonical Skill gets byte copie
 in the three existing development-client roots and a separate ZIP. OpenClaw
 deployment is an explicit runtime target, independent of those development copies.
 
-Implement only `sfoa-crm-core` now: a concise discovery entrypoint, hard authority
+Implement only `crm-core` now: a concise discovery entrypoint, hard authority
 boundaries, evidence priorities and conditional references. Tool schemas, current
 Playbook / Action Context and Salesforce responses remain factual authorities.
 Agent planning and tool ordering remain flexible. Future record-change, analysis,

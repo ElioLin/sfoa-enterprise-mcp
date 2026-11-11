@@ -14,11 +14,11 @@
 
 | 项 | 值 |
 | --- | --- |
-| **02A FINAL branch** | `hotfix/openclaw-sfoa-record-change-02a-delivery` |
+| **02A FINAL branch** | `hotfix/openclaw-crm-record-change-02a-delivery` |
 | **02A FINAL SHA** | `345b7396a76d3bb718a94707b8323a7d915a597f` |
-| 02A feature branch / SHA | `feature/openclaw-sfoa-record-change-02a` / `ef80914`（tip，早于 FINAL） |
+| 02A feature branch / SHA | `feature/openclaw-crm-record-change-02a` / `ef80914`（tip，早于 FINAL） |
 | `main` / `origin/main` | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1` |
-| **02B branch** | `feature/openclaw-sfoa-record-change-02b` |
+| **02B branch** | `feature/openclaw-crm-record-change-02b` |
 | **02B base SHA** | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1`（= 当时 `main` = `origin/main`） |
 | **02B SHA（审查起点）** | `56261634cf6a8019365ff00dad5be7402d8224e2` |
 | **02B Skill 内容 SHA** | `4b3b2ff0d355272d3654264a962ac44bd3fcc3d4`（本轮审查的跨 Skill 事实修正提交；**此提交的 Skill 内容即为门禁验证与部署的字节**） |
@@ -41,20 +41,20 @@ git diff --name-only 345b739...5626163 -- packages yarn.lock \
 → （空）
 ```
 
-**改动全部落在**：`skills/sfoa-record-change/`、`skills/sfoa-mcp-maintainer/`（门禁与测试）、三处平台生成副本、`docs/sfoa/`。
+**改动全部落在**：`skills/crm-record-change/`、`skills/sfoa-mcp-maintainer/`（门禁与测试）、三处平台生成副本、`docs/sfoa/`。
 
 **未触碰**：MCP Runtime、P8-04、P8-05、P8-06、P8-07、Identity Route、WeCom、Generic DML、Tool Governance、Admin UI、Database、migrations、`yarn.lock`、`.env.example`、`integrations/`、`scripts/`。无需回退任何内容。
 
 ### 本轮审查新发现的偏差（已修正，需单独说明）
 
-审查中发现 **02B 使 `sfoa-crm-core` 的两处叙述变成事实错误**。两者都与 `sfoa-record-change` 在同一个 Agent turn 中被读取，留着就会让两个 Skill 互相矛盾：
+审查中发现 **02B 使 `crm-core` 的两处叙述变成事实错误**。两者都与 `crm-record-change` 在同一个 Agent turn 中被读取，留着就会让两个 Skill 互相矛盾：
 
 | 文件 | 原文 | 问题 |
 | --- | --- | --- |
-| `sfoa-crm-core/references/mutation-boundaries.md:15` | 「专门的就绪判断由 `sfoa-record-change` 承载（**当前覆盖 CREATE 与批量 CREATE**）」 | 02B 已加入 UPDATE 就绪、批量变更与结果核对，该括注低估了实际覆盖范围 |
-| `sfoa-crm-core/references/operating-principles.md:11` | 「**当前只实现 Core**；**未来** eligible `sfoa-record-change` 补充变更准备」 | 两个业务 Skill 都已实现并部署；Agent 读到这句可能**直接跳过 `sfoa-record-change`**，使集成 UAT 在最开始就失真 |
+| `crm-core/references/mutation-boundaries.md:15` | 「专门的就绪判断由 `crm-record-change` 承载（**当前覆盖 CREATE 与批量 CREATE**）」 | 02B 已加入 UPDATE 就绪、批量变更与结果核对，该括注低估了实际覆盖范围 |
+| `crm-core/references/operating-principles.md:11` | 「**当前只实现 Core**；**未来** eligible `crm-record-change` 补充变更准备」 | 两个业务 Skill 都已实现并部署；Agent 读到这句可能**直接跳过 `crm-record-change`**，使集成 UAT 在最开始就失真 |
 
-修正方式：只改这两处事实，不改任何 Hard Rule、不动 02A/02B 门禁断言依赖的任何标记、不改 `sfoa-record-change` 的任何文件。属「纠正事实」，不是扩展功能，也不是 doctrine 变更。此修正使本轮 diff 超出「预期范围」一个文件组，理由如上。
+修正方式：只改这两处事实，不改任何 Hard Rule、不动 02A/02B 门禁断言依赖的任何标记、不改 `crm-record-change` 的任何文件。属「纠正事实」，不是扩展功能，也不是 doctrine 变更。此修正使本轮 diff 超出「预期范围」一个文件组，理由如上。
 
 ---
 
@@ -62,8 +62,8 @@ git diff --name-only 345b739...5626163 -- packages yarn.lock \
 
 ```text
 skills/                                  ← 唯一 canonical source
-  sfoa-crm-core/                         9 文件（含 8 references）
-  sfoa-record-change/                    9 文件
+  crm-core/                         9 文件（含 8 references）
+  crm-record-change/                    9 文件
     SKILL.md                             37 Hard Rules + CREATE/UPDATE 差异表 + CHANGE_READY 摘要 + 路由
     references/
       readiness-gate.md                  CREATE 与 UPDATE 两张 blocking 表
@@ -77,7 +77,7 @@ skills/                                  ← 唯一 canonical source
   sfoa-mcp-maintainer/                   （开发运维 Skill，永不进入业务 workspace）
 ```
 
-- **仍然只有一个业务 mutation Skill**：`sfoa-record-change`。**不存在** `sfoa-record-change-02a` / `-02b` 两个 Runtime Skill（`find skills -maxdepth 1 -type d -name "*02*"` 为空）。
+- **仍然只有一个业务 mutation Skill**：`crm-record-change`。**不存在** `crm-record-change-02a` / `-02b` 两个 Runtime Skill（`find skills -maxdepth 1 -type d -name "*02*"` 为空）。
 - Skill 同时覆盖 CREATE + UPDATE + Batch + Outcome Reconciliation。
 - 旧 `references/outcomes.md` 已删除（被职责扩展后的 `outcome-reconciliation.md` 取代），canonical 与全部副本中均不存在。
 
@@ -144,8 +144,8 @@ skills/                                  ← 唯一 canonical source
 
 | 位置 | 部署前事实 |
 | --- | --- |
-| `/data/openclaw/workspace/skills/sfoa-record-change/` | **7 文件，仍是 02A**：含 `references/outcomes.md`，SKILL.md 9576 B、sha256 `c7354635…`、不含 `UPDATE != CREATE` |
-| `/data/sfoa-enterprise-mcp/app/skills/sfoa-record-change/` | 同上（7 文件，sha `c7354635…`） |
+| `/data/openclaw/workspace/skills/crm-record-change/` | **7 文件，仍是 02A**：含 `references/outcomes.md`，SKILL.md 9576 B、sha256 `c7354635…`、不含 `UPDATE != CREATE` |
+| `/data/sfoa-enterprise-mcp/app/skills/crm-record-change/` | 同上（7 文件，sha `c7354635…`） |
 
 即：**「GitHub 已 push」并不等于「OpenClaw 已部署」**，本轮正是这个缺口。
 
@@ -153,7 +153,7 @@ skills/                                  ← 唯一 canonical source
 
 | 步骤 | 事实 |
 | --- | --- |
-| 备份（runtime Skill） | `/data/openclaw/backups/20260915-095931-skill-02b-delivery/sfoa-record-change/`（7 文件，02A 版本完整保留） |
+| 备份（runtime Skill） | `/data/openclaw/backups/20260915-095931-skill-02b-delivery/crm-record-change/`（7 文件，02A 版本完整保留） |
 | 备份（app 可达子树） | `sfoa-app-skills-02b-pre-20260915-095931.tar.gz`（89,387 B）、`sfoa-app-docs-02b-pre-20260915-095931.tar.gz`（652,098 B）。**未**做 5.6 G 全量 app 打包（含 node_modules/dist，无必要），只备份本次可能改动的子树，理由与范围在报告中如实说明 |
 | 打包 | `git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz 4b3b2ff`，2,446,821 B，1344 entries，sha256 `9cde97603eed890573e391f6de7e06024345dc53a87721be1cc61c12176f17fc`；实测 SKILL.md `crlf=0 / loneLf=118`（纯 LF） |
 | 上传校验 | 服务器侧 sha256 与本地**一致** |
@@ -166,12 +166,12 @@ skills/                                  ← 唯一 canonical source
 
 | Skill | canonical 文件 | runtime 文件 | 结果 |
 | --- | --- | --- | --- |
-| `sfoa-crm-core` | 9 | 9 | **BYTE-IDENTICAL: PASS**（`diff -r` 无差异） |
-| `sfoa-record-change` | 9 | 9 | **BYTE-IDENTICAL: PASS** |
+| `crm-core` | 9 | 9 | **BYTE-IDENTICAL: PASS**（`diff -r` 无差异） |
+| `crm-record-change` | 9 | 9 | **BYTE-IDENTICAL: PASS** |
 
 另有 **22/22** 项 doctrine 探针在 runtime 副本中 `OK`（`missing: 0`），包括 `UPDATE != CREATE`、`Target before Patch`、`Minimal Patch`、`Omitted != null`、`CREATE Required != UPDATE Required`、`TARGET_RESOLVED`、`fieldUpdateable`/`layoutEditableForUpdate`、`∀ record: CHANGE_READY(record) == true`、`MCP_DML_BATCH_DUPLICATE_RECORD_ID`、`200 + 200 + 100`、`FAILED != UNKNOWN`、`Read-Back != Transaction Success`、`no automatic replay`、`停止后续 batch`、`draftFields and refinement are CREATE-only`。
 
-旧 `outcomes.md`：runtime `0` 处、app skills `0` 处。runtime workspace 顶层**只有** `sfoa-crm-core` 与 `sfoa-record-change`。
+旧 `outcomes.md`：runtime `0` 处、app skills `0` 处。runtime workspace 顶层**只有** `crm-core` 与 `crm-record-change`。
 
 ### 6.4 OpenClaw Skill Discovery 与业务 Agent 可见性
 
@@ -181,19 +181,19 @@ openclaw skills check --agent main
   Total: 71   ✓ Eligible: 34   ✓ Visible to model: 3   ✗ Missing requirements: 37
   Ready and visible to model:
     browser-automation
-    sfoa-crm-core
-    sfoa-record-change
+    crm-core
+    crm-record-change
 ```
 
-- `sfoa-record-change`：`modelVisible=true`、`eligible=true`、`blockedByAgentFilter=false`、`source=openclaw-workspace`
-- `sfoa-crm-core`：同上
-- 业务 Agent **能**看到：`sfoa-crm-core`、`sfoa-record-change` ✅
+- `crm-record-change`：`modelVisible=true`、`eligible=true`、`blockedByAgentFilter=false`、`source=openclaw-workspace`
+- `crm-core`：同上
+- 业务 Agent **能**看到：`crm-core`、`crm-record-change` ✅
 
 ### 6.5 Maintainer Isolation
 
 | 检查 | 结果 |
 | --- | --- |
-| `/data/openclaw/workspace/skills/` 目录列表 | `sfoa-crm-core`、`sfoa-record-change`（仅此二项） |
+| `/data/openclaw/workspace/skills/` 目录列表 | `crm-core`、`crm-record-change`（仅此二项） |
 | `find` 匹配 `*maintainer*` | 0 |
 | workspace 内 `*.mjs` / `*.js` / `scripts/` | 0 |
 | `openclaw skills check` 可见列表中的 maintainer | 0 |
@@ -205,8 +205,8 @@ openclaw skills check --agent main
 
 ```text
 agents.defaults.skills        = null
-agents.entries.main.skills    = ["sfoa-crm-core","browser-automation","sfoa-record-change"]
-skills.entries                = sfoa-crm-core:enabled=true, sfoa-record-change:enabled=true
+agents.entries.main.skills    = ["crm-core","browser-automation","crm-record-change"]
+skills.entries                = crm-core:enabled=true, crm-record-change:enabled=true
 ```
 
 既有的 `browser-automation` 被保留，整个数组未被覆盖。
@@ -215,8 +215,8 @@ skills.entries                = sfoa-crm-core:enabled=true, sfoa-record-change:e
 
 按「新 session 优先」的证据顺序执行：
 
-1. **新 session 探针**：以全新 `--session-id` 经 Gateway 跑一轮明确禁止写入的 UPDATE 意图（`"我要修改一条 Salesforce 记录…不要调用任何写入工具"`）。结果：模型回应「这次是明确的 UPDATE 意图（不是 CREATE）…按 `sfoa-record-change` 的 UPDATE 就绪规则准备」「Gate 1 — TARGET_RESOLVED」「在目标记录唯一解析之前，我不会生成也不提交任何 Patch」，并确认**未调用任何写入工具、未修改任何记录**。上下文包含 `sfoa-record-change` 与 `sfoa-crm-core`，**不含** maintainer，也**不含**已修正的两句旧文案。
-2. **运行中 Gateway 自身索引**：`openclaw gateway call skills.status --json`（答案来自运行进程）返回 `sfoa-record-change` description 长度 **151**、含 `最小 Patch` 与 `CREATE/UPDATE` —— 已是 02B 版本。
+1. **新 session 探针**：以全新 `--session-id` 经 Gateway 跑一轮明确禁止写入的 UPDATE 意图（`"我要修改一条 Salesforce 记录…不要调用任何写入工具"`）。结果：模型回应「这次是明确的 UPDATE 意图（不是 CREATE）…按 `crm-record-change` 的 UPDATE 就绪规则准备」「Gate 1 — TARGET_RESOLVED」「在目标记录唯一解析之前，我不会生成也不提交任何 Patch」，并确认**未调用任何写入工具、未修改任何记录**。上下文包含 `crm-record-change` 与 `crm-core`，**不含** maintainer，也**不含**已修正的两句旧文案。
+2. **运行中 Gateway 自身索引**：`openclaw gateway call skills.status --json`（答案来自运行进程）返回 `crm-record-change` description 长度 **151**、含 `最小 Patch` 与 `CREATE/UPDATE` —— 已是 02B 版本。
 3. **配置状态**：`skills.load = null`、`skills.watch = null`；`skills.entries` 本轮未改动，因此日志中「skills snapshot invalidated by config change」这一自动失效路径未被触发；Gateway 进程仍是最初的 pid。
 
 结论：**本轮 description 与 body 变更都已被运行中的 Gateway 反映，无需重启。** 这修正了 02A 记录中「description 变更需要重启」的认知，已写入 maintainer 的技能维护参考。
@@ -254,7 +254,7 @@ skills.entries                = sfoa-crm-core:enabled=true, sfoa-record-change:e
 | Runtime Copy PASS | ✅ canonical↔runtime BYTE-IDENTICAL |
 | Canonical/runtime drift | ✅ `drift: []` |
 | OpenClaw skills discovery PASS | ✅ Visible to model: 3 |
-| Business Agent sees `sfoa-crm-core` + `sfoa-record-change` | ✅ |
+| Business Agent sees `crm-core` + `crm-record-change` | ✅ |
 | Business Agent does NOT see `sfoa-mcp-maintainer` | ✅（目录、find、CLI check、live gateway index 四重确认） |
 
 ```text

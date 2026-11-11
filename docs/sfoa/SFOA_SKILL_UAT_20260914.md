@@ -58,7 +58,7 @@ P7：COUNT `788c1e74-f46c-448c-8361-eacd68846d40`，明细 `445aac7d-e7e3-4fd2-a
 
 Auto invocation PASS（首次正文读取、后续摘要复用）；当前身份/MCP/Web链路 PASS。本轮没有新增图片/PDF企微场景，不能给新的多模态 E2E PASS。原反例、显式调用和 Skill delivery gates 沿用已记录且未修改实现的验证结果，不因本次文档更新重复运行。
 
-**STATUS 保持 PARTIAL。** 下一步先修复并验证 Core 的“查询范围与结论范围一致”问题；随后按已有条件授权进入 `sfoa-record-change`，以本轮和 [9 月 13 日基线](SFOA_SKILL_UAT_20260913.md)覆盖字段完整性、前置条件 refinement、Record Type、managed/default、UNKNOWN、截断及 READY Gate。不得以 Skill 已读取替代输出正确性验收，也不得宣称尚未实现的专业 Skill 已完成。
+**STATUS 保持 PARTIAL。** 下一步先修复并验证 Core 的“查询范围与结论范围一致”问题；随后按已有条件授权进入 `crm-record-change`，以本轮和 [9 月 13 日基线](SFOA_SKILL_UAT_20260913.md)覆盖字段完整性、前置条件 refinement、Record Type、managed/default、UNKNOWN、截断及 READY Gate。不得以 Skill 已读取替代输出正确性验收，也不得宣称尚未实现的专业 Skill 已完成。
 
 ## HOTFIX01 final UAT（独立于上文历史失败）
 
@@ -70,7 +70,7 @@ HOTFIX01 新版验收进行中，旧 Run 不变更为 PASS。最终必须保留�
 
 ## HOTFIX02 — Full Population Analytics / Data Completeness
 
-2026-09-14 基于远端 `origin/feature/openclaw-sfoa-skill-foundation` 的 `c195afe1` 开始。fetch / status / branch -a / -vv / log 确认干净同步，main 仍为 `25a15ce4` 未合入，故 Base 取该 feature 分支。HOTFIX Branch：`hotfix/openclaw-sfoa-crm-core-data-completeness`。
+2026-09-14 基于远端 `origin/feature/openclaw-sfoa-skill-foundation` 的 `c195afe1` 开始。fetch / status / branch -a / -vv / log 确认干净同步，main 仍为 `25a15ce4` 未合入，故 Base 取该 feature 分支。HOTFIX Branch：`hotfix/openclaw-crm-core-data-completeness`。
 
 ### 本轮直接针对的历史失败
 
@@ -82,7 +82,7 @@ Core 入口新增第三条 Hard Rule **Full Population Analytics**：要求总�
 
 新增 `references/data-completeness.md`：三个 Scope 的定义与不变量、Minimal Sufficient Full-Scope Evidence、NULL / Blank 结论需总记录数与非空计数对比、TOP_N / SAMPLE 的合法性、默认「查数据」行为、「列出全部」与「分析全部」的区分、Row-level 全量语义分析的分批覆盖与「禁止编造 paginationToken / cursor / page」、COMPLETE / PARTIAL / TOP_N / SAMPLE / UNKNOWN 状态、用户可见的「总量 / 分析范围 / 展示范围」提示、Previous Run Population 复用前六项核对、Web Search 同样受 Scope 约束。`query-guidance.md` 与 `evidence-and-errors.md` 增加入口链接。
 
-没有改动 MCP、Identity、DML、Tool Governance、OpenClaw Core、官方 Plugin 或 adapter；没有开放企微文档能力；没有引入 `sfoa-record-change` 的必填字段 / READY Gate 内容。
+没有改动 MCP、Identity、DML、Tool Governance、OpenClaw Core、官方 Plugin 或 adapter；没有开放企微文档能力；没有引入 `crm-record-change` 的必填字段 / READY Gate 内容。
 
 ### 已完成的机器可验证门禁
 
@@ -90,7 +90,7 @@ Canonical `291750a5aa9b3af027f1ef5601e51b43ad8e0322`。`skill:sync` / `check` PA
 
 Contract Test 加强为「规则标签 + 规则正文特征串」配对，并另跑变异检查：删除 Full Population Analytics 条目、掏空或改名其余七条规则正文等 11 种变异全部被捕获（11/11）。这仍只是防止规则被误删，不是模型行为验收。
 
-Runtime：`/data/openclaw/workspace/skills/sfoa-crm-core/` 九个文件与 canonical 逐字节 SHA256 一致（`SKILL.md` = `f64ca14b…`，`references/data-completeness.md` = `d82e2c43…`）；备份 `/data/openclaw/backups/20260914-111225-core-data-completeness`；config validate 通过，Gateway active，11:12:32 企微 WebSocket 认证成功；main modelVisible 仍仅 `sfoa-crm-core` 与 `browser-automation`，maintainer 未暴露。AGENTS 路由修订标记由 HOTFIX01 更新为 HOTFIX02（单行，备份 `/data/openclaw/backups/20260914-111542-agents-routing`），使持有旧版压缩摘要的会话重新读取当前 Core。
+Runtime：`/data/openclaw/workspace/skills/crm-core/` 九个文件与 canonical 逐字节 SHA256 一致（`SKILL.md` = `f64ca14b…`，`references/data-completeness.md` = `d82e2c43…`）；备份 `/data/openclaw/backups/20260914-111225-core-data-completeness`；config validate 通过，Gateway active，11:12:32 企微 WebSocket 认证成功；main modelVisible 仍仅 `crm-core` 与 `browser-automation`，maintainer 未暴露。AGENTS 路由修订标记由 HOTFIX01 更新为 HOTFIX02（单行，备份 `/data/openclaw/backups/20260914-111542-agents-routing`），使持有旧版压缩摘要的会话重新读取当前 Core。
 
 ### 模型符合性探针（隔离会话，无 requester-scoped MCP）
 

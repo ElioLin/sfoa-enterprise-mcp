@@ -588,7 +588,7 @@ spawn 上下文。那等于把**某个真人的 Salesforce bearer token** 交给
 | 层 | 位置 |
 |---|---|
 | Agent 工作区指令 | `/data/openclaw/workspace/AGENTS.md`：「**子代理没有 CRM 工具** —— Salesforce 查询永远由我（主 Agent）用当前用户的身份执行」 |
-| Skill 正文 | `skills/sfoa-crm-core/SKILL.md` Guidelines：「Main Agent 负责 requester-scoped SFOA MCP；当前 Sub-Agent 不直接访问 Salesforce」 |
+| Skill 正文 | `skills/crm-core/SKILL.md` Guidelines：「Main Agent 负责 requester-scoped SFOA MCP；当前 Sub-Agent 不直接访问 Salesforce」 |
 | Skill 参考 | `references/identity-and-governance.md`、`references/web-and-multimodal.md` |
 
 即：主 Agent 可以派子代理做并行的外部调研，**Salesforce 调用一律留在主会话**。这也是唯一能

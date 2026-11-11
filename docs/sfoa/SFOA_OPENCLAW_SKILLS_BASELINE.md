@@ -2,7 +2,7 @@
 
 Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-14 · Skill-02B 修订 2026-09-15
 
-本基线定义业务 Agent 的 Skill 职责与扩展顺序。Skill 是行为指导，不是 MCP Tool、权限系统、OpenClaw Core 补丁或固定 Workflow Engine。当前实现为 `sfoa-crm-core` 与 `sfoa-record-change`（Skill-02B：Readiness Kernel + CREATE + UPDATE + Batch Mutation + Outcome Reconciliation，机器实现完成，待真人 UAT）。详见[Skill-02B 实施报告](SKILL_02B_IMPLEMENTATION_REPORT.md)与 [Skill-02 Integrated Human UAT](SKILL_02_INTEGRATED_HUMAN_UAT.md)。
+本基线定义业务 Agent 的 Skill 职责与扩展顺序。Skill 是行为指导，不是 MCP Tool、权限系统、OpenClaw Core 补丁或固定 Workflow Engine。当前实现为 `crm-core` 与 `crm-record-change`（Skill-02B：Readiness Kernel + CREATE + UPDATE + Batch Mutation + Outcome Reconciliation，机器实现完成，待真人 UAT）。详见[Skill-02B 实施报告](SKILL_02B_IMPLEMENTATION_REPORT.md)与 [Skill-02 Integrated Human UAT](SKILL_02_INTEGRATED_HUMAN_UAT.md)。
 
 ## Git 与事实基线
 
@@ -23,8 +23,8 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 
 | Skill | 定位 / 使用者 | 职责 | 边界 / 当前状态 |
 | --- | --- | --- | --- |
-| Skill-01 `sfoa-crm-core` | 所有普通 SFOA / Salesforce CRM 业务请求的基础 | MCP 使用与选择、身份、权限、Tool Governance、Salesforce 权威、查询和变更边界、Playbook、失败、证据优先级、Web / Multimodal 组合、用户输出 | 本次实现；不做公司高级业务分析、开发运维或完整 CREATE 表单 |
-| Skill-02 `sfoa-record-change` | CREATE / UPDATE / Batch DML 专业指导 | Record Type、Page Layout、Dynamic Forms、Required / Conditional Required、Dependency、Defaults、Managed Lookup、Lookup Filter、Picklist、Validation、执行前 READY Gate | 02A + 02B 已实现：CHANGE_READY readiness gate + CREATE + UPDATE（Target Resolution / Minimal Patch）+ 批量 CREATE/UPDATE（逐条就绪、分组、>200 顺序分批、allOrNone）+ PARTIAL_SUCCESS / OUTCOME_UNKNOWN reconciliation；机器实现完成，待真人企微 UAT |
+| Skill-01 `crm-core` | 所有普通 SFOA / Salesforce CRM 业务请求的基础 | MCP 使用与选择、身份、权限、Tool Governance、Salesforce 权威、查询和变更边界、Playbook、失败、证据优先级、Web / Multimodal 组合、用户输出 | 本次实现；不做公司高级业务分析、开发运维或完整 CREATE 表单 |
+| Skill-02 `crm-record-change` | CREATE / UPDATE / Batch DML 专业指导 | Record Type、Page Layout、Dynamic Forms、Required / Conditional Required、Dependency、Defaults、Managed Lookup、Lookup Filter、Picklist、Validation、执行前 READY Gate | 02A + 02B 已实现：CHANGE_READY readiness gate + CREATE + UPDATE（Target Resolution / Minimal Patch）+ 批量 CREATE/UPDATE（逐条就绪、分组、>200 顺序分批、allOrNone）+ PARTIAL_SUCCESS / OUTCOME_UNKNOWN reconciliation；机器实现完成，待真人企微 UAT |
 | Skill-03 `sfoa-business-analysis` | 企业 Salesforce 业务分析专家 | 客户、商机、报价、订单、客户拜访、我方参与人、客户参与人、关键联系人、业务活动；客户 / 销售机会 / 风险 / 趋势分析、跟进建议、管理层洞察 | 后续；表达分析维度、方法与证据要求，不硬编码大量 API Field |
 | Skill-04 `sfoa-system-diagnosis` | 管理员 / 技术 / Support Agent | CRUD/FLS、Sharing、Record Type、Page Layout、Dynamic Forms、Validation Rule、Flow、Trigger、Lookup Filter、Metadata、Tool Governance、Identity Route、Salesforce API Error、P7 Audit Evidence、首因定位 | 后续；默认不暴露给普通业务 main，不提升 Salesforce 身份 |
 | Skill-05 `sfoa-reporting` | 数据与结论的交付 | 结构化业务 / 诊断报告、管理层摘要、HTML、PDF、表格、图表、企微文件交付 | 后续；消费 Analysis / Diagnosis 已有数据与结论，不重新查询业务数据；缺数据交回上游 |
@@ -34,22 +34,27 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 
 ## 显示名与机器标识
 
-四个业务 Skill 面向业务用户，宿主技能列表显示中文名；`name` 与目录名保持 ASCII slug 不变。
+四个业务 Skill 面向业务用户，中文名放在 `display_name` 与 `SKILL.md` H1；`name` 与目录名是 ASCII slug，同时承担调用标识。2026-11-11 起 slug 前缀由 `sfoa-` 改为 `crm-`，让宿主技能列表、`@`/`/` 调用与审计日志中的标识直接可读、可与开发类 Skill 区分。
 
-| Skill（目录 / `name`） | `display_name` | `display_name_en` |
-| --- | --- | --- |
-| `sfoa-crm-core` | CRM 业务助手 | CRM Business Assistant |
-| `sfoa-record-change` | CRM 记录新建与修改 | CRM Record Create & Update |
-| `sfoa-data-analysis` | CRM 数据统计与分析 | CRM Data Analytics |
-| `sfoa-org-diagnostics` | CRM 问题诊断 | CRM Issue Diagnostics |
+| Skill（目录 / `name`） | `display_name` | `display_name_en` | 旧 slug |
+| --- | --- | --- | --- |
+| `crm-core` | CRM 业务助手 | CRM Business Assistant | `sfoa-crm-core` |
+| `crm-record-change` | CRM 记录新建与修改 | CRM Record Create & Update | `sfoa-record-change` |
+| `crm-data-analysis` | CRM 数据统计与分析 | CRM Data Analytics | `sfoa-data-analysis` |
+| `crm-org-diagnostics` | CRM 问题诊断 | CRM Issue Diagnostics | `sfoa-org-diagnostics` |
+| `crm-playbook`（`.codebuddy`，`agent:sync` 生成） | CRM 业务操作指南 | CRM Operations Playbook | `sfoa-salesforce-assistant` |
 
-`name` 不能改为中文：`manage.mjs` 的 `platformSkillPaths` 用 `/^[a-z0-9]+(?:-[a-z0-9]+)*$/` 校验每个 canonical 目录名（`discoverSkills` 对 `skills/*` 逐个执行），`validateSkill` 又要求 frontmatter `name` 等于目录名。中文写进 `name` 会让 `skill:sync/check/package/export` 与 `skill:runtime:sync` 在发现阶段直接抛错，并破坏 `.agents/.claude/.codebuddy` 三平台副本与 OpenClaw `agents.entries.main.skills` 的 slug 引用。
+`sfoa-mcp-maintainer` 与 `mcp-builder` 保持原 slug：它们是开发侧 Skill，不面向业务用户，保留旧前缀正好与业务 Skill 区分。`docs/sfoa/evidence/**` 下 2026-11-11 之前的原始取证 JSON 保留当时的旧 slug，是历史事实记录，不再回写。
 
-`description` 是模型路由依据，本次未删改任何触发词，只在其后追加 `display_name` 字段；`SKILL.md` 的 H1 改为「中文名（英文名）」，供 Skill 正文进入上下文时识别。宿主选择器读取 `display_name`（本机已安装的 `wecom-unified`、`pptx-generator` 等均使用该字段）；不支持该字段的宿主会忽略它，`description` 仍完整可用。OpenClaw 是否解析该字段需在重新发布后用 `openclaw skills check --agent main` 复核。
+`name` 不能改为中文：`manage.mjs` 的 `platformSkillPaths` 用 `/^[a-z0-9]+(?:-[a-z0-9]+)*$/` 校验每个 canonical 目录名（`discoverSkills` 对 `skills/*` 逐个执行），`validateSkill` 又要求 frontmatter `name` 等于目录名。中文写进 `name` 会让 `skill:sync/check/package/export` 与 `skill:runtime:sync` 在发现阶段直接抛错，并破坏 `.agents/.claude/.codebuddy` 三平台副本与 OpenClaw `agents.entries.main.skills` 的 slug 引用。宿主对话里「附着」的标识也取自 `name`，因此中文名只能出现在 `display_name`（宿主支持时）与 H1/描述里，出现在调用标识上不可实现。
+
+`description` 是模型路由依据，未删改任何触发词，只在 frontmatter 追加 `display_name` 字段；`SKILL.md` 的 H1 为「中文名（英文名）」，供 Skill 正文进入上下文时识别。宿主选择器读取 `display_name`（本机已安装的 `wecom-unified`、`pptx-generator` 等均使用该字段）；不支持该字段的宿主会忽略它，`description` 仍完整可用。OpenClaw 是否解析该字段需在重新发布后用 `openclaw skills check --agent main` 复核。
+
+**割接顺序**：服务器侧必须先发布新目录、再改 `agents.entries.main.skills` 的 slug、最后删除旧目录并 reload；只改一侧会静默丢失业务 Skill（OpenClaw 不报错，只是不加载）。
 
 ## 专业化关系与交接接口
 
-`sfoa-crm-core` 是通用基础；record-change、business-analysis、system-diagnosis、reporting 分别补充 DML、业务分析、技术诊断、输出 Artifact。它们是 specialization，不覆盖 Core 硬边界，也不同时宣称适用于所有 Salesforce 请求。
+`crm-core` 是通用基础；record-change、business-analysis、system-diagnosis、reporting 分别补充 DML、业务分析、技术诊断、输出 Artifact。它们是 specialization，不覆盖 Core 硬边界，也不同时宣称适用于所有 Salesforce 请求。
 
 当前已创建 Core 与 record-change 两个真实目录，仍不为未来 Skill 创建空壳。eligible 专业 Skill 与 Core 组合使用；描述限定独特触发意图，纯查询场景不应无意义加载大量 Mutation Doctrine。技术 Skill 还需当前 Agent allowlist 与工具权限支持。
 
@@ -70,11 +75,11 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 | --- | --- |
 | Source of Truth | 仓库 `skills/*` 的直接子目录，每个目录必须包含有效 `SKILL.md` |
 | 开发客户端生成副本 | `.agents/skills/<name>`、`.claude/skills/<name>`、`.codebuddy/skills/<name>`；保持既有三个目标一致，脚本递归复制字节并检查漂移 |
-| OpenClaw Runtime Copy | `/data/openclaw/workspace/skills/sfoa-crm-core/`、`/data/openclaw/workspace/skills/sfoa-record-change/`；由 canonical 发布，不能在服务器独立手改后不回 Git |
+| OpenClaw Runtime Copy | `/data/openclaw/workspace/skills/crm-core/`、`/data/openclaw/workspace/skills/crm-record-change/`；由 canonical 发布，不能在服务器独立手改后不回 Git |
 | 独立导出包（非 runtime:sync 链路） | `/data/openclaw/workspace/skills/sfoa/`：由 `yarn skill:export` 生成、手工装入的零凭证 AgentSkills 包（`SKILL.md` + `mcp.json`），**不受** `skill:runtime:sync/check` 管；装入/移除见 [SFOA_SKILL_EXPORT_PACKAGE.md](SFOA_SKILL_EXPORT_PACKAGE.md) §5.1 |
-| 普通 main Skill policy | 目标启用 SFOA `sfoa-crm-core` + `sfoa-record-change`；不暴露 maintainer 或未完成 Skill；与已有非 SFOA Skill 的关系以部署前真实配置审查为准 |
+| 普通 main Skill policy | 目标启用 SFOA `crm-core` + `crm-record-change`；不暴露 maintainer 或未完成 Skill；与已有非 SFOA Skill 的关系以部署前真实配置审查为准 |
 
-> **Runtime Copy 现状（2026-09-23）**：`sfoa-crm-core` 与 `sfoa-record-change` 均为 **10 文件**（02B 时分别为 9 / 9；其后各增一个 reference：`sfoa-crm-core/references/summary-navigation.md` 与 `sfoa-record-change/references/file-attachments.md`）；服务器侧于 2026-09-23 09:43 重新发布，两目录文件集与 canonical 逐一相同。本节第 113 行「18 文件」是 2026-09-15 的历史快照，不是当前计数。另见 [SFOA_SKILL_EXPORT_PACKAGE.md §7](SFOA_SKILL_EXPORT_PACKAGE.md) 的 `Visible to model` 实测（2026-09-23 为 5，含 09-18 加入的 `wecom-send-media`、`wecom-send-template-card`）。
+> **Runtime Copy 现状（2026-09-23）**：`crm-core` 与 `crm-record-change` 均为 **10 文件**（02B 时分别为 9 / 9；其后各增一个 reference：`crm-core/references/summary-navigation.md` 与 `crm-record-change/references/file-attachments.md`）；服务器侧于 2026-09-23 09:43 重新发布，两目录文件集与 canonical 逐一相同。本节第 113 行「18 文件」是 2026-09-15 的历史快照，不是当前计数。另见 [SFOA_SKILL_EXPORT_PACKAGE.md §7](SFOA_SKILL_EXPORT_PACKAGE.md) 的 `Visible to model` 实测（2026-09-23 为 5，含 09-18 加入的 `wecom-send-media`、`wecom-send-template-card`）。
 
 现有 `skill:*` 原先硬编码 maintainer。现在保留入口与单 Skill 函数默认值，CLI 默认发现所有 canonical 目录；maintainer 仍运行原有专用结构与描述校验，其它 Skill 运行通用 name / description / 本地链接 / portable-files 校验。
 
@@ -86,11 +91,11 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 
 Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、查客户、我的商机、创建 / 修改、CRM 分析及 SFOA MCP；排除不涉及 CRM 的天气、数学、普通文本与一般网页搜索。自动 model invocation 保持默认开启，无 `disable-model-invocation: true`。
 
-`sfoa-record-change` 的 description 覆盖创建 / 新增 / 修改 / 更新记录、发起申请、创建拜访申请、创建客户、新增商机、新建业务单据、批量变更，以及必填字段、Record Type、Dynamic Forms 依赖、最小 Patch、Lookup、Picklist、Owner 与 managed 字段就绪判断；明确排除纯查询、统计、分析与仓库开发运维，避免普通只读场景加载 Mutation Doctrine。
+`crm-record-change` 的 description 覆盖创建 / 新增 / 修改 / 更新记录、发起申请、创建拜访申请、创建客户、新增商机、新建业务单据、批量变更，以及必填字段、Record Type、Dynamic Forms 依赖、最小 Patch、Lookup、Picklist、Owner 与 managed 字段就绪判断；明确排除纯查询、统计、分析与仓库开发运维，避免普通只读场景加载 Mutation Doctrine。
 
 可在 main 简短 instruction 中加入：
 
-> When a request involves SFOA, Salesforce CRM, or SFOA MCP tools, automatically consult the sfoa-crm-core skill before or while planning the task. Specialized SFOA skills supplement the core skill.
+> When a request involves SFOA, Salesforce CRM, or SFOA MCP tools, automatically consult the crm-core skill before or while planning the task. Specialized SFOA skills supplement the core skill.
 
 这只用于路由，不复制完整 Skill 或固定工具流程。部署先核实实际 `skills.load`、`agents.defaults.skills`、`agents.entries`、`skills.entries` 及 main 生效策略；不能依据历史版本假设配置字段存在或含义一致。
 
@@ -98,7 +103,7 @@ Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、�
 
 ## Skill-02 分阶段验收
 
-`sfoa-record-change` 的输入是已明确的 mutation intent、当前 tools/list、当前 Playbook、对象与用户提供的 initial facts；使用实际 `get_record_action_context`、`get_agent_playbook`、`create_record`、`create_records`、`update_record`、`update_records`，不新增 MCP Tool。
+`crm-record-change` 的输入是已明确的 mutation intent、当前 tools/list、当前 Playbook、对象与用户提供的 initial facts；使用实际 `get_record_action_context`、`get_agent_playbook`、`create_record`、`create_records`、`update_record`、`update_records`，不新增 MCP Tool。
 
 验收覆盖 CREATE required fields、Dynamic Forms、Record Type、dependencies、initial facts、draft refinement、missing field checklist、READY gate、batch create/update，以及 Page Layout、Conditional Required、Defaults、Managed Lookup、Lookup Filter、Picklist 与 Salesforce Validation。用户已给值不重复询问；真实未知不猜测；UPDATE 不套 CREATE 全表单；批量按真实逐项结果核对。
 
@@ -106,7 +111,7 @@ Core 的 name / description 覆盖 SFOA、Salesforce CRM、公司 CRM 数据、�
 
 交付内容与机器门禁见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md)。02A 只建立 CREATE 的 readiness doctrine 与 batch 安全底线，不新增 MCP Tool、不新增 DB 状态、不改 Runtime。
 
-Runtime Copy 已从 canonical 发布到 `/data/openclaw/workspace/skills/`，`sfoa-crm-core`（9 文件）与 `sfoa-record-change`（7 文件）**全部 16 个文件服务器侧 SHA-256 与 canonical 逐一相同**，并在 `skills.entries` 与 `agents.entries.main.skills` 中启用，保留既有 `sfoa-crm-core` 与 `browser-automation`。发布与漂移检查复用既有 toolkit：
+Runtime Copy 已从 canonical 发布到 `/data/openclaw/workspace/skills/`，`crm-core`（9 文件）与 `crm-record-change`（7 文件）**全部 16 个文件服务器侧 SHA-256 与 canonical 逐一相同**，并在 `skills.entries` 与 `agents.entries.main.skills` 中启用，保留既有 `crm-core` 与 `browser-automation`。发布与漂移检查复用既有 toolkit：
 
 ```text
 yarn skill:runtime:sync  --runtime-root /data/openclaw/workspace/skills
@@ -115,7 +120,7 @@ yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 
 两个动作只迭代 `manage.mjs` 中的显式业务 allowlist，因此 `sfoa-mcp-maintainer` 无法进入业务 workspace。
 
-> 逐字节校验覆盖**两个** Skill，是闭环复核轮修正的结果。HOTFIX01 当时只校验了新部署的 `sfoa-record-change`，`sfoa-crm-core` 的 `references/mutation-boundaries.md` 已相对 canonical 漂移（旧文案仍称 `sfoa-record-change` 未实现），复核轮发现并重新发布修复。漂移成因与证据见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md) §12.1。
+> 逐字节校验覆盖**两个** Skill，是闭环复核轮修正的结果。HOTFIX01 当时只校验了新部署的 `crm-record-change`，`crm-core` 的 `references/mutation-boundaries.md` 已相对 canonical 漂移（旧文案仍称 `crm-record-change` 未实现），复核轮发现并重新发布修复。漂移成因与证据见[Skill-02A 报告](SFOA_RECORD_CHANGE_SKILL.md) §12.1。
 
 机器门禁通过不等于行为验收通过。真人企微 UAT 必须单独验证：模型是否真的不再把「已调用 Action Context」当成「记录已准备完整」，是否对 VISIBLE + effectiveRequired 的缺失字段提问，是否先解决 PENDING 依赖再 refinement，是否遵守 explicit owner > fallback。Routing Smoke 本轮未执行，随真人 UAT 一并覆盖。
 
@@ -126,9 +131,9 @@ yarn skill:runtime:check --runtime-root /data/openclaw/workspace/skills
 
 02B 同样不新增 MCP Tool、不新增 DB 状态、不改 Runtime（`packages/` diff = 0）。Skill 结构从 7 文件扩展为 9 文件：`SKILL.md` + 8 个 references（`outcomes.md` 被职责扩展后的 `outcome-reconciliation.md` 取代）。机器门禁从 32 扩展到 63 个测试，并新增 `scripts/record-change-gates.mjs` 作为可执行的决策模型，使门禁验证**行为**而不只验证文案存在。CREATE regression PASS，`MCP Runtime changed: NO`。
 
-审查轮另外修正了 `sfoa-crm-core` 中两处被 02B 变成事实错误的跨 Skill 叙述（旧文案仍称 `sfoa-record-change` 只覆盖 CREATE、且称「当前只实现 Core」），避免同一 Agent turn 读到互相矛盾的 Skill。
+审查轮另外修正了 `crm-core` 中两处被 02B 变成事实错误的跨 Skill 叙述（旧文案仍称 `crm-record-change` 只覆盖 CREATE、且称「当前只实现 Core」），避免同一 Agent turn 读到互相矛盾的 Skill。
 
-**已部署到测试环境**（2026-09-15）：`/data/openclaw/workspace/skills/` 现为 `sfoa-crm-core`(9) + `sfoa-record-change`(9) = **18 文件，canonical 与 runtime `diff -r` 逐字节一致**、`drift: []`、22/22 doctrine 探针命中；`openclaw skills check --agent main` 报 `Visible to model: 3`（browser-automation、sfoa-crm-core、sfoa-record-change），`sfoa-mcp-maintainer` 在目录、`find`、`skills check` 与运行中 Gateway 索引四处均不可见。发布复用既有 `BUSINESS_SKILL_ALLOWLIST` + `skill:runtime:sync/check`，未新建第二套机制，也未使用 `cp -r skills/*`。
+**已部署到测试环境**（2026-09-15）：`/data/openclaw/workspace/skills/` 现为 `crm-core`(9) + `crm-record-change`(9) = **18 文件，canonical 与 runtime `diff -r` 逐字节一致**、`drift: []`、22/22 doctrine 探针命中；`openclaw skills check --agent main` 报 `Visible to model: 3`（browser-automation、crm-core、crm-record-change），`sfoa-mcp-maintainer` 在目录、`find`、`skills check` 与运行中 Gateway 索引四处均不可见。发布复用既有 `BUSINESS_SKILL_ALLOWLIST` + `skill:runtime:sync/check`，未新建第二套机制，也未使用 `cp -r skills/*`。
 
 实测刷新语义（修正 02A 记录）：body 与 description 变更均被**运行中的** Gateway 直接反映，**无需重启**；验证运行进程请用 `openclaw gateway call skills.status --json`（`openclaw skills list` 直读 workspace、不经过 Gateway，不能作为运行进程的证据）。重启仅为 fallback。
 

@@ -57,7 +57,7 @@ Canonical guidance, generated client artifacts and validator:
 
 - `skills/sfoa-mcp-maintainer/references/{p8-07-runtime-batch,p8-04-effective-create}.md` (canonical)
 - the three generated `.claude` / `.agents` / `.codebuddy` Skill copies of those two files
-- `.codebuddy/skills/sfoa-salesforce-assistant/{SKILL.md,references/safety-boundaries.md,references/tool-workflows.md}`
+- `.codebuddy/skills/crm-playbook/{SKILL.md,references/safety-boundaries.md,references/tool-workflows.md}`
 - `docs/agent/DIFY_AGENT_INSTRUCTION.md`, `docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md`
 - `packages/sfoa-agent-playbook/README.md`, `packages/sfoa-mcp-server/README.md`
 - `scripts/p8-07-live-batch.mjs`

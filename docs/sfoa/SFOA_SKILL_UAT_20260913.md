@@ -4,7 +4,7 @@
 
 ## 结论与证据边界
 
-三次运行都拿到了 `sfoa-crm-core` 的发现描述，但没有成功读取正文。因此这轮 **Core 自动调用 UAT FAIL**，不能因为 MCP 有返回就标 READY。main 的 Skill snapshot 与 prompt report 均包含 Core，AGENTS.md 无截断；这不是 Skill 没有部署或 allowlist 未生效。当前运行模型为 `qwen3-vl`（本地路由 ID，不能据此断言上游商业型号）。
+三次运行都拿到了 `crm-core` 的发现描述，但没有成功读取正文。因此这轮 **Core 自动调用 UAT FAIL**，不能因为 MCP 有返回就标 READY。main 的 Skill snapshot 与 prompt report 均包含 Core，AGENTS.md 无截断；这不是 Skill 没有部署或 allowlist 未生效。当前运行模型为 `qwen3-vl`（本地路由 ID，不能据此断言上游商业型号）。
 
 | 场景 | 入站时间 | OpenClaw Run ID | 实际行为 |
 | --- | --- | --- | --- |
@@ -60,4 +60,4 @@ OpenClaw 持久化的 Tool text 含 `structuredContent` 与 text content 两份�
 6. 如果当前 MCP 无法完整传递字段或不支持实际页面条件，必须单独修复契约/传输/解析层并测试。增加 Skill 文本不能代替这项工程工作。
 7. 对照 Salesforce 同用户、同 App、同 Record Type 的实际 New/Edit 页面验证；通过场景包括本次漏掉的计划交谈事项，以及来源改变后客户/线索/商机字段变化。UPDATE 与 batch 另测，不能套 CREATE 全表单。
 
-本轮没有写入，没有 Salesforce CREATE 成功/失败样本，不能声称“创建已完成”或“必填遗漏已解决”。Core 未达到 READY 前，按用户的条件不发布 `sfoa-record-change`；以上是真实下一阶段基线，不是提前实现的专业 Skill。
+本轮没有写入，没有 Salesforce CREATE 成功/失败样本，不能声称“创建已完成”或“必填遗漏已解决”。Core 未达到 READY 前，按用户的条件不发布 `crm-record-change`；以上是真实下一阶段基线，不是提前实现的专业 Skill。

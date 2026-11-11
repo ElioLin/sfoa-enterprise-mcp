@@ -191,13 +191,13 @@ touched, and agents using the MCP tools are unaffected. See
 `feature/openclaw-sfoa-skill-foundation`. The long-term
 [Skill Suite baseline](SFOA_OPENCLAW_SKILLS_BASELINE.md) defines five specialized
 business/technical Skills while retaining the developer-only maintainer Skill.
-That phase implemented only `sfoa-crm-core` and minimally generalized canonical
+That phase implemented only `crm-core` and minimally generalized canonical
 Skill delivery. No MCP Tool or OpenClaw Core change is included. Runtime deploy,
 automatic invocation and real WeCom acceptance are separate evidence gates;
 current status is tracked in [the Core report](SFOA_CRM_CORE_SKILL.md).
 
-2026-09-15: Skill-02B completes the `sfoa-record-change` doctrine on
-`feature/openclaw-sfoa-record-change-02b` based on `main`
+2026-09-15: Skill-02B completes the `crm-record-change` doctrine on
+`feature/openclaw-crm-record-change-02b` based on `main`
 `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1` (the true Skill-02A FINAL remote tip).
 It adds UPDATE readiness (`TARGET_RESOLVED`, Minimal Patch, `CREATE Required !=
 UPDATE Missing Required`, no CREATE-default reapplication, no Owner fallback
@@ -216,8 +216,8 @@ Delivery stops at READY FOR INTEGRATED HUMAN UAT; see
 [the integrated human UAT](SKILL_02_INTEGRATED_HUMAN_UAT.md).
 
 2026-09-14: Skill-02A adds the second business Skill, canonical
-`skills/sfoa-record-change/`, on `feature/openclaw-sfoa-record-change-02a` based on
-`ef6b4e25c9360727ed7e1d3737ab774f9cc08ab7`. It inherits every `sfoa-crm-core` hard
+`skills/crm-record-change/`, on `feature/openclaw-crm-record-change-02a` based on
+`ef6b4e25c9360727ed7e1d3737ab774f9cc08ab7`. It inherits every `crm-core` hard
 rule and adds only the evidence-based `CHANGE_READY` mutation-readiness doctrine for
 CREATE plus the batch CREATE safety floor. No MCP Tool, DB state, Identity Route,
 governance, migration or Runtime file changes; `packages/**` is untouched. UPDATE

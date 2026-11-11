@@ -52,7 +52,7 @@ gate command is needed. It does not touch the runtime, governance or schemas. Re
 `docs/sfoa/SFOA_SKILL_EXPORT_PACKAGE.md`.
 
 `skill:test` is the single entry point for both business Skills: it holds the
-`sfoa-crm-core` hard-boundary contract, the `sfoa-record-change` readiness
+`crm-core` hard-boundary contract, the `crm-record-change` readiness
 contract, the per-reference content contracts, the abstract CREATE UAT regression
 case, the no-hardcoding and retired-Tool guards, the description bound, and the
 runtime-copy allowlist/isolation gate. `skill:runtime:sync` publishes only the

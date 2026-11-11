@@ -12,9 +12,9 @@
 | --- | --- |
 | Base branch | `main` |
 | Base SHA | `3adae7b6abcdf53d12d2878aa4f79d055bebf2a1`（`docs(sfoa): state that main and the test server share one commit`，即 Skill-02A FINAL 真实远端 tip） |
-| 02B branch | `feature/openclaw-sfoa-record-change-02b` |
+| 02B branch | `feature/openclaw-crm-record-change-02b` |
 | Final SHA | `2b6c91d027df23ea668cf203437b528d6b534da7`（已 push 到 `origin`） |
-| Base 判定依据 | `git fetch --all --prune` 后 `main` = `origin/main` = `3adae7b`；`origin/feature/openclaw-sfoa-record-change-02a` 停在 `ef80914`，Skill-02A 的 HOTFIX 交付在 `origin/hotfix/openclaw-sfoa-record-change-02a-delivery` @ `345b739`，两者均已并入 `main`。因此 `main` 是 Skill-02A FINAL 的真实基线，02B 从 `main` 切出，**未**基于旧的 `feature/openclaw-sfoa-record-change-02a` 开发 |
+| Base 判定依据 | `git fetch --all --prune` 后 `main` = `origin/main` = `3adae7b`；`origin/feature/openclaw-crm-record-change-02a` 停在 `ef80914`，Skill-02A 的 HOTFIX 交付在 `origin/hotfix/openclaw-crm-record-change-02a-delivery` @ `345b739`，两者均已并入 `main`。因此 `main` 是 Skill-02A FINAL 的真实基线，02B 从 `main` 切出，**未**基于旧的 `feature/openclaw-crm-record-change-02a` 开发 |
 
 ---
 
@@ -129,16 +129,16 @@ CREATE 与 UPDATE 共用同一个 `DmlToolGovernancePolicy` 与 `StaticDmlAllowl
 
 | 文件 | 说明 |
 | --- | --- |
-| `skills/sfoa-record-change/references/update-readiness.md` | UPDATE doctrine：Target Resolution、Minimal Patch、Required/Default/Owner/Record Type、Dynamic Forms 边界、blocking conditions |
-| `skills/sfoa-record-change/references/batch-mutations.md` | Batch doctrine：逐条就绪、分组、上限、>200 顺序分批、allOrNone、clientReferenceId |
-| `skills/sfoa-record-change/references/outcome-reconciliation.md` | 结果与核对：FAILED vs UNKNOWN、read-back 限度、PARTIAL_SUCCESS、停止规则 |
+| `skills/crm-record-change/references/update-readiness.md` | UPDATE doctrine：Target Resolution、Minimal Patch、Required/Default/Owner/Record Type、Dynamic Forms 边界、blocking conditions |
+| `skills/crm-record-change/references/batch-mutations.md` | Batch doctrine：逐条就绪、分组、上限、>200 顺序分批、allOrNone、clientReferenceId |
+| `skills/crm-record-change/references/outcome-reconciliation.md` | 结果与核对：FAILED vs UNKNOWN、read-back 限度、PARTIAL_SUCCESS、停止规则 |
 | `skills/sfoa-mcp-maintainer/scripts/record-change-gates.mjs` | Skill 决策模型（测试 oracle，无 Salesforce 硬编码，不参与 Runtime） |
 
 ### Modified
 
 | 文件 | 变更 |
 | --- | --- |
-| `skills/sfoa-record-change/SKILL.md` | description 覆盖 CREATE+UPDATE；Hard Rules 23 → 37；新增 CREATE/UPDATE 关键差异表；CHANGE_READY 分列 CREATE/UPDATE；scope 改为显式排除项；routing 指向 8 个 reference |
+| `skills/crm-record-change/SKILL.md` | description 覆盖 CREATE+UPDATE；Hard Rules 23 → 37；新增 CREATE/UPDATE 关键差异表；CHANGE_READY 分列 CREATE/UPDATE；scope 改为显式排除项；routing 指向 8 个 reference |
 | `references/readiness-gate.md` | 拆成 CREATE / UPDATE 两张 blocking 表；共用「不算 blocking」清单；batch 段落指向 batch-mutations |
 | `references/create-readiness.md` | 范围边界改为路由到 batch / outcome reference；标注 UPDATE 不套用 CREATE 流程 |
 | `references/dynamic-forms.md` | 新增 UPDATE 边界段：四态/refinement 为 CREATE 专用；承认 UPDATE 无法预计算 |
@@ -151,14 +151,14 @@ CREATE 与 UPDATE 共用同一个 `DmlToolGovernancePolicy` 与 `StaticDmlAllowl
 
 | 文件 | 原因 |
 | --- | --- |
-| `skills/sfoa-record-change/references/outcomes.md` | 被 `outcome-reconciliation.md` 取代（同一职责，避免两份 Outcome doctrine 并存）；routing、链接与门禁断言同步更新 |
+| `skills/crm-record-change/references/outcomes.md` | 被 `outcome-reconciliation.md` 取代（同一职责，避免两份 Outcome doctrine 并存）；routing、链接与门禁断言同步更新 |
 
 ---
 
 ## 4. Skill Architecture
 
 ```text
-skills/sfoa-record-change/
+skills/crm-record-change/
   SKILL.md                              短入口：Activation / Role / 37 Hard Rules / CREATE-UPDATE 差异 / CHANGE_READY 摘要 / 何时加载 / Guidelines / Reference routing / Safety
   references/
     readiness-gate.md                   CREATE 与 UPDATE 共用的就绪模型与阻塞清单
@@ -278,11 +278,11 @@ MCP Runtime changed: NO
 
 | 项 | 结果 |
 | --- | --- |
-| Canonical source | `skills/sfoa-record-change/`（9 文件：SKILL.md + 8 references），与 `skills/sfoa-crm-core/`（9）分离 |
+| Canonical source | `skills/crm-record-change/`（9 文件：SKILL.md + 8 references），与 `skills/crm-core/`（9）分离 |
 | 生成副本 | `.agents/skills/`、`.claude/skills/`、`.codebuddy/skills/` 由 `yarn skill:sync` 重新生成；`yarn skill:check` → `drift: []` |
-| Runtime copy 机制 | `yarn skill:runtime:sync --runtime-root <root>` 演练发布 `sfoa-crm-core`(9) + `sfoa-record-change`(9) = 18 文件；`yarn skill:runtime:check` → 两个 Skill 均 `ok:true`、`drift: []` |
-| Business agent visibility | 由 `BUSINESS_SKILL_ALLOWLIST = ['sfoa-crm-core','sfoa-record-change']` 驱动，**没有**新增第二套 sync system |
-| Maintainer isolation | `yarn skill:runtime:sync --canonical skills/sfoa-mcp-maintainer` 被拒绝并退出 1：`No canonical Skill matches the business runtime allowlist (sfoa-crm-core, sfoa-record-change).` 演练 root 中不存在 `sfoa-mcp-maintainer` |
+| Runtime copy 机制 | `yarn skill:runtime:sync --runtime-root <root>` 演练发布 `crm-core`(9) + `crm-record-change`(9) = 18 文件；`yarn skill:runtime:check` → 两个 Skill 均 `ok:true`、`drift: []` |
+| Business agent visibility | 由 `BUSINESS_SKILL_ALLOWLIST = ['crm-core','crm-record-change']` 驱动，**没有**新增第二套 sync system |
+| Maintainer isolation | `yarn skill:runtime:sync --canonical skills/sfoa-mcp-maintainer` 被拒绝并退出 1：`No canonical Skill matches the business runtime allowlist (crm-core, crm-record-change).` 演练 root 中不存在 `sfoa-mcp-maintainer` |
 | 服务器发布 | **已完成**（2026-09-15，见 [Skill-02B FINAL REVIEW](SKILL_02B_FINAL_REVIEW_REPORT.md) §6）：部署前 server 与 app 均为 02A（7 文件、含 `outcomes.md`）；经 `runtime-sync` 发布后 canonical↔runtime `diff -r` 逐字节一致，22/22 doctrine 探针命中，`drift: []`；业务 Agent `Visible to model: 3`；`sfoa-mcp-maintainer` 四重确认不可见 |
 
 ---

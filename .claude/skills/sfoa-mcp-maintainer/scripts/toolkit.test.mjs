@@ -125,7 +125,7 @@ const RECORD_CHANGE_HARD_RULE_MARKERS = Object.freeze([
 
 // The ordinary OpenClaw business Agent sees exactly these Skills. `sfoa-mcp-maintainer` is a
 // development/operations Skill and must never become visible through a business Skill.
-const BUSINESS_SKILL_NAMES = Object.freeze(['sfoa-crm-core', 'sfoa-record-change', 'sfoa-data-analysis']);
+const BUSINESS_SKILL_NAMES = Object.freeze(['crm-core', 'crm-record-change', 'crm-data-analysis']);
 
 // P9 adds the read-side Skill: the completeness duty is now its own contract rather than a clause
 // inside Core, so these markers guard the obligations that a truncated result must never lose —
@@ -164,7 +164,7 @@ const DATA_ANALYSIS_HARD_RULE_MARKERS = Object.freeze([
 ]);
 
 test('CRM Core entry retains its hard-boundary content contract', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-core', 'SKILL.md'), 'utf8');
   const hardRules = body.split('## Hard Rules')[1]?.split('## Guidelines')[0] ?? '';
   for (const [rule, marker] of CORE_HARD_RULE_MARKERS) {
     assert.ok(hardRules.includes(marker), `Missing hard boundary for ${rule}: ${marker}`);
@@ -174,7 +174,7 @@ test('CRM Core entry retains its hard-boundary content contract', async () => {
 });
 
 test('data completeness reference defines the three scopes and every completeness status', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-crm-core', 'references', 'data-completeness.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-core', 'references', 'data-completeness.md'), 'utf8');
   for (const marker of ['Population Scope', 'Analysis Scope', 'Display Scope',
     'Minimal Sufficient Full-Scope Evidence', 'COMPLETE', 'PARTIAL', 'TOP_N', 'SAMPLE', 'UNKNOWN',
     'paginationToken', 'COUNT(field)']) {
@@ -185,14 +185,14 @@ test('data completeness reference defines the three scopes and every completenes
 });
 
 test('record change entry retains its readiness hard-boundary content contract', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'SKILL.md'), 'utf8');
   const hardRules = body.split('## Hard Rules')[1]?.split('## 何时加载')[0] ?? '';
   assert.ok(hardRules.length > 0, 'SKILL.md must expose a bounded Hard Rules section');
   for (const [rule, marker] of RECORD_CHANGE_HARD_RULE_MARKERS) {
     assert.ok(hardRules.includes(marker), `Missing hard boundary for ${rule}: ${marker}`);
   }
   // The Skill must declare that it inherits Core instead of restating Core's own rules.
-  assert.ok(body.includes('sfoa-record-change inherits all hard rules from sfoa-crm-core'),
+  assert.ok(body.includes('crm-record-change inherits all hard rules from crm-core'),
     'SKILL.md must declare the Core inheritance contract');
   // Skill-02B expands the scope to UPDATE + batch + outcome reconciliation. The boundary that must
   // stay explicit is now the *out-of-scope* set, so an accidental drift into Delete / reporting /
@@ -208,7 +208,7 @@ test('record change entry retains its readiness hard-boundary content contract',
 });
 
 test('precise form reference preserves native entry, task reuse, fresh submission and optional recommendation boundaries', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills/sfoa-record-change/references/precise-forms.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills/crm-record-change/references/precise-forms.md'), 'utf8');
   for (const marker of ['formContext.entry=STANDARD', 'QUICK_ACTION', 'sourceRecordId', 'Profile 默认应用',
     '所选 Edit 表单全部适用必填', '历史空值', 'structuralContextRef', 'configurationSource=TASK_REUSE',
     '当次权威核验每个组件版本一致后复用对应配置', '未经核验的缓存与任务 REFINE 引用都不能绕过提交检查',
@@ -219,18 +219,18 @@ test('precise form reference preserves native entry, task reuse, fresh submissio
 
 test('selected form guidance preserves native action overrides and rejects unsupported collection or assessment combinations', async () => {
   for (const relative of ['SKILL.md', 'references/precise-forms.md', 'references/update-readiness.md']) {
-    const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
+    const text = await readFile(path.join(projectRoot, 'skills/crm-record-change', relative), 'utf8');
     assert.ok(text.includes('原生 Quick Action 为覆盖动作预设所需的明确值，即使等于保存值也必须保留'), relative);
     assert.ok(text.includes('QUICK_ACTION 仅使用单条 create_record/update_record，不进入批量工具'), relative);
   }
-  const reference = await readFile(path.join(projectRoot, 'skills/sfoa-record-change/references/precise-forms.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills/crm-record-change/references/precise-forms.md'), 'utf8');
   assert.ok(reference.includes('不能同时传旧 `includeValueAssessment=true`'));
   assert.ok(reference.includes('标准 UPDATE 继续只提交实际变化字段'));
   assert.ok(reference.includes('不能承诺跨调用 allOrNone'));
 });
 
 test('record change readiness reference defines the gate, its blocking conditions and per-record scope', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'readiness-gate.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'readiness-gate.md'), 'utf8');
   for (const marker of ['Evidence-Based Mutation Readiness', 'Tool-Call-Count-Based Readiness',
     'Blocking condition', '不是 MCP Tool、不是数据库字段', 'Critical Dynamic Dependency',
     '∀ intended record: CHANGE_READY(record) == true', 'coverage=PARTIAL',
@@ -244,7 +244,7 @@ test('record change readiness reference defines the gate, its blocking condition
 });
 
 test('dynamic forms reference keeps the four states distinct and gates refinement by evidence', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'dynamic-forms.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'dynamic-forms.md'), 'utf8');
   for (const marker of ['`VISIBLE`', '`HIDDEN`', '`PENDING`', '`UNKNOWN`',
     '`UNKNOWN` 不等于 `PENDING`', 'Critical Dynamic Dependency', '`uiContext.refinementLimitReached`',
     '`refinement` 取值 `0..3`', 'Evidence Delivery Incomplete', 'Runtime Coverage Partial',
@@ -259,7 +259,7 @@ test('dynamic forms reference keeps the four states distinct and gates refinemen
 });
 
 test('managed lookup reference separates strict managed, marker and user-overridable fallback', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'managed-lookups.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'managed-lookups.md'), 'utf8');
   for (const marker of ['PLATFORM_IDENTITY', 'AI_CREATED_MARKER', 'PLATFORM_IDENTITY_FALLBACK',
     'MCP_DML_MANAGED_LOOKUP_NOT_FOUND', 'MCP_DML_MANAGED_LOOKUP_AMBIGUOUS', 'MCP_DML_MANAGED_LOOKUP_FAILED',
     'omit field', '大小写不敏感', 'MCP_DML_INPUT_INVALID', 'CREATE 专用',
@@ -274,7 +274,7 @@ test('managed lookup reference separates strict managed, marker and user-overrid
 });
 
 test('create readiness reference keeps initial facts, record type gate and the UAT regression case', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'create-readiness.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'create-readiness.md'), 'utf8');
   for (const marker of ['recordTypeSelectionRequired', 'availableRecordTypes', '`draftFields`', '`refinement`',
     '`USER_EXPLICIT`', '`SALESFORCE_CREATE_DEFAULT`', '`CURRENT_USER_FACT`', '`TRUSTED_RUNTIME_DEFAULT`',
     '`UNRESOLVED`', 'Missing Required Checklist', '`create_records`', '`allOrNone`', '`clientReferenceId`',
@@ -290,7 +290,7 @@ test('create readiness reference keeps initial facts, record type gate and the U
 });
 
 test('lookup and picklist reference covers every match count and the Label/API Value split', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'lookup-and-picklist.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'lookup-and-picklist.md'), 'utf8');
   for (const marker of ['1 match', '0 match', 'multiple match', 'referenceTo', 'Lookup Filter',
     'API Value', 'controllerName', 'validFor', 'resolve_field_display_values', 'Dependent Picklist',
     '凭名字猜 Salesforce ID', '模型生成 ID']) {
@@ -300,7 +300,7 @@ test('lookup and picklist reference covers every match count and the Label/API V
 });
 
 test('phone and mobile reference covers mainland China classification and pre-DML warning', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'phone-and-mobile.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'phone-and-mobile.md'), 'utf8');
   for (const marker of ['MobilePhone', 'Phone', '+86', '1[3-9]', '0\\d{2,3}', '11 位', '10 位', '12 位',
     '区号', '插入前', 'MUST NOT', '截断', '补位', '静默换字段', '同一号码', '省份', '城市',
     '手机号本身不含地域', '不得只填城市']) {
@@ -310,7 +310,7 @@ test('phone and mobile reference covers mainland China classification and pre-DM
 });
 
 test('duplicate check reference covers identity fields, bounded evidence and the user decision', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'duplicate-check.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'duplicate-check.md'), 'utf8');
   for (const marker of ['名称', '电话', '手机', '邮箱', '统一社会信用代码', '外部 ID',
     '不是每个字段', '备注', '描述', '日期', '金额', '默认值', '`query_records`', 'LIMIT',
     '业务身份', '同名', '疑似重复', '继续新建', '改为更新', '取消',
@@ -321,7 +321,7 @@ test('duplicate check reference covers identity fields, bounded evidence and the
 });
 
 test('managed lookup reference resolves explicit owners on the action-context referenceTo target', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'managed-lookups.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'managed-lookups.md'), 'utf8');
   for (const marker of ['get_record_action_context', 'referenceTo', '默认按 `User`', 'OwnerId',
     '唯一 Salesforce ID', '不得 fallback']) {
     assert.ok(reference.includes(marker), `managed-lookups.md is missing: ${marker}`);
@@ -331,7 +331,7 @@ test('managed lookup reference resolves explicit owners on the action-context re
 });
 
 test('outcome reconciliation reference forbids replaying UNKNOWN and resubmitting a partial batch', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'outcome-reconciliation.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'outcome-reconciliation.md'), 'utf8');
   for (const marker of ['PARTIAL_SUCCESS', 'OUTCOME_UNKNOWN', 'MCP_DML_OUTCOME_UNKNOWN', 'clientReferenceId',
     'isError', 'allOrNone', 'MCP_DML_OBJECT_NOT_ALLOWED', '逐项结果与计数', 'FAILED != UNKNOWN',
     'Read-Back != Transaction Success', 'Current State Evidence']) {
@@ -353,7 +353,7 @@ test('outcome reconciliation reference forbids replaying UNKNOWN and resubmittin
 });
 
 test('update readiness reference keeps target resolution, minimal patch and the CREATE separation', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'update-readiness.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'update-readiness.md'), 'utf8');
   for (const marker of ['TARGET_RESOLVED', '0 match', 'multiple match', 'Minimal Patch',
     'fieldUpdateable', 'layoutEditableForUpdate', 'effectiveEditable', 'formContext',
     'CREATE Required  !=  UPDATE Missing Required', 'omission = preserve current value',
@@ -376,7 +376,7 @@ test('update readiness reference keeps target resolution, minimal patch and the 
 });
 
 test('batch mutation reference covers readiness, grouping, limits and progressive execution', async () => {
-  const reference = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', 'batch-mutations.md'), 'utf8');
+  const reference = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', 'batch-mutations.md'), 'utf8');
   for (const marker of ['∀ record: CHANGE_READY(record) == true', 'MCP_DML_BATCH_DUPLICATE_RECORD_ID',
     '15 位前缀', 'allOrNone', 'clientReferenceId', '200', '200 + 200 + 100',
     '同 Object', '每条可有不同 Patch', 'Progressive execution', '幂等键']) {
@@ -389,7 +389,7 @@ test('batch mutation reference covers readiness, grouping, limits and progressiv
 });
 
 test('record change Skill never hardcodes Salesforce truth', async () => {
-  const directory = path.join(projectRoot, 'skills', 'sfoa-record-change');
+  const directory = path.join(projectRoot, 'skills', 'crm-record-change');
   for (const relativePath of ['SKILL.md', 'references/readiness-gate.md', 'references/create-readiness.md',
     'references/update-readiness.md', 'references/dynamic-forms.md', 'references/precise-forms.md', 'references/managed-lookups.md',
     'references/lookup-and-picklist.md', 'references/duplicate-check.md', 'references/batch-mutations.md',
@@ -406,7 +406,7 @@ test('record change Skill never hardcodes Salesforce truth', async () => {
 });
 
 test('data analysis entry retains its completeness hard-boundary content contract', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-data-analysis', 'SKILL.md'), 'utf8');
   const hardRules = body.split('## Hard Rules')[1]?.split('## Guidelines')[0] ?? '';
   assert.ok(hardRules.length > 0, 'SKILL.md must expose a bounded Hard Rules section');
   for (const [rule, marker] of DATA_ANALYSIS_HARD_RULE_MARKERS) {
@@ -415,10 +415,10 @@ test('data analysis entry retains its completeness hard-boundary content contrac
   // Like the other two business Skills, this one inherits Core instead of restating it: the
   // read-side obligations are additions, so an accidental drift into re-declaring identity or
   // mutation rules would show up as Core no longer being named as the source of them.
-  assert.ok(body.includes('sfoa-data-analysis inherits all hard rules from sfoa-crm-core'),
+  assert.ok(body.includes('crm-data-analysis inherits all hard rules from crm-core'),
     'SKILL.md must declare the Core inheritance contract');
   // Mutation belongs to the sibling Skill; this one must keep saying so.
-  assert.ok(body.includes('不做记录变更') && body.includes('sfoa-record-change'),
+  assert.ok(body.includes('不做记录变更') && body.includes('crm-record-change'),
     'SKILL.md must route record changes to the sibling Skill');
   for (const reference of ['completeness-contract', 'tool-selection', 'aggregate-first', 'schema-self-service',
     'pagination-and-cursors', 'quota-awareness', 'untrusted-field-content']) {
@@ -427,21 +427,21 @@ test('data analysis entry retains its completeness hard-boundary content contrac
 });
 
 test('data analysis description stays a single short routing line', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-data-analysis', 'SKILL.md'), 'utf8');
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(body)?.[1] ?? '';
   const description = /^description:\s*(.+)$/mu.exec(frontmatter)?.[1] ?? '';
   assert.ok(description.length > 0, 'SKILL.md description is required');
   // OpenClaw routes on this line, so it must stay short enough to read at a glance.
   assert.ok(description.length <= 160, `description must stay within 160 characters, got ${description.length}`);
   assert.ok(!description.includes('\n'), 'description must stay a single line');
-  for (const signal of ['Salesforce', '统计', '全量导出', 'Schema', 'sfoa-crm-core']) {
+  for (const signal of ['Salesforce', '统计', '全量导出', 'Schema', 'crm-core']) {
     assert.ok(description.includes(signal), `description must keep the routing signal: ${signal}`);
   }
   assert.ok(description.includes('不做记录变更'), 'description must exclude record mutation requests');
 });
 
 test('data analysis references keep the contract, the remedy paths and the cursor ownership split', async () => {
-  const contract = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'completeness-contract.md'), 'utf8');
+  const contract = await readFile(path.join(projectRoot, 'skills', 'crm-data-analysis', 'references', 'completeness-contract.md'), 'utf8');
   for (const marker of ['Completeness Declaration', '`totalSize`', '`fetched`', '`returnedCount`',
     'MAX_ROWS', 'TIME_BUDGET', 'RESPONSE_BUDGET', 'PAGINATION_UNAVAILABLE',
     'LIMIT_REACHED', 'PER_OBJECT_LIMIT', 'COMPLETE', 'PARTIAL', 'UNKNOWN',
@@ -452,24 +452,24 @@ test('data analysis references keep the contract, the remedy paths and the curso
   assert.ok(contract.includes('读取 2 000 / 41 500 行'), 'completeness-contract.md must show a partial coverage statement');
   // query_records pages internally; get_bulk_query_results hands the cursor to the caller. Getting
   // this backwards is the failure mode this file exists to prevent, so both halves are asserted.
-  const cursors = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'pagination-and-cursors.md'), 'utf8');
+  const cursors = await readFile(path.join(projectRoot, 'skills', 'crm-data-analysis', 'references', 'pagination-and-cursors.md'), 'utf8');
   for (const marker of ['**Tool 自己**', '**调用方**', '`locator`', '位置，不是偏移量',
     '**MUST NOT** 为它编造 `cursor`', '服务端不保存作业状态', '每个值都是字符串', '一个作业回答一个问题']) {
     assert.ok(cursors.includes(marker), `pagination-and-cursors.md is missing: ${marker}`);
   }
-  const aggregates = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'aggregate-first.md'), 'utf8');
+  const aggregates = await readFile(path.join(projectRoot, 'skills', 'crm-data-analysis', 'references', 'aggregate-first.md'), 'utf8');
   for (const marker of ['`aggregateValue`', '**非空计数**', '`COUNT()` 与 `COUNT(field)` 对比',
     '时间窗', '币种', '为聚合结果编造记录 Id']) {
     assert.ok(aggregates.includes(marker), `aggregate-first.md is missing: ${marker}`);
   }
-  const quota = await readFile(path.join(projectRoot, 'skills', 'sfoa-data-analysis', 'references', 'quota-awareness.md'), 'utf8');
+  const quota = await readFile(path.join(projectRoot, 'skills', 'crm-data-analysis', 'references', 'quota-awareness.md'), 'utf8');
   for (const marker of ['DIAGNOSTIC 身份', '`apiUsage`', '分开计', '**MUST NOT** 把配额数字']) {
     assert.ok(quota.includes(marker), `quota-awareness.md is missing: ${marker}`);
   }
 });
 
 test('data analysis Skill never hardcodes Salesforce truth or environment values', async () => {
-  const directory = path.join(projectRoot, 'skills', 'sfoa-data-analysis');
+  const directory = path.join(projectRoot, 'skills', 'crm-data-analysis');
   for (const file of await listSkillFiles(directory)) {
     const relativePath = path.relative(directory, file);
     const text = await readFile(file, 'utf8');
@@ -518,7 +518,7 @@ async function listSkillFiles(root, current = root) {
 }
 
 test('record change description stays a single short routing line', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'SKILL.md'), 'utf8');
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(body)?.[1] ?? '';
   const description = /^description:\s*(.+)$/mu.exec(frontmatter)?.[1] ?? '';
   assert.ok(description.length > 0, 'SKILL.md description is required');
@@ -526,14 +526,14 @@ test('record change description stays a single short routing line', async () => 
   assert.ok(description.length <= 160, `description must stay within 160 characters, got ${description.length}`);
   assert.ok(!description.includes('\n'), 'description must stay a single line');
   for (const signal of ['Salesforce', 'CREATE', 'Record Type', 'Dynamic Forms', '必填', 'Lookup', 'Picklist',
-    'Owner', 'fallback', 'sfoa-crm-core']) {
+    'Owner', 'fallback', 'crm-core']) {
     assert.ok(description.includes(signal), `description must keep the routing signal: ${signal}`);
   }
   assert.ok(description.includes('不用于纯查询'), 'description must exclude pure read requests');
 });
 
 test('record change Skill keeps retired tools and company identifiers out of its doctrine', async () => {
-  const directory = path.join(projectRoot, 'skills', 'sfoa-record-change');
+  const directory = path.join(projectRoot, 'skills', 'crm-record-change');
   for (const file of await listSkillFiles(directory)) {
     const relativePath = path.relative(directory, file);
     const lines = (await readFile(file, 'utf8')).split('\n');
@@ -591,14 +591,14 @@ test('runtime copy publishes only the allowlist, refuses credentials and stays d
     const checked = await checkRuntimeSkill({ canonicalDir: path.join(projectRoot, 'skills', name), runtimeRoot });
     assert.equal(checked.ok, true, JSON.stringify(checked.drift));
   }
-  await writeFile(path.join(runtimeRoot, 'sfoa-record-change', 'SKILL.md'), 'drift', 'utf8');
+  await writeFile(path.join(runtimeRoot, 'crm-record-change', 'SKILL.md'), 'drift', 'utf8');
   assert.equal((await checkRuntimeSkill({
-    canonicalDir: path.join(projectRoot, 'skills', 'sfoa-record-change'), runtimeRoot })).ok, false);
+    canonicalDir: path.join(projectRoot, 'skills', 'crm-record-change'), runtimeRoot })).ok, false);
   assert.throws(() => assertBusinessSkillAllowed('sfoa-mcp-maintainer'), /allowlist/u);
   // A canonical directory that carries credential or executable content is refused outright.
-  const poisoned = path.join(root, 'skills', 'sfoa-record-change');
+  const poisoned = path.join(root, 'skills', 'crm-record-change');
   await mkdir(path.join(poisoned, 'references'), { recursive: true });
-  await writeFile(path.join(poisoned, 'SKILL.md'), '---\nname: sfoa-record-change\ndescription: temp\n---\nBody.\n', 'utf8');
+  await writeFile(path.join(poisoned, 'SKILL.md'), '---\nname: crm-record-change\ndescription: temp\n---\nBody.\n', 'utf8');
   await writeFile(path.join(poisoned, 'references', 'note.md'), 'note\n', 'utf8');
   await writeFile(path.join(poisoned, '.env'), 'SECRET=1\n', 'utf8');
   await assert.rejects(() => syncRuntimeSkill({ canonicalDir: poisoned, runtimeRoot: path.join(root, 'other') }),
@@ -646,25 +646,25 @@ test('multiple canonical Skills sync independently and package with their own na
   const root = await mkdtemp(path.join(tmpdir(), 'sfoa-multiple-skills-'));
   context.after(async () => rm(root, { recursive: true, force: true }));
   const maintainer = path.join(root, 'skills', 'sfoa-mcp-maintainer');
-  const business = path.join(root, 'skills', 'sfoa-crm-core');
+  const business = path.join(root, 'skills', 'crm-core');
   await cp(canonicalDir, maintainer, { recursive: true });
   await mkdir(path.join(business, 'references'), { recursive: true });
-  await writeFile(path.join(business, 'SKILL.md'), '---\nname: sfoa-crm-core\ndescription: Query CRM\n---\n[Guide](references/query.md)\n');
+  await writeFile(path.join(business, 'SKILL.md'), '---\nname: crm-core\ndescription: Query CRM\n---\n[Guide](references/query.md)\n');
   await writeFile(path.join(business, 'references', 'query.md'), 'Use current evidence.\n');
   await writeFile(path.join(root, 'skills', 'notes.txt'), 'not a Skill directory');
-  assert.deepEqual((await discoverSkills(root)).map((dir) => path.basename(dir)), ['sfoa-crm-core', 'sfoa-mcp-maintainer']);
+  assert.deepEqual((await discoverSkills(root)).map((dir) => path.basename(dir)), ['crm-core', 'sfoa-mcp-maintainer']);
   for (const dir of await discoverSkills(root)) await syncSkill({ projectRoot: root, canonicalDir: dir });
   const maintainerBefore = await readFile(path.join(root, '.agents', 'skills', 'sfoa-mcp-maintainer', 'SKILL.md'));
-  await writeFile(path.join(root, '.claude', 'skills', 'sfoa-crm-core', 'extra.txt'), 'stale');
+  await writeFile(path.join(root, '.claude', 'skills', 'crm-core', 'extra.txt'), 'stale');
   assert.equal((await checkSkill({ projectRoot: root, canonicalDir: business })).ok, false);
   assert.equal((await checkSkill({ projectRoot: root, canonicalDir: maintainer })).ok, true);
   await syncSkill({ projectRoot: root, canonicalDir: business });
   assert.equal((await checkSkill({ projectRoot: root, canonicalDir: business })).ok, true);
   assert.deepEqual(await readFile(path.join(root, '.agents', 'skills', 'sfoa-mcp-maintainer', 'SKILL.md')), maintainerBefore);
   const archive = await packageSkill({ projectRoot: root, canonicalDir: business });
-  assert.equal(path.basename(archive.outputPath), 'sfoa-crm-core.zip');
+  assert.equal(path.basename(archive.outputPath), 'crm-core.zip');
   const bytes = await readFile(archive.outputPath);
-  assert.ok(bytes.includes(Buffer.from('sfoa-crm-core/references/query.md')));
+  assert.ok(bytes.includes(Buffer.from('crm-core/references/query.md')));
   assert.ok(!bytes.includes(Buffer.from('sfoa-mcp-maintainer/')));
   await rm(path.join(business, 'references', 'query.md'));
   assert.equal((await validateSkill({ canonicalDir: business })).ok, false);
@@ -1323,13 +1323,13 @@ test('HOTFIX readiness — actual required, writable and applicable dependency g
 
 test('HOTFIX guidance — business Record Type meaning takes precedence over Picklist fit', async () => {
   for (const relative of ['SKILL.md', 'references/create-readiness.md']) {
-    const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
+    const text = await readFile(path.join(projectRoot, 'skills/crm-record-change', relative), 'utf8');
     assert.ok(text.includes('不得仅为匹配 Picklist 值改变业务类型'), relative);
     assert.ok(text.includes('当前类型确实选错或多个类型在业务上都成立'), relative);
     assert.doesNotMatch(text, /换(?:一个可用)?候选(?: Record Type|类型)或集中追问/u);
   }
   for (const relative of ['SKILL.md', 'references/create-readiness.md', 'references/dynamic-forms.md', 'references/readiness-gate.md']) {
-    const text = await readFile(path.join(projectRoot, 'skills/sfoa-record-change', relative), 'utf8');
+    const text = await readFile(path.join(projectRoot, 'skills/crm-record-change', relative), 'utf8');
     assert.ok(text.includes('criticalUnknown'), `${relative} must preserve selected-form critical unknown obligations`);
     assert.ok(text.includes('未决事实确实可能改变所选表单的适用必填，或影响提交字段合法性及 Lookup/Picklist'), relative);
     assert.ok(text.includes('且现有可靠证据无法消解'), relative);
@@ -1452,7 +1452,7 @@ test('CREATE duplicate gate — a batch checks duplicate identity values inside 
 });
 
 test('CREATE regression — the 02A entry-point contract survived the 02B rewrite', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'SKILL.md'), 'utf8');
   const hardRules = body.split('## Hard Rules')[1]?.split('## 何时加载')[0] ?? '';
   for (const [rule, marker] of RECORD_CHANGE_HARD_RULE_MARKERS) {
     assert.ok(hardRules.includes(marker), `02B regressed the hard boundary for ${rule}: ${marker}`);
@@ -1462,16 +1462,16 @@ test('CREATE regression — the 02A entry-point contract survived the 02B rewrit
     assert.ok(body.includes(`(references/${name}.md)`), `02B dropped references/${name}.md from the routing list`);
   }
   for (const reference of ['create-readiness', 'dynamic-forms', 'managed-lookups', 'lookup-and-picklist']) {
-    const text = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references', `${reference}.md`), 'utf8');
+    const text = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'references', `${reference}.md`), 'utf8');
     assert.ok(text.length > 0, `${reference}.md must not be emptied by the 02B rewrite`);
   }
 });
 
 test('CREATE regression — every routed reference resolves inside the Skill', async () => {
-  const body = await readFile(path.join(projectRoot, 'skills', 'sfoa-record-change', 'SKILL.md'), 'utf8');
+  const body = await readFile(path.join(projectRoot, 'skills', 'crm-record-change', 'SKILL.md'), 'utf8');
   const routed = [...new Set([...body.matchAll(/\(references\/([a-z0-9-]+)\.md\)/gu)].map((match) => match[1]))];
   assert.ok(routed.length >= 8, `the routing list shrank unexpectedly: ${routed.join(', ')}`);
-  const files = await readdir(path.join(projectRoot, 'skills', 'sfoa-record-change', 'references'));
+  const files = await readdir(path.join(projectRoot, 'skills', 'crm-record-change', 'references'));
   const present = files.filter((name) => name.endsWith('.md')).map((name) => name.replace(/\.md$/u, ''));
   assert.deepEqual([...routed].sort(), [...present].sort(),
     'every reference file must be routed from SKILL.md and every routed name must exist');
@@ -1565,7 +1565,7 @@ test('skill:export — generates a self-contained, zero-credential, idempotent p
 test('skill:export — refuses to clear an output root it is not allowed to delete', async () => {
   // The generator clears its output root before writing, so anything that is not a disposable
   // generated-output root must be refused instead of deleted.
-  for (const outputDir of ['.', '..', 'skills', 'skills/sfoa-crm-core', 'docs', 'package.json/..', path.join(projectRoot, 'packages')]) {
+  for (const outputDir of ['.', '..', 'skills', 'skills/crm-core', 'docs', 'package.json/..', path.join(projectRoot, 'packages')]) {
     await assert.rejects(() => exportAgentSkillPackage({ projectRoot, outputDir }),
       /Refusing to clear/u, `--output ${outputDir} must be refused`);
   }

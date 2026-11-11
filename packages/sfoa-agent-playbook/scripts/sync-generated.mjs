@@ -23,9 +23,9 @@ if (!mode) {
   process.exitCode = 2;
 } else {
   const artifacts = new Map([
-    ['.codebuddy/skills/sfoa-salesforce-assistant/SKILL.md', normalize(renderWorkBuddySkill())],
-    ['.codebuddy/skills/sfoa-salesforce-assistant/references/tool-workflows.md', generated(renderWorkflowReference())],
-    ['.codebuddy/skills/sfoa-salesforce-assistant/references/safety-boundaries.md', generated(renderSafetyReference())],
+    ['.codebuddy/skills/crm-playbook/SKILL.md', normalize(renderWorkBuddySkill())],
+    ['.codebuddy/skills/crm-playbook/references/tool-workflows.md', generated(renderWorkflowReference())],
+    ['.codebuddy/skills/crm-playbook/references/safety-boundaries.md', generated(renderSafetyReference())],
     ['docs/agent/DIFY_AGENT_INSTRUCTION.md', generated(renderDifyInstruction())],
     ['docs/agent/WORKBUDDY_AGENT_SYSTEM_PROMPT.md', generated(renderWorkBuddySystemPrompt())],
   ]);
