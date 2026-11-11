@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-11-11 业务 Skill slug 改为 `crm-` 并割接 203（`4747842`）
+
+只发布 Skill 与 OpenClaw 配置，**没有重建或重启 MCP 服务**：`sfoa-mcp-server` 全程 `PID=3869891` 未变，`/health` 200、audit 写入 UP；`sfoa-admin-api`、`nginx` PID 同样未变。
+
+| 项 | 记录 |
+| --- | --- |
+| 提交 | `4747842` `refactor(skills): rename business Skill slugs from sfoa- to crm-`（229 文件） |
+| 归档 | `git archive HEAD skills/crm-{core,record-change,data-analysis,org-diagnostics}` → `crm-skills-4747842.tar.gz`，92,399 B，sha256 `05df370f0ad82935efb2b6fa8790f37f600a1d395cccce230d03acfd0ccbb125`，39 个 `.md`，本机与服务器哈希一致 |
+| 备份 | `/data/openclaw/backups/openclaw.json.pre-crm-slug-20261111T130634`（11,756 B）、`skills-sfoa-pre-crm-20261111T130634.tar.gz`（91,484 B）；另有 `openclaw.json.bak-crm-slug` |
+| 割接顺序 | 发布新目录 → 改配置 slug → 重启网关 → `openclaw skills check` 通过 → 删除旧目录 |
+| 配置改动 | `agents.entries.main.skills` 四项与 `skills.entries` 四个键整体改名；每个旧 slug 在文件中恰好出现 2 次，用 `sed` 定点替换，JSON 重新校验通过，其余键序与格式未变 |
+| 网关 | `openclaw-gateway` 3759907 → **3870592**，`active`，`:18789/health` 200；日志只有一条 `[reload] skills snapshot invalidated by config change`，无 error |
+| 校验 | `openclaw skills check --agent main`：Total 95 → **91**，Visible to model 仍为 **7**，且四项为 `crm-core` / `crm-data-analysis` / `crm-org-diagnostics` / `crm-record-change`；旧 `sfoa-{crm-core,record-change,data-analysis,org-diagnostics}` 已不再加载 |
+| 未纳入本仓库的 Skill | `/data/openclaw/state/agents/main/agent/workshop-skills/` 下仍有 `sfoa-visit-record`、`sfoa-account-360` 等 workshop Skill，`sfoa` 导出包也在；它们本就不在 `main.skills` allowlist 内，本次未改动 |
+
+回滚：恢复 `openclaw.json.pre-crm-slug-*`、解包 `skills-sfoa-pre-crm-*.tar.gz` 回 `/data/openclaw/workspace/skills/`、删除四个 `crm-*` 目录、`systemctl restart openclaw-gateway`。
+
+---
+
 ## 2026-11-11 附件暂存上限默认值对齐 50 MiB（`6e5eb3e`）
 
 本次只对齐代码默认值与文档。203 的 `app/.env.local` 自 2026-09-18 起已是 `MCP_ATTACHMENT_MAX_FILE_BYTES=52428800`，显式配置优先，因此**运行时行为没有变化**；重启是为了让源码、dist 与运行进程三者一致。
