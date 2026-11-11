@@ -864,8 +864,10 @@ MCP_ATTACHMENT_STAGING_ROOT=/data/sfoa-enterprise-mcp/var/attachments   # 必须
 所以入站没有「只放宽企微」的写法，改 #2 就是改全渠道、全媒体类型（**含图片**）的上限。
 
 **只改 OpenClaw 不够。** #2 放宽后，超过 #3 的文件会在暂存接口被
-`MCP_ATTACHMENT_TOO_LARGE` 拒掉——两端必须一起改。#3 的代码默认是 25 MiB
-（`DEFAULT_ATTACHMENT_MAX_FILE_BYTES`），schema 硬上限 100 MiB。
+`MCP_ATTACHMENT_TOO_LARGE` 拒掉——两端必须一起改。#3 的代码默认已于
+2026-11-11 对齐为 50 MiB（`DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 52_428_800`），
+与部署值一致；schema 硬上限 100 MiB。02C 实施报告 §7 仍记录交付当时的 25 MiB
+取值，仅作历史快照，不代表当前代码。
 
 代价与注意：
 

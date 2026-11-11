@@ -43,7 +43,8 @@ export type BuntuIdentityConfig = Readonly<{
 
 export const DEFAULT_ATTACHMENT_PATH = '/attachments';
 export const DEFAULT_ATTACHMENT_TTL_MS = 900_000;
-export const DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 26_214_400;
+/** 50 MiB: matches the deployed channel/staging gate (2026-09-18); schema ceiling is 100 MiB. */
+export const DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 52_428_800;
 export const DEFAULT_ATTACHMENT_MAX_FILES_PER_OWNER = 50;
 /** The reaper never waits longer than this between passes, however long the TTL is. */
 export const DEFAULT_ATTACHMENT_REAP_INTERVAL_MS = 300_000;

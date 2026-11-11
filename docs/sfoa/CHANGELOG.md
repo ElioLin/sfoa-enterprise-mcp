@@ -2,6 +2,10 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-11 — Attachment staging ceiling default aligned to 50 MiB
+
+`DEFAULT_ATTACHMENT_MAX_FILE_BYTES` and `.env.example` now use 52,428,800 bytes (50 MiB), the value already deployed on 203 since 2026-09-18; the Zod ceiling stays at 100 MiB. This closes a code/deployment default drift and is not a runtime behaviour change on deployed servers. Keep all four inbound gates aligned: channel `mediaMaxMb`, staging ceiling, `MCP_TOOL_TIMEOUT_MS` / `MCP_REQUEST_TIMEOUT_MS`, and reverse-proxy `client_max_body_size`. See [the integration guide](OPENCLAW_WECOM_SFOA_INTEGRATION.md) section 12.4.
+
 ## 2026-11-10 — Record action discovery, generic button and child-record rules
 
 A WeCom session wrote 客户拜访 records whose 总结按钮 required fields stayed empty and whose two participant child tables stayed empty. Audit showed the session never resolved the button at all (it wrote through the STANDARD form) and never attempted a child-object create, even though both child objects are in the DML allowlist.

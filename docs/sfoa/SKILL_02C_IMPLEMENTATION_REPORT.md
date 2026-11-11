@@ -277,6 +277,10 @@ export const DEFAULT_ATTACHMENT_MAX_FILES_PER_OWNER = 50;
 export const DEFAULT_ATTACHMENT_REAP_INTERVAL_MS = 300_000;
 ```
 
+> 2026-11-11 注：以上为 02C 交付时的原始取值；代码默认已对齐为
+> `52_428_800`（50 MiB），与测试服部署值一致。本段保留原值作为历史快照，
+> 排查当前配置请以 `config.ts` 与部署环境为准。
+
 `MCP_ATTACHMENT_MAX_FILE_BYTES` 是**暂存区资源保护**（防止无界磁盘/内存占用），不是「Salesforce 会不会收」的判断；它的文档注释明确写了「deliberately no extension list, no MIME allowlist and no Salesforce-size mirror here」。
 
 ### 7.1 Files 对象是内部技术对象，永不是 Generic DML 业务对象
