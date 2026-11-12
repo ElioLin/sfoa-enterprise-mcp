@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-11-12 字段值形态规则（Hard Rule 51）发布到 203（`bbbf53f`）
+
+内容型更新，slug 与配置均未变，因此**没有改 `openclaw.json`**，也不需要重建 MCP：`sfoa-mcp-server` 全程 `PID=3869891` 未动、`/health` 200；只替换 `crm-record-change` 目录并重启网关让新内容生效。
+
+| 项 | 记录 |
+| --- | --- |
+| 触发 | 203 真实 UAT：4 条记录建单成功、萃取质量可接受，但两个按钮必填被写成 `报告未记录客户品质情况。` / `报告未记录客户对现场管理及制造能力的评价。` |
+| 归档 | `crm-rc-bbbf53f.tar.gz`，54,432 B，sha256 `3184abba…b841`，14 个 `.md`；两端哈希一致 |
+| 备份 | `/data/openclaw/backups/crm-record-change-pre-bbbf53f-20261112T151124.tar.gz`（52,013 B） |
+| 替换 | `git archive` 的多层路径需 `--strip-components=2`；首次用了 1，把内容写成 `crm-record-change/crm-record-change/` 嵌套目录（14 → 28 文件），已删除嵌套层并重新解包 |
+| 校验 | `SKILL.md` sha256 `259d07ef…e567`（与本机一致），`^51\. \*\*字段值是业务事实` 命中 1，`references/create-readiness.md` 含「字段值的形态」小节 |
+| 网关 | `openclaw-gateway` 3870592 → 3904712，`active`；`openclaw skills check --agent main`：Total 91、Visible to model 7、`crm-*` 四项仍在 |
+| 回滚 | 解包上面那个备份覆盖 `workspace/skills/crm-record-change/`，再 `systemctl restart openclaw-gateway` |
+| 未做 | 真实企微对话复跑（需用户重发同一份会议记录，观察是否改为一次性追问而不是写入元陈述） |
+
+---
+
 ## 2026-11-11 业务 Skill slug 改为 `crm-` 并割接 203（`4747842`）
 
 只发布 Skill 与 OpenClaw 配置，**没有重建或重启 MCP 服务**：`sfoa-mcp-server` 全程 `PID=3869891` 未变，`/health` 200、audit 写入 UP；`sfoa-admin-api`、`nginx` PID 同样未变。
