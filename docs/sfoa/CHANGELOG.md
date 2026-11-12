@@ -2,6 +2,21 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-12 — Forbid meta statements about the source material in field values
+
+A real 203 UAT run created the target records and extracted the meeting notes well, but filled two required button fields with sentences about the document instead of business facts:
+
+- `客户品质情况` = `报告未记录客户品质情况。`
+- `客户对现场管理及制造能力评价及与期望差异` = `报告未记录客户对现场管理及制造能力的评价。`
+
+Rule 48 already required asking the user before inventing a value, and Rule 50 already forbade partial writes, but nothing named this particular failure: the model did not invent a business fact, it wrote a true-but-useless statement about the material, which reads as "faithfully recorded" and passes any requiredness check. These values then persist in reports, downstream analysis and the customer profile, and cannot be distinguished from a real conclusion.
+
+New Hard Rule 51 (`crm-record-change`) states that a field value must be a business fact from the operator's point of view, not a meta statement about the material. It bans `报告未记录…` / `文档中未提及…` / `材料未说明…` / `未获取到` / `无法确认` / `待补充` / `N/A` and any sentence whose subject is the document, and it closes the two tempting inversions: silence in the material neither proves "client reported no issue" nor licenses "client did not mention it". Only three outcomes remain: ask the user once with a one-click suggestion, write `无` in a text field after confirmation, or omit a non-required field.
+
+Rule 48 was tightened accordingly: the single consolidated question must now carry a default the user can accept in one turn («若本次确实未涉及，我将填“无”，确认吗？»), and an explicit session-wide authorization such as "缺失项一律填无" now covers every similar field in that task instead of triggering per-field confirmation. Rule 48 also states that fabricating content to pass requiredness is worse than pausing to ask.
+
+`references/create-readiness.md` gained a "字段值的形态" section (allowed outcomes, banned forms, the "does this describe the business or my copy of the document" test) and a second UAT regression case built from this incident. The Playbook renderer carries the same two rules so `crm-playbook` does not drift.
+
 ## 2026-11-11 — Business Skill slugs renamed to `crm-`
 
 Host skill lists and `@`/`/` invocation show the Skill `name`, not `display_name`, in both WorkBuddy and DSH. The Chinese `display_name` added on 2026-11-09 (`4fc8465`) is therefore not what business users see, and a Chinese `name` is impossible: `manage.mjs` validates every canonical directory against `[a-z0-9-]` and requires frontmatter `name` to equal it. The Slugs now carry the business domain instead of the project prefix:
