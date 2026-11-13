@@ -40,6 +40,12 @@ export class MySqlControlPlaneStore {
 }
 
 export interface TransactionalControlPlaneStore {
+  /**
+   * Read-only repositories for the non-transactional read paths (catalogue lists, permission
+   * probes). Writes still go through `transaction`, which re-creates the repositories bound to
+   * the transaction connection.
+   */
+  readonly repositories: ControlPlaneRepositories;
   transaction<T>(work: (repositories: ControlPlaneRepositories) => Promise<T>): Promise<T>;
 }
 

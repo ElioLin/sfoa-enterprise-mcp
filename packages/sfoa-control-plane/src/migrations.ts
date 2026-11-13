@@ -213,7 +213,8 @@ export async function assertAllMigrationsApplied(
 const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   sfoa_schema_migration: Object.freeze(['version', 'checksum_sha256', 'applied_at']),
   sfoa_identity_route: Object.freeze([
-    'id', 'platform_user_id', 'user_name', 'salesforce_username', 'enabled', 'remark', 'row_version', 'created_at', 'updated_at',
+    'id', 'platform_user_id', 'user_name', 'salesforce_username', 'enabled',
+    'can_manage_dsh_scenarios', 'remark', 'row_version', 'created_at', 'updated_at',
   ]),
   sfoa_identity_credential: Object.freeze([
     'id', 'identity_route_id', 'credential_type', 'token_hash', 'token_ciphertext', 'token_last4', 'status',
@@ -259,6 +260,14 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
   sfoa_attachment_staging: Object.freeze([
     'id', 'attachment_ref', 'platform_user_id', 'source_channel', 'run_id', 'file_name', 'mime_type',
     'byte_size', 'content_sha256', 'staged_path', 'state', 'failure_code', 'created_at', 'expires_at', 'consumed_at',
+  ]),
+  crm_dsh_standard_scenarios: Object.freeze([
+    'scenario_id', 'title', 'category', 'description', 'version', 'revision', 'scenario_payload',
+    'preset_attachments', 'status', 'created_by_platform_uid', 'created_by_crm_user',
+    'updated_by_platform_uid', 'created_at', 'updated_at',
+  ]),
+  crm_dsh_scenario_files: Object.freeze([
+    'attachment_id', 'scenario_id', 'file_name', 'mime_type', 'file_size', 'sha256', 'file_content', 'created_at',
   ]),
 });
 
@@ -310,6 +319,12 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   }),
   idx_sfoa_attachment_staging_expiry: Object.freeze({
     tableName: 'sfoa_attachment_staging', columns: Object.freeze(['state', 'expires_at']), unique: false,
+  }),
+  idx_status_updated: Object.freeze({
+    tableName: 'crm_dsh_standard_scenarios', columns: Object.freeze(['status', 'updated_at']), unique: false,
+  }),
+  idx_scenario_id: Object.freeze({
+    tableName: 'crm_dsh_scenario_files', columns: Object.freeze(['scenario_id']), unique: false,
   }),
 });
 

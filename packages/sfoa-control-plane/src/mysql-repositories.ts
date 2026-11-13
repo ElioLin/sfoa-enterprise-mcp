@@ -6,6 +6,8 @@ import {
 } from '@sfoa/identity-runtime';
 import {
   diagnosticVerificationStatusSchema,
+  DSH_SCENARIO_STATUSES,
+  dshScenarioDownloadPath,
   freezeSnapshot,
   managedDmlFieldStrategySchema,
   normalizeSalesforceUsername,
@@ -13,6 +15,10 @@ import {
   type AttachmentStagingRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type DshScenarioAttachmentMeta,
+  type DshScenarioFileContentRecord,
+  type DshScenarioFileMetaRecord,
+  type DshStandardScenarioRecord,
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type ManagedDmlFieldRuleRecord,
@@ -35,6 +41,10 @@ import type {
   DmlPolicyCreateInput,
   DmlPolicyRepository,
   DmlPolicyUpdateInput,
+  DshScenarioCreateInput,
+  DshScenarioFileInsert,
+  DshScenarioRepository,
+  DshScenarioUpdatePatch,
   IdentityRouteCreateInput,
   IdentityCredentialCreateInput,
   IdentityCredentialRepository,
@@ -58,6 +68,8 @@ import type {
   DiagnosticConfigTable,
   DmlPolicyTable,
   DmlManagedFieldRuleTable,
+  DshScenarioFileTable,
+  DshStandardScenarioTable,
   IdentityRouteTable,
   IdentityCredentialTable,
   RuntimeSettingTable,
@@ -132,6 +144,7 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
         user_name: input.userName,
         salesforce_username: input.salesforceUsername,
         enabled: input.enabled,
+        can_manage_dsh_scenarios: input.canManageDshScenarios ?? false,
         remark: input.remark,
       }).executeTakeFirstOrThrow();
       const row = await this.database.selectFrom('sfoa_identity_route').selectAll()
@@ -149,6 +162,7 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
         user_name: input.userName,
         salesforce_username: input.salesforceUsername,
         enabled: input.enabled,
+        can_manage_dsh_scenarios: input.canManageDshScenarios,
         remark: input.remark,
         row_version: sql`row_version + 1`,
       }).where('id', '=', id).where('row_version', '=', input.rowVersion).executeTakeFirst();
@@ -168,6 +182,7 @@ export class MySqlIdentityRouteRepository implements IdentityRouteRepository {
       userName: current.userName,
       salesforceUsername: current.salesforceUsername,
       enabled: false,
+      canManageDshScenarios: current.canManageDshScenarios,
       remark: current.remark,
       rowVersion,
     });
@@ -690,6 +705,125 @@ export class MySqlAttachmentStagingRepository implements AttachmentStagingReposi
   }
 }
 
+/**
+ * DSH standard scenarios and their preset attachment bytes (DSH-01).
+ *
+ * Every write is one statement per table and carries its own `version` / `revision`; the service
+ * computed them under `getByIdForUpdate`. The only SQL-side arithmetic here is `updated_at`,
+ * which MySQL maintains.
+ */
+export class MySqlDshScenarioRepository implements DshScenarioRepository {
+  public constructor(private readonly database: Executor) {}
+
+  public async listVisible(includeArchived: boolean): Promise<readonly DshStandardScenarioRecord[]> {
+    let query = this.database.selectFrom('crm_dsh_standard_scenarios').selectAll()
+      .where('status', 'in', includeArchived ? ['PUBLISHED', 'ARCHIVED'] : ['PUBLISHED']);
+    const rows = await query.orderBy('updated_at', 'desc').orderBy('scenario_id').execute();
+    return Object.freeze(rows.map(mapDshScenario));
+  }
+
+  public async listDeletedIds(): Promise<readonly string[]> {
+    const rows = await this.database.selectFrom('crm_dsh_standard_scenarios').select('scenario_id')
+      .where('status', '=', 'DELETED').orderBy('scenario_id').execute();
+    return Object.freeze(rows.map((row) => row.scenario_id));
+  }
+
+  public async getById(scenarioId: string): Promise<DshStandardScenarioRecord | undefined> {
+    const row = await this.database.selectFrom('crm_dsh_standard_scenarios').selectAll()
+      .where('scenario_id', '=', scenarioId).executeTakeFirst();
+    return row ? mapDshScenario(row) : undefined;
+  }
+
+  public async getByIdForUpdate(scenarioId: string): Promise<DshStandardScenarioRecord | undefined> {
+    const row = await this.database.selectFrom('crm_dsh_standard_scenarios').selectAll()
+      .where('scenario_id', '=', scenarioId).forUpdate().executeTakeFirst();
+    return row ? mapDshScenario(row) : undefined;
+  }
+
+  public async insert(input: DshScenarioCreateInput): Promise<DshStandardScenarioRecord> {
+    try {
+      await this.database.insertInto('crm_dsh_standard_scenarios').values({
+        scenario_id: input.scenarioId,
+        title: input.title,
+        category: input.category,
+        description: input.description,
+        version: input.version,
+        revision: input.revision,
+        scenario_payload: JSON.stringify(input.scenarioPayload),
+        preset_attachments: JSON.stringify(input.presetAttachments),
+        status: input.status,
+        created_by_platform_uid: input.createdByPlatformUid,
+        created_by_crm_user: input.createdByCrmUser,
+        updated_by_platform_uid: input.updatedByPlatformUid,
+      }).executeTakeFirstOrThrow();
+    } catch (error) {
+      throw mapWriteError(error, 'A standard scenario already exists for this scenarioId.');
+    }
+    return (await this.getById(input.scenarioId)) as DshStandardScenarioRecord;
+  }
+
+  public async update(scenarioId: string, patch: DshScenarioUpdatePatch): Promise<DshStandardScenarioRecord> {
+    const result = await this.database.updateTable('crm_dsh_standard_scenarios').set({
+      title: patch.title,
+      category: patch.category,
+      description: patch.description,
+      version: patch.version,
+      revision: patch.revision,
+      scenario_payload: JSON.stringify(patch.scenarioPayload),
+      preset_attachments: JSON.stringify(patch.presetAttachments),
+      status: patch.status,
+      updated_by_platform_uid: patch.updatedByPlatformUid,
+    }).where('scenario_id', '=', scenarioId).executeTakeFirst();
+    if (result.numUpdatedRows === 0n) throw notFound('Standard scenario');
+    return (await this.getById(scenarioId)) as DshStandardScenarioRecord;
+  }
+
+  public async listFiles(scenarioId: string): Promise<readonly DshScenarioFileMetaRecord[]> {
+    const rows = await this.database.selectFrom('crm_dsh_scenario_files')
+      .select(['attachment_id', 'scenario_id', 'file_name', 'mime_type', 'file_size', 'sha256', 'created_at'])
+      .where('scenario_id', '=', scenarioId).orderBy('created_at').orderBy('attachment_id').execute();
+    return Object.freeze(rows.map((row) => mapDshScenarioFileMeta(row)));
+  }
+
+  public async getFile(scenarioId: string, attachmentId: string): Promise<DshScenarioFileContentRecord | undefined> {
+    const row = await this.database.selectFrom('crm_dsh_scenario_files').selectAll()
+      .where('scenario_id', '=', scenarioId).where('attachment_id', '=', attachmentId).executeTakeFirst();
+    if (!row) return undefined;
+    return Object.freeze({
+      ...mapDshScenarioFileMeta(row),
+      content: Buffer.isBuffer(row.file_content) ? row.file_content : Buffer.from(row.file_content),
+    });
+  }
+
+  public async insertFile(input: DshScenarioFileInsert): Promise<DshScenarioFileMetaRecord> {
+    await this.database.insertInto('crm_dsh_scenario_files').values({
+      attachment_id: input.attachmentId,
+      scenario_id: input.scenarioId,
+      file_name: input.fileName,
+      mime_type: input.mimeType,
+      file_size: input.fileSize,
+      sha256: input.sha256,
+      file_content: input.content,
+    }).executeTakeFirstOrThrow();
+    const row = await this.database.selectFrom('crm_dsh_scenario_files')
+      .select(['attachment_id', 'scenario_id', 'file_name', 'mime_type', 'file_size', 'sha256', 'created_at'])
+      .where('attachment_id', '=', input.attachmentId).executeTakeFirstOrThrow();
+    return mapDshScenarioFileMeta(row);
+  }
+
+  public async deleteFile(scenarioId: string, attachmentId: string): Promise<boolean> {
+    const result = await this.database.deleteFrom('crm_dsh_scenario_files')
+      .where('scenario_id', '=', scenarioId).where('attachment_id', '=', attachmentId).executeTakeFirst();
+    return result.numDeletedRows > 0n;
+  }
+
+  public async deleteFilesForScenario(scenarioId: string): Promise<number> {
+    const result = await this.database.deleteFrom('crm_dsh_scenario_files')
+      .where('scenario_id', '=', scenarioId).executeTakeFirst();
+    return Number(result.numDeletedRows);
+  }
+}
+
 export function createMySqlRepositories(database: Executor): ControlPlaneRepositoriesWithAuditTrace {
   const auditRepository = new MySqlAuditRepository(database);
   return Object.freeze({
@@ -703,6 +837,7 @@ export function createMySqlRepositories(database: Executor): ControlPlaneReposit
     runtimeSettings: new MySqlRuntimeSettingRepository(database),
     audits: auditRepository,
     auditTraces: auditRepository,
+    dshScenarios: new MySqlDshScenarioRepository(database),
   });
 }
 
@@ -769,11 +904,87 @@ async function loadGlobalGovernance(repositories: ControlPlaneRepositories): Pro
   });
 }
 
-function mapIdentityRoute(row: Selectable<IdentityRouteTable>): IdentityRouteRecord {
+function mapDshScenario(row: Selectable<DshStandardScenarioTable>): DshStandardScenarioRecord {
+  const status = DSH_SCENARIO_STATUSES.find((candidate) => candidate === row.status);
+  if (!status) {
+    throw new ControlPlaneError(
+      'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+      `Stored DSH standard scenario ${row.scenario_id} has an unsupported status.`,
+    );
+  }
   return Object.freeze({
+    scenarioId: row.scenario_id,
+    title: row.title,
+    category: row.category,
+    description: row.description,
+    version: row.version,
+    revision: Number(row.revision),
+    scenarioPayload: parseStoredJson(row.scenario_payload),
+    presetAttachments: mapDshPresetAttachments(row.scenario_id, row.preset_attachments),
+    status,
+    createdByPlatformUid: row.created_by_platform_uid,
+    createdByCrmUser: row.created_by_crm_user,
+    updatedByPlatformUid: row.updated_by_platform_uid,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  });
+}
+
+/**
+ * `preset_attachments` is derived metadata: the authoritative bytes live in
+ * `crm_dsh_scenario_files`. One unreadable entry is therefore dropped instead of failing the
+ * whole catalogue (which would blank the plugin's home screen and the Admin list); the next
+ * write rebuilds the array from the file table.
+ */
+function mapDshPresetAttachments(
+  scenarioId: string,
+  raw: string | null,
+): readonly DshScenarioAttachmentMeta[] {
+  const parsed = raw === null ? null : parseStoredJson(raw);
+  if (!Array.isArray(parsed)) return Object.freeze([]);
+  const items: DshScenarioAttachmentMeta[] = [];
+  for (const entry of parsed) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const value = entry as Record<string, unknown>;
+    const attachmentId = typeof value.attachmentId === 'string' ? value.attachmentId : undefined;
+    const fileName = typeof value.fileName === 'string' ? value.fileName : undefined;
+    const mimeType = typeof value.mimeType === 'string' ? value.mimeType : undefined;
+    const fileSize = typeof value.fileSize === 'number' ? value.fileSize : undefined;
+    const sha256 = typeof value.sha256 === 'string' ? value.sha256 : undefined;
+    if (!attachmentId || !fileName || !mimeType || fileSize === undefined || !sha256) continue;
+    items.push(Object.freeze({
+      attachmentId,
+      fileName,
+      mimeType,
+      fileSize,
+      sha256,
+      // Always recomputed from the owning ids: a stored absolute URL would go stale on a host move.
+      downloadUrl: dshScenarioDownloadPath(scenarioId, attachmentId),
+    }));
+  }
+  return Object.freeze(items);
+}
+
+function mapDshScenarioFileMeta(
+  row: Omit<Selectable<DshScenarioFileTable>, 'file_content'>,
+): DshScenarioFileMetaRecord {
+  return Object.freeze({
+    attachmentId: row.attachment_id,
+    scenarioId: row.scenario_id,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    fileSize: Number(row.file_size),
+    sha256: row.sha256,
+    createdAt: toIso(row.created_at),
+  });
+}
+
+function mapIdentityRoute(row: Selectable<IdentityRouteTable>): IdentityRouteRecord {  return Object.freeze({
     id: String(row.id), platformUserId: row.platform_user_id, userName: row.user_name,
     salesforceUsername: row.salesforce_username,
-    enabled: Boolean(row.enabled), remark: row.remark, rowVersion: String(row.row_version),
+    enabled: Boolean(row.enabled),
+    canManageDshScenarios: Boolean(row.can_manage_dsh_scenarios),
+    remark: row.remark, rowVersion: String(row.row_version),
     createdAt: toIso(row.created_at), updatedAt: toIso(row.updated_at),
   });
 }
@@ -903,6 +1114,20 @@ async function assertOptimisticResult(
 function parseJson(value: string | null): unknown {
   if (value === null) return null;
   try { return JSON.parse(value) as unknown; } catch { throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFIGURATION_INVALID', 'Stored JSON is invalid.'); }
+}
+
+/**
+ * JSON columns are returned as text by the Kysely MySQL dialect, but an adapter may already have
+ * decoded them. Both shapes are accepted; only unparseable text is a configuration defect.
+ */
+function parseStoredJson(value: string | object | null): unknown {
+  if (value === null) return null;
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFIGURATION_INVALID', 'Stored JSON is invalid.');
+  }
 }
 
 function toIso(value: Date | string): string {

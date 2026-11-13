@@ -19,6 +19,7 @@ test('ADR-0034 every module grants at least one endpoint', () => {
   const representative: Readonly<Record<string, readonly [string, string]>> = {
     dashboard: ['GET', '/dashboard'],
     'identity-routes': ['GET', '/routes'],
+    'standard-scenarios': ['GET', '/dsh/scenarios'],
     'tool-governance': ['GET', '/tools'],
     'dml-policies': ['GET', '/dml-policies'],
     diagnostic: ['GET', '/diagnostic'],

@@ -37,6 +37,14 @@ Use `yarn ai:snapshot` before relying on this maintained map.
   rather than repeated. A new Console endpoint that is not added to `module-paths.ts`
   is unreachable for every restricted account — a test asserts the table's ids match
   `ADMIN_MODULE_IDS` and that each module still reaches at least one endpoint.
+- DSH standard scenarios: `packages/sfoa-control-plane/src/dsh-scenario-service.ts` owns the version
+  arithmetic, payload markers, tombstone and audit coupling; `dsh-scenario-contracts.ts` is the
+  strict wire contract; `migrations/018_dsh_standard_scenarios.sql` is the DDL. HTTP lives in
+  `packages/sfoa-admin-api/src/dsh/dsh-scenario-router.ts` (plugin prefix `/api/dsh`, Console alias
+  `/admin/api/dsh`) and `dsh-actor.ts` (four-carrier identity resolution). The Console page is
+  `packages/sfoa-admin-web/src/pages/StandardScenariosPage.tsx`; the grant switch is a column on
+  `pages/IdentityRoutesPage.tsx`. Contract for plugin authors:
+  `docs/sfoa/DSH_STANDARD_SCENARIOS_API.md`.
 - Agent Playbook: `packages/sfoa-agent-playbook/src/` and `scripts/sync-generated.mjs`.
 
 The root uses Yarn Classic workspaces with `packages/*` and `nohoist: ["**"]`. Use each workspace's project-local toolchain.

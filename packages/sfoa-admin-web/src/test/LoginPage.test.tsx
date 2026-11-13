@@ -35,6 +35,7 @@ describe('Admin login', () => {
       userName: '测试用户',
       salesforceUsername: 'user@example.invalid',
       enabled: true,
+      canManageDshScenarios: false,
       remark: null,
     });
     const mutation = fetchMock.mock.calls[1];

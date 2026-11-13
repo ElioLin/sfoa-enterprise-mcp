@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +29,7 @@ import {
   MySqlAuditRepository,
   MySqlControlPlaneStore,
   MySqlUiSnapshotRepository,
+  DshScenarioService,
   splitSqlStatements,
 } from '../index.js';
 import type { DatabaseConfig } from '../config.js';
@@ -150,6 +152,69 @@ if (!setup) {
     });
   });
 
+  test('018 persists DSH standard scenarios, their LONGBLOB attachments and the route capability', async () => {
+    const service = new DshScenarioService(store);
+    const actor = Object.freeze({ platformUserId: 'platform-dsh', crmUsername: 'dsh@example.invalid', adminUsername: null });
+
+    const created = await service.create({
+      scenarioId: 'mysql-scenario',
+      title: 'MySQL 场景',
+      description: '验证 JSON 列、LONGBLOB 与版本自增。',
+      scenarioPayload: { pinnedSkills: ['crm-account-brief'], welcomeMessage: '你好' },
+    }, actor);
+    assert.equal(created.version, '1.0.0');
+    assert.equal(created.revision, 1);
+
+    const updated = await service.update('mysql-scenario', { description: '编辑后的说明' }, actor);
+    assert.equal(updated.version, '1.0.1');
+    assert.equal(updated.revision, 2);
+
+    // The JSON column must hold the forced markers and stay queryable as JSON.
+    const storedJson = await sql<{ payload: string; markers: string }>`
+      SELECT scenario_payload AS payload,
+             JSON_UNQUOTE(JSON_EXTRACT(scenario_payload, '$.sourceType')) AS markers
+      FROM crm_dsh_standard_scenarios WHERE scenario_id = 'mysql-scenario'
+    `.execute(store.database);
+    assert.equal(storedJson.rows[0]?.markers, 'COMPANY_STANDARD');
+    assert.equal((JSON.parse(storedJson.rows[0]?.payload ?? '{}') as { readonlyForNormalUser?: boolean }).readonlyForNormalUser, true);
+
+    // A binary payload round-trips byte-for-byte through LONGBLOB, including NUL bytes.
+    const bytes = Buffer.concat([Buffer.from([0x00, 0xff, 0x10]), Buffer.alloc(65_536, 7)]);
+    const upload = await service.addAttachment('mysql-scenario', {
+      fileName: 'fixture.bin', mimeType: 'application/octet-stream', content: bytes,
+    }, actor);
+    assert.equal(upload.scenario.version, '1.0.2');
+    assert.equal(upload.scenario.revision, 3);
+    assert.equal(upload.scenario.presetAttachments.length, 1);
+    const downloaded = await service.getAttachment('mysql-scenario', upload.attachment.attachmentId);
+    assert.equal(downloaded?.content.length, bytes.length);
+    assert.equal(downloaded?.content.equals(bytes), true);
+    assert.equal(downloaded?.sha256, createHash('sha256').update(bytes).digest('hex'));
+
+    const deleted = await service.softDelete('mysql-scenario', actor);
+    assert.equal(deleted.status, 'DELETED');
+    assert.equal(deleted.revision, 4);
+    assert.equal(deleted.version, '1.0.2');
+    assert.deepEqual((await service.list({ includeArchived: true, includeDeleted: true })).deletedScenarioIds, ['mysql-scenario']);
+    const remainingFiles = await sql<{ count: string }>`
+      SELECT COUNT(*) AS count FROM crm_dsh_scenario_files WHERE scenario_id = 'mysql-scenario'
+    `.execute(store.database);
+    assert.equal(Number(remainingFiles.rows[0]?.count), 0);
+
+    // The capability column defaults to FALSE and survives an optimistic update.
+    const route = await store.repositories.identityRoutes.create({
+      platformUserId: 'platform-dsh', userName: 'DSH User', salesforceUsername: 'dsh@example.invalid',
+      enabled: true, remark: null,
+    });
+    assert.equal(route.canManageDshScenarios, false);
+    const granted = await store.repositories.identityRoutes.update(route.id, {
+      platformUserId: route.platformUserId, userName: route.userName, salesforceUsername: route.salesforceUsername,
+      enabled: true, canManageDshScenarios: true, remark: route.remark, rowVersion: route.rowVersion,
+    });
+    assert.equal(granted.canManageDshScenarios, true);
+    assert.equal((await store.repositories.identityRoutes.getByPlatformUserId('platform-dsh'))?.canManageDshScenarios, true);
+  });
+
   test('P8-06 discovery snapshot shares global governance and never queries identity routes', async () => {
     let queries = 0;
     const guarded = store.database.withPlugin({
@@ -248,6 +313,7 @@ if (!setup) {
       '014_skill02c_attachment_upload',
       '015_admin_audit_actor_index',
       '017_attachment_attempt_lifecycle',
+      '018_dsh_standard_scenarios',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
@@ -272,6 +338,7 @@ if (!setup) {
       '014_skill02c_attachment_upload',
       '015_admin_audit_actor_index',
       '017_attachment_attempt_lifecycle',
+      '018_dsh_standard_scenarios',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -490,6 +557,7 @@ if (!setup) {
         userName: created.route.userName,
         salesforceUsername: created.route.salesforceUsername,
         enabled: true,
+        canManageDshScenarios: false,
         remark: null,
         rowVersion: '999',
       }, 'bootstrap-admin'),
@@ -1179,6 +1247,8 @@ async function dropIsolatedDatabase(config: DatabaseConfig): Promise<void> {
 
 async function cleanTestData(store: MySqlControlPlaneStore): Promise<void> {
   await store.database.transaction().execute(async (transaction) => {
+    await transaction.deleteFrom('crm_dsh_scenario_files').execute();
+    await transaction.deleteFrom('crm_dsh_standard_scenarios').execute();
     await transaction.deleteFrom('sfoa_attachment_staging').execute();
     await transaction.deleteFrom('sfoa_ui_snapshot').execute();
     await transaction.deleteFrom('sfoa_audit_log').execute();

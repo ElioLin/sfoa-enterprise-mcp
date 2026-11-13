@@ -48,6 +48,15 @@ export type IdentityRouteRecord = Readonly<{
   userName: string;
   salesforceUsername: string;
   enabled: boolean;
+  /**
+   * DSH-01: the platform user may publish, edit and delete DSH plugin standard scenarios.
+   *
+   * This is a capability of the *platform user*, not of the Salesforce account: it is read from
+   * exactly this route row by the plugin permission probe and by every write endpoint, and it is
+   * never derived from `enabled` or from the CRM username. Disabling a route does not clear the
+   * flag, but a disabled route grants nothing because the resolver only honours enabled routes.
+   */
+  canManageDshScenarios: boolean;
   remark: string | null;
   rowVersion: string;
   createdAt: string;
@@ -131,6 +140,72 @@ export type AttachmentStagingRecord = Readonly<{
   consumedAt: string | null;
   /** Removing retained bytes must not erase an unknown publication outcome. */
   bytesRemovedAt: string | null;
+}>;
+
+/**
+ * DSH Standard Scenarios (DSH-01).
+ *
+ * The lifecycle is a soft-delete state machine, never a physical delete of the scenario row:
+ * `PUBLISHED` is what the plugin installs, `ARCHIVED` keeps the row (and its attachments) for the
+ * Admin Console but removes it from the plugin's installable list, and `DELETED` is the tombstone
+ * the plugin needs in `deletedScenarioIds` to uninstall a scenario it already copied locally.
+ */
+export const DSH_SCENARIO_STATUSES = ['PUBLISHED', 'ARCHIVED', 'DELETED'] as const;
+export type DshScenarioStatus = (typeof DSH_SCENARIO_STATUSES)[number];
+
+/**
+ * The marker every standard scenario carries inside `scenarioPayload`. The server writes it on
+ * create and re-asserts it on every edit, so a client cannot turn a company standard into an
+ * editable local scenario by sending a different payload.
+ */
+export const DSH_SCENARIO_SOURCE_TYPE = 'COMPANY_STANDARD';
+
+/** Download paths are relative to the Control Plane origin; the plugin owns its own base URL. */
+export function dshScenarioDownloadPath(scenarioId: string, attachmentId: string): string {
+  return `/api/dsh/scenarios/${encodeURIComponent(scenarioId)}/attachments/${encodeURIComponent(attachmentId)}`;
+}
+
+export type DshScenarioAttachmentMeta = Readonly<{
+  attachmentId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  sha256: string;
+  /** Relative download path; present on every row this build writes or reads. */
+  downloadUrl: string;
+}>;
+
+export type DshStandardScenarioRecord = Readonly<{
+  scenarioId: string;
+  title: string;
+  category: string;
+  description: string;
+  /** Semantic label owned by the server: `x.y.z` with a monotonic patch segment. */
+  version: string;
+  /** Integer revision owned by the server: +1 on every edit, attachment change and delete. */
+  revision: number;
+  scenarioPayload: unknown;
+  presetAttachments: readonly DshScenarioAttachmentMeta[];
+  status: DshScenarioStatus;
+  createdByPlatformUid: string;
+  createdByCrmUser: string | null;
+  updatedByPlatformUid: string;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type DshScenarioFileMetaRecord = Readonly<{
+  attachmentId: string;
+  scenarioId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  sha256: string;
+  createdAt: string;
+}>;
+
+export type DshScenarioFileContentRecord = DshScenarioFileMetaRecord & Readonly<{
+  content: Buffer;
 }>;
 
 export const MANAGED_DML_FIELD_STRATEGIES = ['PLATFORM_USER_LOOKUP', 'AI_CREATED_MARKER', 'PLATFORM_USER_LOOKUP_FALLBACK'] as const;

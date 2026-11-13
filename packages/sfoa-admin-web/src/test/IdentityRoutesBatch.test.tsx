@@ -57,9 +57,11 @@ describe('IdentityRoutesPage batch import and auto verification', () => {
 
     const batchCall = fetchMock.mock.calls.find(([callUrl, init]) => String(callUrl).endsWith('/routes/batch'));
     const batchBody = JSON.parse(String(batchCall?.[1]?.body)) as { routes: readonly Record<string, unknown>[] };
+    // A pasted batch never grants the DSH standard-scenario capability; the field is explicit so
+    // the omission is a decision recorded in the request rather than a server-side default.
     expect(batchBody.routes).toEqual([
-      { platformUserId: 'zhangsan', userName: '张三', salesforceUsername: 'zhang.san@example.com', enabled: true, remark: '运营' },
-      { platformUserId: 'lisi', userName: '李四', salesforceUsername: 'li.si@example.com', enabled: true, remark: null },
+      { platformUserId: 'zhangsan', userName: '张三', salesforceUsername: 'zhang.san@example.com', enabled: true, canManageDshScenarios: false, remark: '运营' },
+      { platformUserId: 'lisi', userName: '李四', salesforceUsername: 'li.si@example.com', enabled: true, canManageDshScenarios: false, remark: null },
     ]);
 
     expect(await screen.findByText('共 2 条')).toBeInTheDocument();

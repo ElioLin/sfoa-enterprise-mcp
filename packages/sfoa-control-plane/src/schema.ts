@@ -10,10 +10,41 @@ export interface IdentityRouteTable {
   user_name: string;
   salesforce_username: string;
   enabled: BooleanNumber;
+  /** DSH-01: may publish/edit/delete DSH plugin standard scenarios. Never derived from other columns. */
+  can_manage_dsh_scenarios: BooleanNumber;
   remark: string | null;
   row_version: Generated<string>;
   created_at: GeneratedTimestamp;
   updated_at: GeneratedTimestamp;
+}
+
+export interface DshStandardScenarioTable {
+  scenario_id: string;
+  title: string;
+  category: string;
+  description: string;
+  version: string;
+  revision: number;
+  /** MySQL JSON column; Kysely/mysql2 surfaces it as the stored text. */
+  scenario_payload: string;
+  preset_attachments: string | null;
+  status: 'PUBLISHED' | 'ARCHIVED' | 'DELETED';
+  created_by_platform_uid: string;
+  created_by_crm_user: string | null;
+  updated_by_platform_uid: string;
+  created_at: GeneratedTimestamp;
+  updated_at: GeneratedTimestamp;
+}
+
+export interface DshScenarioFileTable {
+  attachment_id: string;
+  scenario_id: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  sha256: string;
+  file_content: Buffer;
+  created_at: GeneratedTimestamp;
 }
 
 export interface IdentityCredentialTable {
@@ -240,6 +271,8 @@ export interface ControlPlaneDatabase {
   sfoa_audit_payload_evidence: AuditPayloadEvidenceTable;
   sfoa_attachment_staging: AttachmentStagingTable;
   sfoa_schema_migration: SchemaMigrationTable;
+  crm_dsh_standard_scenarios: DshStandardScenarioTable;
+  crm_dsh_scenario_files: DshScenarioFileTable;
 }
 
 export interface UiSnapshotTable {

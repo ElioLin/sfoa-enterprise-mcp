@@ -49,7 +49,15 @@ import { copyTextToClipboard } from '../clipboard.js';
 import BatchAddIdentityRoutesModal from './identity-routes/BatchAddIdentityRoutesModal.js';
 
 const FALLBACK_PAGE_SIZE = 25;
-type RouteForm = Readonly<{ userName: string; platformUserId: string; salesforceUsername: string; enabled: boolean; remark: string | null }>;
+type RouteForm = Readonly<{
+  userName: string;
+  platformUserId: string;
+  salesforceUsername: string;
+  enabled: boolean;
+  /** DSH-01: may publish/edit/delete DSH standard scenarios from the plugin. */
+  canManageDshScenarios: boolean;
+  remark: string | null;
+}>;
 type SaveTarget = Readonly<{ payload: RouteForm; editingRouteId: string | null; autoVerifyNow: boolean }>;
 
 export default function IdentityRoutesPage() {
@@ -131,6 +139,7 @@ export default function IdentityRoutesPage() {
       userName: record.userName,
       salesforceUsername: record.salesforceUsername,
       enabled: true,
+      canManageDshScenarios: record.canManageDshScenarios,
       remark: record.remark,
       rowVersion: record.rowVersion,
     }),
@@ -138,6 +147,28 @@ export default function IdentityRoutesPage() {
       await invalidateRoutes(queryClient);
       await refreshOpenCredential(queryClient, credentialRouteId);
       void message.success('用户身份路由已启用，原 USER_BOUND Token 已恢复可用。');
+    },
+  });
+  /**
+   * DSH-01: the grant is edited in place because it is a per-user capability an operator turns on
+   * and off while looking at the list. It is the same optimistic-locked route update as every other
+   * edit, so a concurrent change still surfaces as a conflict instead of overwriting it.
+   */
+  const toggleDshPermission = useMutation({
+    mutationFn: (input: Readonly<{ record: AdminIdentityRouteDto; value: boolean }>) => adminApi.updateRoute(input.record.id, {
+      platformUserId: input.record.platformUserId,
+      userName: input.record.userName,
+      salesforceUsername: input.record.salesforceUsername,
+      enabled: input.record.enabled,
+      canManageDshScenarios: input.value,
+      remark: input.record.remark,
+      rowVersion: input.record.rowVersion,
+    }),
+    onSuccess: async (updated) => {
+      await invalidateRoutes(queryClient);
+      void message.success(updated.canManageDshScenarios
+        ? `已开启 ${updated.platformUserId} 的标准场景管理权限。`
+        : `已回收 ${updated.platformUserId} 的标准场景管理权限。`);
     },
   });
   const remove = useMutation({
@@ -167,10 +198,13 @@ export default function IdentityRoutesPage() {
       void message.success('已生成新 Token，旧 Token 已立即永久失效。');
     },
   });
-  const mutationError = save.error ?? disable.error ?? enable.error ?? remove.error ?? verify.error ?? regenerate.error;
+  const mutationError = save.error ?? disable.error ?? enable.error ?? remove.error ?? verify.error
+    ?? regenerate.error ?? toggleDshPermission.error;
 
   const openCreate = (): void => {
-    form.setFieldsValue({ userName: '', platformUserId: '', salesforceUsername: '', enabled: true, remark: null });
+    form.setFieldsValue({
+      userName: '', platformUserId: '', salesforceUsername: '', enabled: true, canManageDshScenarios: false, remark: null,
+    });
     setEditing('create');
   };
   const openEdit = (record: AdminIdentityRouteDto): void => {
@@ -179,6 +213,7 @@ export default function IdentityRoutesPage() {
       platformUserId: record.platformUserId,
       salesforceUsername: record.salesforceUsername,
       enabled: record.enabled,
+      canManageDshScenarios: record.canManageDshScenarios,
       remark: record.remark,
     });
     setEditing(record);
@@ -280,7 +315,7 @@ export default function IdentityRoutesPage() {
                 rowKey="id"
                 pagination={false}
                 dataSource={[...query.data.items]}
-                scroll={{ x: 1860 }}
+                scroll={{ x: 2050 }}
                 columns={[
                   {
                     title: '用户名称', dataIndex: 'userName', width: 180,
@@ -301,6 +336,23 @@ export default function IdentityRoutesPage() {
                   {
                     title: '路由状态', dataIndex: 'enabled', width: 110,
                     render: (value: boolean) => <StatusTag label={value ? 'ENABLED' : 'DISABLED'} />,
+                  },
+                  {
+                    title: '插件标准场景权限', dataIndex: 'canManageDshScenarios', width: 190,
+                    render: (value: boolean, record) => (
+                      <Space size={6}>
+                        <Tooltip title="开启后，该平台用户可在 DSH 插件中发布、编辑与删除标准场景。">
+                          <Switch
+                            size="small"
+                            checked={value}
+                            aria-label={`插件标准场景权限 ${record.platformUserId}`}
+                            loading={toggleDshPermission.isPending && toggleDshPermission.variables?.record.id === record.id}
+                            onChange={(checked) => toggleDshPermission.mutate({ record, value: checked })}
+                          />
+                        </Tooltip>
+                        <Tag color={value ? 'blue' : 'default'}>{value ? '可管理' : '只读'}</Tag>
+                      </Space>
+                    ),
                   },
                   {
                     title: 'MCP 凭证', width: 190,
@@ -423,6 +475,14 @@ export default function IdentityRoutesPage() {
             <Input autoComplete="off" />
           </Form.Item>
           <Form.Item name="enabled" label="路由状态" valuePropName="checked"><Switch checkedChildren="已启用" unCheckedChildren="已停用" /></Form.Item>
+          <Form.Item
+            name="canManageDshScenarios"
+            label="是否有权在插件中设置标准场景"
+            valuePropName="checked"
+            extra="开启后，该平台用户可在 DSH 插件中创建、编辑、删除标准场景；普通用户只能以只读方式安装标准场景。"
+          >
+            <Switch checkedChildren="可管理" unCheckedChildren="只读" />
+          </Form.Item>
           <Form.Item name="remark" label="备注" rules={[{ max: 512 }]}><Input.TextArea rows={3} showCount maxLength={512} /></Form.Item>
         </Form>
       </Modal>

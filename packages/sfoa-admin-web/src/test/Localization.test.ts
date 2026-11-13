@@ -10,6 +10,7 @@ describe('zh-CN Admin presentation contract', () => {
     expect(ADMIN_NAVIGATION.map(({ key, label }) => [key, label])).toEqual([
       ['/dashboard', '运行概览'],
       ['/identity-routes', '用户身份路由'],
+      ['/standard-scenarios', '标准场景管理'],
       ['/tool-governance', '工具治理'],
       ['/dml-policies', 'DML 操作策略'],
       ['/diagnostic', '系统诊断'],
@@ -41,6 +42,7 @@ describe('zh-CN Admin presentation contract', () => {
       'LoginPage.tsx': '管理员登录',
       'DashboardPage.tsx': '运行概览',
       'IdentityRoutesPage.tsx': '用户身份路由',
+      'StandardScenariosPage.tsx': '标准场景管理',
       'ToolGovernancePage.tsx': '工具治理',
       'DmlPoliciesPage.tsx': 'DML 操作策略',
       'DiagnosticPage.tsx': '系统诊断',

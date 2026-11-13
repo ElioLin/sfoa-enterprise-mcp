@@ -248,6 +248,40 @@ describe('Admin governance pages', () => {
     expect(await screen.findByText('correlation-26')).toBeInTheDocument();
   });
 
+  it('grants and revokes the DSH standard-scenario capability from the route row', async () => {
+    // The PUT response alone would prove nothing about the list: the row is re-read afterwards, so
+    // the mock has to remember the grant the way the server does.
+    let granted = false;
+    const fetchMock = asFetchMock((url, init) => {
+      if (/\/routes\/1$/u.test(url.pathname) && init.method === 'PUT') {
+        const body = JSON.parse(String(init.body)) as Readonly<Record<string, unknown>>;
+        granted = body.canManageDshScenarios === true;
+        return jsonResponse(routeRecord({ canManageDshScenarios: granted }));
+      }
+      if (url.pathname.endsWith('/system/settings')) return jsonResponse([]);
+      return jsonResponse(page([routeRecord({ canManageDshScenarios: granted })]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<IdentityRoutesPage />);
+
+    // The list states the capability in the same row as the route, so an operator can audit it.
+    expect(await screen.findByText('只读')).toBeInTheDocument();
+    await user.click(screen.getByRole('switch', { name: '插件标准场景权限 platform-a' }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(
+      ([url, init]) => /\/routes\/1$/u.test(String(url)) && init?.method === 'PUT',
+    )).toBe(true));
+    const put = fetchMock.mock.calls.find(([url, init]) => /\/routes\/1$/u.test(String(url)) && init?.method === 'PUT');
+    expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({
+      platformUserId: 'platform-a',
+      enabled: true,
+      canManageDshScenarios: true,
+      rowVersion: '1',
+    });
+    expect(await screen.findByText('可管理')).toBeInTheDocument();
+  });
+
   it('turns HTTP 409 into actionable version-conflict feedback', async () => {
     const fetchMock = asFetchMock((url, init) => {
       if (/\/routes\/1$/u.test(url.pathname) && init.method === 'PUT') return apiError(409, 'MCP_ADMIN_CONCURRENT_MODIFICATION', 'Conflict.');
@@ -345,9 +379,12 @@ function page<T>(items: readonly T[]) {
   return { items, total: items.length, limit: 25, offset: 0, count: items.length, hasMore: false, nextOffset: null };
 }
 
-function routeRecord(overrides: Readonly<Partial<{ id: string; platformUserId: string; userName: string; enabled: boolean }>> = {}) {
+function routeRecord(overrides: Readonly<Partial<{
+  id: string; platformUserId: string; userName: string; enabled: boolean; canManageDshScenarios: boolean;
+}>> = {}) {
   return {
     id: overrides.id ?? '1', platformUserId: overrides.platformUserId ?? 'platform-a', userName: overrides.userName ?? '用户 A', salesforceUsername: 'sf-user@example.com', enabled: overrides.enabled ?? true,
+    canManageDshScenarios: overrides.canManageDshScenarios ?? false,
     remark: 'production route', rowVersion: '1', createdAt: NOW, updatedAt: NOW,
     credential: { id: '10', status: 'ACTIVE', tokenLast4: 'aaaa', generatedAt: NOW, lastUsedAt: null, rowVersion: '1' },
   };

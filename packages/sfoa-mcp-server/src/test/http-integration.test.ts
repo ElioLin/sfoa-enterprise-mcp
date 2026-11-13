@@ -857,6 +857,7 @@ function identityRoute(id: string, platformUserId: string, enabled: boolean): Id
     userName: platformUserId,
     salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B,
     enabled,
+    canManageDshScenarios: false,
     remark: null,
     rowVersion: '1',
     createdAt: '2026-08-24T00:00:00.000Z',

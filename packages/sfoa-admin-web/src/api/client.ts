@@ -23,6 +23,10 @@ import type {
   AuditPayloadEvidenceRecord,
   DashboardDto,
   DiagnosticConfigRecord,
+  DshAttachmentMutationResponse,
+  DshDeletedScenarioResponse,
+  DshScenarioListResponse,
+  DshScenarioResponse,
   DiagnosticPageDto,
   DiagnosticVerificationDto,
   DmlPolicyRecord,
@@ -53,6 +57,30 @@ export class ApiError extends Error {
 }
 
 export type AuditFilters = AdminAuditQuery;
+
+/** The Console's view of the DSH write contract; the server re-validates every field. */
+export type DshScenarioWriteBody = Readonly<{
+  scenarioId: string;
+  title: string;
+  category?: string;
+  description: string;
+  scenarioPayload: unknown;
+  status?: 'PUBLISHED' | 'ARCHIVED';
+}>;
+
+export type DshScenarioPatchBody = Readonly<{
+  title?: string;
+  category?: string;
+  description?: string;
+  scenarioPayload?: unknown;
+  status?: 'PUBLISHED' | 'ARCHIVED';
+}>;
+
+export type DshAttachmentBody = Readonly<{
+  fileName: string;
+  mimeType: string;
+  contentBase64: string;
+}>;
 
 export const adminApi = Object.freeze({
   uiSnapshots: () => request<readonly UiSnapshotSummary[]>('/ui-context/snapshots'),
@@ -151,6 +179,37 @@ export const adminApi = Object.freeze({
   audit: (id: string) => request<AuditRecord>(`/audits/${encodeURIComponent(id)}`),
   auditTrace: (id: string) => request<AdminAuditTraceDto>(`/audits/${encodeURIComponent(id)}/trace`),
   auditPayload: (id: string) => request<AuditPayloadEvidenceRecord>(`/audit-payloads/${encodeURIComponent(id)}`),
+  /**
+   * DSH-01 standard scenarios, through the Console alias under `/admin/api/dsh`. The prefix keeps
+   * the ADR-0034 module gate and the Admin CSRF rules in force; the plugin's own `/api/dsh`
+   * surface is token-authenticated and is never called from this console.
+   */
+  dshScenarios: (includeArchived = true) => request<DshScenarioListResponse>(
+    `/dsh/scenarios?includeArchived=${includeArchived ? 'true' : 'false'}&includeDeleted=false`,
+  ),
+  createDshScenario: (input: DshScenarioWriteBody) => request<DshScenarioResponse>(
+    '/dsh/scenarios',
+    { method: 'POST', body: input },
+  ),
+  updateDshScenario: (scenarioId: string, input: DshScenarioPatchBody) => request<DshScenarioResponse>(
+    `/dsh/scenarios/${encodeURIComponent(scenarioId)}`,
+    { method: 'PUT', body: input },
+  ),
+  deleteDshScenario: (scenarioId: string) => request<DshDeletedScenarioResponse>(
+    `/dsh/scenarios/${encodeURIComponent(scenarioId)}`,
+    { method: 'DELETE' },
+  ),
+  uploadDshAttachment: (scenarioId: string, input: DshAttachmentBody) => request<DshAttachmentMutationResponse>(
+    `/dsh/scenarios/${encodeURIComponent(scenarioId)}/attachments`,
+    { method: 'POST', body: input },
+  ),
+  deleteDshAttachment: (scenarioId: string, attachmentId: string) => request<DshScenarioResponse>(
+    `/dsh/scenarios/${encodeURIComponent(scenarioId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    { method: 'DELETE' },
+  ),
+  /** Download URLs are same-origin Console paths, so the session cookie travels with the click. */
+  dshAttachmentUrl: (scenarioId: string, attachmentId: string) =>
+    `${API_BASE}/dsh/scenarios/${encodeURIComponent(scenarioId)}/attachments/${encodeURIComponent(attachmentId)}`,
   systemStatus: () => request<SystemStatusDto>('/system/status'),
   runtimeSettings: () => request<readonly RuntimeSettingRecord[]>('/system/settings'),
   updateRuntimeSetting: (key: RuntimeSettingKey, value: unknown, rowVersion?: string) => request<RuntimeSettingRecord>(

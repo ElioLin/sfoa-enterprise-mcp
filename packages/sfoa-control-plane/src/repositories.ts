@@ -15,6 +15,11 @@ import type {
   DiagnosticConfigRecord,
   DiagnosticVerificationStatus,
   DmlPolicyRecord,
+  DshScenarioAttachmentMeta,
+  DshScenarioFileContentRecord,
+  DshScenarioFileMetaRecord,
+  DshScenarioStatus,
+  DshStandardScenarioRecord,
   IdentityCredentialRecord,
   IdentityRouteRecord,
   ManagedDmlFieldRuleRecord,
@@ -39,9 +44,17 @@ export type IdentityRouteCreateInput = Readonly<{
   userName: string;
   salesforceUsername: string;
   enabled: boolean;
+  /**
+   * DSH-01 privilege grant. Optional on create so every existing caller (batch import, scripts)
+   * keeps compiling and produces a route without the capability — an omitted grant is never an
+   * implied grant. `IdentityRouteUpdateInput` makes it required, so an update can never drop the
+   * flag by accident.
+   */
+  canManageDshScenarios?: boolean;
   remark: string | null;
 }>;
-export type IdentityRouteUpdateInput = IdentityRouteCreateInput & Readonly<{ rowVersion: string }>;
+export type IdentityRouteUpdateInput = IdentityRouteCreateInput
+  & Readonly<{ canManageDshScenarios: boolean; rowVersion: string }>;
 
 export interface IdentityRouteRepository {
   list(options: IdentityRouteListOptions): Promise<TotalPage<IdentityRouteRecord>>;
@@ -351,6 +364,74 @@ export interface AuditTraceRepository {
   getPayloadEvidenceById(id: string): Promise<AuditPayloadEvidenceRecord | undefined>;
 }
 
+export type DshScenarioCreateInput = Readonly<{
+  scenarioId: string;
+  title: string;
+  category: string;
+  description: string;
+  /** Server-computed; a client-supplied version never reaches this input. */
+  version: string;
+  /** Server-computed; a client-supplied revision never reaches this input. */
+  revision: number;
+  scenarioPayload: unknown;
+  presetAttachments: readonly DshScenarioAttachmentMeta[];
+  status: DshScenarioStatus;
+  createdByPlatformUid: string;
+  createdByCrmUser: string | null;
+  updatedByPlatformUid: string;
+}>;
+
+export type DshScenarioUpdatePatch = Readonly<{
+  title: string;
+  category: string;
+  description: string;
+  version: string;
+  revision: number;
+  scenarioPayload: unknown;
+  presetAttachments: readonly DshScenarioAttachmentMeta[];
+  status: DshScenarioStatus;
+  updatedByPlatformUid: string;
+}>;
+
+export type DshScenarioFileInsert = Readonly<{
+  attachmentId: string;
+  scenarioId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  sha256: string;
+  content: Buffer;
+}>;
+
+/**
+ * DSH standard-scenario storage (DSH-01).
+ *
+ * The repository is deliberately unaware of version arithmetic, permission and attachment policy:
+ * those are decided once in `DshScenarioService` and arrive here as an explicit `version` /
+ * `revision`. That keeps the one rule the plugin depends on — "every edit bumps both" — in a
+ * single unit-testable place instead of being re-implemented as SQL in several statements.
+ *
+ * `getByIdForUpdate` exists so the service can read, compute and write a revision under a row
+ * lock inside one store transaction; two concurrent editors therefore produce 1.0.1 and 1.0.2,
+ * never two rows claiming 1.0.1.
+ */
+export interface DshScenarioRepository {
+  /** Non-deleted scenarios. `includeArchived` mirrors the Admin view; the plugin only sees PUBLISHED. */
+  listVisible(includeArchived: boolean): Promise<readonly DshStandardScenarioRecord[]>;
+  /** Tombstones for the plugin's local cleanup. */
+  listDeletedIds(): Promise<readonly string[]>;
+  getById(scenarioId: string): Promise<DshStandardScenarioRecord | undefined>;
+  /** Row-locked read; callers must already be inside the store transaction. */
+  getByIdForUpdate(scenarioId: string): Promise<DshStandardScenarioRecord | undefined>;
+  insert(input: DshScenarioCreateInput): Promise<DshStandardScenarioRecord>;
+  update(scenarioId: string, patch: DshScenarioUpdatePatch): Promise<DshStandardScenarioRecord>;
+  listFiles(scenarioId: string): Promise<readonly DshScenarioFileMetaRecord[]>;
+  getFile(scenarioId: string, attachmentId: string): Promise<DshScenarioFileContentRecord | undefined>;
+  insertFile(input: DshScenarioFileInsert): Promise<DshScenarioFileMetaRecord>;
+  deleteFile(scenarioId: string, attachmentId: string): Promise<boolean>;
+  deleteFilesForScenario(scenarioId: string): Promise<number>;
+}
+
 export type ControlPlaneRepositories = Readonly<{
   identityRoutes: IdentityRouteRepository;
   identityCredentials: IdentityCredentialRepository;
@@ -361,6 +442,7 @@ export type ControlPlaneRepositories = Readonly<{
   diagnostic: DiagnosticConfigRepository;
   runtimeSettings: RuntimeSettingRepository;
   audits: AuditRepository;
+  dshScenarios: DshScenarioRepository;
 }>;
 
 export type ControlPlaneRepositoriesWithAuditTrace = ControlPlaneRepositories & Readonly<{

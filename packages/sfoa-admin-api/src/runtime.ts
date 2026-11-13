@@ -8,6 +8,7 @@ import {
   MySqlControlPlaneStore,
   MySqlUiSnapshotRepository,
   MySqlIdentityRepository,
+  DshScenarioService,
   type McpPublicEndpointDto,
 } from '@sfoa/control-plane';
 import {
@@ -18,10 +19,12 @@ import {
 } from '@sfoa/identity-runtime';
 import {
   compareOfficialProviderInventory,
+  HttpBuntuTokenValidator,
   inspectOfficialDxCoreInventory,
   isLoopbackBindHost,
   loadRemoteRuntimeConfig,
   refreshCurrentUiSnapshot,
+  type BuntuTokenValidator,
 } from '@sfoa/mcp-server';
 import { loadAdminApiConfig } from './config.js';
 import {
@@ -77,6 +80,16 @@ export async function startConfiguredAdminApi(
       (toolName) => canEnableAdminTool(toolName, upstream),
       credentialCipher,
     );
+    // DSH-01: the plugin surface reuses the MCP runtime's own Buntu validator configuration, so a
+    // token accepted by /mcp is accepted by /api/dsh and there is exactly one identity authority.
+    const dshBuntuValidator: BuntuTokenValidator | undefined =
+      remoteConfig.buntuIdentity.enabled && remoteConfig.buntuIdentity.validateTokenUrl
+        ? new HttpBuntuTokenValidator({
+            validateTokenUrl: remoteConfig.buntuIdentity.validateTokenUrl,
+            timeoutMs: remoteConfig.buntuIdentity.timeoutMs,
+          })
+        : undefined;
+    const dshScenarioService = new DshScenarioService(store);
     const healthUrl = localRuntimeUrl(remoteConfig.bindHost, remoteConfig.port, '/health');
     const mcpPublicEndpoint = publicMcpEndpoint(remoteConfig);
     const system: AdminSystemRuntimeInfo = Object.freeze({
@@ -122,12 +135,13 @@ export async function startConfiguredAdminApi(
         P4: 'FINAL ACCEPTED',
         P5: 'FINAL ACCEPTED',
       }),
-      buildPhase: 'P6-ID-01',
+      buildPhase: 'DSH-01',
       capabilities: Object.freeze([
         'USER_BOUND_CREDENTIAL',
         'IDENTITY_ROUTE_SEARCH',
         'IDENTITY_ROUTE_PERMANENT_DELETE',
         'SCOPED_CONSOLE_ACCOUNTS',
+        'DSH_STANDARD_SCENARIOS',
       ]),
     });
     const server = await startAdminApiServer({
@@ -139,6 +153,15 @@ export async function startConfiguredAdminApi(
       store,
       adminService,
       identityRuntime,
+      dsh: Object.freeze({
+        service: dshScenarioService,
+        ...(dshBuntuValidator ? { buntuValidator: dshBuntuValidator } : {}),
+        platformIdentityHeaders: remoteConfig.platformIdentityHeaders,
+        authMode: remoteConfig.authMode,
+        ...(remoteConfig.clientToken ? { clientToken: remoteConfig.clientToken } : {}),
+        allowedOrigins: adminConfig.dshAllowedOrigins,
+        maxAttachmentBytes: adminConfig.dshMaxAttachmentBytes,
+      }),
       upstream,
       migrations,
       system,

@@ -580,6 +580,7 @@ function route(id: string, platformUserId: string, enabled: boolean): IdentityRo
     userName: platformUserId,
     salesforceUsername: `${platformUserId}@example.invalid`,
     enabled,
+    canManageDshScenarios: false,
     remark: null,
     rowVersion: '1',
     createdAt: NOW,

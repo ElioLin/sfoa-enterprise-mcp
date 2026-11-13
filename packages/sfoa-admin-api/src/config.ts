@@ -36,6 +36,13 @@ export type AdminApiConfig = Readonly<{
   loginWindowMs: number;
   /** Bound for one interactive UI snapshot refresh; the DB lease follows it. */
   uiSnapshotRefreshTimeoutMs?: number;
+  /**
+   * DSH-01: origins allowed to call `/api/dsh/**` from a browser or plugin runtime. `['*']` answers
+   * with the caller's own origin and never with credentials; a named origin may use them.
+   */
+  dshAllowedOrigins: readonly string[];
+  /** Upper bound for one preset attachment; the HTTP body limit is derived from it. */
+  dshMaxAttachmentBytes: number;
 }>;
 
 const rawSchema = z.object({
@@ -53,6 +60,8 @@ const rawSchema = z.object({
   SFOA_ADMIN_LOGIN_WINDOW_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(900_000),
   SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON: z.string().max(65_536).optional(),
   SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(900_000).default(180_000),
+  SFOA_DSH_ALLOWED_ORIGINS: z.string().trim().max(2_048).optional(),
+  SFOA_DSH_MAX_ATTACHMENT_BYTES: z.coerce.number().int().min(1_024).max(33_554_432).default(10_485_760),
 }).strict();
 
 const NAMES = [
@@ -60,6 +69,8 @@ const NAMES = [
   'SFOA_ADMIN_PASSWORD', 'SFOA_ADMIN_SESSION_SECRET', 'SFOA_ADMIN_SESSION_TTL_SECONDS',
   'SFOA_ADMIN_COOKIE_SECURE', 'SFOA_ADMIN_LOGIN_MAX_ATTEMPTS', 'SFOA_ADMIN_LOGIN_WINDOW_MS',
   'SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON',
+  'SFOA_DSH_ALLOWED_ORIGINS',
+  'SFOA_DSH_MAX_ATTACHMENT_BYTES',
 ] as const;
 
 const MAX_ADDITIONAL_ACCOUNTS = 16;
@@ -174,7 +185,38 @@ export async function loadAdminApiConfig(
     loginMaxAttempts: parsed.SFOA_ADMIN_LOGIN_MAX_ATTEMPTS,
     loginWindowMs: parsed.SFOA_ADMIN_LOGIN_WINDOW_MS,
     uiSnapshotRefreshTimeoutMs: parsed.SFOA_UI_SNAPSHOT_REFRESH_TIMEOUT_MS,
+    dshAllowedOrigins: parseDshAllowedOrigins(parsed.SFOA_DSH_ALLOWED_ORIGINS),
+    dshMaxAttachmentBytes: parsed.SFOA_DSH_MAX_ATTACHMENT_BYTES,
   });
+}
+
+/**
+ * `SFOA_DSH_ALLOWED_ORIGINS` is a comma-separated list of exact origins, or the single value `*`.
+ * A named origin must be a credential-free http(s) origin: a path, query or userinfo would never
+ * match the browser's `Origin` header, so accepting one would silently deny every plugin request.
+ * Wildcard and explicit origins are mutually exclusive on purpose — a list that mixes them states
+ * two different security intentions.
+ */
+function parseDshAllowedOrigins(raw: string | undefined): readonly string[] {
+  if (raw === undefined || raw.trim() === '' || raw.trim() === '*') return Object.freeze(['*']);
+  const entries = raw.split(',').map((value) => value.trim()).filter(Boolean);
+  if (entries.length === 0) return Object.freeze(['*']);
+  if (entries.includes('*')) {
+    throw new Error('SFOA_DSH_ALLOWED_ORIGINS must either be "*" or a list of exact origins, never both.');
+  }
+  const origins = entries.map((entry) => {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(entry);
+    } catch {
+      throw new Error('SFOA_DSH_ALLOWED_ORIGINS entries must be absolute http(s) origins.');
+    }
+    if (!['http:', 'https:'].includes(parsedUrl.protocol) || parsedUrl.origin !== entry.replace(/\/$/u, '')) {
+      throw new Error('SFOA_DSH_ALLOWED_ORIGINS entries must be credential-free http(s) origins without a path.');
+    }
+    return parsedUrl.origin;
+  });
+  return Object.freeze([...new Set(origins)]);
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

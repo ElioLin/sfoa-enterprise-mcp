@@ -34,6 +34,8 @@ const baseConfig: AdminApiConfig = Object.freeze({
   cookieName: 'sfoa_admin',
   loginMaxAttempts: 5,
   loginWindowMs: 60_000,
+  dshAllowedOrigins: Object.freeze(['*']),
+  dshMaxAttachmentBytes: 1_048_576,
 });
 
 test('plaintext password verification is constant-time and rejects mismatches', () => {

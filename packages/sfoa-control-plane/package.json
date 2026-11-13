@@ -9,7 +9,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./contracts": "./dist/contracts.js",
-    "./admin-contracts": "./dist/admin-contracts.js"
+    "./admin-contracts": "./dist/admin-contracts.js",
+    "./testing": "./dist/test/in-memory-store.js"
   },
   "engines": {
     "node": ">=22.0.0"

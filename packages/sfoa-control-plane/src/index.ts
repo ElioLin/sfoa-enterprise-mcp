@@ -6,6 +6,8 @@ export * from './bootstrap.js';
 export * from './config.js';
 export * from './contracts.js';
 export * from './database.js';
+export * from './dsh-scenario-contracts.js';
+export * from './dsh-scenario-service.js';
 export * from './errors.js';
 export * from './identity-credential.js';
 export * from './migrations.js';

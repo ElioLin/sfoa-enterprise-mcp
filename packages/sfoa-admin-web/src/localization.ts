@@ -43,6 +43,9 @@ const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   LOCAL_DEV: '本地开发',
   YES: '是',
   NO: '否',
+  PUBLISHED: '已上架',
+  ARCHIVED: '已下架',
+  DELETED: '已删除',
 });
 const ERROR_EXPLANATIONS: Readonly<Record<string, string>> = Object.freeze({
   MCP_IDENTITY_ROUTE_NOT_FOUND: '未找到该平台用户对应的 Salesforce 身份路由。',
@@ -61,6 +64,11 @@ const ERROR_EXPLANATIONS: Readonly<Record<string, string>> = Object.freeze({
   MCP_CONTROL_PLANE_CONFLICT: '该配置与现有数据冲突，请检查平台用户、Salesforce Username 或诊断配置是否已被其他配置占用。',
   MCP_CONTROL_PLANE_UNAVAILABLE: '控制平面当前不可用，请检查 MySQL 与 Admin API 就绪状态。',
   MCP_UPSTREAM_TOOL_CONTRACT_DRIFT: '检测到上游 Tool 契约变化，必须先完成维护者审查。',
+  DSH_SCENARIO_PERMISSION_DENIED: '当前账号无标准场景发布/编辑/删除权限，请联系管理员在用户身份路由中开启。',
+  DSH_SCENARIO_INPUT_INVALID: '标准场景请求不符合服务端契约，请检查场景 ID、标题、介绍或配置 Payload。',
+  DSH_SCENARIO_NOT_FOUND: '未找到该标准场景或预设附件，可能已被其他管理员删除。',
+  DSH_SCENARIO_CSRF_INVALID: '管理端会话的 CSRF 校验失败，请刷新页面后重试。',
+  DSH_SCENARIO_REQUEST_TOO_LARGE: '预设附件超过服务端允许的大小上限。',
 });
 const TOOL_DEPENDENCIES: Readonly<Record<string, string>> = Object.freeze({
   'request workspace': '请求级工作区',

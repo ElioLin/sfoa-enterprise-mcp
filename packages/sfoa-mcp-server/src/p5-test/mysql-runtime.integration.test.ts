@@ -201,6 +201,7 @@ if (!configured) {
         userName: routeB.userName,
         salesforceUsername: routeA.salesforceUsername,
         enabled: true,
+        canManageDshScenarios: false,
         remark: 'shared Salesforce account is schema-valid',
         rowVersion: routeB.rowVersion,
       });
@@ -316,6 +317,7 @@ if (!configured) {
         userName: disabledA.userName,
         salesforceUsername: disabledA.salesforceUsername,
         enabled: true,
+        canManageDshScenarios: disabledA.canManageDshScenarios,
         remark: disabledA.remark,
         rowVersion: disabledA.rowVersion,
       }, 'p6-id-mysql-gate');
@@ -485,7 +487,12 @@ if (!configured) {
       assert.equal(connectionFactory.creations.length, creationsBeforeUnknown);
 
       // The durable MySQL audit records the WeCom provenance, not a token.
-      const audits = await waitForAudits(store, [{ toolName: 'get_username', result: 'PASS' }]);
+      // `waitForAudits` resolves as soon as ONE matching row exists; the two concurrent WeCom
+      // requests land in separate writer batches, so the assertion waits for both identities
+      // explicitly instead of assuming a single flush covers them.
+      const audits = await waitForAudits(store, [{ toolName: 'get_username', result: 'PASS' }], (items) =>
+        items.some((audit) => audit.identitySource === 'WECOM_HEADER' && audit.platformUserId === 'wecom-user-a')
+        && items.some((audit) => audit.identitySource === 'WECOM_HEADER' && audit.platformUserId === 'wecom-user-b'));
       const wecomAudit = audits.items.find((audit) =>
         audit.identitySource === 'WECOM_HEADER' && audit.platformUserId === 'wecom-user-a');
       assert.ok(wecomAudit, 'expected a durable WECOM_HEADER audit row');
@@ -707,15 +714,22 @@ type AuditExpectation = Readonly<{
   errorCode?: string;
 }>;
 
+/**
+ * Polls the durable read model until every expectation is visible. An optional `ready` predicate
+ * lets a caller that needs several distinct rows of the same tool wait for all of them, rather than
+ * for the first one the writer happened to flush.
+ */
 async function waitForAudits(
   store: MySqlControlPlaneStore,
   expectations: readonly AuditExpectation[],
+  ready?: (items: Awaited<ReturnType<MySqlControlPlaneStore['repositories']['audits']['search']>>['items']) => boolean,
 ): Promise<Awaited<ReturnType<MySqlControlPlaneStore['repositories']['audits']['search']>>> {
   const deadline = Date.now() + 5_000;
   let audits = await store.repositories.audits.search({ limit: 100, offset: 0 });
-  while (Date.now() < deadline && !expectations.every((expected) => audits.items.some((audit) =>
+  while (Date.now() < deadline && (!expectations.every((expected) => audits.items.some((audit) =>
     audit.toolName === expected.toolName && audit.result === expected.result &&
-    (expected.errorCode === undefined || audit.errorCode === expected.errorCode)))) {
+    (expected.errorCode === undefined || audit.errorCode === expected.errorCode)))
+    || (ready !== undefined && !ready(audits.items)))) {
     await new Promise((resolve) => setTimeout(resolve, 25));
     audits = await store.repositories.audits.search({ limit: 100, offset: 0 });
   }

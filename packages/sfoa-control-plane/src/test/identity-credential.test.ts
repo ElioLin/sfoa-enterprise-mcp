@@ -70,6 +70,7 @@ test('disable preserves the active token, re-enable restores it, and only a disa
     userName: disabled.userName,
     salesforceUsername: disabled.salesforceUsername,
     enabled: true,
+    canManageDshScenarios: disabled.canManageDshScenarios,
     remark: disabled.remark,
     rowVersion: disabled.rowVersion,
   }, ACTOR);

@@ -130,6 +130,9 @@ export default function BatchAddIdentityRoutesModal({
         userName: row.userName,
         salesforceUsername: row.salesforceUsername,
         enabled: true,
+        // Batch import never grants the DSH capability: it is a per-user decision the operator
+        // makes in the route row after reviewing the person, not a column of a pasted list.
+        canManageDshScenarios: false,
         remark: row.remark,
       })));
       if (!response.committed) {

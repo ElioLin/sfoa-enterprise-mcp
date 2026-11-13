@@ -658,6 +658,71 @@ div.surface-card:not(.ant-card) {
   }
 }
 
+
+/* DSH-01 standard-scenario catalogue: a card grid rather than a table, because each row carries a
+   payload, an attachment list and two independent actions that would not fit a table cell. */
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scenario-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scenario-card-head h4.ant-typography {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.scenario-description {
+  margin: 0 !important;
+  min-height: 44px;
+  line-height: 1.55;
+}
+
+.scenario-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scenario-meta .ant-descriptions-item-label {
+  width: 88px;
+  white-space: nowrap;
+}
+
+.scenario-meta code {
+  word-break: break-all;
+}
+
+.scenario-attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--sfoa-border);
+  border-radius: 8px;
+}
+
+.scenario-payload-input textarea,
+.scenario-payload-input {
+  font-family: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

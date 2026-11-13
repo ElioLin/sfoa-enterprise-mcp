@@ -9,6 +9,8 @@ import {
   type AuditRecord,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type DshScenarioFileContentRecord,
+  type DshStandardScenarioRecord,
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type ManagedDmlFieldRuleRecord,
@@ -48,6 +50,9 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   private managedDmlFieldRules = new Map<string, ManagedDmlFieldRuleRecord>();
   private diagnostic: DiagnosticConfigRecord | undefined;
   private settings = new Map<RuntimeSettingKey, RuntimeSettingRecord>();
+  private dshScenarios = new Map<string, DshStandardScenarioRecord>();
+  private dshScenarioFiles = new Map<string, DshScenarioFileContentRecord>();
+  private scenarioClock = 0;
   private audits: AuditRecord[] = [];
   private auditEvents: AuditEventRecord[] = [];
   private salesforceApiCalls: SalesforceApiCallRecord[] = [];
@@ -328,6 +333,100 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
           return updated;
         },
       },
+      dshScenarios: {
+        listVisible: async (includeArchived) => Object.freeze(
+          [...this.dshScenarios.values()]
+            .filter((record) => record.status === 'PUBLISHED' || (includeArchived && record.status === 'ARCHIVED'))
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.scenarioId.localeCompare(b.scenarioId)),
+        ),
+        listDeletedIds: async () => Object.freeze(
+          [...this.dshScenarios.values()].filter((record) => record.status === 'DELETED')
+            .map((record) => record.scenarioId).sort(),
+        ),
+        getById: async (scenarioId) => this.dshScenarios.get(scenarioId),
+        getByIdForUpdate: async (scenarioId) => this.dshScenarios.get(scenarioId),
+        insert: async (input) => {
+          if (this.dshScenarios.has(input.scenarioId)) throw conflict();
+          const record: DshStandardScenarioRecord = Object.freeze({
+            scenarioId: input.scenarioId,
+            title: input.title,
+            category: input.category,
+            description: input.description,
+            version: input.version,
+            revision: input.revision,
+            scenarioPayload: input.scenarioPayload,
+            presetAttachments: Object.freeze([...input.presetAttachments]),
+            status: input.status,
+            createdByPlatformUid: input.createdByPlatformUid,
+            createdByCrmUser: input.createdByCrmUser,
+            updatedByPlatformUid: input.updatedByPlatformUid,
+            createdAt: TEST_TIME,
+            updatedAt: TEST_TIME,
+          });
+          this.dshScenarios.set(record.scenarioId, record);
+          return record;
+        },
+        update: async (scenarioId, patch) => {
+          const current = this.required(this.dshScenarios.get(scenarioId), 'Standard scenario');
+          const updated: DshStandardScenarioRecord = Object.freeze({
+            ...current,
+            title: patch.title,
+            category: patch.category,
+            description: patch.description,
+            version: patch.version,
+            revision: patch.revision,
+            scenarioPayload: patch.scenarioPayload,
+            presetAttachments: Object.freeze([...patch.presetAttachments]),
+            status: patch.status,
+            updatedByPlatformUid: patch.updatedByPlatformUid,
+            // Deterministic ordering for the fake store's list: each write advances the instant.
+            updatedAt: this.nextScenarioInstant(),
+          });
+          this.dshScenarios.set(scenarioId, updated);
+          return updated;
+        },
+        listFiles: async (scenarioId) => Object.freeze(
+          [...this.dshScenarioFiles.values()]
+            .filter((record) => record.scenarioId === scenarioId)
+            .sort((a, b) => a.attachmentId.localeCompare(b.attachmentId))
+            .map(({ content: _content, ...meta }) => Object.freeze(meta)),
+        ),
+        getFile: async (scenarioId, attachmentId) => {
+          const record = this.dshScenarioFiles.get(attachmentId);
+          return record && record.scenarioId === scenarioId ? record : undefined;
+        },
+        insertFile: async (input) => {
+          if (this.dshScenarioFiles.has(input.attachmentId)) throw conflict();
+          const record: DshScenarioFileContentRecord = Object.freeze({
+            attachmentId: input.attachmentId,
+            scenarioId: input.scenarioId,
+            fileName: input.fileName,
+            mimeType: input.mimeType,
+            fileSize: input.fileSize,
+            sha256: input.sha256,
+            createdAt: TEST_TIME,
+            content: Buffer.from(input.content),
+          });
+          this.dshScenarioFiles.set(record.attachmentId, record);
+          const { content: _content, ...meta } = record;
+          return Object.freeze(meta);
+        },
+        deleteFile: async (scenarioId, attachmentId) => {
+          const record = this.dshScenarioFiles.get(attachmentId);
+          if (!record || record.scenarioId !== scenarioId) return false;
+          this.dshScenarioFiles.delete(attachmentId);
+          return true;
+        },
+        deleteFilesForScenario: async (scenarioId) => {
+          let removed = 0;
+          for (const [id, record] of this.dshScenarioFiles) {
+            if (record.scenarioId !== scenarioId) continue;
+            this.dshScenarioFiles.delete(id);
+            removed += 1;
+          }
+          return removed;
+        },
+      },
       audits: {
         append: async (event) => this.appendAudit(event),
         getById: async (id) => this.audits.find((record) => record.id === id),
@@ -400,6 +499,9 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       managedDmlFieldRules: new Map(this.managedDmlFieldRules),
       diagnostic: this.diagnostic,
       settings: new Map(this.settings),
+      dshScenarios: new Map(this.dshScenarios),
+      dshScenarioFiles: new Map(this.dshScenarioFiles),
+      scenarioClock: this.scenarioClock,
       audits: [...this.audits],
       auditEvents: [...this.auditEvents],
       salesforceApiCalls: [...this.salesforceApiCalls],
@@ -419,6 +521,9 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
       this.managedDmlFieldRules = snapshot.managedDmlFieldRules;
       this.diagnostic = snapshot.diagnostic;
       this.settings = snapshot.settings;
+      this.dshScenarios = snapshot.dshScenarios;
+      this.dshScenarioFiles = snapshot.dshScenarioFiles;
+      this.scenarioClock = snapshot.scenarioClock;
       this.audits = snapshot.audits;
       this.auditEvents = snapshot.auditEvents;
       this.salesforceApiCalls = snapshot.salesforceApiCalls;
@@ -433,7 +538,12 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
   private async createRoute(input: IdentityRouteCreateInput): Promise<IdentityRouteRecord> {
     if ([...this.routes.values()].some((record) => record.platformUserId === input.platformUserId)) throw conflict();
     const record = Object.freeze({
-      ...input, id: this.entityId(), rowVersion: '1', createdAt: TEST_TIME, updatedAt: TEST_TIME,
+      ...input,
+      canManageDshScenarios: input.canManageDshScenarios ?? false,
+      id: this.entityId(),
+      rowVersion: '1',
+      createdAt: TEST_TIME,
+      updatedAt: TEST_TIME,
     });
     this.routes.set(record.id, record);
     return record;
@@ -446,6 +556,12 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
     const updated = Object.freeze({ ...current, ...input, rowVersion: incrementVersion(current.rowVersion), updatedAt: TEST_TIME });
     this.routes.set(id, updated);
     return updated;
+  }
+
+  /** Monotonic fake clock so the in-memory list can order by `updatedAt` like the real query. */
+  private nextScenarioInstant(): string {
+    this.scenarioClock += 1;
+    return new Date(Date.parse(TEST_TIME) + this.scenarioClock * 1_000).toISOString();
   }
 
   private async updateTool(toolName: string, input: ToolControlWriteInput): Promise<ToolControlRecord> {

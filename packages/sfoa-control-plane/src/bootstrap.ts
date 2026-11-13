@@ -93,7 +93,13 @@ export async function bootstrapFromEnvironment(
         counters.routesCreated += 1;
       } else if (force) {
         const updated = await repositories.identityRoutes.update(existing.id, {
-          ...route, enabled: true, remark: 'Force-imported by p5:bootstrap', rowVersion: existing.rowVersion,
+          ...route,
+          enabled: true,
+          // A force re-import refreshes the identity mapping only. The DSH capability is an
+          // explicit operator grant, so bootstrap preserves what the Admin Console currently holds.
+          canManageDshScenarios: existing.canManageDshScenarios,
+          remark: 'Force-imported by p5:bootstrap',
+          rowVersion: existing.rowVersion,
         });
         await bootstrapAudit(repositories, 'FORCE_BOOTSTRAP_IDENTITY_ROUTE', updated.id, route);
         counters.routesUpdated += 1;

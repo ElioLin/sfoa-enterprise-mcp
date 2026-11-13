@@ -49,6 +49,22 @@ const MODULE_ENDPOINTS: Readonly<Record<AdminModuleId, readonly ModuleEndpoint[]
     endpoint('DELETE', '/routes/:id'),
     endpoint('GET', '/system/settings'),
   ]),
+  /**
+   * DSH-01: the Console reaches the standard-scenario catalogue through `/admin/api/dsh/**`, which
+   * is a session-authenticated alias of the plugin surface `/api/dsh/**`. Keeping the Console on
+   * the Admin prefix means the ADR-0034 gate and CSRF rules apply unchanged; the plugin keeps its
+   * own token-authenticated prefix and is never reachable through this table.
+   */
+  'standard-scenarios': Object.freeze([
+    endpoint('GET', '/dsh/scenarios'),
+    endpoint('POST', '/dsh/scenarios'),
+    endpoint('GET', '/dsh/scenarios/permission'),
+    endpoint('PUT', '/dsh/scenarios/:scenarioId'),
+    endpoint('DELETE', '/dsh/scenarios/:scenarioId'),
+    endpoint('POST', '/dsh/scenarios/:scenarioId/attachments'),
+    endpoint('GET', '/dsh/scenarios/:scenarioId/attachments/:attachmentId'),
+    endpoint('DELETE', '/dsh/scenarios/:scenarioId/attachments/:attachmentId'),
+  ]),
   'tool-governance': Object.freeze([
     endpoint('GET', '/tools'),
     endpoint('PUT', '/tools/:toolName'),

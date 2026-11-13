@@ -365,6 +365,7 @@ function route(id: string, platformUserId: string, salesforceUsername: string): 
     userName: platformUserId,
     salesforceUsername,
     enabled: true,
+    canManageDshScenarios: false,
     remark: null,
     rowVersion: '1',
     createdAt: NOW,

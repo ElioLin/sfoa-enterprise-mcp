@@ -44,6 +44,24 @@ authorizes/blocks DML. UPDATE has no hypothetical Edit Dynamic Forms resolver.
 - Admin: separate authenticated Admin API and React Web; browser never receives Salesforce/database/runtime secrets.
 - Console accounts: the Admin API authorizes every Console request against a module list, so the browser is a convenience layer and never the boundary. `SFOA_ADMIN_USERNAME`/`SFOA_ADMIN_PASSWORD` is the bootstrap Admin and short-circuits the gate (`fullAccess`, keeping its historical 404 for an unknown path and 405 for a wrong method); `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers restricted accounts, each naming the Console **modules** it may use. A module is an explicit `(method, path)` set over `/admin/api` with default-deny, so an endpoint matching no module is refused 403 `MCP_ADMIN_FORBIDDEN` — written to stderr and deliberately not persisted, because a refused request is not an Admin action. Whole-segment matching and the method in the pattern mean a read grant never implies the write on the same path. Five read-only cross-module closures exist on purpose (the identity-route Drawer's `GET /system/settings`; the connector JSON's `GET /system/status`, `GET /tools` and the DML-policy list) and are asserted to be the only ones. `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` fails startup on any invalid value and is frozen at process start, so it needs an Admin API restart like the Admin credentials beside it. `AdminSessionDto.modules` is required and drives the Console's navigation, its landing page, and an in-place 403; `actor_admin` (migration 015) attributes `ADMIN_ACTION` rows to a Console account. See ADR-0034 in `docs/sfoa/adr/ADR-0034-scoped-console-accounts.md`.
 
+- DSH standard scenarios: `sfoa_identity_route.can_manage_dsh_scenarios` is the whole grant — a
+  platform user's authority to publish/edit/delete DSH plugin standard scenarios is a column on the
+  same row that already decides their Salesforce identity, never a second table. The plugin surface
+  `/api/dsh/**` (served by the Admin API process) resolves an actor from four carriers in order: a
+  Buntu token via the runtime's own validator, a USER_BOUND credential by digest, the Admin session
+  cookie, or — only under `internal_bearer` *and* with the shared `MCP_CLIENT_TOKEN` presented — a
+  platform identity header. An unsigned header is never an identity, which is what keeps the last
+  carrier from becoming a bypass. Reads never fail on identity: they answer the `PUBLISHED`
+  catalogue with `auth.authenticated: false`. Writes fail with one code,
+  `403 DSH_SCENARIO_PERMISSION_DENIED`. The server owns `version`/`revision` end to end: every edit,
+  status change or attachment change increments `revision` and the `version` patch segment, while
+  `DELETE` writes a `DELETED` tombstone (revision +1, version unchanged) and releases the attachment
+  bytes, because the plugin needs the id in `deletedScenarioIds` to uninstall a local copy. Each
+  mutation writes one `channel=ADMIN` audit row in the same transaction. The Console reaches the same
+  logic through `/admin/api/dsh/**`, so the ADR-0034 module table and the Admin CSRF rules apply
+  unchanged; the `standard-scenarios` module owns those eight endpoint patterns. See
+  `docs/sfoa/DSH_STANDARD_SCENARIOS_API.md`.
+
 ## Upstream-first decision order
 
 Reuse an official Tool, then extend the Provider API/composition seam, then use an official SDK, then implement a minimal standard Salesforce API provider. Modify upstream-owned code only with a recorded reason, alternative, and merge risk in `docs/sfoa/UPSTREAM_STRATEGY.md`.

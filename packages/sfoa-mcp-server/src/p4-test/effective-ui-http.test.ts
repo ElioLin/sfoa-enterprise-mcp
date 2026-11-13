@@ -55,7 +55,7 @@ test('P8 HTTP uses request policy and USER facts, returns DF/PL independently, a
       id: '1', organizationId: org, objectApiName: 'Lead', snapshot, hash: 'a'.repeat(64), lastModified: null, refreshedAt: now, status: 'READY', lastError: null, parserVersion: UI_PARSER_VERSION }; },
     policySnapshotSource: { load: async (platformUserId) => freezeSnapshot({ mode: 'mysql', loadedAt: now,
       identityRoute: { id: platformUserId === TEST_PLATFORM_USER_A ? '1' : '2', platformUserId, userName: 'Test',
-        salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now },
+        salesforceUsername: platformUserId === TEST_PLATFORM_USER_A ? TEST_USERNAME_A : TEST_USERNAME_B, enabled: true, canManageDshScenarios: false, remark: null, rowVersion: '1', createdAt: now, updatedAt: now },
       enabledTools: ['get_record_action_context', 'create_record'], managedDmlFieldRules: [], diagnostic: null,
       dmlPolicies: [{ id: '1', objectApiName: 'Lead', allowCreate: true, allowUpdate: false, attachmentEnabled: false, enabled: true, remark: null, rowVersion: '1', createdAt: now, updatedAt: now }],
       runtimeSettings: { dynamicFormsObjectPolicies: [{ objectApiName: 'Lead', mode }], integrationDefaultSalesforceAppDeveloperName: 'App_A' },

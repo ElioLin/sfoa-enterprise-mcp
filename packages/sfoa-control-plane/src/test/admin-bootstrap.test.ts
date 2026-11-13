@@ -82,6 +82,7 @@ test('Admin writes use optimistic locking and roll back when durable audit fails
       userName: first.route.userName,
       salesforceUsername: first.route.salesforceUsername,
       enabled: true,
+      canManageDshScenarios: false,
       remark: null,
       rowVersion: '999',
     }, 'admin'),

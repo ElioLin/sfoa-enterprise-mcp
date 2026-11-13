@@ -41,7 +41,7 @@ test('P8-06 real HTTP discovery has zero route/scope/connection/API calls; execu
     dmlPolicies: [], managedDmlFieldRules: [], diagnostic: null, runtimeSettings: {},
   };
   const route: IdentityRouteRecord = { id: '1', platformUserId: TEST_PLATFORM_USER_A, userName: 'Test A',
-    salesforceUsername: TEST_USERNAME_A, enabled: true, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt };
+    salesforceUsername: TEST_USERNAME_A, enabled: true, canManageDshScenarios: false, remark: null, rowVersion: '1', createdAt: global.loadedAt, updatedAt: global.loadedAt };
   const server = await startRemoteMcpServer({
     config: createTestRemoteConfig({ wecomChannelEnabled: true, wecomClientToken: TOKEN,
       platformUserHeaderAliases: ['X-WeCom-User-Id'], platformIdentityHeaders: ['X-Platform-User-Id', 'X-WeCom-User-Id'] }),
@@ -452,7 +452,7 @@ async function startAttachmentInventoryHarness(withIngress: boolean): Promise<At
   let discoveryLoads = 0;
   let governance: AttachmentGovernance = { enabledTools: ['get_username'], attachmentEnabled: false };
   const route: IdentityRouteRecord = { id: '1', platformUserId: TEST_PLATFORM_USER_A, userName: 'Test A',
-    salesforceUsername: TEST_USERNAME_A, enabled: true, remark: null, rowVersion: '1', createdAt: loadedAt, updatedAt: loadedAt };
+    salesforceUsername: TEST_USERNAME_A, enabled: true, canManageDshScenarios: false, remark: null, rowVersion: '1', createdAt: loadedAt, updatedAt: loadedAt };
   const snapshot = (): RuntimeDiscoveryPolicySnapshot => ({
     mode: 'mysql', loadedAt, enabledTools: governance.enabledTools,
     // An attachment-only object policy: it grants neither CREATE nor UPDATE, so it

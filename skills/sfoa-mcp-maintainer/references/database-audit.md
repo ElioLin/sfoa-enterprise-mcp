@@ -21,10 +21,10 @@ yarn ai:db --report audit-stats
 
 The toolkit uses predefined SQL only, validates the first statement as `SELECT`, `SHOW`, `DESCRIBE`, or `EXPLAIN SELECT`, rejects multi-statement/stateful reads, and starts a MySQL `READ ONLY` transaction.
 
-## Current tables through migration 012
+## Current tables through migration 018
 
 - `sfoa_schema_migration`: version, checksum, application time.
-- `sfoa_identity_route`: case-sensitive `platform_user_id` to Salesforce username, human-readable display `user_name` (added by 009, required on create/edit, display metadata only), enabled state, optimistic `row_version`, optional `remark`.
+- `sfoa_identity_route`: case-sensitive `platform_user_id` to Salesforce username, human-readable display `user_name` (added by 009, required on create/edit, display metadata only), enabled state, `can_manage_dsh_scenarios` (added by 018, the DSH standard-scenario grant; DEFAULT FALSE, never derived from another column, and a disabled route grants nothing whatever the bit says), optimistic `row_version`, optional `remark`.
 - `sfoa_identity_credential`: USER_BOUND token hash/ciphertext/last4/lifecycle by route.
 - `sfoa_tool_control`: exact Tool name and enabled state.
 - `sfoa_dml_policy`: object, CREATE/UPDATE booleans, enabled state.
@@ -36,6 +36,8 @@ The toolkit uses predefined SQL only, validates the first statement as `SELECT`,
 - `sfoa_audit_event`: ordered per-Audit execution facts and optional same-Audit parent.
 - `sfoa_salesforce_api_call`: ordered real/operation-only Salesforce attempts, SOQL and DML semantics.
 - `sfoa_audit_payload_evidence`: bounded request/response and `UI_CONTEXT` metadata/sanitized body, loaded only on explicit item access. Migration 012 extends this existing payload ENUM.
+- `crm_dsh_standard_scenarios`: the DSH plugin standard-scenario catalogue (018). PK `scenario_id` (`ascii_bin`, so ids stay case-sensitive), title/category/description, server-owned `version` (semantic, patch auto-increment) and `revision` (integer, +1 per edit/attachment/delete), `scenario_payload` JSON carrying the forced `sourceType=COMPANY_STANDARD` / `readonlyForNormalUser=true` markers, `preset_attachments` JSON metadata (download paths are relative, recomputed on read), `status` PUBLISHED/ARCHIVED/DELETED with a CHECK, creator/updater platform uid and CRM account, `idx_status_updated (status, updated_at)`.
+- `crm_dsh_scenario_files`: the preset attachment bytes (018). PK `attachment_id`, `scenario_id` + `idx_scenario_id`, file name/MIME/size, server-computed `sha256`, and the `LONGBLOB` content. Rows are deleted by the soft-delete path and by explicit attachment removal; the scenario row never cascades them (no FK, because the tombstone must survive its bytes).
 
 ## Audit analyzer
 

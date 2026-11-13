@@ -1,5 +1,6 @@
 import {
   ApiOutlined,
+  AppstoreOutlined,
   AuditOutlined,
   DashboardOutlined,
   DatabaseOutlined,
@@ -33,6 +34,7 @@ const { Header, Sider, Content } = Layout;
 export const ADMIN_NAVIGATION = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '运行概览' },
   { key: '/identity-routes', icon: <TeamOutlined />, label: '用户身份路由' },
+  { key: '/standard-scenarios', icon: <AppstoreOutlined />, label: '标准场景管理' },
   { key: '/tool-governance', icon: <ToolOutlined />, label: '工具治理' },
   { key: '/dml-policies', icon: <SafetyCertificateOutlined />, label: 'DML 操作策略' },
   { key: '/diagnostic', icon: <ExperimentOutlined />, label: '系统诊断' },

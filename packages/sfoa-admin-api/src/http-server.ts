@@ -39,6 +39,7 @@ import {
   type AuditPersistenceHealth,
   type ControlPlaneRepositoriesWithAuditTrace,
   type DashboardDto,
+  type DshScenarioService,
   type DiagnosticPageDto,
   type DiagnosticVerificationDto,
   type IdentityCredentialRecord,
@@ -50,7 +51,7 @@ import {
   type MySqlUiSnapshotRepository,
 } from '@sfoa/control-plane';
 import type { IdentityRuntime } from '@sfoa/identity-runtime';
-import type { UpstreamInventoryComparison } from '@sfoa/mcp-server';
+import type { BuntuTokenValidator, UpstreamInventoryComparison } from '@sfoa/mcp-server';
 import { z, ZodError, type ZodType } from 'zod';
 import { AdminSessionManager, LoginRateLimiter, type AdminSession } from './auth.js';
 import type { AdminAccount, AdminApiConfig } from './config.js';
@@ -58,6 +59,8 @@ import { AdminHttpError, invalidAdminInput, mapAdminError } from './errors.js';
 import { endpointModules } from './module-paths.js';
 import { buildAdminToolCatalog } from './tool-catalog.js';
 import { buildAdminAuditTrace } from './audit-trace.js';
+import { DSH_API_PREFIX, handleDshScenarioRequest, isDshApiPath } from './dsh/dsh-scenario-router.js';
+import type { DshActorResolverDeps } from './dsh/dsh-actor.js';
 import { verifyDiagnosticConfig, verifyIdentityRoute } from './verification.js';
 
 const MAX_JSON_BODY_BYTES = 262_144;
@@ -131,6 +134,20 @@ export type StartAdminApiServerOptions = Readonly<{
     | 'updateRuntimeSetting'
   >;
   identityRuntime: IdentityRuntime;
+  /**
+   * DSH-01 standard-scenario surface (`/api/dsh/**`). It shares the Admin session manager and the
+   * Control Plane repositories, but has its own CORS, body limits and error envelope because its
+   * callers are the DSH client plugin rather than the Console.
+   */
+  dsh: Readonly<{
+    service: DshScenarioService;
+    buntuValidator?: BuntuTokenValidator;
+    platformIdentityHeaders: readonly string[];
+    authMode: 'internal_bearer' | 'disabled';
+    clientToken?: string;
+    allowedOrigins: readonly string[];
+    maxAttachmentBytes: number;
+  }>;
   upstream: UpstreamInventoryComparison;
   migrations: readonly MigrationStatus[];
   system: AdminSystemRuntimeInfo;
@@ -224,6 +241,24 @@ async function handleRequest(
       throw new AdminHttpError('MCP_ADMIN_REQUEST_INVALID', 'The request URL is invalid.', 400);
     }
     const url = new URL(request.url, 'http://sfoa-admin.invalid');
+    if (isDshApiPath(url.pathname)) {
+      // Deliberately before the Admin prefix check and before any Admin session requirement:
+      // the plugin surface decides its own identity from a Buntu token, a USER_BOUND credential,
+      // the Admin session cookie, or (internal_bearer only) a platform identity header.
+      await handleDshScenarioRequest({
+        request,
+        response,
+        url,
+        correlationId,
+        service: options.dsh.service,
+        actorDeps: dshActorDeps(options, sessions),
+        adminAllowedOrigin: options.config.allowedOrigin,
+        allowedOrigins: options.dsh.allowedOrigins,
+        maxAttachmentBytes: options.dsh.maxAttachmentBytes,
+        redactionSecrets: options.identityRuntime.redactionSecrets,
+      });
+      return;
+    }
     if (!url.pathname.startsWith(ADMIN_API_PREFIX)) {
       throw new AdminHttpError('MCP_ADMIN_NOT_FOUND', 'Admin endpoint was not found.', 404);
     }
@@ -275,7 +310,7 @@ async function handleRequest(
 
     if (isMutation(request.method)) assertMutationGuards(request, options.config.allowedOrigin, session);
     assertModuleAccess(account, request.method, url.pathname, correlationId);
-    await dispatchAuthenticated(options, authenticated as RequestContext & Readonly<{ session: AdminSession }>);
+    await dispatchAuthenticated(options, sessions, authenticated as RequestContext & Readonly<{ session: AdminSession }>);
   } catch (error) {
     const mapped = mapAdminError(error, options.identityRuntime.redactionSecrets);
     if (!response.headersSent) {
@@ -367,10 +402,32 @@ function assertModuleAccess(
 
 async function dispatchAuthenticated(
   options: StartAdminApiServerOptions,
+  sessions: AdminSessionManager,
   context: RequestContext & Readonly<{ session: AdminSession }>,
 ): Promise<void> {
   const { request, response, url, session, correlationId } = context;
   const path = url.pathname;
+
+  // DSH-01: the Console alias of the plugin surface. The module table above has already decided
+  // whether this account may reach it, and the mutation guards have already run, so the request is
+  // forwarded with only its prefix rewritten. The plugin prefix `/api/dsh` is never served here.
+  if (path === `${ADMIN_API_PREFIX}/dsh` || path.startsWith(`${ADMIN_API_PREFIX}/dsh/`)) {
+    const aliased = new URL(url.href);
+    aliased.pathname = `${DSH_API_PREFIX}${path.slice(`${ADMIN_API_PREFIX}/dsh`.length)}`;
+    await handleDshScenarioRequest({
+      request,
+      response,
+      url: aliased,
+      correlationId,
+      service: options.dsh.service,
+      actorDeps: dshActorDeps(options, sessions),
+      adminAllowedOrigin: options.config.allowedOrigin,
+      allowedOrigins: options.dsh.allowedOrigins,
+      maxAttachmentBytes: options.dsh.maxAttachmentBytes,
+      redactionSecrets: options.identityRuntime.redactionSecrets,
+    });
+    return;
+  }
 
   if (path === `${ADMIN_API_PREFIX}/dashboard`) {
     assertMethod(request, 'GET');
@@ -1184,6 +1241,19 @@ function writeJson(response: ServerResponse, status: number, body: unknown): voi
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
   response.setHeader('Content-Length', payload.length);
   response.end(payload);
+}
+
+/** One actor-resolution configuration for both DSH entry points. */
+function dshActorDeps(options: StartAdminApiServerOptions, sessions: AdminSessionManager): DshActorResolverDeps {
+  return {
+    sessions,
+    identityRoutes: options.store.repositories.identityRoutes,
+    credentials: options.store.repositories.identityCredentials,
+    ...(options.dsh.buntuValidator ? { buntuValidator: options.dsh.buntuValidator } : {}),
+    platformIdentityHeaders: options.dsh.platformIdentityHeaders,
+    authMode: options.dsh.authMode,
+    ...(options.dsh.clientToken ? { clientToken: options.dsh.clientToken } : {}),
+  };
 }
 
 function notFound(): AdminHttpError {

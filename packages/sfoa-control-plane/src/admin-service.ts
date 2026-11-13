@@ -75,6 +75,7 @@ export class ControlPlaneAdminService {
         platformUserId: created.platformUserId,
         salesforceUsername: created.salesforceUsername,
         enabled: created.enabled,
+        canManageDshScenarios: created.canManageDshScenarios,
         credentialCreated: true,
         credentialId: credential.id,
         tokenLast4: credential.tokenLast4,
@@ -177,6 +178,10 @@ export class ControlPlaneAdminService {
         platformUserId: updated.platformUserId,
         salesforceUsername: updated.salesforceUsername,
         enabled: updated.enabled,
+        // Recorded on every update: granting or revoking the capability must be visible in the
+        // audit trail even when nothing else on the route changed.
+        canManageDshScenarios: updated.canManageDshScenarios,
+        dshScenarioPermissionChanged: current.canManageDshScenarios !== updated.canManageDshScenarios,
         rowVersion: updated.rowVersion,
       }, {
         platformUserId: updated.platformUserId,

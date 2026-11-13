@@ -10,6 +10,7 @@ const route: IdentityRouteRecord = Object.freeze({
   userName: 'Platform User A',
   salesforceUsername: 'Exact.User@example.invalid',
   enabled: true,
+  canManageDshScenarios: false,
   remark: null,
   rowVersion: '1',
   createdAt: '2026-01-01T00:00:00.000Z',

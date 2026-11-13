@@ -40,6 +40,9 @@ export const ADMIN_CSRF_HEADER = 'x-sfoa-csrf-token';
 export const ADMIN_MODULE_IDS = [
   'dashboard',
   'identity-routes',
+  // DSH-01: the DSH standard-scenario catalogue. It sits next to the identity routes because the
+  // capability that governs it is granted on a route, not on the scenario.
+  'standard-scenarios',
   'tool-governance',
   'dml-policies',
   'diagnostic',
@@ -73,11 +76,19 @@ export const adminIdentityRouteListQuerySchema = z.object({
 
 const optionalRemarkSchema = remarkSchema.optional().transform((value) => value ?? null);
 
+/**
+ * DSH-01: `canManageDshScenarios` is the platform user's standard-scenario capability.
+ *
+ * It is optional on create (an import or script that does not know about the capability creates a
+ * route without it — an omitted grant is never an implied grant) and mandatory on update, so an
+ * edit can never clear the flag by leaving it out.
+ */
 export const adminIdentityRouteCreateSchema = z.object({
   platformUserId: platformUserIdSchema,
   userName: userNameSchema,
   salesforceUsername: salesforceUsernameSchema,
   enabled: z.boolean(),
+  canManageDshScenarios: z.boolean().optional().transform((value) => value ?? false),
   remark: optionalRemarkSchema,
 }).strict();
 
@@ -86,6 +97,7 @@ export const adminIdentityRouteUpdateSchema = z.object({
   userName: userNameSchema,
   salesforceUsername: salesforceUsernameSchema,
   enabled: z.boolean(),
+  canManageDshScenarios: z.boolean(),
   remark: optionalRemarkSchema,
   rowVersion: rowVersionSchema,
 }).strict();

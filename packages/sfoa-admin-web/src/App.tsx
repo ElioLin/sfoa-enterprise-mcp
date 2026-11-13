@@ -13,6 +13,7 @@ import { useSession } from './session.js';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage.js'));
 const IdentityRoutesPage = lazy(() => import('./pages/IdentityRoutesPage.js'));
+const StandardScenariosPage = lazy(() => import('./pages/StandardScenariosPage.js'));
 const ToolGovernancePage = lazy(() => import('./pages/ToolGovernancePage.js'));
 const DmlPoliciesPage = lazy(() => import('./pages/DmlPoliciesPage.js'));
 const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage.js'));
@@ -52,6 +53,7 @@ export function App() {
                 <Route index element={<LandingRedirect />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/identity-routes" element={<IdentityRoutesPage />} />
+                <Route path="/standard-scenarios" element={<StandardScenariosPage />} />
                 <Route path="/tool-governance" element={<ToolGovernancePage />} />
                 <Route path="/dml-policies" element={<DmlPoliciesPage />} />
                 <Route path="/diagnostic" element={<DiagnosticPage />} />

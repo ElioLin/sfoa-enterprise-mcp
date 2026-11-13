@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   ADMIN_MODULE_IDS,
   ControlPlaneError,
+  DshScenarioService,
   type AuditRecord,
   type AuditPayloadEvidenceRecord,
   type AuditWrite,
@@ -10,6 +11,7 @@ import {
   type ControlPlaneRepositoriesWithAuditTrace,
   type DiagnosticConfigRecord,
   type DmlPolicyRecord,
+  type DshScenarioRepository,
   type IdentityCredentialRecord,
   type IdentityRouteRecord,
   type IdentityRouteListOptions,
@@ -553,6 +555,8 @@ function createOptions(password: string, repositories: ControlPlaneRepositoriesW
     ]),
     sessionSecret: 'session-signing-secret-that-is-at-least-thirty-two-characters',
     sessionTtlSeconds: 300, cookieSecure: false, cookieName: 'sfoa_admin', loginMaxAttempts: 5, loginWindowMs: 60_000,
+    dshAllowedOrigins: Object.freeze(['*']),
+    dshMaxAttachmentBytes: 1_048_576,
   });
   const upstream: UpstreamInventoryComparison = Object.freeze({ status: 'PASS', drift: Object.freeze([]) });
   const identityRuntime = Object.freeze({ redactionSecrets: Object.freeze([...SECRET_MARKERS]) }) as unknown as IdentityRuntime;
@@ -632,6 +636,18 @@ function createOptions(password: string, repositories: ControlPlaneRepositoriesW
     store: Object.freeze({ repositories, health: async () => Object.freeze({ version: '8.4.0-test' }) }),
     adminService,
     identityRuntime,
+    // The DSH surface has its own dedicated suite (`dsh-scenarios.test.ts`); this harness only has
+    // to satisfy the option so the Admin routes stay independently testable.
+    dsh: Object.freeze({
+      service: new DshScenarioService(Object.freeze({
+        repositories,
+        transaction: async <T>(work: (repos: ControlPlaneRepositoriesWithAuditTrace) => Promise<T>): Promise<T> => work(repositories),
+      })),
+      platformIdentityHeaders: Object.freeze(['x-sfoa-platform-user']),
+      authMode: 'internal_bearer' as const,
+      allowedOrigins: Object.freeze(['*']),
+      maxAttachmentBytes: 1_048_576,
+    }),
     upstream,
     migrations,
     system: Object.freeze({
@@ -752,6 +768,7 @@ function createRepositories(
       search: async (filter) => page<AuditRecord>([], filter.limit, filter.offset),
       countSince: async () => Object.freeze({ total: 0, pass: 0, blocked: 0, error: 0, unknown: 0 }),
     },
+    dshScenarios: createDshScenarioRepository(),
     auditTraces: {
       createCall: async (input) => auditRecord(String(++auditId), { ...input, channel: 'MCP', auditKind: 'MCP_TOOL_CALL' }),
       getByPublicAuditId: async () => undefined,
@@ -767,20 +784,42 @@ function createRepositories(
   });
 }
 
+/**
+ * The Admin route suite never creates a scenario; every method asserts that, so a DSH regression
+ * cannot hide behind a permissive stub here.
+ */
+function createDshScenarioRepository(): DshScenarioRepository {
+  const unused = async (): Promise<never> => { throw new Error('DSH scenario repository is not used by the Admin route suite.'); };
+  return Object.freeze({
+    listVisible: async () => Object.freeze([]),
+    listDeletedIds: async () => Object.freeze([]),
+    getById: async () => undefined,
+    getByIdForUpdate: async () => undefined,
+    insert: unused,
+    update: unused,
+    listFiles: async () => Object.freeze([]),
+    getFile: async () => undefined,
+    insertFile: unused,
+    deleteFile: unused,
+    deleteFilesForScenario: async () => 0,
+  });
+}
+
 function routeInput(): Readonly<{
-  platformUserId: string; userName: string; salesforceUsername: string; enabled: boolean; remark: null;
+  platformUserId: string; userName: string; salesforceUsername: string; enabled: boolean;
+  canManageDshScenarios: boolean; remark: null;
 }> {
   return Object.freeze({
     platformUserId: 'platform-user-a', userName: 'Platform User A', salesforceUsername: 'user@example.invalid',
-    enabled: true, remark: null,
+    enabled: true, canManageDshScenarios: false, remark: null,
   });
 }
 
 function routeRecord(input: Readonly<{
   id: string; platformUserId: string; userName: string; salesforceUsername: string; enabled: boolean;
-  remark: string | null; rowVersion: string;
+  canManageDshScenarios?: boolean; remark: string | null; rowVersion: string;
 }>): IdentityRouteRecord {
-  return Object.freeze({ ...input, createdAt: now, updatedAt: now });
+  return Object.freeze({ ...input, canManageDshScenarios: input.canManageDshScenarios ?? false, createdAt: now, updatedAt: now });
 }
 
 function dmlRecord(input: Readonly<{

@@ -1,3 +1,29 @@
+# DSH plugin standard scenarios: one grant on the identity route, server-owned versions, and a plugin-facing catalogue (2026-11-13)
+
+- Add `sfoa_identity_route.can_manage_dsh_scenarios` (migration 018, DEFAULT FALSE) as the entire
+  write authority for DSH plugin standard scenarios. It lives on the same row that already decides
+  the caller's Salesforce identity, so a disabled route grants nothing and the Console switch, the
+  plugin permission probe and every write endpoint read one column.
+- Add `crm_dsh_standard_scenarios` and `crm_dsh_scenario_files`. The server owns `version` and
+  `revision` end to end: every edit, status change or attachment change increments `revision` and
+  the semantic patch segment (`1.0.2` → `1.0.3`); `DELETE` writes a `DELETED` tombstone (revision
+  +1, version unchanged) and releases the attachment bytes, because the plugin needs the id in
+  `deletedScenarioIds` to uninstall a local copy. `scenarioPayload.sourceType` and
+  `readonlyForNormalUser` are re-asserted on every write, so a client cannot turn a company standard
+  into an editable local scenario.
+- Serve the plugin surface `/api/dsh/**` from the Admin API process with its own CORS, body limits
+  and error envelope, and resolve the actor from a Buntu token, a USER_BOUND credential, the Admin
+  session cookie, or — only under `internal_bearer` with the shared client token — a platform
+  identity header. Reads never fail on identity; writes fail with one code
+  (`403 DSH_SCENARIO_PERMISSION_DENIED`). Every mutation writes one `channel=ADMIN` audit row inside
+  the same transaction.
+- Add the Console module `标准场景管理`: a card catalogue with version/revision, pinned Skills,
+  attachments and publisher, an edit modal that cannot touch `version`/`revision`, publish/archive,
+  confirmed soft delete, attachment upload/download/delete, and a per-user grant switch on the
+  identity-route list. The Console calls `/admin/api/dsh/**`, so the ADR-0034 module table and CSRF
+  rules apply unchanged. Contract for plugin authors:
+  [DSH_STANDARD_SCENARIOS_API.md](docs/sfoa/DSH_STANDARD_SCENARIOS_API.md).
+
 # Selected record form precision (2026-11-06)
 
 - Add opt-in current desktop New/Edit and explicit native Quick Action form context, separate requiredness and value evidence, and scoped Profile/app/page resolution.

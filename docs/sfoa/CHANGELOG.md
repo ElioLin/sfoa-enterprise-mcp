@@ -2,6 +2,37 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-13 — DSH standard scenarios: a grant on the route, a server-owned version, a plugin catalogue
+
+The DSH client plugin (`crm-dsh-plug`) needs to distribute company-standard scenarios that a normal
+user installs read-only and a small set of authorised users maintain. Three decisions shaped the
+implementation:
+
+- **The grant is a column on the identity route, not a new table.** `can_manage_dsh_scenarios`
+  (migration 018, DEFAULT FALSE) already sits on the row that decides which Salesforce identity a
+  request runs as, so "who may publish a standard scenario" and "who is this request" are answered
+  by one read. A disabled route grants nothing even while the bit is set, and the Console switch,
+  the plugin permission probe and every write endpoint read the same column.
+- **The server owns the version.** `revision` is the integer the plugin compares on every start;
+  `version` is its human-facing label. An edit, a status change and an attachment change all
+  increment both (patch segment only), a client that sends either value is rejected, and the only
+  way to rewind a scenario is to delete and re-publish it — which produces a new version anyway.
+  `DELETE` writes a `DELETED` tombstone (revision +1, version unchanged) and releases the
+  attachment bytes, because the plugin needs the id in `deletedScenarioIds` to uninstall a copy it
+  already has.
+- **The plugin surface is intentionally separate.** `/api/dsh/**` resolves an actor from a Buntu
+  token, a USER_BOUND credential, the Admin session cookie, or a platform identity header that is
+  only trusted when the shared client token is presented with it. Reads never fail on identity
+  (they answer the published catalogue with `auth.authenticated: false`); writes fail with one code.
+  The Console reaches the same logic through `/admin/api/dsh/**`, so the ADR-0034 module table and
+  the Admin CSRF rules apply without a second authorization implementation.
+
+`scenarioPayload.sourceType` and `readonlyForNormalUser` are re-asserted on every write, so a
+client cannot turn a company standard into an editable local scenario. Each mutation writes one
+`channel=ADMIN` audit row inside the same transaction, which is why a scenario can never change
+without a durable record of who changed it. Plugin contract:
+[DSH_STANDARD_SCENARIOS_API.md](DSH_STANDARD_SCENARIOS_API.md).
+
 ## 2026-11-12 — Forbid meta statements about the source material in field values
 
 A real 203 UAT run created the target records and extracted the meeting notes well, but filled two required button fields with sentences about the document instead of business facts:
