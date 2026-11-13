@@ -471,13 +471,15 @@ test('DSH-01 identity carriers: header, query and body all resolve the same plat
   });
   assert.equal(spoofedWrite.status, 403);
 
-  // With the shared client token the same header is accepted (internal_bearer deployments).
+  // With the shared client token the same header is accepted (internal_bearer deployments), and
+  // the service token itself is never forwarded to the Buntu identity service.
   const trusted = await fetch(`${harness.root}/api/dsh/scenarios/permission`, {
     headers: {
       Authorization: 'Bearer mcp-client-token-for-tests',
       'X-SFOA-Platform-User': 'platform-manager',
     },
   });
+  assert.equal(harness.validator.calls.includes('mcp-client-token-for-tests'), false);
   assert.deepEqual(await trusted.json(), {
     authenticated: true,
     platformUserId: 'platform-manager',

@@ -72,8 +72,12 @@ export async function resolveDshScenarioActor(
 ): Promise<DshActorResolution> {
   const token = extractDshToken(request, url, options.bodyToken);
   let tokenError: DshActorResolution['tokenError'] = null;
+  // The shared MCP client token is a *service* credential, never a user token. It must not be
+  // forwarded to Buntu (which would reject it and leave a misleading identity audit), so it is
+  // recognised first and only ever unlocks the platform-identity header below.
+  const serviceToken = token !== undefined && deps.clientToken !== undefined && tokenMatches(token, deps.clientToken);
 
-  if (token) {
+  if (token && !serviceToken) {
     const credential = await resolveTokenIdentity(token, deps, options.correlationId);
     if (credential.platformUserId) {
       return finalize(credential.platformUserId, credential.source, deps, null, null, null);
@@ -89,7 +93,7 @@ export async function resolveDshScenarioActor(
 
   // Priority 3: only a request that proved possession of the deployment's shared token may name
   // its own platform user. Anything else is an unauthenticated header and is discarded here.
-  if (deps.authMode === 'internal_bearer' && deps.clientToken && token && tokenMatches(token, deps.clientToken)) {
+  if (deps.authMode === 'internal_bearer' && serviceToken && token) {
     const headerUserId = readPlatformUserHeader(request, deps.platformIdentityHeaders);
     if (headerUserId) {
       return finalize(headerUserId, 'PLATFORM_HEADER', deps, null, null, tokenError);
