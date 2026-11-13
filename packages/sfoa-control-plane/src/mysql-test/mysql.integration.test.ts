@@ -355,7 +355,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '017_attachment_attempt_lifecycle');
+      assert.equal(migrations.at(-1)?.version, '018_dsh_standard_scenarios');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);
