@@ -99,6 +99,30 @@ MCP_PLATFORM_USER_HEADER_ALIASES=X-WeCom-User-Id. Restart Runtime/Admin API toge
 The plugin Authorization is Bearer <MCP_WECOM_CLIENT_TOKEN>; WeCom injects its
 user Header for execution. Discovery has no user/route/Salesforce access.
 
+### DSH standard-scenario surface (migration 018+)
+
+The plugin API `/api/dsh/**` is served by the Admin API process and needs its own reverse-proxy
+location beside `/admin/api/`: proxy it to `127.0.0.1:8081/api/dsh/` and forward `Authorization`,
+`X-Buntu-Token` and `Origin`, because the plugin sends its token in those headers and the router
+answers CORS preflight itself. Apply migration 018 before starting the new Admin API — startup
+validates `can_manage_dsh_scenarios`, both `crm_dsh_*` tables and their indexes and fails closed
+otherwise. `SFOA_DSH_ALLOWED_ORIGINS` (default `*`) and `SFOA_DSH_MAX_ATTACHMENT_BYTES` (default
+10 MiB) are optional; the global `client_max_body_size` must exceed the base64 envelope (≈1.34×).
+The Console reaches the same logic through `/admin/api/dsh/**`, so it needs no extra proxy entry.
+Rollback keeps the additive schema: old code neither reads the column nor the tables.
+
+### DSH standard-scenario surface (migration 018+)
+
+The plugin API `/api/dsh/**` is served by the Admin API process and needs its own reverse-proxy
+location beside `/admin/api/`: proxy it to `127.0.0.1:8081/api/dsh/` and forward `Authorization`,
+`X-Buntu-Token` and `Origin`, because the plugin sends its token in those headers and the router
+answers CORS preflight itself. Apply migration 018 before starting the new Admin API — startup
+validates `can_manage_dsh_scenarios`, both `crm_dsh_*` tables and their indexes and fails closed
+otherwise. `SFOA_DSH_ALLOWED_ORIGINS` (default `*`) and `SFOA_DSH_MAX_ATTACHMENT_BYTES` (default
+10 MiB) are optional; the global `client_max_body_size` must exceed the base64 envelope (≈1.34×).
+The Console reaches the same logic through `/admin/api/dsh/**`, so it needs no extra proxy entry.
+Rollback keeps the additive schema: old code neither reads the column nor the tables.
+
 ## Restricted Console accounts (ADR-0034)
 
 `SFOA_ADMIN_ADDITIONAL_ACCOUNTS_JSON` registers Console accounts that see only the

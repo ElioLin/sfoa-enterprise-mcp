@@ -1794,3 +1794,73 @@ by pid. The same holds for the audit runners below. This is a property of the te
    `p9-t4-204501d-expected.txt` (the T4 archive's listing, whose 1204 entries §P9-T4 reports).
 
 
+
+---
+
+## P10-DSH-01 部署：DSH 标准场景控制面（`596a74d`，2026-11-13）
+
+本次把 [DSH 标准场景模块](DSH_STANDARD_SCENARIOS_API.md) 部署到测试服务器 `crm-ex-test02`
+(`192.168.156.203`)。性质是**新增能力**：新增迁移 018、两个独立表、一个插件 REST 前缀
+(`/api/dsh/`)、一个后台模块；不改动 MCP Tool、Provider、身份路由解析、DML 治理或 Audit
+fail-open 语义。
+
+### 部署事实
+
+| 项 | 值 |
+| --- | --- |
+| 提交 | `596a74d`（含 `267416b`/`d5dff96`，分支 `feature/dsh-standard-scenarios-control-plane`） |
+| 归档 | `incoming/sfoa-dsh-596a74d-20261113-141508.tar.gz`，4,524,315 B，sha256 `f0e39487…9365e6`，1,772 条目 / 1,507 文件，LF 归一化（`git archive -c core.autocrlf=false -c core.eol=lf HEAD`） |
+| 部署前备份 | `backup/pre-dsh-596a74d-20261113-142042.tar.gz`，11,824,630 B（app 源码，排除 `node_modules`/`dist`/`.wireit`/`*.tsbuildinfo`） |
+| 落盘 | 解到 `staging-dsh-596a74d-20261113-142042`，`rsync -a --omit-dir-times --no-perms` 覆盖 `app/`（**无 `--delete`**）；`.env.local` 软链、`config/`、`secrets/`、`node_modules`、各包 `dist` 全部保留 |
+| 字节校验 | `sha256sum -c expected-596a74d.txt`：**1,507 / 1,507 OK，0 FAILED，0 MISSING**（清单由归档解包后生成，不是工作区） |
+| 依赖 | 未变更（本次提交只改 `package.json` 的 `exports`，未增删依赖），跳过 `yarn install` |
+| 构建 | 按 §6 依赖顺序构建 11 个 workspace（先清 `*.tsbuildinfo`/`.wireit`），全部成功；新增产物 `packages/sfoa-admin-api/dist/dsh/`、`packages/sfoa-control-plane/dist/dsh-scenario-service.js`、`packages/sfoa-admin-web/dist/assets/StandardScenariosPage-V3by-CIi.js` |
+| 迁移 | `yarn db:migrate` → `018_dsh_standard_scenarios` **APPLIED**（`2026-11-13T14:22:28.872Z`，checksum `3db7b86b…114641`），此前停在 017 |
+| 共享库校验 | `sfoa_identity_route.can_manage_dsh_scenarios` = `tinyint(1) NOT NULL DEFAULT 0`；`crm_dsh_standard_scenarios` / `crm_dsh_scenario_files` 均 InnoDB；`idx_status_updated(status,updated_at)`、`idx_scenario_id(scenario_id)` 存在 |
+| 重启 | `sfoa-admin-api` 14:23:31 CST、`sfoa-mcp-server` 14:26:48 CST；三者 `is-enabled`/`is-active` 均为 enabled/active |
+| Nginx | `conf.d/mcp-service.conf` 新增 `location /api/dsh/` → `127.0.0.1:8081/api/dsh/`（转发 `Authorization`/`X-Buntu-Token`/`Origin`）；改前备份 `backup/nginx-mcp-service.conf.pre-dsh-*`；`nginx -t` 通过后 `reload`（不重启，静态站与 MCP 不受影响） |
+| 配置 | `.env.local` **未改动**（`SFOA_DSH_*` 走代码默认：来源 `*`、附件上限 10 MiB；Nginx 全局 `client_max_body_size 20m` 已足够 base64 信封）。SELinux 标签仍为 `etc_t` |
+
+### 验证
+
+| 检查 | 结果 |
+| --- | --- |
+| MCP `/health` | 200 |
+| Admin `/admin/api/health`、`/ready` | 200 / 200 |
+| Nginx `:9000` `/`、`/admin/api/health`、`/api/dsh/scenarios` | 200 / 200 / 200 |
+| `GET /api/dsh/scenarios`（匿名） | 200，`auth.authenticated=false`、`scenarios=[]`、`deletedScenarioIds=[]` |
+| `GET /api/dsh/scenarios/permission`（匿名） | 200，`canManageStandardScenario=false` |
+| `OPTIONS /api/dsh/scenarios` | 204 + `Access-Control-Allow-Origin` 回显、`Allow-Methods: GET, POST, PUT, DELETE, OPTIONS` |
+| `GET /admin/api/dsh/scenarios`（无会话） | 401（别名挂在 Admin 鉴权之后） |
+| 后台会话 | 登录 200，`modules` 含 `standard-scenarios`；`/api/dsh/scenarios/permission` 返回 `canManageStandardScenario=true` |
+
+端到端冒烟（服务器本地 `node`，凭据只在该进程内，输出仅状态码与版本号）：
+
+```text
+ok  admin login — HTTP 200
+ok  session carries the standard-scenarios module
+ok  permission probe via Admin session — canManageStandardScenario: true
+ok  create scenario — HTTP 201
+ok  initial version 1.0.0 / revision 1
+ok  payload markers forced            (sourceType=COMPANY_STANDARD, readonlyForNormalUser=true)
+ok  edit bumps to 1.0.1 / revision 2
+ok  attachment upload bumps to 1.0.2 / revision 3
+ok  attachment download is byte-identical — 20 bytes, sha256 5b2180874944…
+ok  soft delete returns a tombstone — rev 4, 1 tombstone(s)
+ok  deleted id appears only in deletedScenarioIds
+ok  attachment bytes are gone after delete — HTTP 404
+cleanup: removed 1 scenario row(s), 0 file row(s); remaining scenarios: 0
+```
+
+冒烟创建的 `dsh-smoke-*` 场景在结束时按 id 硬删除（行与文件行；此前已软删除、字节已释放），
+共享库回到 0 条场景；本次产生的 `channel=ADMIN` 审计行按设计保留，是这次部署的可追溯证据。
+
+**未验证**：浏览器点击级 UI（本次通过构建产物与 chunk 可达性验证，`StandardScenariosPage-*.js`
+经 Nginx 200，`插件标准场景权限` 出现在 `IdentityRoutesPage-*.js`），以及真实插件（`crm-dsh-plug`）
+联调与 Buntu Token 授权用户的写路径实机验证——这两项需要交互式浏览器会话与真实 Token。
+
+### 回滚
+
+- 应用：`backup/pre-dsh-596a74d-*.tar.gz` 解回 `app/`，重建 `sfoa-admin-api`/`sfoa-mcp-server` 后重启；旧代码不读新表，可安全运行。
+- Nginx：`backup/nginx-mcp-service.conf.pre-dsh-*` 覆盖后 `nginx -t && systemctl reload nginx`。
+- 数据库：018 为纯增量（加列、加表、加索引），**保留不回滚**；`crm_dsh_*` 表在旧代码下不被访问。
