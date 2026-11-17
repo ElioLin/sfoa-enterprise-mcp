@@ -1864,3 +1864,79 @@ cleanup: removed 1 scenario row(s), 0 file row(s); remaining scenarios: 0
 - 应用：`backup/pre-dsh-596a74d-*.tar.gz` 解回 `app/`，重建 `sfoa-admin-api`/`sfoa-mcp-server` 后重启；旧代码不读新表，可安全运行。
 - Nginx：`backup/nginx-mcp-service.conf.pre-dsh-*` 覆盖后 `nginx -t && systemctl reload nginx`。
 - 数据库：018 为纯增量（加列、加表、加索引），**保留不回滚**；`crm_dsh_*` 表在旧代码下不被访问。
+
+---
+
+## P10-DSH-01.1 部署：业务系统成为场景一等字段（`51c768b`，2026-11-17）
+
+把 DSH 场景的 `businessSystem` 从 payload 里的一个键提升为可查询的一等字段（加列 + 回填 +
+`?businessSystem=` 过滤 + 后台字段/筛选/搜索/等高卡片）。性质是**向后兼容的增量**：不收紧
+payload schema、不要求客户端发顶层字段、不伪造 `version`/`revision`；插件端 1.7.0（完全不传）与
+1.8.0（只传 payload）都继续可用。契约见 [DSH 标准场景 API](DSH_STANDARD_SCENARIOS_API.md)。
+
+### 部署事实
+
+| 项 | 值 |
+| --- | --- |
+| 提交 | `51c768b`（分支 `feature/dsh-standard-scenarios-control-plane`，已推送 origin） |
+| 归档 | `incoming/sfoa-dsh-bs-51c768b-20261117-115607.tar.gz`，4,548,180 B，sha256 `5805fe69…1d11`，1,773 条目 / 1,508 文件，LF 归一化（`git archive -c core.autocrlf=false -c core.eol=lf`） |
+| 部署前备份 | `backup/pre-dsh-bs-51c768b-20261117-115607.tar.gz`，24,163,365 B（app 源码，排除 `node_modules`/`dist`/`.wireit`/`*.tsbuildinfo`） |
+| 落盘 | 解到 `staging-dsh-bs-51c768b-20261117-115607`，`rsync -a --omit-dir-times --no-perms` 覆盖 `app/`（**无 `--delete`**）；`.env.local` 软链、`config/`、`secrets/`、`node_modules`、各包 `dist` 全部保留 |
+| 字节校验 | `sha256sum -c expected-51c768b.txt`：**1,508 / 1,508 OK**（清单由归档解包后生成）；含 CR 的仅 2 个二进制证据文件（`.docx`/`.png`），文本与 SQL 均为 LF |
+| 依赖 | 未变更（本次未改 `package.json`/`yarn.lock`），跳过 `yarn install` |
+| 构建 | 清 `*.tsbuildinfo`/`.wireit` 后按 §6 依赖顺序构建 11 个 workspace，全部成功；产物 `dist/dsh-scenario-contracts.js`、`dist/dsh-scenario-service.js`、`assets/StandardScenariosPage-D1gyKMQa.js` |
+| 迁移 | `yarn db:migrate` → `019_dsh_scenario_business_system` **APPLIED**（`2026-11-17T11:58:51.210Z`，checksum `60e81d8b…7d97fd`），此前停在 018 |
+| 共享库结构 | `business_system` = `varchar(32) NOT NULL DEFAULT 'CRM'`、collation `utf8mb4_0900_ai_ci`；索引 `idx_crm_dsh_scenario_business_system (business_system, updated_at)` 非唯一 |
+| 回填结果 | 库内 1 条既有场景 `crm_crm`：顶层与 payload 均为 `CRM`，`revision=7` / `version=1.0.6` 未变，`updated_at=2026-11-13 17:38:36` **早于**迁移落库时间（11-17 11:58:51），证明回填既没升版也没改 `updated_at` |
+| 重启 | `sfoa-admin-api` 12:00:12 CST、`sfoa-mcp-server` 12:00:15 CST；`is-enabled`/`is-active` 均 enabled/active（Admin 启动含 auth store 落种，约 9s 后才 200） |
+| Nginx | **未改动**：`location /api/dsh/` 与 `/admin/api/` 在 018 部署时已存在；本次仅静态产物 hash 变化 |
+| 配置 | `.env.local` **未改动**（`SFOA_DSH_*` 仍为代码默认：来源 `*`、附件上限 10 MiB） |
+
+### 验证
+
+| 检查 | 结果 |
+| --- | --- |
+| MCP `/health`、Admin `/admin/api/health`、`/ready` | 200 / 200 / 200 |
+| Nginx `:9000` `/`、`/admin/api/health`、`/api/dsh/scenarios`（匿名） | 200 / 200 / 200 |
+| 后台静态产物 | index chunk `assets/index-2hmO0XlR.js` 200；`assets/StandardScenariosPage-D1gyKMQa.js` 200（无 SELinux 403） |
+| 匿名目录 | 200，`auth.authenticated=false`；既有场景已带顶层 `businessSystem`，与 payload 副本一致 |
+| `?businessSystem=crm`（小写）/ `TAPD` / 空值 | 1 / 0 / 1（空值等同不筛选） |
+| `?businessSystem=CRM%2FTAPD` | 400 `DSH_SCENARIO_INPUT_INVALID` |
+| `OPTIONS /api/dsh/scenarios` | 204，`Allow-Methods: GET, POST, PUT, DELETE, OPTIONS` |
+| `GET /admin/api/dsh/scenarios`（无会话） | 401（别名在 Admin 鉴权之后） |
+| `GET /api/dsh/scenarios/permission`（匿名） | 200，`canManageStandardScenario=false` |
+
+端到端冒烟（服务器本地 `node`，凭据只在进程内，输出仅状态码与字段值）：
+
+```text
+ok   admin login — HTTP 200
+ok   session carries the standard-scenarios module — 10 module(s)
+ok   permission probe via session
+ok   create scenario — HTTP 201
+ok   top level wins and payload is stamped — top=TAPD payload=TAPD
+ok   unknown payload key preserved
+ok   initial version 1.0.0 / revision 1 — 1.0.0 rev 1
+ok   catalogue filter businessSystem=tapd contains it — matched 1
+ok   catalogue filter businessSystem=CRM excludes it — matched 1
+ok   move business system — top=自研结算 payload=自研结算
+ok   move is an ordinary edit — 1.0.1 rev 2
+ok   edit that names none keeps it — top=自研结算
+ok   POST re-publish keeps the workspace — HTTP 201, top=自研结算
+ok   invalid business system is refused — 400 DSH_SCENARIO_INPUT_INVALID
+ok   soft delete — rev 5
+ok   deleted scenario leaves the catalogue — matched 0
+ok   tombstone id reported to the plugin
+cleanup: 1 scenario row(s), 0 file row(s); remaining scenarios: 1; ADMIN audit rows kept: 5
+```
+
+冒烟场景按 id 硬删除（行与文件行），共享库回到部署前的 1 条场景；5 条 `channel=ADMIN` 审计行按设计
+保留，是本次部署的可追溯证据。
+
+**未验证**：浏览器点击级 UI（仅验证构建产物与 chunk 可达）、真实插件 `crm-dsh-plug` 联调、Buntu
+Token 授权用户的写路径——需要交互式浏览器会话与真实 Token。
+
+### 回滚
+
+- 应用：`backup/pre-dsh-bs-51c768b-*.tar.gz` 解回 `app/`，按 §6 重建 `control-plane`/`admin-api`/`admin-web` 后重启；旧代码不读新列。
+- 数据库：019 为纯增量（加列 + 索引 + 数据回填），**保留不回滚**；旧代码忽略 `business_system` 列，payload 里多出的 `businessSystem` 键由 `passthrough` 原样保存，不影响 1.7.0/1.8.0 插件。
+- Nginx / 配置：本次无改动，无需回滚。
