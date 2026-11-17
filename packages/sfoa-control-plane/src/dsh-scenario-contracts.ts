@@ -25,6 +25,49 @@ export const dshScenarioTitleSchema = z.string().trim().min(1).max(128);
 export const dshScenarioCategorySchema = z.string().trim().min(1).max(64);
 export const dshScenarioDescriptionSchema = z.string().trim().min(1).max(4_000);
 
+/**
+ * The business system a scenario belongs to (DSH-01.1).
+ *
+ * The DSH plugin has required this on every scenario card since 1.7.0 — it decides which workspace
+ * the user lands in, so it is used as a directory name. The plugin has shipped it inside
+ * `scenarioPayload.businessSystem` since 1.8.0 (its payload is a passthrough document), which is
+ * why the server stored it but could not query it. This schema is the first-class form of that
+ * value: 1-32 characters after trimming, and never a character a path segment cannot carry, so a
+ * value that passes here is safe to use as a workspace directory on the client.
+ */
+export const DSH_BUSINESS_SYSTEM_MAX_LENGTH = 32;
+export const DSH_BUSINESS_SYSTEM_FORBIDDEN_CHARACTERS = '\\/:*?"<>|';
+const DSH_BUSINESS_SYSTEM_FORBIDDEN_PATTERN = /[\\/:*?"<>|]/u;
+export const dshBusinessSystemSchema = z.string().trim()
+  .min(1)
+  .max(DSH_BUSINESS_SYSTEM_MAX_LENGTH)
+  .refine(
+    (value) => !DSH_BUSINESS_SYSTEM_FORBIDDEN_PATTERN.test(value),
+    `businessSystem must not contain any of ${DSH_BUSINESS_SYSTEM_FORBIDDEN_CHARACTERS}`,
+  );
+
+/** The workspace a scenario belongs to when neither the request nor its payload names one. */
+export const DSH_SCENARIO_DEFAULT_BUSINESS_SYSTEM = 'CRM';
+
+/**
+ * Reads a usable business system out of an untrusted source, or `undefined`.
+ *
+ * Deliberately non-throwing: callers use it to *resolve* between the top-level field and the
+ * plugin-owned payload, and an unusable payload hint must degrade to the next source rather than
+ * fail a write that a 1.7.0/1.8.0 plugin sent long before this field existed.
+ */
+export function readDshBusinessSystem(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const parsed = dshBusinessSystemSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** `payload.businessSystem`, when the stored document carries a usable one. */
+export function readDshPayloadBusinessSystem(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined;
+  return readDshBusinessSystem((payload as Record<string, unknown>).businessSystem);
+}
+
 export const DSH_SCENARIO_EDITABLE_STATUSES = ['PUBLISHED', 'ARCHIVED'] as const;
 export const dshScenarioEditableStatusSchema = z.enum(DSH_SCENARIO_EDITABLE_STATUSES);
 
@@ -33,6 +76,9 @@ export const dshScenarioEditableStatusSchema = z.enum(DSH_SCENARIO_EDITABLE_STAT
  * `pinnedSkills` is a bounded string list, the three named strings are bounded, and
  * `prePinnedContext` is an object. Everything else a newer plugin adds is preserved verbatim
  * (`passthrough`), because the server is a store, not a schema owner for the client UI.
+ *
+ * `passthrough` is load-bearing for `businessSystem`: the 1.8.0 plugin writes it here, and the
+ * server keeps accepting payloads without it (1.7.0) and with keys it has never heard of.
  */
 const dshPinnedSkillsSchema = z.array(z.string().trim().min(1).max(128)).max(50);
 export const dshScenarioPayloadSchema = z.object({
@@ -56,6 +102,11 @@ export const dshScenarioCreateSchema = z.object({
   title: dshScenarioTitleSchema,
   category: dshScenarioCategorySchema.optional(),
   description: dshScenarioDescriptionSchema,
+  /**
+   * Optional on purpose. A 1.7.0 plugin has no such field and a 1.8.0 plugin only carries it inside
+   * the payload; the server reads both and never requires the client to send this one.
+   */
+  businessSystem: dshBusinessSystemSchema.optional(),
   scenarioPayload: dshScenarioPayloadSchema,
   status: dshScenarioEditableStatusSchema.optional(),
 }).strict();
@@ -69,11 +120,12 @@ export const dshScenarioUpdateSchema = z.object({
   title: dshScenarioTitleSchema.optional(),
   category: dshScenarioCategorySchema.optional(),
   description: dshScenarioDescriptionSchema.optional(),
+  businessSystem: dshBusinessSystemSchema.optional(),
   scenarioPayload: dshScenarioPayloadSchema.optional(),
   status: dshScenarioEditableStatusSchema.optional(),
 }).strict().refine(
   (value) => Object.values(value).some((entry) => entry !== undefined),
-  'At least one of title, category, description, scenarioPayload or status is required.',
+  'At least one of title, category, description, businessSystem, scenarioPayload or status is required.',
 );
 
 export const dshScenarioListQuerySchema = z.object({
@@ -81,6 +133,14 @@ export const dshScenarioListQuerySchema = z.object({
   includeDeleted: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   /** Admin-only view of archived scenarios; ignored for a caller without management rights. */
   includeArchived: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  /**
+   * Exact match on the scenario's business system, case-insensitively. An empty value is the same
+   * as an absent one so a cleared Console filter can still be expressed in the URL.
+   */
+  businessSystem: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    dshBusinessSystemSchema.optional(),
+  ),
 }).strict();
 
 /**

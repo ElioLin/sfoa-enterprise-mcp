@@ -2,6 +2,35 @@
 
 This changelog records SFoA baseline and architecture changes. Salesforce Upstream release history remains in its original package changelogs and Git history.
 
+## 2026-11-17 — The DSH business system becomes a first-class scenario field
+
+Every DSH scenario card has carried a required business system since plugin 1.7.0 — it decides
+which workspace a scenario opens into and is used as a directory name — and since 1.8.0 the plugin
+has round-tripped it through `scenarioPayload.businessSystem` on the payload passthrough. The data
+was therefore already stored, but the server could not filter on it, count it, or show it as a
+column. This change promotes it:
+
+- **One field, two copies, one authority.** `businessSystem` is now a column
+  (`crm_dsh_standard_scenarios.business_system`, `VARCHAR(32) NOT NULL DEFAULT 'CRM'`, indexed with
+  `updated_at`). Reads resolve top-level → `scenarioPayload.businessSystem` → `CRM`; every write
+  stores the same value in both places. The payload copy is not redundant: the plugin's `pick()`
+  reads it first, which is exactly why the value was already in the database.
+- **Backward compatible by construction.** The field is optional on the wire, the payload schema
+  stays `passthrough`, and a write that names no business system — including a `POST` re-publishing
+  an existing `scenarioId` — keeps the row where it is instead of resetting it to `CRM`. A 1.7.0
+  client (no field anywhere) and a 1.8.0 client (payload only) both keep working; migration 019
+  backfills existing rows from their payload and makes the payload copy agree.
+- **A migration is not an edition.** The backfill leaves `revision`, `version` and `updated_at`
+  untouched. Bumping either counter would make every installed client re-download a scenario whose
+  content did not change — the version pair is a content signal, not a schema signal.
+- **Queryable where it matters.** `GET /api/dsh/scenarios?businessSystem=X` is an exact,
+  case-insensitive filter (the column's `ai_ci` collation does the matching, so the index still
+  applies). The Console gains the field in its form with the plugin's own validation messages, a
+  tag and filter on the catalogue, and instant keyword search; the cards are now equal-height with
+  proper padding, clamped text and `+N` overflow chips.
+
+Contract: [DSH_STANDARD_SCENARIOS_API.md](DSH_STANDARD_SCENARIOS_API.md).
+
 ## 2026-11-13 — DSH standard scenarios: a grant on the route, a server-owned version, a plugin catalogue
 
 The DSH client plugin (`crm-dsh-plug`) needs to distribute company-standard scenarios that a normal

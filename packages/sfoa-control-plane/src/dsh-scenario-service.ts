@@ -7,6 +7,13 @@ import {
   type DshScenarioStatus,
   type DshStandardScenarioRecord,
 } from './contracts.js';
+import {
+  DSH_BUSINESS_SYSTEM_MAX_LENGTH,
+  DSH_SCENARIO_DEFAULT_BUSINESS_SYSTEM,
+  dshBusinessSystemSchema,
+  readDshBusinessSystem,
+  readDshPayloadBusinessSystem,
+} from './dsh-scenario-contracts.js';
 import { ControlPlaneError } from './errors.js';
 import type { AuditRepository, DshScenarioRepository } from './repositories.js';
 import type { TransactionalControlPlaneStore } from './store.js';
@@ -23,6 +30,10 @@ import type { TransactionalControlPlaneStore } from './store.js';
  * - **Standard-scenario markers.** `scenarioPayload.sourceType` is forced to `COMPANY_STANDARD`
  *   and `readonlyForNormalUser` to `true` on create and on every edit. A normal user cannot turn
  *   a published standard into a locally editable one by sending a different payload.
+ * - **Business system (DSH-01.1).** Read in the documented order — top-level field, then
+ *   `scenarioPayload.businessSystem`, then `CRM` — and written back as the same value in both
+ *   places, because the column is what the operator can filter on and the payload copy is what the
+ *   plugin's `pick()` reads first. Adding this field never moved a `version` or a `revision`.
  * - **Soft delete.** `DELETE` writes the `DELETED` tombstone and bumps `revision` (no version
  *   bump: a tombstone is not a new edition), then removes the attachment bytes. The scenario row
  *   stays so `deletedScenarioIds` can tell the plugin what to uninstall.
@@ -53,6 +64,8 @@ export type DshScenarioCreateRequest = Readonly<{
   title: string;
   category?: string;
   description: string;
+  /** Optional: a 1.7.0 plugin has no such field and a 1.8.0 plugin only sends it in the payload. */
+  businessSystem?: string;
   scenarioPayload: unknown;
   status?: Extract<DshScenarioStatus, 'PUBLISHED' | 'ARCHIVED'>;
 }>;
@@ -61,8 +74,17 @@ export type DshScenarioUpdateRequest = Readonly<{
   title?: string;
   category?: string;
   description?: string;
+  /** Omitted means "keep the current one", never "reset to CRM". */
+  businessSystem?: string;
   scenarioPayload?: unknown;
   status?: Extract<DshScenarioStatus, 'PUBLISHED' | 'ARCHIVED'>;
+}>;
+
+export type DshScenarioListOptions = Readonly<{
+  includeArchived: boolean;
+  includeDeleted: boolean;
+  /** Exact, case-insensitive business-system filter; absent means "every business system". */
+  businessSystem?: string;
 }>;
 
 export type DshScenarioListResult = Readonly<{
@@ -125,11 +147,34 @@ export function toDshAttachmentMeta(
 type StoredPayload = Record<string, unknown>;
 
 /**
- * Re-asserts the two markers that make a scenario a *standard* scenario. The rest of the payload
- * is passed through untouched: its shape belongs to the plugin contract, and the server has no
- * business dropping fields a newer plugin understands.
+ * The documented read priority for a scenario's business system: the top-level field first, then
+ * the plugin's payload, then `CRM`.
+ *
+ * The top-level field is the contract the server owns, so a value that cannot be one is a caller
+ * error (the HTTP schema rejects it first and answers `DSH_SCENARIO_INPUT_INVALID`). A payload hint
+ * is client data the server merely stores, so an unusable one is ignored instead of failing a write
+ * that an older plugin sent.
  */
-export function normalizeDshScenarioPayload(payload: unknown): StoredPayload {
+export function resolveDshBusinessSystem(topLevel: unknown, payload: unknown): string {
+  if (topLevel === undefined || topLevel === null) {
+    return readDshPayloadBusinessSystem(payload) ?? DSH_SCENARIO_DEFAULT_BUSINESS_SYSTEM;
+  }
+  const parsed = dshBusinessSystemSchema.safeParse(topLevel);
+  if (!parsed.success) {
+    throw new ControlPlaneError(
+      'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+      `businessSystem must be 1-${DSH_BUSINESS_SYSTEM_MAX_LENGTH} characters and must not contain path or wildcard characters.`,
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * Re-asserts the two markers that make a scenario a *standard* scenario, and stamps the business
+ * system the row will carry. The rest of the payload is passed through untouched: its shape belongs
+ * to the plugin contract, and the server has no business dropping fields a newer plugin understands.
+ */
+export function normalizeDshScenarioPayload(payload: unknown, businessSystem?: string): StoredPayload {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
     throw new ControlPlaneError('MCP_CONTROL_PLANE_CONFIGURATION_INVALID', 'scenarioPayload must be a JSON object.');
   }
@@ -137,6 +182,9 @@ export function normalizeDshScenarioPayload(payload: unknown): StoredPayload {
     ...(payload as StoredPayload),
     sourceType: DSH_SCENARIO_SOURCE_TYPE,
     readonlyForNormalUser: true,
+    // The same value as the column. The plugin's `pick()` reads this copy first, so the two must
+    // never disagree; the column is the one the Console can filter and count on.
+    businessSystem: readDshBusinessSystem(businessSystem) ?? DSH_SCENARIO_DEFAULT_BUSINESS_SYSTEM,
   };
   const serializedBytes = Buffer.byteLength(JSON.stringify(normalized), 'utf8');
   if (serializedBytes > DSH_SCENARIO_PAYLOAD_MAX_BYTES) {
@@ -148,13 +196,29 @@ export function normalizeDshScenarioPayload(payload: unknown): StoredPayload {
   return Object.freeze(normalized);
 }
 
+/**
+ * Keeps the payload copy in step when only the business system changed (or when an attachment
+ * rebuild rewrites the row). An unchanged payload is not re-normalized, so a document this build
+ * did not write is not silently reshaped.
+ */
+export function stampDshPayloadBusinessSystem(payload: unknown, businessSystem: string): StoredPayload {
+  const base: StoredPayload = typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+    ? payload as StoredPayload
+    : {};
+  if (base.businessSystem === businessSystem) return Object.freeze({ ...base });
+  return Object.freeze({ ...base, businessSystem });
+}
+
 export class DshScenarioService {
   public constructor(private readonly store: TransactionalControlPlaneStore) {}
 
   /** Read path shared by the plugin sync and the Admin Console list. */
-  public async list(options: Readonly<{ includeArchived: boolean; includeDeleted: boolean }>): Promise<DshScenarioListResult> {
+  public async list(options: DshScenarioListOptions): Promise<DshScenarioListResult> {
+    const businessSystem = options.businessSystem === undefined
+      ? undefined
+      : this.normalizeBusinessSystemFilter(options.businessSystem);
     const [scenarios, deletedScenarioIds] = await Promise.all([
-      this.store.repositories.dshScenarios.listVisible(options.includeArchived),
+      this.store.repositories.dshScenarios.listVisible(options.includeArchived, businessSystem),
       options.includeDeleted
         ? this.store.repositories.dshScenarios.listDeletedIds()
         : Promise.resolve<readonly string[]>([]),
@@ -175,7 +239,6 @@ export class DshScenarioService {
    * scenario that already advanced.
    */
   public async create(input: DshScenarioCreateRequest, actor: DshScenarioActor): Promise<DshStandardScenarioRecord> {
-    const payload = normalizeDshScenarioPayload(input.scenarioPayload);
     const ownerUid = actor.platformUserId ?? this.platformUserForAdmin(actor);
     return this.store.transaction(async (repositories) => {
       const existing = await repositories.dshScenarios.getByIdForUpdate(input.scenarioId);
@@ -184,7 +247,12 @@ export class DshScenarioService {
           title: input.title,
           category: input.category,
           description: input.description,
-          scenarioPayload: payload,
+          // `POST` on an existing id replaces the scenario's content, but a business system the body
+          // does not name stays where it is: a 1.7.0 plugin re-publishing a scenario cannot know the
+          // field, and silently moving the row out of its workspace would be worse than a stale
+          // form value (the Console form always sends it, so an operator edit still wins).
+          ...(input.businessSystem === undefined ? {} : { businessSystem: input.businessSystem }),
+          scenarioPayload: input.scenarioPayload,
           status: input.status,
         }, ownerUid);
         await appendDshAudit(repositories, actor, 'UPDATE_DSH_SCENARIO', updated, {
@@ -192,14 +260,17 @@ export class DshScenarioService {
         });
         return updated;
       }
+      // A new row has nothing to fall back to, so this is where the documented `CRM` default lives.
+      const businessSystem = resolveDshBusinessSystem(input.businessSystem, input.scenarioPayload);
       const created = await repositories.dshScenarios.insert({
         scenarioId: input.scenarioId,
         title: input.title,
         category: input.category ?? DSH_SCENARIO_DEFAULT_CATEGORY,
         description: input.description,
+        businessSystem,
         version: '1.0.0',
         revision: 1,
-        scenarioPayload: payload,
+        scenarioPayload: normalizeDshScenarioPayload(input.scenarioPayload, businessSystem),
         presetAttachments: Object.freeze([]),
         status: input.status ?? 'PUBLISHED',
         createdByPlatformUid: ownerUid,
@@ -213,14 +284,14 @@ export class DshScenarioService {
 
   /**
    * `PUT /api/dsh/scenarios/:scenarioId`. Patch semantics for the mutable fields; the version pair
-   * is always advanced by exactly one step, whatever the client sent.
+   * is always advanced by exactly one step, whatever the client sent. A `businessSystem` is accepted
+   * at the top level, read out of a supplied payload, or — when neither names one — left as it is.
    */
   public async update(
     scenarioId: string,
     input: DshScenarioUpdateRequest,
     actor: DshScenarioActor,
   ): Promise<DshStandardScenarioRecord> {
-    const payload = input.scenarioPayload === undefined ? undefined : normalizeDshScenarioPayload(input.scenarioPayload);
     const ownerUid = actor.platformUserId ?? this.platformUserForAdmin(actor);
     return this.store.transaction(async (repositories) => {
       const current = await repositories.dshScenarios.getByIdForUpdate(scenarioId);
@@ -234,7 +305,8 @@ export class DshScenarioService {
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(input.category === undefined ? {} : { category: input.category }),
         ...(input.description === undefined ? {} : { description: input.description }),
-        ...(payload === undefined ? {} : { scenarioPayload: payload }),
+        ...(input.businessSystem === undefined ? {} : { businessSystem: input.businessSystem }),
+        ...(input.scenarioPayload === undefined ? {} : { scenarioPayload: input.scenarioPayload }),
         ...(input.status === undefined ? {} : { status: input.status }),
       }, ownerUid);
       await appendDshAudit(repositories, actor, 'UPDATE_DSH_SCENARIO', updated, {});
@@ -266,9 +338,10 @@ export class DshScenarioService {
         title: current.title,
         category: current.category,
         description: current.description,
+        businessSystem: current.businessSystem,
         version: current.version,
         revision: current.revision + 1,
-        scenarioPayload: current.scenarioPayload,
+        scenarioPayload: stampDshPayloadBusinessSystem(current.scenarioPayload, current.businessSystem),
         presetAttachments: Object.freeze([]),
         status: 'DELETED',
         updatedByPlatformUid: ownerUid,
@@ -335,9 +408,10 @@ export class DshScenarioService {
         title: current.title,
         category: current.category,
         description: current.description,
+        businessSystem: current.businessSystem,
         version: nextDshScenarioVersion(current.version),
         revision: current.revision + 1,
-        scenarioPayload: current.scenarioPayload,
+        scenarioPayload: stampDshPayloadBusinessSystem(current.scenarioPayload, current.businessSystem),
         presetAttachments: Object.freeze(attachments),
         status: current.status,
         updatedByPlatformUid: ownerUid,
@@ -370,9 +444,10 @@ export class DshScenarioService {
         title: current.title,
         category: current.category,
         description: current.description,
+        businessSystem: current.businessSystem,
         version: nextDshScenarioVersion(current.version),
         revision: current.revision + 1,
-        scenarioPayload: current.scenarioPayload,
+        scenarioPayload: stampDshPayloadBusinessSystem(current.scenarioPayload, current.businessSystem),
         presetAttachments: Object.freeze(attachments),
         status: current.status,
         updatedByPlatformUid: ownerUid,
@@ -406,23 +481,68 @@ export class DshScenarioService {
       title?: string;
       category?: string;
       description?: string;
+      businessSystem?: string;
       scenarioPayload?: unknown;
       status?: Extract<DshScenarioStatus, 'PUBLISHED' | 'ARCHIVED'>;
     }>,
     ownerUid: string,
   ): Promise<DshStandardScenarioRecord> {
+    const businessSystem = this.resolveEditedBusinessSystem(current, changes);
+    // A payload the caller did not touch is not re-normalized: only its business-system copy is
+    // restamped, so a document written by another build is not silently reshaped by an unrelated
+    // edit (a title change must not rewrite the plugin's configuration).
+    const scenarioPayload = changes.scenarioPayload === undefined
+      ? stampDshPayloadBusinessSystem(current.scenarioPayload, businessSystem)
+      : normalizeDshScenarioPayload(changes.scenarioPayload, businessSystem);
     return repository.update(current.scenarioId, {
       title: changes.title ?? current.title,
       category: changes.category ?? current.category,
       description: changes.description ?? current.description,
+      businessSystem,
       version: nextDshScenarioVersion(current.version),
       revision: current.revision + 1,
-      scenarioPayload: changes.scenarioPayload ?? current.scenarioPayload,
+      scenarioPayload,
       presetAttachments: current.presetAttachments,
       // A tombstone only comes back through an explicit re-publish, never through an edit.
       status: current.status === 'DELETED' ? 'PUBLISHED' : changes.status ?? current.status,
       updatedByPlatformUid: ownerUid,
     });
+  }
+
+  /**
+   * The business system an edit should leave behind.
+   *
+   * The top-level field wins and must be usable (it is the field this server owns). When a payload
+   * is supplied its hint is next. When neither names one the row keeps what it has — resetting to
+   * `CRM` on every payload rewrite would move a TAPD scenario out of its workspace the first time a
+   * 1.7.0 plugin saved it.
+   */
+  private resolveEditedBusinessSystem(
+    current: DshStandardScenarioRecord,
+    changes: Readonly<{ businessSystem?: string; scenarioPayload?: unknown }>,
+  ): string {
+    if (changes.businessSystem !== undefined) {
+      return resolveDshBusinessSystem(changes.businessSystem, undefined);
+    }
+    if (changes.scenarioPayload !== undefined) {
+      return readDshPayloadBusinessSystem(changes.scenarioPayload) ?? current.businessSystem;
+    }
+    return current.businessSystem;
+  }
+
+  /**
+   * A filter is strict as well: silently ignoring a value the contract cannot represent would answer
+   * "every scenario" to a typo, which reads exactly like a filter that matched everything.
+   */
+  private normalizeBusinessSystemFilter(value: string): string {
+    const parsed = dshBusinessSystemSchema.safeParse(value);
+    if (!parsed.success) {
+      throw new ControlPlaneError(
+        'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+        `businessSystem must be 1-${DSH_BUSINESS_SYSTEM_MAX_LENGTH} characters and must not contain path or wildcard characters.`,
+      );
+    }
+    return parsed.data;
   }
 }
 
@@ -448,6 +568,7 @@ async function appendDshAudit(
       requestSummary: {
         scenarioId: scenario.scenarioId,
         title: scenario.title,
+        businessSystem: scenario.businessSystem,
         status: scenario.status,
         version: scenario.version,
         revision: scenario.revision,

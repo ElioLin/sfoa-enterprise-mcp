@@ -104,24 +104,14 @@ user Header for execution. Discovery has no user/route/Salesforce access.
 The plugin API `/api/dsh/**` is served by the Admin API process and needs its own reverse-proxy
 location beside `/admin/api/`: proxy it to `127.0.0.1:8081/api/dsh/` and forward `Authorization`,
 `X-Buntu-Token` and `Origin`, because the plugin sends its token in those headers and the router
-answers CORS preflight itself. Apply migration 018 before starting the new Admin API — startup
-validates `can_manage_dsh_scenarios`, both `crm_dsh_*` tables and their indexes and fails closed
-otherwise. `SFOA_DSH_ALLOWED_ORIGINS` (default `*`) and `SFOA_DSH_MAX_ATTACHMENT_BYTES` (default
-10 MiB) are optional; the global `client_max_body_size` must exceed the base64 envelope (≈1.34×).
-The Console reaches the same logic through `/admin/api/dsh/**`, so it needs no extra proxy entry.
-Rollback keeps the additive schema: old code neither reads the column nor the tables.
-
-### DSH standard-scenario surface (migration 018+)
-
-The plugin API `/api/dsh/**` is served by the Admin API process and needs its own reverse-proxy
-location beside `/admin/api/`: proxy it to `127.0.0.1:8081/api/dsh/` and forward `Authorization`,
-`X-Buntu-Token` and `Origin`, because the plugin sends its token in those headers and the router
-answers CORS preflight itself. Apply migration 018 before starting the new Admin API — startup
-validates `can_manage_dsh_scenarios`, both `crm_dsh_*` tables and their indexes and fails closed
-otherwise. `SFOA_DSH_ALLOWED_ORIGINS` (default `*`) and `SFOA_DSH_MAX_ATTACHMENT_BYTES` (default
-10 MiB) are optional; the global `client_max_body_size` must exceed the base64 envelope (≈1.34×).
-The Console reaches the same logic through `/admin/api/dsh/**`, so it needs no extra proxy entry.
-Rollback keeps the additive schema: old code neither reads the column nor the tables.
+answers CORS preflight itself. Apply migrations 018 and 019 before starting the new Admin API —
+startup validates `can_manage_dsh_scenarios`, `business_system`, both `crm_dsh_*` tables and their
+indexes and fails closed otherwise. `SFOA_DSH_ALLOWED_ORIGINS` (default `*`) and
+`SFOA_DSH_MAX_ATTACHMENT_BYTES` (default 10 MiB) are optional; the global `client_max_body_size`
+must exceed the base64 envelope (≈1.34×). The Console reaches the same logic through
+`/admin/api/dsh/**`, so it needs no extra proxy entry. Both migrations are additive: old code
+neither reads the column nor the tables, and 019's backfill is a data-only repair that never touches
+`revision`, `version` or `updated_at`, so no installed plugin re-downloads a scenario because of it.
 
 ## Restricted Console accounts (ADR-0034)
 

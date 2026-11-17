@@ -59,7 +59,14 @@ authorizes/blocks DML. UPDATE has no hypothetical Edit Dynamic Forms resolver.
   bytes, because the plugin needs the id in `deletedScenarioIds` to uninstall a local copy. Each
   mutation writes one `channel=ADMIN` audit row in the same transaction. The Console reaches the same
   logic through `/admin/api/dsh/**`, so the ADR-0034 module table and the Admin CSRF rules apply
-  unchanged; the `standard-scenarios` module owns those eight endpoint patterns. See
+  unchanged; the `standard-scenarios` module owns those eight endpoint patterns. The scenario
+  business system (`CRM`/`TAPD`/other/custom, ≤32 chars, the plugin's workspace directory name) is a
+  first-class field, not just a payload key: the 1.8.0 plugin already round-tripped it through
+  `scenarioPayload.businessSystem`, and the server now also stores it in
+  `crm_dsh_standard_scenarios.business_system` so `GET /api/dsh/scenarios?businessSystem=X` can
+  filter and the Console can show a column. Reads resolve top level → payload → `CRM`; writes store
+  the same value in both places; the column is `ai_ci`, so the exact filter is case-insensitive
+  without a `LOWER()` that would drop the index. See
   `docs/sfoa/DSH_STANDARD_SCENARIOS_API.md`.
 
 ## Upstream-first decision order

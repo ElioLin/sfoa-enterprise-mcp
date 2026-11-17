@@ -262,8 +262,8 @@ const REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = Object.fre
     'byte_size', 'content_sha256', 'staged_path', 'state', 'failure_code', 'created_at', 'expires_at', 'consumed_at',
   ]),
   crm_dsh_standard_scenarios: Object.freeze([
-    'scenario_id', 'title', 'category', 'description', 'version', 'revision', 'scenario_payload',
-    'preset_attachments', 'status', 'created_by_platform_uid', 'created_by_crm_user',
+    'scenario_id', 'title', 'category', 'business_system', 'description', 'version', 'revision',
+    'scenario_payload', 'preset_attachments', 'status', 'created_by_platform_uid', 'created_by_crm_user',
     'updated_by_platform_uid', 'created_at', 'updated_at',
   ]),
   crm_dsh_scenario_files: Object.freeze([
@@ -322,6 +322,9 @@ const REQUIRED_INDEXES: Readonly<Record<string, Readonly<{ tableName: string; co
   }),
   idx_status_updated: Object.freeze({
     tableName: 'crm_dsh_standard_scenarios', columns: Object.freeze(['status', 'updated_at']), unique: false,
+  }),
+  idx_crm_dsh_scenario_business_system: Object.freeze({
+    tableName: 'crm_dsh_standard_scenarios', columns: Object.freeze(['business_system', 'updated_at']), unique: false,
   }),
   idx_scenario_id: Object.freeze({
     tableName: 'crm_dsh_scenario_files', columns: Object.freeze(['scenario_id']), unique: false,

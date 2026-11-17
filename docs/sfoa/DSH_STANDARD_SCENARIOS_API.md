@@ -1,11 +1,11 @@
-# DSH 插件标准场景协同与管控 API（DSH-01）
+# DSH 插件标准场景协同与管控 API（DSH-01 / DSH-01.1）
 
 本文是 `crm-dsh-plug`（DSH 客户端插件）与 MCP 控制平面对接的**唯一接口契约**。所有标准场景的权限、发布、编辑、软删除、版本升级与预设附件分发都通过这些接口完成。
 
 - 服务进程：`@sfoa/admin-api`（Admin API，默认 `127.0.0.1:8081`）
 - 插件前缀：`/api/dsh/**`
 - 控制台前缀：`/admin/api/dsh/**`（React Admin 后台使用，见 §7）
-- 数据表：`crm_dsh_standard_scenarios`、`crm_dsh_scenario_files`；权限列：`sfoa_identity_route.can_manage_dsh_scenarios`
+- 数据表：`crm_dsh_standard_scenarios`（含 `business_system` 列）、`crm_dsh_scenario_files`；权限列：`sfoa_identity_route.can_manage_dsh_scenarios`
 
 ---
 
@@ -91,6 +91,7 @@ Query：
 | --- | --- | --- |
 | `includeDeleted` | `true` | 是否返回已软删除的场景 ID 数组 |
 | `includeArchived` | `false` | 是否包含 `ARCHIVED`；**仅授权用户生效**，普通用户即使传 `true` 也只得到 `PUBLISHED` |
+| `businessSystem` | 不筛选 | 按业务系统精确过滤（大小写不敏感），空值等同于不传；值不合法返回 `400 DSH_SCENARIO_INPUT_INVALID` |
 
 响应 `200`：
 
@@ -102,6 +103,7 @@ Query：
       "scenarioId": "account-review",
       "title": "客户年度回顾",
       "category": "客户经营",
+      "businessSystem": "CRM",
       "description": "按客户汇总年度机会与交付情况。",
       "version": "1.0.3",
       "revision": 4,
@@ -111,7 +113,8 @@ Query：
         "inputDraft": "请回顾 {{accountName}} 的年度情况",
         "prePinnedContext": { "objectApiName": "Account" },
         "sourceType": "COMPANY_STANDARD",
-        "readonlyForNormalUser": true
+        "readonlyForNormalUser": true,
+        "businessSystem": "CRM"
       },
       "presetAttachments": [
         {
@@ -137,9 +140,18 @@ Query：
 
 `downloadUrl` 是**相对路径**，插件用自身的 API base 拼接（`new URL(downloadUrl, apiBase)`）。
 
+### 业务系统（`businessSystem`，DSH-01.1）
+
+`businessSystem` 自 1.7.0 起就是插件的必填字段（决定进入场景时落在哪个工作区，并用作目录名）。
+
+- **服务端永远返回顶层字段。** 它是可查询的一等字段：数据库有独立列、可按它过滤，后台有该列与筛选。
+- **写回时顶层与 `scenarioPayload.businessSystem` 是同一个值。** 1.8.0 插件通过 payload 的 passthrough 同步该字段，`pick()` 先读 payload，因此 payload 里始终保留一份副本；服务端写路径保证两者不会分叉。
+- **读取优先级**：请求顶层 `businessSystem` → `scenarioPayload.businessSystem` → 默认 `CRM`。
+- **不要求客户端改调用方式。** 已有 1.8.0 插件继续只发 payload 也能正常工作；顶层字段是**新增的可选入参**，不是新必填项。老数据由迁移 019 回填（从 payload 取值，取不到用 `CRM`），回填**不会**改动 `version` / `revision`。
+
 ### 插件同步算法（建议实现）
 
-1. 启动 / 定时同步：`GET /api/dsh/scenarios?includeDeleted=true`。
+1. 启动 / 定时同步：`GET /api/dsh/scenarios?includeDeleted=true`；只关心某一个工作区时加 `&businessSystem=CRM`。
 2. 对每个远端 `scenarioId`：
    - 本地未安装 → 安装（把 `scenarioPayload` 落库为只读标准场景，记录 `version`/`revision`）。
    - 本地已安装且 `revision` 或 `version` 与本地不同 → **直接覆盖升级**（标准场景本身不可编辑，不需要合并）。
@@ -175,13 +187,14 @@ curl -s http://127.0.0.1:8081/api/dsh/scenarios/permission \
 
 ### 5.1 新建 / 发布 `POST /api/dsh/scenarios`
 
-必填：`scenarioId`、`title`、`description`、`scenarioPayload`。可选：`category`（默认 `通用场景`）、`status`（默认 `PUBLISHED`）。
+必填：`scenarioId`、`title`、`description`、`scenarioPayload`。可选：`category`（默认 `通用场景`）、`businessSystem`（缺省按 §3 的优先级解析，最终为 `CRM`）、`status`（默认 `PUBLISHED`）。
 
 ```json
 {
   "scenarioId": "account-review",
   "title": "客户年度回顾",
   "category": "客户经营",
+  "businessSystem": "CRM",
   "description": "按客户汇总年度机会与交付情况。",
   "scenarioPayload": { "pinnedSkills": ["crm-account-brief"], "welcomeMessage": "…" }
 }
@@ -189,9 +202,9 @@ curl -s http://127.0.0.1:8081/api/dsh/scenarios/permission \
 
 规则：
 
-- 服务端**强制**写入 `scenarioPayload.sourceType = "COMPANY_STANDARD"` 与 `scenarioPayload.readonlyForNormalUser = true`。
-- 首次创建：`version = "1.0.0"`、`revision = 1`、`status = "PUBLISHED"`。
-- `scenarioId` 已存在（含已软删除的行）→ 自动走 §5.2 的编辑升版逻辑（重新上架时版本继续递增，不会回到 1.0.0）。
+- 服务端**强制**写入 `scenarioPayload.sourceType = "COMPANY_STANDARD"`、`scenarioPayload.readonlyForNormalUser = true`，并写入 `scenarioPayload.businessSystem`（与顶层一致）。
+- 首次创建：`version = "1.0.0"`、`revision = 1`、`status = "PUBLISHED"`；`businessSystem` 缺省为 `CRM`。
+- `scenarioId` 已存在（含已软删除的行）→ 自动走 §5.2 的编辑升版逻辑（重新上架时版本继续递增，不会回到 1.0.0）。此时 `businessSystem` 也按 §5.2 的三条规则处理：**本次请求没有指明就保持原值**，不会被重置为 `CRM`——1.7.0 插件重新发布场景时并不知道该字段，静默把场景搬离原工作区比留下旧表单值更糟。
 - 请求体中若出现 `version` / `revision`，整单以 `400 DSH_SCENARIO_INPUT_INVALID` 拒绝（未知字段），因为这两个字段永远由服务端持有。
 
 响应 `201`：`{ "auth": {...}, "scenario": { ...完整场景对象 } }`
@@ -201,8 +214,16 @@ curl -s http://127.0.0.1:8081/api/dsh/scenarios/permission \
 部分更新：只传需要改的字段，未传字段保持原值。
 
 ```json
-{ "title": "客户年度回顾（标准版）", "description": "……", "status": "ARCHIVED" }
+{ "title": "客户年度回顾（标准版）", "description": "……", "businessSystem": "TAPD", "status": "ARCHIVED" }
 ```
+
+`businessSystem` 的三条编辑规则：
+
+| 请求体 | 结果 |
+| --- | --- |
+| 传了顶层 `businessSystem` | 以它为准（不合法 → `400 DSH_SCENARIO_INPUT_INVALID`） |
+| 只传 `scenarioPayload` 且其中有可用的 `businessSystem` | 采纳 payload 中的值 |
+| 都没给 | **保持原值**（不会重置为 `CRM`），payload 副本同步保持不变 |
 
 升版规则（**服务端强制**，客户端传入的旧值一律忽略）：
 
@@ -212,6 +233,8 @@ curl -s http://127.0.0.1:8081/api/dsh/scenarios/permission \
 | `revision` | +1：`3` → `4` |
 | `updatedByPlatformUid` | 当前操作者 |
 | `updatedAt` | 当前时间 |
+
+> 只改 `businessSystem` 也是一次普通编辑：`version` / `revision` 照常各进一位。反之，**迁移回填**不属于编辑，不会改动这两个值。
 
 响应 `200`：`{ "auth": {...}, "scenario": {...} }`
 
@@ -305,7 +328,8 @@ curl -X POST http://127.0.0.1:8081/api/dsh/scenarios/account-review/attachments 
 
 - `scenarioId`：`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，且不能是保留字 `permission`。
 - `title` ≤ 128、`category` ≤ 64、`description` ≤ 4000 字符。
-- `scenarioPayload`：JSON 对象，序列化后 ≤ 256 KiB；`pinnedSkills` 为 ≤50 个字符串。
+- `businessSystem`：trim 后 1–32 字符，且不能包含 `\ / : * ? " < > |`（与插件端的目录名校验完全一致）。顶层字段与 `?businessSystem=` 过滤参数使用同一规则。
+- `scenarioPayload`：JSON 对象，序列化后 ≤ 256 KiB；`pinnedSkills` 为 ≤50 个字符串；未知键（包括 `businessSystem`）原样保留。
 - `fileName` 禁止路径分隔符与控制字符；`mimeType` 必须是合法 `type/subtype`。
 
 ---
@@ -315,12 +339,15 @@ curl -X POST http://127.0.0.1:8081/api/dsh/scenarios/account-review/attachments 
 - 菜单：**标准场景管理**（模块 id `standard-scenarios`）。
 - 后台通过 `/admin/api/dsh/**` 调用同一套逻辑：先由 ADR-0034 模块表鉴权，再复用 Admin CSRF 规则，因此 scoped 账号没有该模块时请求直接 `403 MCP_ADMIN_FORBIDDEN`。
 - 用户身份路由页新增「插件标准场景权限」列与开关，可随时开启/回收某个平台用户的标准场景管理权限。
+- 场景卡片展示 **业务系统** 标记，卡片上方提供**关键字搜索**（标题 / 场景 ID / 分类 / 业务系统 / 介绍）与**业务系统筛选**（选项按当前目录动态统计）。
+- 新建/编辑弹窗的「业务系统」是必填项：`AutoComplete` 提供 `CRM` / `TAPD` / `其他` 建议并允许自定义，校验文案与插件端一致（≤32 字符、不能包含 `\ / : * ? " < > |`）。
+- 卡片为等高网格（`grid-auto-rows: 1fr`）：标题最多 2 行、介绍最多 3 行，Skill 与附件超出上限时折叠为 `+N` 气泡，操作区固定在卡片底部，因此不同场景的卡片尺寸一致、可横向对齐阅读。
 
 ---
 
 ## 8. 部署与运维
 
-1. 执行迁移：`yarn db:migrate`（新增 `018_dsh_standard_scenarios`）。
+1. 执行迁移：`yarn db:migrate`（`018_dsh_standard_scenarios` 建表，`019_dsh_scenario_business_system` 加列并回填）。
 2. 反向代理新增一段（与 `/admin/api/` 同一后端）：
 
    ```nginx
@@ -333,4 +360,5 @@ curl -X POST http://127.0.0.1:8081/api/dsh/scenarios/account-review/attachments 
 
 3. 环境变量：`SFOA_DSH_ALLOWED_ORIGINS`、`SFOA_DSH_MAX_ATTACHMENT_BYTES`（见 `.env.example`）。
 4. MySQL `max_allowed_packet` 必须大于附件上限（默认 10 MiB 时保持 ≥ 16 MiB）。
-5. 审计：每次写操作在**同一事务**内写入一条 `channel=ADMIN` 审计行，`operation` 为 `CREATE_DSH_SCENARIO` / `UPDATE_DSH_SCENARIO` / `DELETE_DSH_SCENARIO` / `ADD_DSH_SCENARIO_ATTACHMENT` / `DELETE_DSH_SCENARIO_ATTACHMENT`，`recordId` 为 `scenarioId`。插件端操作记为 `actorAdmin = dsh:<platformUserId>`。
+5. 审计：每次写操作在**同一事务**内写入一条 `channel=ADMIN` 审计行，`operation` 为 `CREATE_DSH_SCENARIO` / `UPDATE_DSH_SCENARIO` / `DELETE_DSH_SCENARIO` / `ADD_DSH_SCENARIO_ATTACHMENT` / `DELETE_DSH_SCENARIO_ATTACHMENT`，`recordId` 为 `scenarioId`，`requestSummary` 含 `businessSystem`。插件端操作记为 `actorAdmin = dsh:<platformUserId>`。
+6. 迁移 019 的回填语义：老行取 `scenario_payload.businessSystem`（1–32 字符且不含 `\ / : * ? " < > |` 才采纳，否则回落 `CRM`），随后把该值写回 payload 使顶层与 payload 一致。回填**不改** `revision`、`version`、`updated_at`，已安装的插件不会因此重新下载场景。

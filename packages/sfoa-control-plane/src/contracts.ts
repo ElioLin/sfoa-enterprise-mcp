@@ -179,6 +179,15 @@ export type DshStandardScenarioRecord = Readonly<{
   scenarioId: string;
   title: string;
   category: string;
+  /**
+   * DSH-01.1: the business system whose workspace the scenario opens into (`CRM`, `TAPD`, or a
+   * custom name). A first-class, queryable field: the plugin validates it as a directory name, so
+   * the server bounds it to 1-32 characters and refuses path separators.
+   *
+   * Always present and always equal to `scenarioPayload.businessSystem` on a record this build
+   * writes — the payload copy exists only because the plugin's `pick()` reads it first.
+   */
+  businessSystem: string;
   description: string;
   /** Semantic label owned by the server: `x.y.z` with a monotonic patch segment. */
   version: string;

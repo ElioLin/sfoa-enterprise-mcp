@@ -1,3 +1,30 @@
+# DSH business system as a first-class scenario field (2026-11-17)
+
+- Promote the DSH scenario business system (`CRM` / `TAPD` / other / custom, ≤32 characters, used by
+  the plugin as the workspace directory name) from a payload key to a queryable field. The 1.8.0
+  plugin already syncs it through `scenarioPayload.businessSystem` (payload passthrough), so the
+  data was round-tripping while the server could neither filter, count nor column it. This change
+  makes it first-class: `dshBusinessSystemSchema` (trim, 1-32, no `\ / : * ? " < > |`), an optional
+  `businessSystem` on create/update, and `businessSystem` on every returned scenario.
+- Read priority is top-level → `scenarioPayload.businessSystem` → `CRM`, and every write stores the
+  same value in both places (the payload copy survives because the plugin's `pick()` reads it
+  first). The payload schema stays `passthrough` and nothing requires a client to send the new
+  field: a 1.7.0 body still works, and any write that names no business system — including a `POST`
+  that re-publishes an existing `scenarioId` — keeps the current one instead of resetting it to
+  `CRM`, so an old plugin can never move a scenario out of the workspace an operator chose.
+- Migration 019 adds `crm_dsh_standard_scenarios.business_system` (`VARCHAR(32) NOT NULL DEFAULT
+  'CRM'`, `ai_ci` so the exact filter is case-insensitive, indexed with `updated_at`), backfills it
+  from the payload and then makes the payload copy agree. The backfill touches neither `revision`
+  nor `version` nor `updated_at`: a schema change is not a new edition, and bumping either would
+  make every installed client re-download an unchanged scenario.
+- `GET /api/dsh/scenarios` accepts `?businessSystem=X` (exact, case-insensitive; empty means
+  unfiltered; an unrepresentable value is `400 DSH_SCENARIO_INPUT_INVALID`). The Console gains the
+  field in its form (required, `CRM`/`TAPD`/`其他` suggestions, custom names allowed, the plugin's own
+  validation messages), a business-system tag and filter on the catalogue, and instant keyword
+  search. Cards are now equal-height with real padding, clamped title/description and `+N` overflow
+  chips, so the catalogue reads as a grid instead of a ragged column. Contract:
+  [DSH_STANDARD_SCENARIOS_API.md](docs/sfoa/DSH_STANDARD_SCENARIOS_API.md).
+
 # DSH plugin standard scenarios: one grant on the identity route, server-owned versions, and a plugin-facing catalogue (2026-11-13)
 
 - Add `sfoa_identity_route.can_manage_dsh_scenarios` (migration 018, DEFAULT FALSE) as the entire

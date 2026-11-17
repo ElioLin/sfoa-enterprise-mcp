@@ -636,10 +636,131 @@ test('DSH-01 transport: CORS preflight, multipart upload and strict media types'
   assert.equal(((await wrongMethod.json()) as Readonly<{ error: Readonly<{ code: string }> }>).error.code, 'DSH_SCENARIO_METHOD_NOT_ALLOWED');
 });
 
+test('DSH-01.1 business system is a first-class field: round-tripped, defaulted, filtered and validated', async (context) => {
+  const harness = await startHarness();
+  context.after(() => harness.server.close());
+  const token = 'buntu-manager';
+
+  const create = (body: Readonly<Record<string, unknown>>) => jsonRequest(harness.root, '/scenarios', {
+    method: 'POST', token, body,
+  });
+  const businessSystemOf = (scenario: DshScenarioBody): unknown => scenario.businessSystem;
+  const payloadBusinessSystemOf = (scenario: DshScenarioBody): unknown =>
+    (scenario.scenarioPayload as Readonly<{ businessSystem?: unknown }>).businessSystem;
+
+  // A 1.7.0 plugin sends no field at all: the server stores the documented default in both places.
+  const noHint = await create({
+    scenarioId: 'no-hint', title: '无提示场景', description: '老插件创建的场景。', scenarioPayload: { pinnedSkills: [] },
+  });
+  assert.equal(noHint.status, 201);
+  const noHintScenario = (await noHint.json() as Readonly<{ scenario: DshScenarioBody }>).scenario;
+  assert.equal(businessSystemOf(noHintScenario), 'CRM');
+  assert.equal(payloadBusinessSystemOf(noHintScenario), 'CRM');
+  assert.equal(noHintScenario.version, '1.0.0', 'adding the field did not fabricate a version');
+  assert.equal(noHintScenario.revision, 1);
+
+  // A 1.8.0 plugin only carries it in the payload passthrough — including keys the server has
+  // never heard of, which must survive untouched.
+  const payloadHint = await create({
+    scenarioId: 'tapd-hint',
+    title: 'TAPD 场景',
+    description: '业务系统只出现在 payload 中。',
+    scenarioPayload: { pinnedSkills: [], businessSystem: 'TAPD', futurePluginKey: { nested: [1, 2] } },
+  });
+  assert.equal(payloadHint.status, 201);
+  const payloadHintScenario = (await payloadHint.json() as Readonly<{ scenario: DshScenarioBody }>).scenario;
+  assert.equal(businessSystemOf(payloadHintScenario), 'TAPD');
+  assert.equal(payloadBusinessSystemOf(payloadHintScenario), 'TAPD');
+  assert.deepEqual(
+    (payloadHintScenario.scenarioPayload as Readonly<{ futurePluginKey: unknown }>).futurePluginKey,
+    { nested: [1, 2] },
+  );
+
+  // The top-level field wins, and both copies are written back as the same value.
+  const topLevel = await create({
+    scenarioId: 'custom-system',
+    title: '自研结算场景',
+    description: '顶层字段优先于 payload。',
+    businessSystem: '自研结算',
+    scenarioPayload: { pinnedSkills: [], businessSystem: 'TAPD' },
+  });
+  assert.equal(topLevel.status, 201);
+  const topLevelScenario = (await topLevel.json() as Readonly<{ scenario: DshScenarioBody }>).scenario;
+  assert.equal(businessSystemOf(topLevelScenario), '自研结算');
+  assert.equal(payloadBusinessSystemOf(topLevelScenario), '自研结算');
+
+  // Values the plugin itself would refuse are a 400 on the same stable code, for both writes.
+  for (const invalid of ['x'.repeat(35), 'CRM/TAPD', '   ']) {
+    const rejected = await create({
+      scenarioId: `invalid-${invalid.length}`, title: '非法业务系统', description: '应被拒绝。',
+      businessSystem: invalid, scenarioPayload: { pinnedSkills: [] },
+    });
+    assert.equal(rejected.status, 400, `${JSON.stringify(invalid)} must be rejected on create`);
+    const rejectedBody = await rejected.json() as Readonly<{ error: Readonly<{ code: string; issues: readonly unknown[] }> }>;
+    assert.equal(rejectedBody.error.code, 'DSH_SCENARIO_INPUT_INVALID');
+    assert.ok(rejectedBody.error.issues.length > 0);
+
+    const rejectedUpdate = await jsonRequest(harness.root, '/scenarios/tapd-hint', {
+      method: 'PUT', token, body: { businessSystem: invalid },
+    });
+    assert.equal(rejectedUpdate.status, 400, `${JSON.stringify(invalid)} must be rejected on update`);
+    assert.equal(
+      (await rejectedUpdate.json() as Readonly<{ error: Readonly<{ code: string }> }>).error.code,
+      'DSH_SCENARIO_INPUT_INVALID',
+    );
+  }
+  assert.equal((await harness.store.repositories.dshScenarios.getById('tapd-hint'))?.businessSystem, 'TAPD',
+    'a rejected write changes nothing');
+
+  // Filtering: exact and case-insensitive, without touching the tombstones or other workspaces.
+  const listOf = async (query: string): Promise<readonly string[]> => {
+    const response = await jsonRequest(harness.root, `/scenarios${query}`, { token });
+    assert.equal(response.status, 200, query);
+    return (await response.json() as Readonly<{ scenarios: readonly DshScenarioBody[] }>)
+      .scenarios.map((scenario) => scenario.scenarioId).sort();
+  };
+  assert.deepEqual(await listOf(''), ['custom-system', 'no-hint', 'tapd-hint']);
+  assert.deepEqual(await listOf('?businessSystem=crm'), ['no-hint'], 'lowercase matches CRM');
+  assert.deepEqual(await listOf('?businessSystem=TAPD'), ['tapd-hint']);
+  assert.deepEqual(await listOf('?businessSystem=%E8%87%AA%E7%A0%94%E7%BB%93%E7%AE%97'), ['custom-system']);
+  assert.deepEqual(await listOf('?businessSystem=Salesforce'), []);
+  assert.deepEqual(await listOf('?businessSystem='), ['custom-system', 'no-hint', 'tapd-hint'], 'a cleared filter is no filter');
+  assert.deepEqual(await listOf('?businessSystem=TAPD&includeDeleted=false'), ['tapd-hint']);
+
+  const badFilter = await jsonRequest(harness.root, '/scenarios?businessSystem=CRM%2FTAPD', { token });
+  assert.equal(badFilter.status, 400);
+  assert.equal(
+    (await badFilter.json() as Readonly<{ error: Readonly<{ code: string }> }>).error.code,
+    'DSH_SCENARIO_INPUT_INVALID',
+  );
+
+  // Moving a scenario to another workspace is an ordinary edit: version and revision step by one.
+  const moved = await jsonRequest(harness.root, '/scenarios/tapd-hint', {
+    method: 'PUT', token, body: { businessSystem: 'CRM' },
+  });
+  assert.equal(moved.status, 200);
+  const movedScenario = (await moved.json() as Readonly<{ scenario: DshScenarioBody }>).scenario;
+  assert.equal(businessSystemOf(movedScenario), 'CRM');
+  assert.equal(payloadBusinessSystemOf(movedScenario), 'CRM');
+  assert.equal(movedScenario.version, '1.0.1');
+  assert.equal(movedScenario.revision, 2);
+  assert.deepEqual(await listOf('?businessSystem=TAPD'), []);
+  assert.deepEqual(await listOf('?businessSystem=crm'), ['no-hint', 'tapd-hint']);
+
+  // An edit that names no business system keeps the row where it is.
+  const titleOnly = await jsonRequest(harness.root, '/scenarios/custom-system', {
+    method: 'PUT', token, body: { title: '自研结算场景（标准版）' },
+  });
+  const titleOnlyScenario = (await titleOnly.json() as Readonly<{ scenario: DshScenarioBody }>).scenario;
+  assert.equal(businessSystemOf(titleOnlyScenario), '自研结算');
+  assert.equal(payloadBusinessSystemOf(titleOnlyScenario), '自研结算');
+});
+
 type DshScenarioBody = Readonly<{
   scenarioId: string;
   title: string;
   category: string;
+  businessSystem: string;
   description: string;
   version: string;
   revision: number;

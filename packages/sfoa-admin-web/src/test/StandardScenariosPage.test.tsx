@@ -11,6 +11,7 @@ function scenario(overrides: Readonly<Record<string, unknown>> = {}) {
     scenarioId: 'account-review',
     title: '客户年度回顾',
     category: '客户经营',
+    businessSystem: 'CRM',
     description: '按客户汇总年度机会与交付情况。',
     version: '1.0.3',
     revision: 4,
@@ -66,6 +67,7 @@ describe('DSH standard-scenario console page', () => {
     if (!(card instanceof HTMLElement)) throw new Error('the scenario card did not render');
     expect(within(card).getByText('account-review')).toBeInTheDocument();
     expect(within(card).getByText('客户经营')).toBeInTheDocument();
+    expect(within(card).getByText('CRM')).toBeInTheDocument();
     expect(within(card).getByText('v1.0.3（Rev 4）')).toBeInTheDocument();
     expect(within(card).getByText('crm-account-brief')).toBeInTheDocument();
     expect(within(card).getByText('季度回顾模板.txt')).toBeInTheDocument();
@@ -138,5 +140,94 @@ describe('DSH standard-scenario console page', () => {
 
     await waitFor(() => expect(deleted).toBe('account-review'));
     expect(await screen.findByText(/已软删除/u)).toBeInTheDocument();
+  });
+
+  it('shows the business system, edits it, and filters the catalogue by keyword and workspace', async () => {
+    const fetchMock = asFetchMock((url, init) => {
+      if (url.pathname.endsWith('/dsh/scenarios/sap-order') && init.method === 'PUT') {
+        const body = JSON.parse(String(init.body)) as Readonly<Record<string, unknown>>;
+        return jsonResponse({
+          auth: { authenticated: true, platformUserId: null, crmUsername: null, canManageStandardScenario: true },
+          scenario: scenario({ scenarioId: 'sap-order', title: 'SAP 订单核对', businessSystem: String(body.businessSystem) }),
+        });
+      }
+      if (url.pathname.endsWith('/dsh/scenarios')) {
+        return listResponse([
+          scenario(),
+          scenario({
+            scenarioId: 'sap-order',
+            title: 'SAP 订单核对',
+            category: '订单',
+            businessSystem: 'TAPD',
+            description: '核对 SAP 订单状态与交付节点。',
+            presetAttachments: [],
+          }),
+        ]);
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<StandardScenariosPage />);
+
+    const crmCard = (await screen.findByText('客户年度回顾')).closest('article');
+    if (!(crmCard instanceof HTMLElement)) throw new Error('the CRM card did not render');
+    expect(within(crmCard).getByText('CRM')).toBeInTheDocument();
+    const tapdCard = screen.getByText('SAP 订单核对').closest('article');
+    if (!(tapdCard instanceof HTMLElement)) throw new Error('the TAPD card did not render');
+    expect(within(tapdCard).getByText('TAPD')).toBeInTheDocument();
+    expect(screen.getByText('共 2 个场景')).toBeInTheDocument();
+
+    // Keyword search is instant and spans title, id, category, business system and description.
+    const search = screen.getByLabelText('搜索标题 / 场景 ID / 分类 / 业务系统 / 介绍');
+    await user.type(search, 'TAPD');
+    expect(screen.queryByText('客户年度回顾')).not.toBeInTheDocument();
+    expect(screen.getByText('SAP 订单核对')).toBeInTheDocument();
+    expect(screen.getByText('筛选出 1 / 2 个场景')).toBeInTheDocument();
+    await user.clear(search);
+    expect(screen.getByText('客户年度回顾')).toBeInTheDocument();
+
+    // The workspace filter is an exact match on the same field the API filters on.
+    await user.click(screen.getByRole('combobox', { name: '按业务系统筛选' }));
+    await user.click(await screen.findByText('CRM（1）'));
+    expect(screen.queryByText('SAP 订单核对')).not.toBeInTheDocument();
+    expect(screen.getByText('客户年度回顾')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '清除筛选' }));
+    expect(screen.getByText('SAP 订单核对')).toBeInTheDocument();
+
+    // The form edits the field the plugin uses as its workspace directory.
+    await user.click(screen.getByRole('button', { name: '编辑 SAP 订单核对' }));
+    const businessSystemInput = screen.getByLabelText('业务系统');
+    expect(businessSystemInput).toHaveValue('TAPD');
+    await user.clear(businessSystemInput);
+    await user.type(businessSystemInput, '自研结算');
+    await user.click(screen.getByRole('button', { name: '保存（自动升版）' }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(
+      ([url, init]) => String(url).endsWith('/dsh/scenarios/sap-order') && init?.method === 'PUT',
+    )).toBe(true));
+    const put = fetchMock.mock.calls.find(
+      ([url, init]) => String(url).endsWith('/dsh/scenarios/sap-order') && init?.method === 'PUT',
+    );
+    expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ businessSystem: '自研结算' });
+  });
+
+  it('refuses a business system the plugin would refuse', async () => {
+    const fetchMock = asFetchMock(() => jsonResponse({}));
+    fetchMock.mockImplementation((url) => (String(url).includes('/dsh/scenarios')
+      ? Promise.resolve(listResponse([scenario()]))
+      : Promise.resolve(jsonResponse({}))));
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderAdmin(<StandardScenariosPage />);
+
+    await user.click(await screen.findByRole('button', { name: '编辑 客户年度回顾' }));
+    const businessSystemInput = screen.getByLabelText('业务系统');
+    await user.clear(businessSystemInput);
+    await user.type(businessSystemInput, 'CRM/TAPD');
+    await user.click(screen.getByRole('button', { name: '保存（自动升版）' }));
+
+    expect(await screen.findByText('业务系统不能包含 \\ / : * ? " < > | 中的字符。')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
   });
 });

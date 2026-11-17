@@ -160,14 +160,38 @@ if (!setup) {
       scenarioId: 'mysql-scenario',
       title: 'MySQL 场景',
       description: '验证 JSON 列、LONGBLOB 与版本自增。',
-      scenarioPayload: { pinnedSkills: ['crm-account-brief'], welcomeMessage: '你好' },
+      // DSH-01.1: a 1.8.0 plugin only carries the business system inside the payload.
+      scenarioPayload: { pinnedSkills: ['crm-account-brief'], welcomeMessage: '你好', businessSystem: 'TAPD' },
     }, actor);
     assert.equal(created.version, '1.0.0');
     assert.equal(created.revision, 1);
+    assert.equal(created.businessSystem, 'TAPD', 'the payload hint becomes the first-class column');
+
+    // Column and payload copy are written together, and the column is a real, indexed value.
+    const storedBusinessSystem = await sql<{ storedValue: string; payloadValue: string }>`
+      SELECT business_system AS storedValue,
+             JSON_UNQUOTE(JSON_EXTRACT(scenario_payload, '$.businessSystem')) AS payloadValue
+      FROM crm_dsh_standard_scenarios WHERE scenario_id = 'mysql-scenario'
+    `.execute(store.database);
+    assert.deepEqual(
+      { column: storedBusinessSystem.rows[0]?.storedValue, payload: storedBusinessSystem.rows[0]?.payloadValue },
+      { column: 'TAPD', payload: 'TAPD' },
+    );
+    // The filter is exact and case-insensitive in MySQL (ai_ci collation), not in JavaScript.
+    assert.deepEqual(
+      (await service.list({ includeArchived: true, includeDeleted: true, businessSystem: 'tapd' }))
+        .scenarios.map((scenario) => scenario.scenarioId),
+      ['mysql-scenario'],
+    );
+    assert.deepEqual(
+      (await service.list({ includeArchived: true, includeDeleted: true, businessSystem: 'CRM' })).scenarios,
+      [],
+    );
 
     const updated = await service.update('mysql-scenario', { description: '编辑后的说明' }, actor);
     assert.equal(updated.version, '1.0.1');
     assert.equal(updated.revision, 2);
+    assert.equal(updated.businessSystem, 'TAPD', 'an edit that names no business system keeps it');
 
     // The JSON column must hold the forced markers and stay queryable as JSON.
     const storedJson = await sql<{ payload: string; markers: string }>`
@@ -213,6 +237,70 @@ if (!setup) {
     });
     assert.equal(granted.canManageDshScenarios, true);
     assert.equal((await store.repositories.identityRoutes.getByPlatformUserId('platform-dsh'))?.canManageDshScenarios, true);
+  });
+
+  test('019 backfills business_system from the payload without making the backfill look like an edit', async () => {
+    await withIsolatedDatabase(config, 'business', async (database) => {
+      await installP6Schema(database);
+      // Bring the fixture to exactly the shape a deployed 018 database has, then stop.
+      const directory = defaultMigrationsDirectory();
+      const names = (await readdir(directory)).filter((name) => /^\d{3}_.+\.sql$/u.test(name)
+        && Number(name.slice(0, 3)) > 4 && Number(name.slice(0, 3)) <= 18).sort();
+      for (const name of names) {
+        const text = await readFile(path.join(directory, name), 'utf8');
+        for (const statement of splitSqlStatements(text)) await sql.raw(statement).execute(database);
+        await database.insertInto('sfoa_schema_migration').values({
+          version: name.slice(0, -4), checksum_sha256: migrationChecksumSha256(text),
+        }).execute();
+      }
+
+      // Three rows written before the column existed: a usable payload hint, an unusable one, and
+      // a payload that never carried the field at all.
+      const legacy: readonly Readonly<{ id: string; payload: string }>[] = [
+        { id: 'legacy-tapd', payload: JSON.stringify({ pinnedSkills: [], businessSystem: 'TAPD', futureKey: { kept: true } }) },
+        { id: 'legacy-invalid', payload: JSON.stringify({ pinnedSkills: [], businessSystem: 'a/b' }) },
+        { id: 'legacy-none', payload: JSON.stringify({ pinnedSkills: [] }) },
+      ];
+      for (const row of legacy) {
+        await sql`INSERT INTO crm_dsh_standard_scenarios (
+          scenario_id, title, category, description, version, revision, scenario_payload, preset_attachments,
+          status, created_by_platform_uid, created_by_crm_user, updated_by_platform_uid, created_at, updated_at
+        ) VALUES (
+          ${row.id}, '遗留场景', '通用场景', '019 之前写入的行。', '1.0.0', 1, ${row.payload}, NULL,
+          'PUBLISHED', 'platform-legacy', NULL, 'platform-legacy', '2026-01-01 00:00:00.000', '2026-01-01 00:00:00.000'
+        )`.execute(database);
+      }
+
+      await migrateDatabase(database);
+
+      const rows = await database.selectFrom('crm_dsh_standard_scenarios')
+        .select(['scenario_id', 'business_system', 'scenario_payload', 'version', 'revision'])
+        .orderBy('scenario_id').execute();
+      assert.deepEqual(rows.map((row) => [row.scenario_id, row.business_system, row.version, Number(row.revision)]), [
+        ['legacy-invalid', 'CRM', '1.0.0', 1],
+        ['legacy-none', 'CRM', '1.0.0', 1],
+        ['legacy-tapd', 'TAPD', '1.0.0', 1],
+      ], 'a migration is not an edition: version and revision stay where they were');
+
+      // Top level and payload agree after the backfill, and unknown plugin keys survive it.
+      const tapdPayload = JSON.parse(
+        rows.find((row) => row.scenario_id === 'legacy-tapd')?.scenario_payload ?? '{}',
+      ) as Readonly<Record<string, unknown>>;
+      assert.equal(tapdPayload.businessSystem, 'TAPD');
+      assert.deepEqual(tapdPayload.futureKey, { kept: true });
+      const noHintPayload = JSON.parse(
+        rows.find((row) => row.scenario_id === 'legacy-none')?.scenario_payload ?? '{}',
+      ) as Readonly<Record<string, unknown>>;
+      // A row that never carried the field is repaired, not left disagreeing with its column.
+      assert.equal(noHintPayload.businessSystem, 'CRM');
+
+      // `updated_at` still means "last time an operator edited this", not "last schema change".
+      const touched = await sql<{ scenarioId: string }>`
+        SELECT scenario_id AS scenarioId FROM crm_dsh_standard_scenarios
+        WHERE DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') <> '2026-01-01 00:00:00'
+      `.execute(database);
+      assert.deepEqual(touched.rows, []);
+    });
   });
 
   test('P8-06 discovery snapshot shares global governance and never queries identity routes', async () => {
@@ -314,6 +402,7 @@ if (!setup) {
       '015_admin_audit_actor_index',
       '017_attachment_attempt_lifecycle',
       '018_dsh_standard_scenarios',
+      '019_dsh_scenario_business_system',
     ]);
     assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
   });
@@ -339,6 +428,7 @@ if (!setup) {
       '015_admin_audit_actor_index',
       '017_attachment_attempt_lifecycle',
       '018_dsh_standard_scenarios',
+        '019_dsh_scenario_business_system',
       ]);
       assert.ok(migrations.every((entry) => entry.state === 'APPLIED'));
     });
@@ -355,7 +445,7 @@ if (!setup) {
         .where('correlation_id', '=', 'legacy-p6-audit').executeTakeFirstOrThrow();
 
       const migrations = await migrateDatabase(database);
-      assert.equal(migrations.at(-1)?.version, '018_dsh_standard_scenarios');
+      assert.equal(migrations.at(-1)?.version, '019_dsh_scenario_business_system');
       const repository = new MySqlAuditRepository(database);
       const legacy = await repository.getById(String(legacyId.id));
       assert.ok(legacy);

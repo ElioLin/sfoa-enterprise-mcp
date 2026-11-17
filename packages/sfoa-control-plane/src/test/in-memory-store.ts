@@ -334,9 +334,14 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
         },
       },
       dshScenarios: {
-        listVisible: async (includeArchived) => Object.freeze(
+        listVisible: async (includeArchived, businessSystem) => Object.freeze(
           [...this.dshScenarios.values()]
             .filter((record) => record.status === 'PUBLISHED' || (includeArchived && record.status === 'ARCHIVED'))
+            // MySQL matches the column with `=`, which is case-insensitive under the table's
+            // `ai_ci` collation; the fake store has to reproduce that or the tests would pass on
+            // a filter production rejects.
+            .filter((record) => businessSystem === undefined
+              || record.businessSystem.toLocaleLowerCase('en-US') === businessSystem.toLocaleLowerCase('en-US'))
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.scenarioId.localeCompare(b.scenarioId)),
         ),
         listDeletedIds: async () => Object.freeze(
@@ -351,6 +356,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
             scenarioId: input.scenarioId,
             title: input.title,
             category: input.category,
+            businessSystem: input.businessSystem,
             description: input.description,
             version: input.version,
             revision: input.revision,
@@ -372,6 +378,7 @@ export class InMemoryControlPlaneStore implements TransactionalControlPlaneStore
             ...current,
             title: patch.title,
             category: patch.category,
+            businessSystem: patch.businessSystem,
             description: patch.description,
             version: patch.version,
             revision: patch.revision,

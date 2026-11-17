@@ -1,4 +1,5 @@
 import {
+  AppstoreOutlined,
   CloudUploadOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -7,11 +8,13 @@ import {
   EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   App,
+  AutoComplete,
   Button,
   Descriptions,
   Divider,
@@ -38,25 +41,36 @@ import { formatDateTime } from '../localization.js';
 /**
  * DSH-01 standard-scenario catalogue.
  *
- * The Console is the *operator* view of the same rows the DSH client plugin installs. Two rules are
+ * The Console is the *operator* view of the same rows the DSH client plugin installs. Three rules are
  * surfaced in the UI because they are not obvious from a form:
  *
  * - `version` and `revision` are never editable here. Every save, archive or attachment change
  *   advances them on the server, and the plugin upgrades itself by comparing them.
  * - deleting is a soft delete: the scenario becomes a tombstone the plugin uses to uninstall its
  *   local copy, so the row and its identity survive while the attachment bytes are released.
+ * - `业务系统` is required and shared with the plugin (it is the workspace directory a scenario opens
+ *   into), so the Console validates it with exactly the plugin's rule instead of inventing its own.
  */
 
 type ScenarioForm = Readonly<{
   scenarioId: string;
   title: string;
   category: string;
+  businessSystem: string;
   description: string;
   status: 'PUBLISHED' | 'ARCHIVED';
   payloadText: string;
 }>;
 
 const CATEGORY_FALLBACK = '通用场景';
+/** The three values the plugin offers out of the box; anything else is a legal custom workspace. */
+const BUSINESS_SYSTEM_SUGGESTIONS = ['CRM', 'TAPD', '其他'] as const;
+const DEFAULT_BUSINESS_SYSTEM = 'CRM';
+/** Chips past this many are folded into a `+N` tag so every card keeps the same height. */
+const MAX_VISIBLE_TAGS = 4;
+const MAX_VISIBLE_ATTACHMENTS = 2;
+
+type BusinessSystemFilter = 'ALL' | string;
 
 export default function StandardScenariosPage() {
   const queryClient = useQueryClient();
@@ -64,11 +78,46 @@ export default function StandardScenariosPage() {
   const [editingId, setEditingId] = useState<string | 'create' | null>(null);
   const [form] = Form.useForm<ScenarioForm>();
   const [uploading, setUploading] = useState(false);
+  const [keyword, setKeyword] = useState('');
+  const [businessSystemFilter, setBusinessSystemFilter] = useState<BusinessSystemFilter>('ALL');
   const query = useQuery({ queryKey: ['dsh-scenarios'], queryFn: () => adminApi.dshScenarios(true) });
   const scenarios = useMemo(() => query.data?.scenarios ?? [], [query.data]);
   const editing = editingId === 'create' || editingId === null
     ? null
     : scenarios.find((scenario) => scenario.scenarioId === editingId) ?? null;
+
+  const businessSystemOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const scenario of scenarios) {
+      counts.set(scenario.businessSystem, (counts.get(scenario.businessSystem) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort(([left], [right]) => left.localeCompare(right, 'zh-Hans-CN'))
+      .map(([value, count]) => ({ value, label: `${value}（${count}）` }));
+  }, [scenarios]);
+
+  const visibleScenarios = useMemo(() => {
+    const needle = keyword.trim().toLocaleLowerCase('zh-Hans-CN');
+    return scenarios.filter((scenario) => {
+      const matchesBusinessSystem = businessSystemFilter === 'ALL'
+        || scenario.businessSystem.toLocaleLowerCase('en-US') === businessSystemFilter.toLocaleLowerCase('en-US');
+      if (!matchesBusinessSystem) return false;
+      if (!needle) return true;
+      return [
+        scenario.title,
+        scenario.scenarioId,
+        scenario.category,
+        scenario.businessSystem,
+        scenario.description,
+      ].some((value) => value.toLocaleLowerCase('zh-Hans-CN').includes(needle));
+    });
+  }, [businessSystemFilter, keyword, scenarios]);
+
+  const filtering = keyword.trim().length > 0 || businessSystemFilter !== 'ALL';
+  const resetFilters = (): void => {
+    setKeyword('');
+    setBusinessSystemFilter('ALL');
+  };
 
   useEffect(() => {
     if (editingId !== 'create' && editingId !== null && query.data && !editing) {
@@ -90,6 +139,7 @@ export default function StandardScenariosPage() {
           title: values.title.trim(),
           ...(values.category.trim() ? { category: values.category.trim() } : {}),
           description: values.description.trim(),
+          businessSystem: values.businessSystem.trim(),
           scenarioPayload,
           status: values.status,
         });
@@ -100,6 +150,7 @@ export default function StandardScenariosPage() {
         title: values.title.trim(),
         category: values.category.trim() || CATEGORY_FALLBACK,
         description: values.description.trim(),
+        businessSystem: values.businessSystem.trim(),
         status: values.status,
         // Only send the payload when the operator actually changed it: every PUT is a new edition.
         ...(currentPayload === values.payloadText ? {} : { scenarioPayload }),
@@ -172,6 +223,7 @@ export default function StandardScenariosPage() {
       scenarioId: '',
       title: '',
       category: CATEGORY_FALLBACK,
+      businessSystem: DEFAULT_BUSINESS_SYSTEM,
       description: '',
       status: 'PUBLISHED',
       payloadText: defaultPayloadText(),
@@ -184,6 +236,7 @@ export default function StandardScenariosPage() {
       scenarioId: scenario.scenarioId,
       title: scenario.title,
       category: scenario.category,
+      businessSystem: scenario.businessSystem,
       description: scenario.description,
       status: scenario.status === 'ARCHIVED' ? 'ARCHIVED' : 'PUBLISHED',
       payloadText: JSON.stringify(scenario.scenarioPayload ?? {}, null, 2),
@@ -199,6 +252,7 @@ export default function StandardScenariosPage() {
           <Descriptions size="small" column={1} bordered>
             <Descriptions.Item label="场景">{scenario.title}</Descriptions.Item>
             <Descriptions.Item label="场景 ID"><code>{scenario.scenarioId}</code></Descriptions.Item>
+            <Descriptions.Item label="业务系统">{scenario.businessSystem}</Descriptions.Item>
             <Descriptions.Item label="当前版本">v{scenario.version}（Rev {scenario.revision}）</Descriptions.Item>
           </Descriptions>
           <ul className="guidance-list">
@@ -245,18 +299,54 @@ export default function StandardScenariosPage() {
             </Empty>
           </div>
         ) : (
-          <div className="scenario-grid">
-            {scenarios.map((scenario) => (
-              <ScenarioCard
-                key={scenario.scenarioId}
-                scenario={scenario}
-                busy={toggleStatus.isPending || remove.isPending}
-                onEdit={() => openEdit(scenario)}
-                onToggle={() => toggleStatus.mutate(scenario)}
-                onDelete={() => confirmDelete(scenario)}
+          <Space orientation="vertical" size="middle" className="full-width">
+            <div className="surface-card scenario-toolbar" role="search" aria-label="搜索标准场景">
+              <Input
+                value={keyword}
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder="搜索标题 / 场景 ID / 分类 / 业务系统 / 介绍"
+                aria-label="搜索标题 / 场景 ID / 分类 / 业务系统 / 介绍"
+                onChange={(event) => setKeyword(event.target.value)}
               />
-            ))}
-          </div>
+              <Select<BusinessSystemFilter>
+                value={businessSystemFilter}
+                aria-label="按业务系统筛选"
+                onChange={setBusinessSystemFilter}
+                options={[
+                  { value: 'ALL', label: `全部业务系统（${scenarios.length}）` },
+                  ...businessSystemOptions,
+                ]}
+              />
+              <div className="scenario-toolbar-status">
+                <Typography.Text type="secondary">
+                  {filtering ? `筛选出 ${visibleScenarios.length} / ${scenarios.length} 个场景` : `共 ${scenarios.length} 个场景`}
+                </Typography.Text>
+                {filtering ? <Button type="link" size="small" onClick={resetFilters}>清除筛选</Button> : null}
+              </div>
+            </div>
+
+            {visibleScenarios.length === 0 ? (
+              <div className="surface-card">
+                <Empty description="没有匹配的标准场景。">
+                  <Button onClick={resetFilters}>清除筛选条件</Button>
+                </Empty>
+              </div>
+            ) : (
+              <div className="scenario-grid">
+                {visibleScenarios.map((scenario) => (
+                  <ScenarioCard
+                    key={scenario.scenarioId}
+                    scenario={scenario}
+                    busy={toggleStatus.isPending || remove.isPending}
+                    onEdit={() => openEdit(scenario)}
+                    onToggle={() => toggleStatus.mutate(scenario)}
+                    onDelete={() => confirmDelete(scenario)}
+                  />
+                ))}
+              </div>
+            )}
+          </Space>
         )}
       </Space>
 
@@ -289,6 +379,28 @@ export default function StandardScenariosPage() {
           <Form.Item name="category" label="分类标签" rules={[{ max: 64 }]}>
             <Input autoComplete="off" showCount maxLength={64} placeholder={CATEGORY_FALLBACK} />
           </Form.Item>
+          <Form.Item
+            name="businessSystem"
+            label="业务系统"
+            extra={`进入场景时打开的业务工作区，与插件端同一份数据：${BUSINESS_SYSTEM_SUGGESTIONS.join(' / ')}，也可填自定义名称；≤32 字符，不能包含 \\ / : * ? " < > |。`}
+            rules={[
+              { required: true, whitespace: true, message: '请输入业务系统（例如 CRM、TAPD）。' },
+              { max: 32, message: '业务系统不能超过 32 个字符。' },
+              { pattern: /^[^\\/:*?"<>|]+$/u, message: '业务系统不能包含 \\ / : * ? " < > | 中的字符。' },
+            ]}
+          >
+            {/* Free text with suggestions, i.e. the Console's `<input list=…>`: a custom workspace
+                name is legal, and the plugin's own rule is enforced by the validators above. */}
+            <AutoComplete
+              allowClear
+              maxLength={32}
+              placeholder={DEFAULT_BUSINESS_SYSTEM}
+              options={BUSINESS_SYSTEM_SUGGESTIONS.map((value) => ({ value }))}
+              filterOption={(input, option) => String(option?.value ?? '')
+                .toLocaleLowerCase('en-US')
+                .includes(input.toLocaleLowerCase('en-US'))}
+            />
+          </Form.Item>
           <Form.Item name="description" label="场景介绍" rules={[{ required: true, whitespace: true, message: '请输入场景介绍。' }, { max: 4_000 }]}>
             <Input.TextArea rows={3} showCount maxLength={4_000} placeholder="说明场景的功能与适用范围。" />
           </Form.Item>
@@ -303,7 +415,7 @@ export default function StandardScenariosPage() {
           <Form.Item
             name="payloadText"
             label="场景配置 Payload（JSON）"
-            extra="保存时服务端会强制写入 sourceType=COMPANY_STANDARD 与 readonlyForNormalUser=true，普通用户无法直接修改标准场景。"
+            extra="保存时服务端会强制写入 sourceType=COMPANY_STANDARD、readonlyForNormalUser=true 与业务系统，普通用户无法直接修改标准场景。"
             rules={[{
               validator: async (_rule, value: string) => {
                 try {
@@ -394,46 +506,43 @@ function ScenarioCard({
   const pinnedSkills = readPinnedSkills(scenario.scenarioPayload);
   return (
     <article className="surface-card scenario-card" aria-label={`标准场景 ${scenario.title}`}>
-      <div className="scenario-card-head">
-        <div>
-          <Typography.Title level={4}>{scenario.title}</Typography.Title>
-          <Space size={6} wrap>
-            <code>{scenario.scenarioId}</code>
-            <Tag>{scenario.category}</Tag>
+      <header className="scenario-card-head">
+        <div className="scenario-card-heading">
+          <Typography.Title level={4} className="scenario-card-title">{scenario.title}</Typography.Title>
+          <div className="scenario-chips">
+            <code className="scenario-id">{scenario.scenarioId}</code>
+            <Tag className="scenario-chip">{scenario.category}</Tag>
+            <Tag className="scenario-chip scenario-chip-business" icon={<AppstoreOutlined />}>
+              {scenario.businessSystem}
+            </Tag>
             <StatusTag label={scenario.status} />
-          </Space>
+          </div>
         </div>
-        <Tag color="blue">v{scenario.version}（Rev {scenario.revision}）</Tag>
-      </div>
-      <Typography.Paragraph type="secondary" className="scenario-description">{scenario.description}</Typography.Paragraph>
+        <Tag color="blue" className="scenario-version">v{scenario.version}（Rev {scenario.revision}）</Tag>
+      </header>
+
+      <Typography.Paragraph type="secondary" className="scenario-description" title={scenario.description}>
+        {scenario.description}
+      </Typography.Paragraph>
+
       <div className="scenario-section">
         <Typography.Text type="secondary">绑定 Skill</Typography.Text>
-        <Space size={4} wrap>
+        <div className="scenario-section-body">
           {pinnedSkills.length
-            ? pinnedSkills.map((skill) => <Tag key={skill} color="geekblue">{skill}</Tag>)
+            ? <OverflowTags values={pinnedSkills} color="geekblue" emptyText="未绑定" />
             : <Typography.Text type="secondary">未绑定</Typography.Text>}
-        </Space>
+        </div>
       </div>
+
       <div className="scenario-section">
         <Typography.Text type="secondary">预设附件（{scenario.presetAttachments.length}）</Typography.Text>
-        <Space size={4} wrap>
-          {scenario.presetAttachments.length
-            ? scenario.presetAttachments.map((attachment) => (
-                <Tooltip key={attachment.attachmentId} title={`${attachment.fileName} · ${formatBytes(attachment.fileSize)}`}>
-                  <Button
-                    size="small"
-                    icon={<DownloadOutlined />}
-                    href={adminApi.dshAttachmentUrl(scenario.scenarioId, attachment.attachmentId)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {attachment.fileName}
-                  </Button>
-                </Tooltip>
-              ))
-            : <Typography.Text type="secondary">无</Typography.Text>}
-        </Space>
+        <div className="scenario-section-body">
+          {scenario.presetAttachments.length ? (
+            <OverflowAttachments scenarioId={scenario.scenarioId} attachments={scenario.presetAttachments} />
+          ) : <Typography.Text type="secondary">无</Typography.Text>}
+        </div>
       </div>
+
       <Descriptions size="small" column={1} className="scenario-meta">
         <Descriptions.Item label="发布人">
           <code>{scenario.createdByPlatformUid}</code>
@@ -441,19 +550,73 @@ function ScenarioCard({
         </Descriptions.Item>
         <Descriptions.Item label="最后更新">{formatDateTime(scenario.updatedAt)}（{scenario.updatedByPlatformUid}）</Descriptions.Item>
       </Descriptions>
-      <Space size="small" wrap>
-        <Button type="primary" ghost icon={<EditOutlined />} aria-label={`编辑 ${scenario.title}`} onClick={onEdit}>编辑</Button>
-        <Button
-          icon={scenario.status === 'PUBLISHED' ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-          aria-label={`${scenario.status === 'PUBLISHED' ? '下架' : '上架'} ${scenario.title}`}
-          loading={busy}
-          onClick={onToggle}
-        >
-          {scenario.status === 'PUBLISHED' ? '下架' : '上架'}
-        </Button>
-        <Button danger icon={<DeleteOutlined />} aria-label={`删除 ${scenario.title}`} onClick={onDelete}>删除</Button>
-      </Space>
+
+      <div className="scenario-card-actions">
+        <Space size="small" wrap>
+          <Button type="primary" ghost icon={<EditOutlined />} aria-label={`编辑 ${scenario.title}`} onClick={onEdit}>编辑</Button>
+          <Button
+            icon={scenario.status === 'PUBLISHED' ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+            aria-label={`${scenario.status === 'PUBLISHED' ? '下架' : '上架'} ${scenario.title}`}
+            loading={busy}
+            onClick={onToggle}
+          >
+            {scenario.status === 'PUBLISHED' ? '下架' : '上架'}
+          </Button>
+          <Button danger icon={<DeleteOutlined />} aria-label={`删除 ${scenario.title}`} onClick={onDelete}>删除</Button>
+        </Space>
+      </div>
     </article>
+  );
+}
+
+/**
+ * Tags past the visible limit are folded into one `+N` chip whose tooltip lists the rest. Rendering
+ * them all would make a card with twelve Skills twice as tall as its neighbours, and the grid is
+ * read as a catalogue: rows of equal cards are easier to scan than a ragged column.
+ */
+function OverflowTags({ values, color, emptyText }: Readonly<{ values: readonly string[]; color: string; emptyText: string }>) {
+  if (values.length === 0) return <Typography.Text type="secondary">{emptyText}</Typography.Text>;
+  const visible = values.slice(0, MAX_VISIBLE_TAGS);
+  const hidden = values.slice(MAX_VISIBLE_TAGS);
+  return (
+    <Space size={4} wrap>
+      {visible.map((value) => <Tag key={value} color={color}>{value}</Tag>)}
+      {hidden.length ? (
+        <Tooltip title={hidden.join('、')}>
+          <Tag>+{hidden.length}</Tag>
+        </Tooltip>
+      ) : null}
+    </Space>
+  );
+}
+
+function OverflowAttachments({
+  scenarioId,
+  attachments,
+}: Readonly<{ scenarioId: string; attachments: DshStandardScenarioRecord['presetAttachments'] }>) {
+  const visible = attachments.slice(0, MAX_VISIBLE_ATTACHMENTS);
+  const hidden = attachments.slice(MAX_VISIBLE_ATTACHMENTS);
+  return (
+    <Space size={4} wrap>
+      {visible.map((attachment) => (
+        <Tooltip key={attachment.attachmentId} title={`${attachment.fileName} · ${formatBytes(attachment.fileSize)}`}>
+          <Button
+            size="small"
+            icon={<DownloadOutlined />}
+            href={adminApi.dshAttachmentUrl(scenarioId, attachment.attachmentId)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {attachment.fileName}
+          </Button>
+        </Tooltip>
+      ))}
+      {hidden.length ? (
+        <Tooltip title={hidden.map((attachment) => attachment.fileName).join('、')}>
+          <Tag>+{hidden.length}</Tag>
+        </Tooltip>
+      ) : null}
+    </Space>
   );
 }
 

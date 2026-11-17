@@ -239,7 +239,11 @@ textarea,
   box-shadow: var(--sfoa-shadow);
 }
 
-div.surface-card:not(.ant-card) {
+/*
+ * Any element, not just a <div>: the standard-scenario cards are <article> elements, and a
+ * div-only selector left their text flush against the border.
+ */
+.surface-card:not(.ant-card) {
   overflow: hidden;
   padding: 18px;
 }
@@ -640,7 +644,7 @@ div.surface-card:not(.ant-card) {
     width: 100%;
   }
 
-  div.surface-card:not(.ant-card) {
+  .surface-card:not(.ant-card) {
     padding: 12px;
   }
 
@@ -660,17 +664,44 @@ div.surface-card:not(.ant-card) {
 
 
 /* DSH-01 standard-scenario catalogue: a card grid rather than a table, because each row carries a
-   payload, an attachment list and two independent actions that would not fit a table cell. */
+   payload, an attachment list and two independent actions that would not fit a table cell.
+   `grid-auto-rows: 1fr` is what makes the cards a catalogue: every row is as tall as the tallest
+   card in the grid, so a one-line description does not produce a short card next to a tall one. */
 .scenario-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 18px;
+}
+
+.scenario-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 260px) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.scenario-toolbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  white-space: nowrap;
 }
 
 .scenario-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  height: 100%;
+  min-width: 0;
+  padding: 20px 20px 18px !important;
+  transition: box-shadow .18s ease, border-color .18s ease;
+}
+
+.scenario-card:hover {
+  border-color: #b9c6dd !important;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 12%);
 }
 
 .scenario-card-head {
@@ -680,15 +711,61 @@ div.surface-card:not(.ant-card) {
   gap: 12px;
 }
 
-.scenario-card-head h4.ant-typography {
-  margin: 0 0 6px;
-  font-size: 17px;
+.scenario-card-heading {
+  min-width: 0;
 }
 
-.scenario-description {
+/* Two lines at most: a long title must not push the actions of its card out of line. */
+.scenario-card-title.ant-typography {
+  display: -webkit-box;
+  margin: 0 0 8px;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scenario-version {
+  flex: none;
+  margin-inline-end: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.scenario-chips .ant-tag {
+  margin-inline-end: 0;
+}
+
+.scenario-id {
+  padding: 2px 6px;
+  border: 1px solid var(--sfoa-border);
+  border-radius: 6px;
+  background: var(--sfoa-canvas);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.scenario-chip-business {
+  font-weight: 600;
+}
+
+/* Three lines, clamped, with an explicit height so short and long descriptions align. */
+.scenario-description.ant-typography {
+  display: -webkit-box;
   margin: 0 !important;
-  min-height: 44px;
-  line-height: 1.55;
+  min-height: calc(3 * 1.6em);
+  overflow: hidden;
+  line-height: 1.6;
+  color: var(--sfoa-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .scenario-section {
@@ -697,13 +774,37 @@ div.surface-card:not(.ant-card) {
   gap: 6px;
 }
 
+.scenario-section > .ant-typography {
+  font-size: 12.5px;
+  letter-spacing: .02em;
+}
+
+.scenario-section-body {
+  min-height: 24px;
+}
+
+.scenario-meta.ant-descriptions {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
 .scenario-meta .ant-descriptions-item-label {
-  width: 88px;
+  width: 76px;
+  color: var(--sfoa-muted);
   white-space: nowrap;
 }
 
 .scenario-meta code {
   word-break: break-all;
+}
+
+.scenario-meta .ant-descriptions-view {
+  border-radius: 8px;
+}
+
+.scenario-card-actions {
+  padding-top: 14px;
+  border-top: 1px dashed var(--sfoa-border);
 }
 
 .scenario-attachment-row {
@@ -721,6 +822,20 @@ div.surface-card:not(.ant-card) {
   font-family: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
   font-size: 12.5px;
   line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .scenario-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .scenario-toolbar-status {
+    justify-content: flex-start;
+  }
+
+  .scenario-card {
+    padding: 16px 16px 14px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

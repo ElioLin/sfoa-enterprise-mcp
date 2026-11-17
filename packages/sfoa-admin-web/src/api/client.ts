@@ -64,6 +64,8 @@ export type DshScenarioWriteBody = Readonly<{
   title: string;
   category?: string;
   description: string;
+  /** DSH-01.1. Required in the Console form, optional on the wire (older plugins omit it). */
+  businessSystem?: string;
   scenarioPayload: unknown;
   status?: 'PUBLISHED' | 'ARCHIVED';
 }>;
@@ -72,6 +74,7 @@ export type DshScenarioPatchBody = Readonly<{
   title?: string;
   category?: string;
   description?: string;
+  businessSystem?: string;
   scenarioPayload?: unknown;
   status?: 'PUBLISHED' | 'ARCHIVED';
 }>;
@@ -183,9 +186,14 @@ export const adminApi = Object.freeze({
    * DSH-01 standard scenarios, through the Console alias under `/admin/api/dsh`. The prefix keeps
    * the ADR-0034 module gate and the Admin CSRF rules in force; the plugin's own `/api/dsh`
    * surface is token-authenticated and is never called from this console.
+   *
+   * `businessSystem` asks the server for one workspace (exact, case-insensitive). The Console page
+   * leaves it unset and filters the already-loaded catalogue locally so the search box and the
+   * workspace chip stay instant; the parameter is what a scoped caller or a script would use.
    */
-  dshScenarios: (includeArchived = true) => request<DshScenarioListResponse>(
-    `/dsh/scenarios?includeArchived=${includeArchived ? 'true' : 'false'}&includeDeleted=false`,
+  dshScenarios: (includeArchived = true, businessSystem?: string) => request<DshScenarioListResponse>(
+    `/dsh/scenarios?includeArchived=${includeArchived ? 'true' : 'false'}&includeDeleted=false${
+      businessSystem ? `&businessSystem=${encodeURIComponent(businessSystem)}` : ''}`,
   ),
   createDshScenario: (input: DshScenarioWriteBody) => request<DshScenarioResponse>(
     '/dsh/scenarios',

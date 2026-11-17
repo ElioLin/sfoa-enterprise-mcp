@@ -369,6 +369,8 @@ export type DshScenarioCreateInput = Readonly<{
   title: string;
   category: string;
   description: string;
+  /** Resolved by the service; always the same value the payload carries. */
+  businessSystem: string;
   /** Server-computed; a client-supplied version never reaches this input. */
   version: string;
   /** Server-computed; a client-supplied revision never reaches this input. */
@@ -385,6 +387,7 @@ export type DshScenarioUpdatePatch = Readonly<{
   title: string;
   category: string;
   description: string;
+  businessSystem: string;
   version: string;
   revision: number;
   scenarioPayload: unknown;
@@ -416,8 +419,11 @@ export type DshScenarioFileInsert = Readonly<{
  * never two rows claiming 1.0.1.
  */
 export interface DshScenarioRepository {
-  /** Non-deleted scenarios. `includeArchived` mirrors the Admin view; the plugin only sees PUBLISHED. */
-  listVisible(includeArchived: boolean): Promise<readonly DshStandardScenarioRecord[]>;
+  /**
+   * Non-deleted scenarios. `includeArchived` mirrors the Admin view; the plugin only sees
+   * PUBLISHED. `businessSystem` is an exact, case-insensitive filter — one workspace at a time.
+   */
+  listVisible(includeArchived: boolean, businessSystem?: string): Promise<readonly DshStandardScenarioRecord[]>;
   /** Tombstones for the plugin's local cleanup. */
   listDeletedIds(): Promise<readonly string[]>;
   getById(scenarioId: string): Promise<DshStandardScenarioRecord | undefined>;

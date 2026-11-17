@@ -67,6 +67,130 @@ test('DSH-01 payload normalization forces the standard-scenario markers', () => 
   assert.throws(() => normalizeDshScenarioPayload({ blob: 'x'.repeat(300_000) }), ControlPlaneError);
 });
 
+test('DSH-01.1 business system resolves top level, then payload, then CRM', async () => {
+  const { service } = newService();
+
+  // 1.7.0-era client: no field anywhere.
+  const legacy = await service.create(createInput({ scenarioId: 'no-hint' }), ACTOR);
+  assert.equal(legacy.businessSystem, 'CRM');
+  assert.equal((legacy.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'CRM');
+
+  // 1.8.0 client: the value only travels inside the payload passthrough.
+  const fromPayload = await service.create(createInput({
+    scenarioId: 'payload-hint',
+    scenarioPayload: { pinnedSkills: [], businessSystem: 'TAPD', pluginOnlyKey: { nested: [1, 2] } },
+  }), ACTOR);
+  assert.equal(fromPayload.businessSystem, 'TAPD');
+  assert.equal((fromPayload.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'TAPD');
+  assert.deepEqual(
+    (fromPayload.scenarioPayload as Readonly<{ pluginOnlyKey: unknown }>).pluginOnlyKey,
+    { nested: [1, 2] },
+    'a payload key the server has never heard of is still stored verbatim',
+  );
+
+  // The top-level field wins over the payload copy, and both are written back as one value.
+  const topLevel = await service.create(createInput({
+    scenarioId: 'top-level',
+    businessSystem: '其他',
+    scenarioPayload: { pinnedSkills: [], businessSystem: 'TAPD' },
+  }), ACTOR);
+  assert.equal(topLevel.businessSystem, '其他');
+  assert.equal((topLevel.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, '其他');
+
+  // An unusable payload hint degrades to the default instead of failing an old client's write.
+  const unusableHint = await service.create(createInput({
+    scenarioId: 'bad-hint',
+    scenarioPayload: { businessSystem: 'a/b' },
+  }), ACTOR);
+  assert.equal(unusableHint.businessSystem, 'CRM');
+  assert.equal((unusableHint.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'CRM');
+});
+
+test('DSH-01.1 a business-system edit is an ordinary edit for version and revision', async () => {
+  const { service } = newService();
+  const created = await service.create(createInput({ businessSystem: 'CRM' }), ACTOR);
+  assert.equal(created.version, '1.0.0');
+  assert.equal(created.revision, 1);
+
+  const moved = await service.update('lead-follow-up', { businessSystem: 'TAPD' }, ACTOR);
+  assert.equal(moved.businessSystem, 'TAPD');
+  assert.equal((moved.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'TAPD');
+  assert.equal(moved.version, '1.0.1');
+  assert.equal(moved.revision, 2);
+
+  // An edit that names no business system keeps the row where it is — never a silent reset to CRM.
+  const titleOnly = await service.update('lead-follow-up', { title: '商机跟进（标准）' }, ACTOR);
+  assert.equal(titleOnly.businessSystem, 'TAPD');
+  assert.equal((titleOnly.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'TAPD');
+
+  // A payload rewrite without a hint keeps it too; a payload hint is adopted when it is usable.
+  const payloadRewrite = await service.update('lead-follow-up', {
+    scenarioPayload: { pinnedSkills: ['crm-lead-follow-up'], welcomeMessage: '改版' },
+  }, ACTOR);
+  assert.equal(payloadRewrite.businessSystem, 'TAPD');
+  assert.equal((payloadRewrite.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'TAPD');
+
+  const payloadMoves = await service.update('lead-follow-up', {
+    scenarioPayload: { pinnedSkills: [], businessSystem: 'CRM' },
+  }, ACTOR);
+  assert.equal(payloadMoves.businessSystem, 'CRM');
+
+  // A top-level value the contract cannot accept is a caller error, not a silent fallback.
+  for (const invalid of ['x'.repeat(35), 'CRM/TAPD', '  ', 'A:B']) {
+    await assert.rejects(
+      service.update('lead-follow-up', { businessSystem: invalid }, ACTOR),
+      (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+      `${invalid} must be rejected`,
+    );
+  }
+  // …and the rejected writes left nothing behind.
+  assert.equal((await service.get('lead-follow-up'))?.businessSystem, 'CRM');
+});
+
+test('DSH-01.1 re-posting an existing scenario does not move it out of its workspace', async () => {
+  const { service } = newService();
+  await service.create(createInput({ businessSystem: 'TAPD' }), ACTOR);
+
+  // A 1.7.0 plugin "publish as standard" call carries no business system anywhere. The POST replaces
+  // the scenario's content, but the row must stay in the workspace an operator put it in.
+  const reposted = await service.create(createInput({
+    title: '商机跟进（重新发布）',
+    description: '老插件重新发布。',
+    scenarioPayload: { pinnedSkills: ['crm-lead-follow-up'] },
+  }), ACTOR);
+  assert.equal(reposted.title, '商机跟进（重新发布）', 'POST still replaces the content');
+  assert.equal(reposted.businessSystem, 'TAPD');
+  assert.equal((reposted.scenarioPayload as Readonly<{ businessSystem: string }>).businessSystem, 'TAPD');
+
+  // Naming one explicitly is honoured, and it is still an ordinary edit for the version pair.
+  const moved = await service.create(createInput({ businessSystem: 'CRM' }), ACTOR);
+  assert.equal(moved.businessSystem, 'CRM');
+  assert.equal(moved.version, '1.0.2');
+  assert.equal(moved.revision, 3);
+});
+
+test('DSH-01.1 the catalogue filters by business system, case-insensitively', async () => {
+  const { service } = newService();
+  await service.create(createInput({ scenarioId: 'crm-one', businessSystem: 'CRM' }), ACTOR);
+  await service.create(createInput({ scenarioId: 'tapd-one', businessSystem: 'TAPD' }), ACTOR);
+  await service.create(createInput({ scenarioId: 'custom-one', businessSystem: '自研结算' }), ACTOR);
+
+  const ids = async (businessSystem?: string): Promise<readonly string[]> => (
+    await service.list({ includeArchived: true, includeDeleted: true, ...(businessSystem === undefined ? {} : { businessSystem }) })
+  ).scenarios.map((scenario) => scenario.scenarioId).sort();
+
+  assert.deepEqual(await ids(), ['crm-one', 'custom-one', 'tapd-one']);
+  assert.deepEqual(await ids('CRM'), ['crm-one']);
+  assert.deepEqual(await ids('tapd'), ['tapd-one'], 'the filter is exact but case-insensitive');
+  assert.deepEqual(await ids(' 自研结算 '), ['custom-one'], 'surrounding whitespace is trimmed');
+  assert.deepEqual(await ids('Salesforce'), []);
+  // A filter the contract cannot represent is refused rather than silently matching everything.
+  await assert.rejects(
+    service.list({ includeArchived: true, includeDeleted: true, businessSystem: 'TAPD/CRM' }),
+    (error: unknown) => error instanceof ControlPlaneError && error.code === 'MCP_CONTROL_PLANE_CONFIGURATION_INVALID',
+  );
+});
+
 test('DSH-01 create assigns 1.0.0 / revision 1 and every edit advances both', async () => {
   const { service, store } = newService();
   const created = await service.create(createInput(), ACTOR);

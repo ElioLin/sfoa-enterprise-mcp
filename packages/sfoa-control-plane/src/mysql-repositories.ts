@@ -30,6 +30,11 @@ import {
   type ToolControlRecord,
   type TotalPage,
 } from './contracts.js';
+import {
+  DSH_SCENARIO_DEFAULT_BUSINESS_SYSTEM,
+  readDshBusinessSystem,
+  readDshPayloadBusinessSystem,
+} from './dsh-scenario-contracts.js';
 import { ControlPlaneError, toControlPlaneError } from './errors.js';
 import type {
   AttachmentStagingCreateInput,
@@ -715,9 +720,12 @@ export class MySqlAttachmentStagingRepository implements AttachmentStagingReposi
 export class MySqlDshScenarioRepository implements DshScenarioRepository {
   public constructor(private readonly database: Executor) {}
 
-  public async listVisible(includeArchived: boolean): Promise<readonly DshStandardScenarioRecord[]> {
+  public async listVisible(includeArchived: boolean, businessSystem?: string): Promise<readonly DshStandardScenarioRecord[]> {
     let query = this.database.selectFrom('crm_dsh_standard_scenarios').selectAll()
       .where('status', 'in', includeArchived ? ['PUBLISHED', 'ARCHIVED'] : ['PUBLISHED']);
+    // The column is `utf8mb4_0900_ai_ci`, so `=` is already an exact, case-insensitive match and
+    // `idx_crm_dsh_scenario_business_system` is still usable (a LOWER() wrapper would not be).
+    if (businessSystem !== undefined) query = query.where('business_system', '=', businessSystem);
     const rows = await query.orderBy('updated_at', 'desc').orderBy('scenario_id').execute();
     return Object.freeze(rows.map(mapDshScenario));
   }
@@ -746,6 +754,7 @@ export class MySqlDshScenarioRepository implements DshScenarioRepository {
         scenario_id: input.scenarioId,
         title: input.title,
         category: input.category,
+        business_system: input.businessSystem,
         description: input.description,
         version: input.version,
         revision: input.revision,
@@ -766,6 +775,7 @@ export class MySqlDshScenarioRepository implements DshScenarioRepository {
     const result = await this.database.updateTable('crm_dsh_standard_scenarios').set({
       title: patch.title,
       category: patch.category,
+      business_system: patch.businessSystem,
       description: patch.description,
       version: patch.version,
       revision: patch.revision,
@@ -912,14 +922,20 @@ function mapDshScenario(row: Selectable<DshStandardScenarioTable>): DshStandardS
       `Stored DSH standard scenario ${row.scenario_id} has an unsupported status.`,
     );
   }
+  const scenarioPayload = parseStoredJson(row.scenario_payload);
   return Object.freeze({
     scenarioId: row.scenario_id,
     title: row.title,
     category: row.category,
+    // Column first, then the payload copy, then the default — the same order the write path uses.
+    // Reading is lenient on purpose: one unusable stored value must not blank the whole catalogue.
+    businessSystem: readDshBusinessSystem(row.business_system)
+      ?? readDshPayloadBusinessSystem(scenarioPayload)
+      ?? DSH_SCENARIO_DEFAULT_BUSINESS_SYSTEM,
     description: row.description,
     version: row.version,
     revision: Number(row.revision),
-    scenarioPayload: parseStoredJson(row.scenario_payload),
+    scenarioPayload,
     presetAttachments: mapDshPresetAttachments(row.scenario_id, row.preset_attachments),
     status,
     createdByPlatformUid: row.created_by_platform_uid,

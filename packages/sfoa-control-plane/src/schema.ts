@@ -22,6 +22,12 @@ export interface DshStandardScenarioTable {
   scenario_id: string;
   title: string;
   category: string;
+  /**
+   * DSH-01.1. The business system whose workspace the scenario opens into. A real column (not a
+   * payload read) because the Console filters and counts on it; the payload carries a copy because
+   * the plugin's `pick()` reads that one first.
+   */
+  business_system: string;
   description: string;
   version: string;
   revision: number;

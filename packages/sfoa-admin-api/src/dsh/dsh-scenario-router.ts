@@ -150,7 +150,11 @@ async function handleList(options: DshScenarioRouterOptions, resolution: DshActo
   const query = parseWithSchema(dshScenarioListQuerySchema, queryObject(options.url));
   // Archived scenarios are unpublished drafts: only a caller that could edit them may list them.
   const includeArchived = query.includeArchived && resolution.auth.canManageStandardScenario;
-  const result = await options.service.list({ includeArchived, includeDeleted: query.includeDeleted });
+  const result = await options.service.list({
+    includeArchived,
+    includeDeleted: query.includeDeleted,
+    ...(query.businessSystem === undefined ? {} : { businessSystem: query.businessSystem }),
+  });
   const body: DshScenarioListResponse = Object.freeze({
     auth: resolution.auth,
     scenarios: result.scenarios,
