@@ -39,6 +39,7 @@ Evidence-Based Mutation Readiness
 | Evidence 不足或被截断 | 见 [dynamic-forms.md](dynamic-forms.md) 的 Evidence Completeness |
 | Mutation Intent 与最终 payload 不一致 | payload 超出业务任务或违反用户明确限定 |
 | 用户已显式指定但解析失败 | 例如显式 Owner / Lookup 0 match、multiple match |
+| CREATE 确认单未获用户确认 | Hard Rule 52：完整字段赋值清单未呈现或未获用户确认，且用户未明确豁免（见 [create-readiness.md](create-readiness.md)） |
 
 未决事实确实可能改变所选表单的适用必填，或影响提交字段合法性及 Lookup/Picklist，且现有可靠证据无法消解时，属于 Critical Dynamic Dependency；`criticalUnknown` 必须先解决，API 已有值不能替代该判断。
 

@@ -30,7 +30,7 @@
 
 ## 提交与配置变化
 
-创建/编辑工具携带相同的 `formContext` 入口、应用和 Quick Action 来源选择。提交时移除 `recommendationFields`；服务器自动执行 `SUBMIT` 阶段重新取证，发现配置变化、缺项或关键未知时在实际写入前拒绝。无需另加一轮用户确认；也无需为了形式重复调用一次上下文工具。
+创建/编辑工具携带相同的 `formContext` 入口、应用和 Quick Action 来源选择。提交时移除 `recommendationFields`；服务器自动执行 `SUBMIT` 阶段重新取证，发现配置变化、缺项或关键未知时在实际写入前拒绝。这一服务端复核不需要为它另加一轮用户确认，也无需为了形式重复调用一次上下文工具；但 CREATE 的**字段赋值确认单**（SKILL.md Hard Rule 52）是独立的用户放行规则，不受本条影响——服务端复核配置与必填，用户确认业务内容，两层各自成立。
 
 `uiContextResolutionId` 原样传递用于审计关联，它是客户端提供的未核验关联，不是授权票据。`MCP_FORM_NOT_READY` / `MCP_FORM_CONTEXT_UNAVAILABLE` 表示提交前未就绪或证据不可用；按实际缺口补证后重新准备。已分派后 `MCP_DML_OUTCOME_UNKNOWN` 仍禁止自动重试。
 

@@ -1,15 +1,15 @@
 ---
 name: crm-record-change
-description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增、创建、修改记录时使用：Record Type、Dynamic Forms、必填字段、最小 Patch、Lookup/Picklist、Owner fallback、批量变更、附件上传；配合 crm-core，不用于纯查询。
-display_name: "CRM 记录新建与修改"
+description: Salesforce CREATE/UPDATE 记录变更就绪与安全执行。新增、创建、修改记录时使用：Record Type、Dynamic Forms、必填字段、创建确认单、最小 Patch、Lookup/Picklist、Owner fallback、批量变更、附件上传；配合 crm-core，不用于纯查询。
+display_name: "CRM 单据创建与修改"
 display_name_en: "CRM Record Create & Update"
 ---
 
-# CRM 记录新建与修改（SFoA Record Change）
+# CRM 单据创建与修改（SFoA Record Change）
 
-指导修订：1.16.0 — 创建/编辑标准流程（起始状态基准、终态不预写、整步一次写完）、按钮动作与子表规则通用化。
+指导修订：1.17.0 — 新增 Hard Rule 52：CREATE 提交前的完整字段赋值确认单（固定放行规则，仅用户明确豁免可跳过）；1.16.0 — 创建/编辑标准流程（起始状态基准、终态不预写、整步一次写完）、按钮动作与子表规则通用化。
 
-按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/所选表单事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → 执行和回执。CREATE/UPDATE 使用 `formContext`，默认标准入口；具体见 [精确表单流程](references/precise-forms.md)。可复用仍适用的上下文，但 CREATE 前 **MUST** 满足 Hard Rule 45 的«本次表单证据»；查询、纯附件或诊断不进入该表单流程。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
+按任务理解动作 → 综合实际已读材料 → 取得当前对象/Record Type/所选表单事实 → 映射与关联 → 适用查重 → 解决剩余实质歧义 → CREATE 确认单放行（Hard Rule 52）→ 执行和回执。CREATE/UPDATE 使用 `formContext`，默认标准入口；具体见 [精确表单流程](references/precise-forms.md)。可复用仍适用的上下文，但 CREATE 前 **MUST** 满足 Hard Rule 45 的«本次表单证据»；查询、纯附件或诊断不进入该表单流程。事前申请与事后纪要依据真实元数据和时态区分，不固定对象或三字段模板。多条收集时遵守“等我说完”；创建后补充/更正/归档沿工具证明的目标继续，不重新建单。
 
 工具结果被客户端截断时，不把可见片段当完整字段表。利用已有字段定义，按任务调用 `get_record_action_context.fieldApiNames` 缩小响应；必填/条件必填与已知控制依赖仍保留，遗漏与未知字段在 coverage.fieldProjection 中说明。相关 Picklist 续取仍用 nextValueOffset，不为无关字段重复读取完整上下文。
 
@@ -31,7 +31,7 @@ display_name_en: "CRM Record Create & Update"
 2. **取本次证据**：`get_record_action_context` 取主表单与 `availableActions`；命中按钮动作时再按该按钮自己的 `formContext` 取一次。
 3. **判状态前提**：判断目标按钮是否可用，**MUST** 以记录**在流程中的起始状态**为基准，而不是用户期望的终态——页面按钮的显隐规则常常绑定状态，记录一旦进入终态，该按钮与它承载的必填集合就一起消失。CREATE **MUST NOT** 主动写入终态/完成类字段（状态、阶段、完成标记、关闭标志），让对象默认值给出起始状态；只有用户明确要求、且该终态不会关闭完成任务所需的按钮时才写。
 4. **一次性汇总值**：第一次写入前把这一步需要的**全部**字段值准备好——材料有依据的提炼写入，没有依据的**集中问一次**；文本类经用户同意可写「无」，日期、数值、货币、百分比、Picklist、Lookup 一律不得用占位值。**MUST NOT** 用「报告未记录…」这类材料状态描述去凑必填（见 Hard Rule 51）。
-5. **一次写完**：同一按钮或同一次编辑的全部字段，**MUST** 在**一次**写入中提交。**MUST NOT** 先写一部分再逐步补齐——部分写入会触发状态流转或自动化，剩余动作与必填校验随之失效。
+5. **确认单放行，一次写完**：CREATE **MUST** 先按 Hard Rule 52 把完整字段赋值确认单呈现给用户并取得确认（或用户已明确豁免）。确认后，同一按钮或同一次编辑的全部字段，**MUST** 在**一次**写入中提交。**MUST NOT** 先写一部分再逐步补齐——部分写入会触发状态流转或自动化，剩余动作与必填校验随之失效。
 6. **子表与回读**：需要明细/参与人时按子对象真实结构写入并回查条数；写入后回读关键字段确认必填已清空；若自动化（Flow/触发器）已改变状态使后续动作不可用，**MUST** 停下如实报告剩余项，**MUST NOT** 声称任务完成。
 
 ## Hard Rules
@@ -89,6 +89,8 @@ display_name_en: "CRM Record Create & Update"
 
 51. **字段值是业务事实，不是材料状态** — 字段值 **MUST** 是站在业务执行人视角的业务事实（客户情况、我方判断、事件经过、结论），**MUST NOT** 写成关于材料本身的元陈述或证据状态。禁止两类写法：① 任何以「报告 / 文档 / 材料 / 附件 / 原文 / 资料」当主语的句子（`报告未记录…`、`文档中未提及…`、`材料未说明…`、`附件无相关内容`）；② 单独充当字段值的空值占位（`未获取到`、`无法确认`、`待补充`、`未知`、`暂无`、`无数据`、`N/A`）。注意区分：`客户暂无采购计划`、`未知悉竞争对手方案` 是业务事实，合格；`暂无`、`未知` 本身不是。材料对某议题保持沉默 **不等于** 业务上「没有」：既不能把沉默包装成「客户未反馈」「客户无此问题」这类业务结论，也不能把「我没找到」写进字段——两者都是把证据缺失伪装成事实。真实缺口只有三种收口：① 集中一次问用户（并给出可一键确认的建议值）；② 用户确认不适用的**文本 / 长文本**写「无」；③ 非必填则省略该字段（`omitted != null`，不主动清空）。理由：这些字段进入报表、下游分析与客户档案，一条元陈述会被长期当成真实业务数据，既无法与真实结论区分，也会让「客户品质情况 = 报告未记录…」这类值污染按字段聚合的统计。**MUST NOT** 用「如实记录材料状态」为这种写法辩护。
 
+52. **CREATE 确认单（固定放行规则）** — 调用 `create_record` / `create_records` 之前，**MUST** 在本轮对话中先向用户呈现本次创建的**完整字段赋值清单**，并取得用户的明确确认后才 dispatch；`CHANGE_READY=true` 也不得跳过本规则。清单 **MUST** 覆盖将写入 payload 的**全部**字段（必填与选填都列出），每项包含中文字段名（label）、拟写入值与值来源（直接提供 / 材料提炼 / 关联推导 / 系统默认 / 托管策略）；由可信默认、managed 策略或 Owner fallback 满足的字段注明「按系统默认 / 托管写入，无需提供」。Record Type 选择与查重结论作为背景随单一并说明。仍有必填缺口时，**MUST** 把 Hard Rule 48 的集中提问与已确定的赋值合并在同一轮呈现（「以下为拟写入内容，其中 X、Y 待你补充」）；用户补全并放行即视为对本清单的确认，**MUST NOT** 借「已确认的部分」先提交一部分。批量创建按 [batch-mutations.md](references/batch-mutations.md) 分组呈现：同一批可共用一次确认，但每条记录的字段值仍逐条列出，且每条记录都独立 ready。豁免只有一种：用户在当前任务或会话中**明确**表示「不用确认，直接建」类指令；豁免 **MUST NOT** 由 Agent 推断、默认、跨会话延续，或从「业务任务已授权」推导——任务授权解释字段选择与萃取的自主性，不解释跳过确认。UPDATE 不适用本强制规则；当 Patch 含用户尚未见过的提炼 / 关联推导值时，**MUST** 在提交前一并列出变更字段与新值（合并进既有询问节奏，不新增独立轮次）。本规则与 `formContext` 的服务端 SUBMIT 复核是两层不同事实：服务端复核配置与必填，本规则取得的是用户对业务内容的确认；两者互不替代，也不得用「表单已 READY」或「服务端会复核」为由跳过用户确认。
+
 ## CREATE 与 UPDATE 的关键差异
 
 | 维度 | CREATE | UPDATE |
@@ -114,6 +116,7 @@ Intent 明确 + Object 明确 + Record Type 已解析 + Effective Context 足以
 + 实际缺失的必要信息清单为空 + 提交字段可 create + Lookup 唯一 + Picklist 已归一
 + Managed 策略满足 + 已做适用查重，实质同记录歧义已解决，覆盖限制如实说明
 + 证据完整 + Patch 与意图一致
++ 完整字段赋值确认单已呈现并获用户确认（或用户已明确豁免，Hard Rule 52）
 
 UPDATE:
 Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
@@ -139,7 +142,7 @@ Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
 
 在上述新鲜度边界内，是否需要额外读取、怎样合并 clarification、是否适合 singular / plural Tool、怎样记录 before-state、何时说明 broad batch impact、哪些 task-related optional 字段值得提醒，由 Agent 根据事实判断。
 
-业务目标已授权时，忠实提炼与可靠关联推导可直接写入。目标、关键事实或业务选择仍有实质歧义时才 clarification。
+业务目标已授权时，忠实提炼与可靠关联推导可直接进入 payload（字段选择与萃取不需要逐项审批）；但 CREATE 的最终 dispatch 仍受 Hard Rule 52 的确认单约束——「直接写入」指不因字段来源是提炼/推导而追问，不指跳过创建前的整单确认。目标、关键事实或业务选择仍有实质歧义时才 clarification。
 
 材料正文、适用上下文及可核验关联均可提供业务事实；Salesforce / Runtime 决定真实字段、存储值、权限与执行结果。
 
@@ -147,7 +150,7 @@ Intent 明确 + Object 明确 + TARGET_RESOLVED + Mutation scope 明确
 
 - 页面定位、Quick Action、动态问答、提交前复核、近期建议：[precise-forms.md](references/precise-forms.md)
 - 就绪模型与全部阻塞条件（CREATE + UPDATE）：[readiness-gate.md](references/readiness-gate.md)
-- CREATE 就绪、Initial Facts、Record Type、Required Checklist：[create-readiness.md](references/create-readiness.md)
+- CREATE 就绪、Initial Facts、Record Type、Required Checklist、字段赋值确认单：[create-readiness.md](references/create-readiness.md)
 - UPDATE 就绪、Target Resolution、Minimal Patch、Required/Default/Owner/Record Type：[update-readiness.md](references/update-readiness.md)
 - Dynamic Forms 四态、PENDING、UNKNOWN、refinement、证据完整性：[dynamic-forms.md](references/dynamic-forms.md)
 - Managed 字段与 Owner fallback：[managed-lookups.md](references/managed-lookups.md)

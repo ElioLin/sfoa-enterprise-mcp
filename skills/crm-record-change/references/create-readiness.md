@@ -160,9 +160,39 @@ Flow / Trigger 保存后才可能补值  →  不算当前 Required 已满足
 
 Default 必须有实时 Runtime / Salesforce evidence。`defaultValueTruncated=true` 时不得把该值当成可信默认。
 
+## CREATE 确认单（Hard Rule 52 放行规则）
+
+确认单是 CREATE 的最后一个用户可见 Gate：所有技术就绪条件满足后、调用 `create_record` / `create_records` 之前，**MUST** 把本次将要写入的全部字段赋值列成一张清单交给用户确认。`CHANGE_READY=true` 与 `formContext.status=READY` 都不能替代这一步。
+
+### 清单内容
+
+- 覆盖 payload 的**全部**字段：必填与选填都列出，不得只列必填。
+- 每项三要素：中文字段名（label）、拟写入值、值来源（直接提供 / 材料提炼 / 关联推导 / 系统默认 / 托管策略）。
+- 由可信默认值、`MANAGED_ON_WRITE` / `DEFAULT_ON_WRITE` 或 Owner fallback 满足的字段，写「按系统默认 / 托管写入，无需提供」——用户由此知道该项不会被追问、但会生效。
+- Record Type 选择、查重结论与覆盖限制作为背景一并说明，用户可据此否决整单。
+- 呈现用业务语言：Picklist 展示 label（写入时仍按 [lookup-and-picklist.md](lookup-and-picklist.md) 解析真实 API Value），Lookup 展示业务名称；不向用户堆砌 API 字段名。
+
+### 合并轮次
+
+- 有必填缺口时：Hard Rule 48 的集中提问与已确定赋值**合并为同一轮**——「以下为拟写入内容，其中 X、Y 待你补充；确认后我将按此创建」。用户补全并放行，即视为对本清单的确认。
+- 无缺口时：确认单本身是唯一新增轮次，**MUST NOT** 再为形式补第二轮确认。
+- 用户在确认轮修改字段值后，条件必填可能变化：回到 REFINE 重算，再呈现一次修订后的清单（受 refinement 上限约束）。
+
+### 批量
+
+`create_records` 按 [batch-mutations.md](batch-mutations.md) 分组呈现：同一批可共用一次确认，但每条记录的字段值逐条列出；一条记录未 ready 或未被确认，该记录不进本批。
+
+### 豁免与边界
+
+- 唯一豁免：用户在当前任务或会话中**明确**表示「不用确认，直接建」。**MUST NOT** 由 Agent 推断、默认、跨会话延续，或从「业务任务已授权」「材料已读」「字段值全部来自用户原话」推导豁免——用户逐字提供全部值时，确认单仍然呈现（它同时展示类型选择、默认值与托管项）。
+- 确认发生在对话层：不新增 Runtime 结构、Tool 参数或审批 Token；DML 审计由既有 P7 记录承载。
+- 与 `formContext` 的服务端 SUBMIT 复核分层：服务端复核配置与必填（`MCP_FORM_NOT_READY` 拦截），用户确认业务内容；两者互不替代，也不得用「服务端会复核」为由跳过用户确认。
+
 ## 与用户的询问节奏
 
 不要机械追求「整次 CREATE 只能问一次」。正确语义是：**当当前 Dynamic Forms dependency layer 已经稳定时，一次性合并询问这一层真正缺失的字段。**
+
+确认单（Hard Rule 52）按同样的节奏执行：缺口询问与已知赋值合并为一轮；用户放行即确认；不再为形式追加第二轮。
 
 示例（抽象，不绑定具体公司对象与字段名）：字段 A 处于 `PENDING`，`dependsOn` 返回字段 B，而字段 B 未知。先从材料、已有上下文或可用读取解决字段 B，仍缺关键事实才询问。用户回答后写入 draft 并 refinement，字段 A 可能变成 VISIBLE + Required，此时再询问字段 A。这是正确行为。
 
@@ -214,5 +244,6 @@ UPDATE 的写入工具选择同理（singular `update_record` / plural `update_r
 3. 必须集中一次提问，把两个中文字段名一次列全，并给出可直接采纳的建议：「若本次确实未涉及，我将填“无”，确认吗？」
 4. 用户确认后写入「无」，回执注明这是按确认填入的占位值；用户改口提供内容时按真实内容写入。
 5. 若这两项所在的按钮表单还缺其它字段，必须与本次写入一次提交（见 Hard Rule 50），不得先写一半。
+6. CREATE 本身 dispatch 前按 Hard Rule 52 呈现完整字段赋值确认单（与缺口提问合并为一轮）；按钮动作写入前同样把该步骤全部字段一次性汇总，不先写一半。
 
 **MUST NOT** 把具体 Object API Name、公司 Record Type ID 或具体 Picklist API Value 写进本 Skill。测试 fixture 使用抽象数据或仓库既有测试模式。

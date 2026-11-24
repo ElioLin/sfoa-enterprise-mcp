@@ -39,7 +39,7 @@ Baseline ID: SFOA-OPENCLAW-SKILLS-1.0 · 2026-09-13 · Skill-02A 修订 2026-09-
 | Skill（目录 / `name`） | `display_name` | `display_name_en` | 旧 slug |
 | --- | --- | --- | --- |
 | `crm-core` | CRM 业务助手 | CRM Business Assistant | `sfoa-crm-core` |
-| `crm-record-change` | CRM 记录新建与修改 | CRM Record Create & Update | `sfoa-record-change` |
+| `crm-record-change` | CRM 单据创建与修改 | CRM Record Create & Update | `sfoa-record-change` |
 | `crm-data-analysis` | CRM 数据统计与分析 | CRM Data Analytics | `sfoa-data-analysis` |
 | `crm-org-diagnostics` | CRM 问题诊断 | CRM Issue Diagnostics | `sfoa-org-diagnostics` |
 | `crm-playbook`（`.codebuddy`，`agent:sync` 生成） | CRM 业务操作指南 | CRM Operations Playbook | `sfoa-salesforce-assistant` |
