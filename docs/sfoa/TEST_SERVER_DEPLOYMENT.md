@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-11-24 CREATE 确认单（Hard Rule 52）+ 中文名变更发布到 203（`a605e78`）
+
+内容型更新 + 一个前端渲染器改动：Skill 1.17.0 新增 Hard Rule 52（CREATE 前完整字段赋值确认单）、`crm-record-change` 中文名改为「CRM 单据创建与修改」、`crm-core` 一句教义对齐；代码侧只有 `packages/sfoa-agent-playbook/src/renderer.ts` 的企微角色设定模板新增一条规则。slug 与 `openclaw.json` 均未变，**没有重建/重启 MCP 与 Admin API**：`sfoa-mcp-server` 全程 `PID=3973050`、`sfoa-admin-api` `PID=3973035`、`nginx` `PID=1267856`、`openclaw-gateway` `PID=3904712` 均未动。
+
+| 项 | 记录 |
+| --- | --- |
+| 提交 | `a605e78` `feat(skills): add pre-CREATE assignment confirmation gate and rename CRM display name`（31 文件）；已推送 `origin/feature/dsh-standard-scenarios-control-plane`（本机 `.gitconfig` 的 `http.https://github.com/.proxy` 指向未监听的 `127.0.0.1:7892`，推送时用 `-c "http.https://github.com/.proxy="` 直连成功） |
+| 归档 | `sfoa-app-a605e78.tar.gz`，4,561,621 B，sha256 `bdf2d426c82e4f250d7e5008674deeb13eefdfc2415705bc7bc7dfcf927efd5c`，`git -c core.autocrlf=false -c core.eol=lf archive HEAD`，1773 条目 / 1508 文件，无 `.env.local` 或密钥；本机与服务器哈希一致 |
+| 备份 | `backup/sfoa-app-pre-a605e78-20261124T095805.tar.gz`（9,359,881 B），排除 `node_modules` / `dist` / `.temp` / `projects` / `.workbuddy` / `.codegraph` |
+| 同步 | 解到 `staging-a605e78`（1508 文件）→ `rsync -a --omit-dir-times --no-perms`（**不带 `--delete`**）覆盖 `app/`；`app/.env.local` 保留 |
+| 构建 | `yarn workspace @sfoa/agent-playbook build` 通过；`yarn workspace @sfoa/admin-web build` 通过（仅有既有的 chunk >500 kB 提示） |
+| 产物校验 | `packages/sfoa-agent-playbook/dist/renderer.js` 命中「CREATE 提交前必须先呈现完整字段赋值确认单」1 次；`packages/sfoa-admin-web/dist/assets/` 中 1 个 bundle 命中同一规则文本（nginx 直接服务该 dist，无需重启） |
+| 健康检查 | `/health` 200（`auditPersistence UP`、`failureCount 0`、`queueDepth 0`）、`/admin/api/ready` 200、nginx `:9000` 200；四个 systemd 单元全部 `active`，未重启任何服务 |
+| Skill 发布 | `/data/openclaw/workspace/skills/` 下 `crm-record-change`（14 文件）与 `crm-core` 由 `manage.mjs runtime-sync --runtime-root /data/openclaw/workspace/skills` 从 `app/skills` 规范字节写入；`runtime-check` 两目录 `ok: true`、`drift: []` |
+| Skill 备份 | `/data/openclaw/backups/crm-record-change-pre-a605e78-20261124T095904.tar.gz`（54,093 B）、`crm-core-pre-a605e78-20261124T095904.tar.gz`（18,849 B） |
+| 字节校验 | 运行时 `SKILL.md` sha256：`crm-record-change` `07f82392…312c46`、`crm-core` `3e9f37c2…9dd11`，与本机 `git show HEAD:…` 的 blob 逐一相同（本地工作区因 Windows CRLF 哈希不同，属正常；发布字节为 LF） |
+| 网关 | 未重启：`openclaw gateway call skills.status --json` 的实时答案已返回新 description（含「创建确认单」），`modelVisible` 7 项，`agentSkillFilter` 含 `crm-core` / `crm-data-analysis` / `crm-record-change` / `crm-org-diagnostics` |
+| 未做 | 真实企微 UAT（需用户发起一次建单，观察是否先呈现完整字段赋值清单并等待确认）；OpenClaw 对 `display_name` 的解析仍以 `skills check` 为准 |
+| 回滚 | 恢复 `backup/sfoa-app-pre-a605e78-*.tar.gz` 到 `app/` → 重建 `@sfoa/agent-playbook` 与 `@sfoa/admin-web`；解包两个 Skill 备份覆盖 `workspace/skills/{crm-record-change,crm-core}`；无迁移、无服务重启需求（如需可按序重启 `sfoa-mcp-server` / `sfoa-admin-api` / `openclaw-gateway`） |
+
+---
+
 ## 2026-11-12 字段值形态规则（Hard Rule 51）发布到 203（`bbbf53f`）
 
 内容型更新，slug 与配置均未变，因此**没有改 `openclaw.json`**，也不需要重建 MCP：`sfoa-mcp-server` 全程 `PID=3869891` 未动、`/health` 200；只替换 `crm-record-change` 目录并重启网关让新内容生效。

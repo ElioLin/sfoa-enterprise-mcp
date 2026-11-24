@@ -11,7 +11,7 @@ The Skill doctrine already answered "which form does this USER see, which fields
 - **Doctrine plumbing.** `create-readiness.md` gains a «CREATE 确认单» section (list content, merged rounds, batch behavior, waiver bounds) and a sixth UAT regression expectation; `readiness-gate.md` adds the confirmation as a CREATE blocking condition; the CHANGE_READY summary and the six-step create/edit flow now include the confirmation step; instruction revision bumped to 1.17.0. The Playbook renderer carries the same rule so `crm-playbook` does not drift.
 - **Display name.** `display_name` / H1 renamed `CRM 记录新建与修改` → `CRM 单据创建与修改` (the business term is 单据); `name`, directory and all slugs stay ASCII `crm-record-change`, so `skill:sync/check` and the OpenClaw slug references are unaffected.
 
-Gates: `skill:sync` + `skill:check` drift `[]`, `skill:test`, `sfoa-agent-playbook` unit tests. The installed user-level WorkBuddy copy (`~/.workbuddy/skills/crm-record-change`) was updated in parallel; a republish is needed for OpenClaw hosts to pick up the new display name.
+Gates: `skill:sync` + `skill:check` drift `[]`, `skill:test`, `sfoa-agent-playbook` unit tests. The installed user-level WorkBuddy copy (`~/.workbuddy/skills/crm-record-change`) was updated in parallel. Deployed to the 203 test server (`a605e78`): app archive + staged rsync, `@sfoa/agent-playbook` / `sfoa-admin-web` rebuild, and `runtime-sync` of the two changed Skills to `/data/openclaw/workspace/skills`; evidence and rollback in [TEST_SERVER_DEPLOYMENT.md](TEST_SERVER_DEPLOYMENT.md).
 
 ## 2026-11-17 — The DSH business system becomes a first-class scenario field
 
