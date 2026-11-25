@@ -4,6 +4,34 @@
 
 ---
 
+## 部署记录 · DSH 标准场景 + 最新业务 Skill 与 OpenClaw 对齐 203（`086b163`，2026-11-25）
+
+本次把 `feature/dsh-standard-scenarios-control-plane` @ `086b1637` 部署到生产 `crm-mcp-prod`
+(`192.168.155.207`)，使生产 MCP 运行时代码与 OpenClaw 业务 Skill 同测试服 `crm-ex-test02`
+(`192.168.156.203`, 部署于 `a605e78`) 一致。运行时代码与 `a605e78` 相同（`086b163` 只追加测试服
+部署记录文档）。性质是**增量**：DSH 控制面（迁移 018/019、`/api/dsh/**`、后台「标准场景」模块）、
+记录动作发现/按钮可见性/通用创建编辑协议、`crm-` Skill slug、Hard Rule 51/52、附件默认 50 MiB；
+不改 MCP Tool 集合、身份解析、Audit fail-open 与 DML 治理语义。
+
+| 项 | 值 |
+| --- | --- |
+| 部署前基线（实测） | `sfoa-mcp-server` PID **1252785**、`sfoa-admin-api` **1252799**、`openclaw-gateway` **1169616**；health/ready UP；MCP initialize 1.14.0、tools/list **29**（`sfoa_tool_control` 行已于 2026-11-11T02:31 由控制台更新，四个 DML 工具 enabled=1；旧文档的「25、用户决定保持」已过期）；迁移台账 001–015+017；无 `crm_dsh_*` 表、无 `can_manage_dsh_scenarios` 列；runtime Skill 为四个 `sfoa-*`（39 文件旧字节） |
+| 归档/校验 | `sfoa-app-086b163.tar.gz`，4,563,047 B，sha256 `52a565c9f926f65aad4838a965be1a60aaa2de8662219c4c0bfbff484bc9becc`，`git -c core.autocrlf=false -c core.eol=lf archive`，1,509 文件；staging `staging-086b163-20261125T115012` 与 app `sha256sum -c` 均 **1,509 OK**；`.env.local` 未改（mtime 2026-10-15 17:22:48，`etc_t`） |
+| 备份 | `/data/sfoa-enterprise-mcp/backup/dsh-086b163-prod-20261125T114913/`（7.4M）：app source 4.5M、`dist-pre` 2.7M（重建前六包 dist）、`openclaw.json.pre-crm-slug`、`openclaw-skills-pre.tar.gz`（四个 `sfoa-*` + `sfoa` export）、`sfoa.conf.pre-dsh`、迁移前台账/工具治理快照、MCP/`skills check` 前态 |
+| 迁移 | `018_dsh_standard_scenarios` **APPLIED**（checksum `3db7b86b…114641`）与 `019_dsh_scenario_business_system`（`60e81d8b…7d97fd`）于 2026-11-25 11:52:07 CST（db-probe 读 UTC 03:52:07Z），与 203 同校验和；`can_manage_dsh_scenarios` = `tinyint(1) NOT NULL DEFAULT 0`，`crm_dsh_standard_scenarios`/`crm_dsh_scenario_files` 存在，`business_system` = `varchar(32) NOT NULL DEFAULT 'CRM'`，场景 0 行 |
+| 构建 | 11 包按 §6 顺序全 OK（11:51:49）；仅 6 包有源码变化（agent-playbook / control-plane / admin-web / context / mcp-server / admin-api）；清 `*.tsbuildinfo`/`.wireit`；`yarn.lock` 无变化、未重装依赖；与 203 对拍 **1,063 个 dist 文件逐字节相同**（含 `StandardScenariosPage-D9ebjmxK.js`、`renderer.js`、`dsh-scenario-router.js`） |
+| Nginx | `conf.d/sfoa.conf` 新增 `location /api/dsh/`（与 203 同块，转发 `Authorization`/`X-Buntu-Token`/`Origin`），改前备份；`nginx -t` 通过后 `reload`；**未部署** 203 的 `dsh-plugins.conf`（9001 Verdaccio 私有源 + 插件索引，属插件分发侧，不在本仓库/本次范围） |
+| 服务 | `sfoa-admin-api` PID **1287984**（11:52:28）、`sfoa-mcp-server` **1288000**（11:52:30），`NRestarts=0`；health UP（`auditPersistence` UP）、ready UP（DB 8.0.39）；`openclaw-gateway` **1288364**（11:53:16）；四单元 enabled/active |
+| MCP 协议 | initialize 200、protocolVersion `2025-06-18`、instructions 5,596 字符、Playbook **1.14.0**；tools/list **29**（与 203 同名）；活体只读 `get_username` / `get_agent_playbook` PASS 并落审计（03:54:15Z），route id 3、工号掩码 `61***79` |
+| DSH | `GET /api/dsh/scenarios`（匿名）200 `authenticated=false`、0 场景；`permission` false；`OPTIONS` 204 回显 CORS `GET, POST, PUT, DELETE, OPTIONS`；`?businessSystem=crm` 200、`CRM%2FTAPD` 400 `DSH_SCENARIO_INPUT_INVALID`；`/admin/api/dsh/scenarios` 无会话 401；后台登录 modules 含 `standard-scenarios`，DSH list 200、`canManageStandardScenario=true` |
+| Admin Web | `index.html` `c089db7e…` 与 203 相同；`index-D_LLTCoU.js`、`StandardScenariosPage-D9ebjmxK.js` 经 nginx 均 200（无 SELinux 403）；`chown -R root:root` + `restorecon -R`，`index.html` 为 `httpd_sys_content_t` |
+| OpenClaw | 发布四个 `crm-*` Skill（39 文件）到 `/data/openclaw/workspace/skills`，与 203 **逐字节相同**；`openclaw.json` 四个 slug 各 2 处定点改名（旧 slug 0 处、新 slug 各 2 处，JSON 校验通过；备份 `openclaw.json.pre-crm-slug` 与 `openclaw.json.bak-pre-crm-live-*`）；重启网关后 `skills check` **Total 97 / Visible 7**，四项 `crm-core`/`crm-data-analysis`/`crm-org-diagnostics`/`crm-record-change` modelVisible=true（`crm-record-change` 描述含「创建确认单」）；旧 `sfoa-*` runtime 目录已删除；`sfoa` 导出未变（`5ef50653…`）；企微通道重启后 `Authenticated`；masked deep diff 只剩环境主体值（identity 名、bind/origins、MCP token、企微 botId/secret） |
+| 治理差异（未改） | 207 `sfoa_dml_policy` 仅 2 行（`Lead` `enabled=0`、`Actual_Payment_Information__c` `enabled=1`），203 为 10 行；`sfoa_tool_control` 两边均 29/29 enabled。此项为生产治理选择，本次未改动；因此 `get_agent_playbook` 的能力清单（CREATE/UPDATE/附件允许对象）文本长度与 203 不同（61,664 vs 63,575），代码与版本一致 |
+| 未做 | 真实企微/Salesforce 业务 UAT（建单确认单、DSH 插件发布/安装/权限、附件）、浏览器登录态点击级 DSH UI、DML 策略对齐均未执行；不把协议/构建/字节 PASS 当业务 UAT |
+| 回滚 | 解回 `app-src.tar.gz` + `dist-pre.tar.gz` → `restorecon` → 启两个服务；恢复 `sfoa.conf.pre-dsh` → `nginx -t && reload`；恢复 `openclaw.json.pre-crm-slug` + `openclaw-skills-pre.tar.gz`、删除四个 `crm-*` 目录 → 重启网关；迁移 018/019 为纯增量，保留不回滚 |
+
+---
+
 ## 部署记录 · record-change precision 94f1833f（Playbook 1.14.0，2026-11-09）
 
 | 项 | 值 |
